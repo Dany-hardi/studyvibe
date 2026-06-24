@@ -339,7 +339,7 @@ function calculateAndEmailScore(PDO $pdo, array $session, array $registration, a
     // Envoyer l'email
     try {
         require_once __DIR__ . '/../Mailer.php';
-        Mailer::sendLiveEvalResults($registration['email'], $registration['name'], $session['title'], (float)$scorePercent, $qasDetails);
+        Mailer::sendLiveEvalResults($registration['email'], $registration['name'], $session['title'], $correctCount, $totalQuestions, $qasDetails);
     } catch (Exception $e) {
         // Ignorer l'erreur d'envoi d'e-mail
     }

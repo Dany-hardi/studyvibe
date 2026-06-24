@@ -687,6 +687,15 @@ try {
             $stmt = $pdo->prepare("SELECT * FROM live_eval_questions WHERE session_id = :sid ORDER BY sort_order ASC, id ASC");
             $stmt->execute(['sid' => $ls['id']]);
             $ls['questions'] = $stmt->fetchAll();
+
+            $totalDuration = 0;
+            foreach ($ls['questions'] as $q) {
+                $limit = $q['time_limit'] !== null ? (int)$q['time_limit'] : (int)$ls['default_time_limit'];
+                $totalDuration += $limit;
+            }
+            $sessionStart = strtotime($ls['start_time']);
+            $sessionEnd = $sessionStart + $totalDuration;
+            $ls['is_finished'] = (time() >= $sessionEnd || time() >= strtotime($ls['end_time']));
         }
         unset($ls);
     }
@@ -2146,14 +2155,20 @@ $successMsg = $successMessages[$successKey] ?? null;
                             </div>
                             <!-- Statut & Actions de base -->
                             <div class="flex items-center gap-3">
-                                <!-- Bouton Activation -->
-                                <form method="POST" action="/teacher/dashboard.php?course_id=<?= $selectedCourse['id'] ?>&action=toggle_live_session">
-                                    <input type="hidden" name="session_id" value="<?= $ls['id'] ?>">
-                                    <input type="hidden" name="status" value="<?= $isActive ? 0 : 1 ?>">
-                                    <button type="submit" class="px-3 py-1.5 text-xs font-semibold rounded-full border <?= $isActive ? 'bg-green-50 border-green-200 text-[#004B23]' : 'bg-gray-50 border-gray-200 text-[#555555]' ?>">
-                                        <?= $isActive ? '● Activé (ON)' : '○ Désactivé (OFF)' ?>
-                                    </button>
-                                </form>
+                                <?php if ($ls['is_finished']): ?>
+                                    <span class="px-3 py-1.5 text-xs font-semibold rounded-full border bg-red-50 border-red-200 text-[#D32F2F] flex items-center gap-1">
+                                        <span class="w-1.5 h-1.5 rounded-full bg-[#D32F2F]"></span> Terminé
+                                    </span>
+                                <?php else: ?>
+                                    <!-- Bouton Activation -->
+                                    <form method="POST" action="/teacher/dashboard.php?course_id=<?= $selectedCourse['id'] ?>&action=toggle_live_session">
+                                        <input type="hidden" name="session_id" value="<?= $ls['id'] ?>">
+                                        <input type="hidden" name="status" value="<?= $isActive ? 0 : 1 ?>">
+                                        <button type="submit" class="px-3 py-1.5 text-xs font-semibold rounded-full border <?= $isActive ? 'bg-green-50 border-green-200 text-[#004B23]' : 'bg-gray-50 border-gray-200 text-[#555555]' ?>">
+                                            <?= $isActive ? '● Activé (ON)' : '○ Désactivé (OFF)' ?>
+                                        </button>
+                                    </form>
+                                <?php endif; ?>
 
                                 <!-- Bouton Modifier -->
                                 <button type="button" 
@@ -2200,6 +2215,13 @@ $successMsg = $successMessages[$successKey] ?? null;
                             </div>
 
                             <div class="flex items-center gap-3">
+                                <?php if ($ls['is_finished']): ?>
+                                    <button type="button" onclick="openDispatchModal(<?= $ls['id'] ?>)" class="px-3 py-1.5 bg-[#004B23] text-white text-[11px] font-semibold uppercase tracking-wider rounded-sm hover:bg-[#003d1c] flex items-center gap-1.5">
+                                        <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M3 8l7.89 5.26a2 2 0 002.22 0L21 8M5 19h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v10a2 2 0 002 2z"/></svg>
+                                        Envoyer les e-mails
+                                    </button>
+                                <?php endif; ?>
+
                                 <!-- Exporter XLS -->
                                 <a href="/teacher/export-live-grades.php?session_id=<?= $ls['id'] ?>" class="px-3 py-1.5 border border-[#E5E5E7] text-[11px] font-semibold uppercase tracking-wider rounded-sm hover:bg-gray-50 bg-white text-[#111111] flex items-center gap-1.5">
                                     <svg class="w-3.5 h-3.5 text-green-700" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4"/></svg>
@@ -2406,6 +2428,54 @@ $successMsg = $successMessages[$successKey] ?? null;
     </div>
 </div>
 
+<!-- ── Modal : Dispatch/Envoyer les résultats par e-mail ────────── -->
+<div id="dispatch-emails-modal" class="hidden fixed inset-0 bg-black/40 backdrop-blur-sm z-[60] flex items-center justify-center p-6">
+    <div class="bg-white p-8 max-w-2xl w-full border border-[#E5E5E7] modal-inner flex flex-col max-h-[90vh]">
+        <div class="flex justify-between items-center mb-6">
+            <h3 class="font-serif text-2xl font-light">Envoyer les e-mails de résultats</h3>
+            <button type="button" onclick="toggleModal('dispatch-emails-modal')" class="text-[#888888] hover:text-[#D32F2F]">
+                <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"/>
+                </svg>
+            </button>
+        </div>
+
+        <div class="text-xs text-[#555555] mb-4">
+            Destinataires de la séance : <strong id="dispatch-session-title">--</strong>
+        </div>
+
+        <!-- Zone de chargement / Tableau des drafts -->
+        <div class="flex-1 overflow-y-auto min-h-[250px] border border-[#E5E5E7] p-2 bg-[#F9F9FA]">
+            <div id="dispatch-loading" class="flex flex-col items-center justify-center h-full py-8 space-y-2">
+                <span class="inline-block w-6 h-6 rounded-full border-2 border-t-transparent border-[#004B23] animate-spin"></span>
+                <span class="text-xs text-[#888888]">Chargement du brouillon des résultats...</span>
+            </div>
+            
+            <table id="dispatch-table" class="hidden w-full text-xs text-left border-collapse">
+                <thead>
+                    <tr class="border-b border-[#E5E5E7] bg-[#F5F5F7] text-[#555555] uppercase tracking-wider font-semibold">
+                        <th class="p-3">Étudiant</th>
+                        <th class="p-3">Adresse e-mail</th>
+                        <th class="p-3 text-center">Note</th>
+                        <th class="p-3 text-center">Statut</th>
+                    </tr>
+                </thead>
+                <tbody id="dispatch-tbody" class="divide-y divide-[#E5E5E7]">
+                    <!-- Rempli dynamiquement -->
+                </tbody>
+            </table>
+        </div>
+
+        <div class="flex justify-between items-center pt-6 mt-4 border-t border-[#E5E5E7]">
+            <span id="dispatch-count-info" class="text-xs text-[#555555]">--</span>
+            <div class="flex gap-3">
+                <button type="button" onclick="toggleModal('dispatch-emails-modal')" class="px-4 py-2 border border-[#E5E5E7] text-xs font-semibold uppercase tracking-wider rounded-sm text-[#555555] hover:bg-gray-50 bg-white">Annuler</button>
+                <button id="dispatch-confirm-btn" type="button" onclick="confirmDispatch()" class="px-4 py-2 bg-[#004B23] text-white text-xs font-semibold uppercase tracking-wider rounded-sm hover:bg-[#003d1c] disabled:opacity-50">Approuver et Envoyer</button>
+            </div>
+        </div>
+    </div>
+</div>
+
 <!-- ══════════════════════════════════════════════════════════
      FOOTER
 ══════════════════════════════════════════════════════════ -->
@@ -2435,6 +2505,113 @@ function openEditLiveSessionModal(button) {
 
 function closeAllModals() {
     document.querySelectorAll('[id$="-modal"]').forEach(m => m.classList.add('hidden'));
+}
+
+let currentDispatchSessionId = null;
+
+function openDispatchModal(sessionId) {
+    currentDispatchSessionId = sessionId;
+    
+    document.getElementById('dispatch-loading').classList.remove('hidden');
+    document.getElementById('dispatch-table').classList.add('hidden');
+    document.getElementById('dispatch-session-title').textContent = 'Chargement...';
+    document.getElementById('dispatch-count-info').textContent = '';
+    document.getElementById('dispatch-confirm-btn').disabled = true;
+    
+    toggleModal('dispatch-emails-modal');
+    
+    fetch(`/api/teacher-dispatch-live-emails.php?session_id=${sessionId}&action=get_draft`)
+        .then(response => response.json())
+        .then(data => {
+            if (!data.success) {
+                alert("Erreur: " + data.message);
+                toggleModal('dispatch-emails-modal');
+                return;
+            }
+            
+            document.getElementById('dispatch-session-title').textContent = data.session_title;
+            
+            const tbody = document.getElementById('dispatch-tbody');
+            tbody.innerHTML = '';
+            
+            if (data.drafts.length === 0) {
+                tbody.innerHTML = `<tr><td colspan="4" class="p-4 text-center text-[#888888] italic">Aucun participant inscrit à cette session.</td></tr>`;
+                document.getElementById('dispatch-count-info').textContent = 'Aucun destinataire';
+                document.getElementById('dispatch-confirm-btn').disabled = true;
+            } else {
+                let activeCount = 0;
+                data.drafts.forEach(student => {
+                    const hasAnswered = student.answered_count > 0;
+                    if (hasAnswered) activeCount++;
+                    
+                    const scoreText = `${student.correct_count} / ${student.total_questions}`;
+                    const statusText = hasAnswered ? 'Participé' : 'Inscrit uniquement';
+                    const statusClass = hasAnswered ? 'text-green-700 font-semibold' : 'text-gray-500 italic';
+                    
+                    const tr = document.createElement('tr');
+                    tr.className = 'border-b border-[#E5E5E7] hover:bg-gray-50';
+                    tr.innerHTML = `
+                        <td class="p-3 font-medium text-[#111111]">${escapeHtml(student.name)}</td>
+                        <td class="p-3 text-[#555555]">${escapeHtml(student.email)}</td>
+                        <td class="p-3 text-center font-mono">${scoreText}</td>
+                        <td class="p-3 text-center ${statusClass}">${statusText}</td>
+                    `;
+                    tbody.appendChild(tr);
+                });
+                
+                document.getElementById('dispatch-count-info').textContent = `${data.drafts.length} inscrit(s) (${activeCount} participant(s) actif(s))`;
+                document.getElementById('dispatch-confirm-btn').disabled = false;
+            }
+            
+            document.getElementById('dispatch-loading').classList.add('hidden');
+            document.getElementById('dispatch-table').classList.remove('hidden');
+        })
+        .catch(err => {
+            console.error(err);
+            alert("Erreur lors de la récupération du brouillon.");
+            toggleModal('dispatch-emails-modal');
+        });
+}
+
+function confirmDispatch() {
+    if (!currentDispatchSessionId) return;
+    
+    const btn = document.getElementById('dispatch-confirm-btn');
+    const originalText = btn.textContent;
+    btn.disabled = true;
+    btn.textContent = 'Envoi en cours...';
+    
+    const formData = new FormData();
+    formData.append('session_id', currentDispatchSessionId);
+    formData.append('action', 'dispatch');
+    
+    fetch('/api/teacher-dispatch-live-emails.php', {
+        method: 'POST',
+        body: formData
+    })
+    .then(response => response.json())
+    .then(data => {
+        btn.disabled = false;
+        btn.textContent = originalText;
+        
+        if (data.success) {
+            alert(data.message);
+            toggleModal('dispatch-emails-modal');
+        } else {
+            alert("Erreur: " + data.message);
+        }
+    })
+    .catch(err => {
+        console.error(err);
+        btn.disabled = false;
+        btn.textContent = originalText;
+        alert("Erreur lors de l'envoi des e-mails.");
+    });
+}
+
+function escapeHtml(str) {
+    if (!str) return '';
+    return str.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;").replace(/"/g, "&quot;").replace(/'/g, "&#039;");
 }
 
 // Polling temps réel des séances de téléévaluation côté enseignant

@@ -158,7 +158,7 @@ class Mailer
         return self::send($to, "StudyVibe — Résultats du Quiz : {$lessonTitle}", $body);
     }
 
-    public static function sendLiveEvalResults(string $to, string $studentName, string $sessionTitle, float $score, array $qas): bool
+    public static function sendLiveEvalResults(string $to, string $studentName, string $sessionTitle, int $correctCount, int $totalQuestions, array $qas): bool
     {
         $qasHtml = '';
         foreach ($qas as $idx => $qa) {
@@ -208,7 +208,7 @@ class Mailer
             
             <div style='background-color:#F5F5F7; border: 1px solid #E5E5E7; padding: 16px; margin: 20px 0; text-align: center;'>
                 <div style='font-size:12px; text-transform:uppercase; color:#888; letter-spacing:1px;'>Note Obtenue</div>
-                <div style='font-size:36px; font-weight:bold; color:#004B23; margin: 5px 0;'>{$score}%</div>
+                <div style='font-size:36px; font-weight:bold; color:#004B23; margin: 5px 0;'>{$correctCount} / {$totalQuestions}</div>
                 <div style='font-size:12px; color:#555;'>Ce résultat a été transmis à votre enseignant.</div>
             </div>
             

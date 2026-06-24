@@ -39,6 +39,11 @@ try {
         exit('Séance introuvable ou non autorisée.');
     }
 
+    // Récupérer le nombre total de questions
+    $qCountStmt = $pdo->prepare("SELECT COUNT(*) FROM live_eval_questions WHERE session_id = :sid");
+    $qCountStmt->execute(['sid' => $sessionId]);
+    $totalQuestions = (int)$qCountStmt->fetchColumn();
+
     // Récupérer les inscrits et leurs notes
     $stmt = $pdo->prepare("
         SELECT name, email, score, registered_at
@@ -51,10 +56,16 @@ try {
 
     $rows = [];
     foreach ($registrations as $r) {
+        if ($r['score'] !== null) {
+            $rawScore = round(((float)$r['score'] / 100) * $totalQuestions);
+            $scoreDisplay = "{$rawScore} / {$totalQuestions}";
+        } else {
+            $scoreDisplay = 'Non finalisé';
+        }
         $rows[] = [
             $r['name'],
             $r['email'],
-            $r['score'] !== null ? (float)$r['score'] . '%' : 'Non finalisé',
+            $scoreDisplay,
             $r['registered_at']
         ];
     }
