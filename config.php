@@ -12,26 +12,45 @@ date_default_timezone_set('Africa/Douala');
 
 $envFile = __DIR__ . '/.env';
 
-if (!is_file($envFile)) {
-    die('Fichier de configuration .env introuvable. Copiez .env.example en .env et remplissez vos valeurs.');
+if (is_file($envFile)) {
+    $lines = file($envFile, FILE_IGNORE_NEW_LINES | FILE_SKIP_EMPTY_LINES);
+    foreach ($lines as $line) {
+        $line = trim($line);
+        // Ignorer les commentaires
+        if (str_starts_with($line, '#') || !str_contains($line, '=')) {
+            continue;
+        }
+        [$key, $value] = explode('=', $line, 2);
+        $key = trim($key);
+        $value = trim($value);
+        // Retirer les guillemets éventuels
+        $value = trim($value, '\"\'');
+
+        if (!defined($key)) {
+            define($key, $value);
+        }
+    }
 }
 
-$lines = file($envFile, FILE_IGNORE_NEW_LINES | FILE_SKIP_EMPTY_LINES);
-foreach ($lines as $line) {
-    $line = trim($line);
-    // Ignorer les commentaires
-    if (str_starts_with($line, '#') || !str_contains($line, '=')) {
-        continue;
-    }
-    [$key, $value] = explode('=', $line, 2);
-    $key = trim($key);
-    $value = trim($value);
-    // Retirer les guillemets éventuels
-    $value = trim($value, '\"\'');
+// Charger depuis l'environnement système (pour Railway/Render)
+$envKeys = [
+    'DB_HOST', 'DB_PORT', 'DB_NAME', 'DB_USER', 'DB_PASS',
+    'APP_SECRET', 'APP_URL', 'HTTPS_ONLY',
+    'LOGIN_MAX_ATTEMPTS', 'LOGIN_LOCKOUT_MINUTES',
+    'SMTP_HOST', 'SMTP_PORT', 'SMTP_USER', 'SMTP_PASS', 'SMTP_FROM', 'SMTP_FROM_NAME',
+    'GEMINI_API_KEY'
+];
 
-    if (!defined($key)) {
-        define($key, $value);
+foreach ($envKeys as $key) {
+    $val = $_ENV[$key] ?? getenv($key) ?? null;
+    if ($val !== null && $val !== false && !defined($key)) {
+        define($key, (string)$val);
     }
+}
+
+// S'assurer qu'au moins l'un des deux (fichier .env ou variables système) est configuré
+if (!is_file($envFile) && !defined('DB_HOST')) {
+    die('Fichier de configuration .env introuvable et variables d\'environnement système non définies.');
 }
 
 // Valeurs par défaut si absentes
