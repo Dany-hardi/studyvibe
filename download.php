@@ -95,6 +95,27 @@ try {
     }
 
     if (!is_file($path)) {
+        if ($type === 'avatar') {
+            header('Location: https://www.gravatar.com/avatar/' . md5($file) . '?d=mp', true, 302);
+            exit;
+        }
+        if ($type === 'cover') {
+            header('Content-Type: image/svg+xml');
+            header('Cache-Control: public, max-age=86400');
+            echo '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 800 450" width="800" height="450">
+                <rect width="100%" height="100%" fill="#FDFCF7"/>
+                <defs>
+                    <linearGradient id="g" x1="0%" y1="0%" x2="100%" y2="100%">
+                        <stop offset="0%" stop-color="#004B23"/>
+                        <stop offset="100%" stop-color="#006630"/>
+                    </linearGradient>
+                </defs>
+                <rect x="20" y="20" width="760" height="410" rx="16" fill="url(#g)" opacity="0.06"/>
+                <circle cx="400" cy="225" r="90" fill="url(#g)" opacity="0.08"/>
+                <text x="50%" y="233" font-family="system-ui, -apple-system, sans-serif" font-size="28" font-weight="600" fill="#004B23" text-anchor="middle" opacity="0.5">StudyVibe Course</text>
+            </svg>';
+            exit;
+        }
         http_response_code(404);
         exit('Fichier introuvable.');
     }
