@@ -2607,6 +2607,7 @@ async function confirmDispatch() {
     
     let chunkIndex = 0;
     
+    let lastErrorMessage = '';
     const worker = async () => {
         while (chunkIndex < chunks.length) {
             const currentIndex = chunkIndex++;
@@ -2631,14 +2632,17 @@ async function confirmDispatch() {
                 processedCount += currentChunk.length;
                 if (!data.success) {
                     failedCount += currentChunk.length;
+                    if (data.message) lastErrorMessage = data.message;
                 } else if (data.fail_count > 0) {
                     failedCount += data.fail_count;
+                    if (data.last_error) lastErrorMessage = data.last_error;
                 }
                 updateProgressUI();
             } catch (err) {
                 console.error("Erreur d'envoi pour un lot", err);
                 processedCount += currentChunk.length; // Skip over the failed ones in UI logic to prevent infinite hanging
                 failedCount += currentChunk.length;
+                lastErrorMessage = err.message;
                 updateProgressUI();
             }
         }
@@ -2656,7 +2660,7 @@ async function confirmDispatch() {
     
     setTimeout(() => {
         if (failedCount > 0) {
-            alert(`Processus terminé, mais il y a eu ${failedCount} échecs. Vérifiez les limites SMTP ou votre connexion.`);
+            alert(`Processus terminé, mais il y a eu ${failedCount} échecs.\nDernière erreur : ${lastErrorMessage}\nVérifiez la configuration SMTP.`);
         } else {
             alert("Tous les e-mails ont été traités avec succès.");
         }

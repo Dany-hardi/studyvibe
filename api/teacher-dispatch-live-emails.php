@@ -148,6 +148,7 @@ try {
                 $successCount++;
             } else {
                 $failCount++;
+                $lastError = Mailer::getLastError() ?? 'Erreur inconnue';
             }
         }
 
@@ -155,6 +156,7 @@ try {
             'success' => true,
             'success_count' => $successCount,
             'fail_count' => $failCount,
+            'last_error' => $lastError ?? null,
             'message' => "E-mails envoyés avec succès à {$successCount} étudiant(s)." . ($failCount > 0 ? " Échec pour {$failCount} étudiant(s)." : "")
         ]);
         exit;
