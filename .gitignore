@@ -1,0 +1,36 @@
+# ====================================================================
+# STUDYVIBE GITIGNORE TEMPLATE
+# ====================================================================
+
+# 1. Fichiers de Configuration Sensibles (CRITICAL)
+.env
+.env.local
+.env.*.local
+
+# 2. Fichiers de Base de Données et Blueprints
+schema.sql
+seed.php
+*.db
+*.sqlite
+
+# 3. Dépendances Node.js, PHP / Tailwind
+node_modules/
+vendor/
+composer.phar
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+*.log
+
+# 4. Fichiers Uploadés et Fichiers Temporaires
+public/uploads/*
+uploads/*
+!.gitkeep
+cookies.txt
+
+# 5. Fichiers Systèmes et IDE
+.DS_Store
+Thumbs.db
+.vscode/
+.idea/
+.phpunit.result.cache

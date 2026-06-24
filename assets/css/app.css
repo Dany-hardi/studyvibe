@@ -1,0 +1,2268 @@
+/* ============================================================
+   StudyVibe — Feuille de style globale
+   Dark Mode + Toast Notifications + Animations
+   ============================================================ */
+
+/* ── 1. DARK MODE ─────────────────────────────────────────── */
+
+html.dark body {
+    background-color: #0F0F0F !important;
+    color: #E8E8E8 !important;
+}
+
+/* Surfaces */
+html.dark .bg-\[\#FFFFFF\] {
+    background-color: #161616 !important;
+}
+
+html.dark .bg-\[\#F5F5F7\] {
+    background-color: #1E1E1E !important;
+}
+
+html.dark .sv-cream-light {
+    background: #161616 !important;
+}
+
+/* Borders */
+html.dark .border-\[\#E5E5E7\] {
+    border-color: #2A2A2A !important;
+}
+
+html.dark .border-\[\#111111\] {
+    border-color: #E8E8E8 !important;
+}
+
+html.dark .divide-\[\#E5E5E7\]> :not([hidden])~ :not([hidden]) {
+    border-color: #2A2A2A !important;
+}
+
+/* Textes */
+html.dark .text-\[\#111111\] {
+    color: #E8E8E8 !important;
+}
+
+html.dark .text-\[\#555555\] {
+    color: #AAAAAA !important;
+}
+
+html.dark .text-\[\#888888\] {
+    color: #666666 !important;
+}
+
+/* Inputs */
+html.dark input,
+html.dark textarea,
+html.dark select {
+    background-color: #1E1E1E !important;
+    border-color: #2A2A2A !important;
+    color: #E8E8E8 !important;
+}
+
+html.dark input:focus,
+html.dark textarea:focus,
+html.dark select:focus {
+    border-color: #00873F !important;
+    background-color: #161616 !important;
+}
+
+/* Boutons */
+html.dark .bg-\[\#111111\] {
+    background-color: #E8E8E8 !important;
+    color: #111111 !important;
+}
+
+html.dark .hover\:bg-\[\#004B23\]:hover {
+    background-color: #00873F !important;
+    color: #FFFFFF !important;
+}
+
+html.dark .bg-\[\#004B23\] {
+    background-color: #00873F !important;
+}
+
+/* Header / footer */
+html.dark header {
+    background-color: #161616 !important;
+    border-color: #2A2A2A !important;
+}
+
+html.dark footer {
+    background-color: #1E1E1E !important;
+    border-color: #2A2A2A !important;
+}
+
+html.dark aside {
+    background-color: #1A1A1A !important;
+    border-color: #2A2A2A !important;
+}
+
+/* Modales */
+html.dark .fixed.inset-0>div {
+    background-color: #1A1A1A !important;
+    border-color: #2A2A2A !important;
+}
+
+/* Table cells */
+html.dark table tr:hover {
+    background-color: #1E1E1E;
+}
+
+/* ── 2. TOAST NOTIFICATIONS ──────────────────────────────── */
+
+#toast-container {
+    position: fixed;
+    bottom: 2rem;
+    right: 2rem;
+    z-index: 9999;
+    display: flex;
+    flex-direction: column;
+    gap: 0.75rem;
+    pointer-events: none;
+}
+
+.sv-toast {
+    pointer-events: all;
+    display: flex;
+    align-items: flex-start;
+    gap: 0.75rem;
+    padding: 1rem 1.25rem;
+    background: #FFFFFF;
+    border: 1px solid #E5E5E7;
+    box-shadow: 0 8px 32px rgba(0, 0, 0, 0.08);
+    min-width: 280px;
+    max-width: 360px;
+    font-family: 'Inter', sans-serif;
+    font-size: 0.8125rem;
+    font-weight: 400;
+    line-height: 1.5;
+    animation: toastIn 0.35s cubic-bezier(0.16, 1, 0.3, 1) forwards;
+    border-left: 3px solid #111111;
+}
+
+.sv-toast.success {
+    border-left-color: #004B23;
+}
+
+.sv-toast.error {
+    border-left-color: #D32F2F;
+}
+
+.sv-toast.info {
+    border-left-color: #1565C0;
+}
+
+.sv-toast .toast-icon {
+    font-size: 1rem;
+    flex-shrink: 0;
+    margin-top: 0.05rem;
+}
+
+.sv-toast .toast-msg {
+    flex: 1;
+    color: #111111;
+}
+
+.sv-toast .toast-close {
+    background: none;
+    border: none;
+    cursor: pointer;
+    font-size: 1rem;
+    color: #888888;
+    line-height: 1;
+    padding: 0;
+    flex-shrink: 0;
+}
+
+.sv-toast.hiding {
+    animation: toastOut 0.3s ease-in forwards;
+}
+
+html.dark .sv-toast {
+    background: #1E1E1E;
+    border-color: #2A2A2A;
+    border-left-color: #E8E8E8;
+}
+
+html.dark .sv-toast.success {
+    border-left-color: #00873F;
+}
+
+html.dark .sv-toast.error {
+    border-left-color: #EF5350;
+}
+
+html.dark .sv-toast .toast-msg {
+    color: #E8E8E8;
+}
+
+@keyframes toastIn {
+    from {
+        opacity: 0;
+        transform: translateX(24px);
+    }
+
+    to {
+        opacity: 1;
+        transform: translateX(0);
+    }
+}
+
+@keyframes toastOut {
+    from {
+        opacity: 1;
+        transform: translateX(0);
+    }
+
+    to {
+        opacity: 0;
+        transform: translateX(24px);
+    }
+}
+
+/* ── 3. ANIMATIONS GLOBALES ─────────────────────────────── */
+
+.sv-fade-in {
+    animation: svFadeIn 0.4s ease-out forwards;
+}
+
+@keyframes svFadeIn {
+    from {
+        opacity: 0;
+        transform: translateY(8px);
+    }
+
+    to {
+        opacity: 1;
+        transform: translateY(0);
+    }
+}
+
+/* ── SKELETON LOADERS ──────────────────────────────────── */
+
+.sv-skeleton {
+    background: linear-gradient(90deg, #f0f0f0 25%, #e0e0e0 50%, #f0f0f0 75%);
+    background-size: 200% 100%;
+    animation: svShimmer 1.5s infinite;
+    border-radius: 4px;
+}
+
+html.dark .sv-skeleton {
+    background: linear-gradient(90deg, #1e1e1e 25%, #2a2a2a 50%, #1e1e1e 75%);
+    background-size: 200% 100%;
+    animation: svShimmer 1.5s infinite;
+}
+
+@keyframes svShimmer {
+    0%   { background-position: 200% 0; }
+    100% { background-position: -200% 0; }
+}
+
+.sv-skeleton-text {
+    height: 0.875rem;
+    width: 100%;
+    margin-bottom: 0.5rem;
+}
+
+.sv-skeleton-title {
+    height: 1.5rem;
+    width: 60%;
+    margin-bottom: 0.75rem;
+}
+
+.sv-skeleton-card {
+    border: 1px solid #E5E5E7;
+    padding: 2rem;
+    space-y: 1rem;
+}
+
+.sv-skeleton-avatar {
+    width: 2.5rem;
+    height: 2.5rem;
+    border-radius: 50%;
+}
+
+/* ── MICRO-ANIMATIONS ──────────────────────────────────── */
+
+/* Hover lift pour les cards */
+[data-course-card] {
+    transition: transform 0.2s ease, box-shadow 0.2s ease, border-color 0.2s ease;
+}
+[data-course-card]:hover {
+    transform: translateY(-3px);
+    box-shadow: 0 8px 24px rgba(0,0,0,0.07);
+}
+
+/* Button press */
+button:not([disabled]):active {
+    transform: scale(0.97);
+    transition: transform 0.1s ease;
+}
+
+/* KPI card counter animation */
+.sv-kpi-value {
+    transition: color 0.3s ease;
+}
+
+/* Focus ring premium */
+input:focus, textarea:focus, select:focus {
+    box-shadow: 0 0 0 3px rgba(0, 75, 35, 0.12);
+    transition: box-shadow 0.2s ease;
+}
+
+/* Lesson button hover */
+#study-chapters-container button {
+    transition: background-color 0.15s ease, padding-left 0.15s ease;
+}
+#study-chapters-container button:hover {
+    padding-left: 0.75rem;
+}
+
+/* Notification badge pulse */
+#notif-count:not(.hidden) {
+    animation: svPulse 2s ease-in-out infinite;
+}
+@keyframes svPulse {
+    0%, 100% { transform: scale(1); }
+    50%       { transform: scale(1.15); }
+}
+
+/* Tab switch indicator slide */
+[id^="tab-btn-"] {
+    transition: color 0.2s ease, border-color 0.2s ease, font-weight 0.2s ease;
+}
+
+/* Accordion slide-in for lesson panel */
+.lesson-panel.open {
+    animation: svSlideDown 0.25s ease-out forwards;
+}
+@keyframes svSlideDown {
+    from { opacity: 0; transform: translateY(-6px); }
+    to   { opacity: 1; transform: translateY(0); }
+}
+
+/* Modal entrance */
+.sv-modal-enter {
+    animation: svModalIn 0.3s cubic-bezier(0.16, 1, 0.3, 1) forwards;
+}
+
+/* Quiz option hover */
+.sv-quiz-option {
+    transition: background-color 0.15s ease, border-color 0.15s ease;
+}
+.sv-quiz-option:hover {
+    border-color: #004B23;
+    background-color: #f8fcf9;
+}
+.sv-quiz-option-correct {
+    border-color: #004B23 !important;
+    background-color: #f0faf4 !important;
+    color: #004B23 !important;
+}
+.sv-quiz-option-wrong {
+    border-color: #D32F2F !important;
+    background-color: #fdf5f5 !important;
+    color: #D32F2F !important;
+}
+
+/* Video note timestamp chip */
+.sv-video-note-chip {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.35rem;
+    background: #004B23;
+    color: #fff;
+    font-size: 0.65rem;
+    font-family: monospace;
+    padding: 0.2rem 0.5rem;
+    border-radius: 999px;
+    cursor: pointer;
+    transition: background 0.15s ease;
+}
+.sv-video-note-chip:hover { background: #111; }
+
+
+.sv-modal-enter {
+    animation: svModalIn 0.3s cubic-bezier(0.16, 1, 0.3, 1) forwards;
+}
+
+@keyframes svModalIn {
+    from {
+        opacity: 0;
+        transform: scale(0.96);
+    }
+
+    to {
+        opacity: 1;
+        transform: scale(1);
+    }
+}
+
+/* ── 4. TOGGLE DARK MODE BUTTON ─────────────────────────── */
+
+.sv-dark-toggle {
+    width: 2.5rem;
+    height: 1.375rem;
+    background: #E5E5E7;
+    border-radius: 9999px;
+    position: relative;
+    cursor: pointer;
+    border: none;
+    transition: background 0.25s;
+    flex-shrink: 0;
+}
+
+.sv-dark-toggle::after {
+    content: '';
+    position: absolute;
+    top: 0.1875rem;
+    left: 0.1875rem;
+    width: 1rem;
+    height: 1rem;
+    background: #FFFFFF;
+    border-radius: 50%;
+    transition: transform 0.25s;
+    box-shadow: 0 1px 3px rgba(0, 0, 0, 0.2);
+}
+
+html.dark .sv-dark-toggle {
+    background: #004B23;
+}
+
+html.dark .sv-dark-toggle::after {
+    transform: translateX(1.125rem);
+}
+
+/* ── 5. PROGRESS BAR ANIMATION ──────────────────────────── */
+.sv-progress-bar {
+    transition: width 1s cubic-bezier(0.4, 0, 0.2, 1);
+}
+
+/* ── 6. EXAM TIMER ──────────────────────────────────────── */
+.sv-timer {
+    font-family: 'Inter', monospace;
+    font-variant-numeric: tabular-nums;
+    transition: color 0.3s;
+}
+
+.sv-timer.warning {
+    color: #D32F2F;
+    animation: timerPulse 1s infinite;
+}
+
+@keyframes timerPulse {
+
+    0%,
+    100% {
+        opacity: 1;
+    }
+
+    50% {
+        opacity: 0.5;
+    }
+}
+
+/* ── 7. DESIGN SYSTEM — Crème chaud (global) ─────────────── */
+
+:root {
+    --sv-cream: #EAE6DF;
+    --sv-cream-light: #F5F3EF;
+    --sv-surface: #FFFFFF;
+    --sv-surface-muted: #F5F5F7;
+    --sv-border: #D5D0C8;
+    --sv-border-warm: #D5D0C8;
+    --sv-border-strong: #8A857C;
+    --sv-text: #1A1A1A;
+    --sv-text-muted: #5C5C5C;
+    --sv-text-faint: #8A8A8A;
+    --sv-accent: #004B23;
+    --sv-accent-hover: #003318;
+    --sv-danger: #C62828;
+}
+
+/* Fond crème sur les pages applicatives */
+html.sv-cream,
+html.sv-cream body,
+body.sv-page {
+    background-color: var(--sv-cream) !important;
+}
+
+html.dark.sv-cream body,
+html.dark body.sv-page {
+    background-color: #0F0F0F !important;
+}
+
+/* ── 8. LANDING PAGE ────────────────────────────────────── */
+
+.sv-landing {
+    background: var(--sv-cream);
+    color: var(--sv-text);
+    min-height: 100vh;
+}
+
+.sv-navbar {
+    position: fixed;
+    top: 16px;
+    left: 50%;
+    transform: translateX(-50%);
+    width: calc(100% - 48px);
+    max-width: 1140px;
+    background: var(--sv-surface);
+    border: 1px solid var(--sv-border-strong);
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 14px 28px;
+    z-index: 100;
+    box-shadow: 0 2px 16px rgba(0, 0, 0, 0.04);
+}
+
+.sv-navbar-brand {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    font-family: 'Plus Jakarta Sans', sans-serif;
+    font-size: 1.25rem;
+    font-weight: 600;
+    color: var(--sv-text);
+    letter-spacing: -0.02em;
+    text-decoration: none;
+}
+
+.sv-navbar-brand svg {
+    color: var(--sv-accent);
+    width: 1.75rem;
+    height: 1.75rem;
+}
+
+.sv-navbar-links {
+    display: flex;
+    align-items: center;
+    gap: 1.75rem;
+}
+
+.sv-navbar-link {
+    font-size: 0.8125rem;
+    font-weight: 500;
+    color: var(--sv-text-muted);
+    text-decoration: none;
+    transition: color 0.15s;
+}
+
+.sv-navbar-link:hover {
+    color: var(--sv-accent);
+}
+
+.sv-btn {
+    font-size: 0.8125rem;
+    font-weight: 700;
+    letter-spacing: 0.02em;
+    padding: 0.75rem 1.5rem;
+    min-height: 44px;
+    border: 2px solid transparent;
+    cursor: pointer;
+    transition: all 0.15s;
+    text-decoration: none;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    border-radius: 0;
+    line-height: 1.2;
+}
+
+.sv-btn-primary {
+    background: var(--sv-text);
+    color: #ffffff;
+    border-color: var(--sv-text);
+}
+
+.sv-btn-primary:hover {
+    background: var(--sv-accent);
+    border-color: var(--sv-accent);
+    color: #ffffff;
+}
+
+.sv-btn-outline {
+    background: #ffffff;
+    color: var(--sv-text);
+    border: 1px solid var(--sv-border-strong);
+}
+
+.sv-btn-outline:hover {
+    background: var(--sv-text);
+    color: #ffffff;
+}
+
+.sv-hero {
+    padding: 8.5rem 0 5rem;
+}
+
+.sv-hero-grid {
+    display: grid;
+    grid-template-columns: 1fr 420px;
+    gap: 3.5rem;
+    align-items: start;
+    max-width: 1140px;
+    margin: 0 auto;
+    padding: 0 24px;
+}
+
+.sv-hero-headline {
+    font-family: 'Plus Jakarta Sans', sans-serif;
+    font-size: clamp(2.5rem, 5.5vw, 4rem);
+    font-weight: 400;
+    line-height: 1.08;
+    letter-spacing: -0.02em;
+    color: var(--sv-text);
+}
+
+.sv-hero-sub {
+    font-size: 1rem;
+    font-weight: 300;
+    line-height: 1.7;
+    color: var(--sv-text-muted);
+    max-width: 32rem;
+    margin-top: 1.5rem;
+}
+
+.sv-hero-actions {
+    display: flex;
+    gap: 0.875rem;
+    margin-top: 2rem;
+    flex-wrap: wrap;
+}
+
+.sv-badge {
+    display: inline-flex;
+    align-items: center;
+    font-size: 0.625rem;
+    font-weight: 700;
+    letter-spacing: 0.1em;
+    text-transform: uppercase;
+    padding: 0.4rem 0.8rem;
+    border: 1px solid var(--sv-border-strong);
+    color: var(--sv-text-muted);
+    background: var(--sv-surface);
+}
+
+.sv-badge-accent {
+    border-color: var(--sv-accent);
+    color: var(--sv-accent);
+    background: #fff;
+}
+
+/* Carte auth hero */
+.sv-auth-card {
+    background: var(--sv-surface);
+    border: 1px solid var(--sv-border-strong);
+    padding: 2rem 2rem 1.75rem;
+    box-shadow: 0 8px 32px rgba(0, 0, 0, 0.06);
+    position: sticky;
+    top: 100px;
+}
+
+/* Champs connexion / inscription — bloc centré, texte aligné normalement */
+.sv-form-panel form {
+    width: 100%;
+    max-width: 320px;
+    margin: 0 auto;
+}
+
+.sv-form-panel .sv-field {
+    width: 100%;
+}
+
+.sv-form-panel .sv-field-input,
+.sv-form-panel .sv-select-wrap,
+.sv-form-panel .sv-btn-submit,
+.sv-form-panel .sv-pw-strength,
+.sv-form-panel .sv-checkbox-field,
+.sv-form-panel .sv-signup-stepper {
+    display: flex;
+    width: 100%;
+    max-width: 280px;
+    margin-left: auto;
+    margin-right: auto;
+}
+
+.sv-auth-card-header {
+    margin-bottom: 1.5rem;
+    padding-bottom: 1.25rem;
+    border-bottom: 1px solid var(--sv-border);
+}
+
+.sv-auth-card-title {
+    font-family: 'Plus Jakarta Sans', sans-serif;
+    font-size: 1.375rem;
+    font-weight: 500;
+    color: var(--sv-text);
+}
+
+.sv-auth-card-sub {
+    font-size: 0.8125rem;
+    color: var(--sv-text-muted);
+    margin-top: 0.35rem;
+    font-weight: 500;
+}
+
+.sv-form-tabs {
+    display: flex;
+    gap: 0;
+    border-bottom: 1px solid var(--sv-border-strong);
+    margin-bottom: 1.5rem;
+    max-width: 320px;
+    margin-left: auto;
+    margin-right: auto;
+}
+
+.sv-form-tab {
+    flex: 1;
+    padding: 0.75rem 0;
+    font-size: 0.75rem;
+    font-weight: 700;
+    letter-spacing: 0.06em;
+    text-transform: uppercase;
+    background: none;
+    border: none;
+    cursor: pointer;
+    color: var(--sv-text-faint);
+    border-bottom: 2px solid transparent;
+    margin-bottom: -1px;
+    transition: all 0.2s;
+}
+
+.sv-form-tab.active {
+    color: var(--sv-text);
+    border-bottom-color: var(--sv-accent);
+}
+
+.sv-form-tab:hover:not(.active) {
+    color: var(--sv-text-muted);
+}
+
+.sv-form-panel {
+    display: none;
+}
+
+.sv-form-panel.active {
+    display: block;
+    animation: svFadeIn 0.35s ease-out;
+}
+
+.sv-field {
+    margin-bottom: 1.125rem;
+}
+
+.sv-field-label {
+    display: block;
+    font-size: 0.6875rem;
+    font-weight: 700;
+    letter-spacing: 0.08em;
+    text-transform: uppercase;
+    color: var(--sv-text);
+    margin-bottom: 0.45rem;
+    max-width: 280px;
+    margin-left: auto;
+    margin-right: auto;
+}
+
+.sv-field-input {
+    width: 100%;
+    padding: 0.75rem 0.875rem;
+    background: #ffffff;
+    border: 1px solid var(--sv-border-strong);
+    font-size: 0.9375rem;
+    font-weight: 500;
+    color: var(--sv-text);
+    outline: none;
+    font-family: 'Inter', sans-serif;
+    transition: border-color 0.15s, background 0.15s;
+    border-radius: 0;
+    text-align: left;
+}
+
+.sv-field-input::placeholder {
+    color: #888888;
+    font-weight: 400;
+}
+
+.sv-field-input:focus {
+    border-color: #004B23;
+    background: #ffffff;
+    box-shadow: 0 0 0 1px #004B23;
+}
+
+.sv-field-input.valid {
+    border-color: #004B23;
+}
+
+.sv-field-input.invalid,
+.sv-field-select.invalid {
+    border-color: #D32F2F;
+}
+
+.sv-field-select.valid {
+    border-color: #004B23;
+}
+
+.sv-field-hint {
+    font-size: 0.75rem;
+    font-weight: 500;
+    color: #555555;
+    margin-top: 0.4rem;
+    max-width: 280px;
+    margin-left: auto;
+    margin-right: auto;
+}
+
+.sv-field-hint.error {
+    color: #D32F2F;
+    font-weight: 600;
+}
+
+/* ── Inscription en 2 étapes ── */
+#panel-signup .sv-field {
+    margin-bottom: 0.75rem;
+}
+
+#panel-signup .sv-signup-step {
+    animation: svFadeIn 0.3s ease-out;
+}
+
+#panel-signup .sv-btn-submit {
+    margin-top: 0.5rem;
+}
+
+.sv-signup-stepper {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 0.75rem;
+    margin-bottom: 1rem;
+}
+
+.sv-signup-stepper-item {
+    display: flex;
+    flex-direction: row;
+    align-items: center;
+    gap: 0.4rem;
+    flex-shrink: 0;
+}
+
+.sv-signup-stepper-dot {
+    width: 1.5rem;
+    height: 1.5rem;
+    flex-shrink: 0;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 0.6875rem;
+    font-weight: 700;
+    border: 1px solid var(--sv-border-strong);
+    color: var(--sv-text-faint);
+    background: var(--sv-surface);
+    transition: all 0.2s;
+}
+
+.sv-signup-stepper-item.active .sv-signup-stepper-dot,
+.sv-signup-stepper-item.done .sv-signup-stepper-dot {
+    border-color: #004B23;
+    background: #004B23;
+    color: #ffffff;
+}
+
+.sv-signup-stepper-label {
+    font-size: 0.6875rem;
+    font-weight: 700;
+    letter-spacing: 0.04em;
+    text-transform: uppercase;
+    color: var(--sv-text-faint);
+    white-space: nowrap;
+}
+
+.sv-signup-stepper-item.active .sv-signup-stepper-label {
+    color: var(--sv-text);
+}
+
+.sv-signup-stepper-line {
+    flex: 1;
+    min-width: 1.5rem;
+    max-width: 2.5rem;
+    height: 1px;
+    background: var(--sv-border-strong);
+}
+
+.sv-signup-intro {
+    font-size: 0.8125rem;
+    font-weight: 400;
+    line-height: 1.45;
+    color: var(--sv-text-muted);
+    text-align: center;
+    max-width: 280px;
+    margin: 0 auto 0.875rem;
+}
+
+.sv-signup-role-field {
+    margin-bottom: 0.5rem;
+}
+
+.sv-signup-role-chip {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 0.5rem;
+    width: 100%;
+    max-width: 280px;
+    margin-left: auto;
+    margin-right: auto;
+    padding: 0.5rem 0.75rem;
+    margin-bottom: 0.875rem;
+    border: 1px solid var(--sv-border-strong);
+    background: #f8fcf9;
+    font-size: 0.75rem;
+    font-weight: 600;
+    color: var(--sv-text);
+}
+
+.sv-signup-role-chip[data-role="teacher"] {
+    background: #f7f9fc;
+}
+
+.sv-signup-role-change {
+    font-size: 0.6875rem;
+    font-weight: 700;
+    color: #004B23;
+    background: none;
+    border: none;
+    cursor: pointer;
+    text-decoration: underline;
+    text-underline-offset: 2px;
+    padding: 0;
+    flex-shrink: 0;
+}
+
+.sv-signup-actions {
+    display: grid;
+    grid-template-columns: auto 1fr;
+    gap: 0.5rem;
+    margin-top: 0.5rem;
+    width: 100%;
+    max-width: 280px;
+    margin-left: auto;
+    margin-right: auto;
+}
+
+.sv-btn-back {
+    padding: 0.875rem 1rem;
+    min-height: 48px;
+    background: transparent;
+    color: var(--sv-text-muted);
+    font-size: 0.75rem;
+    font-weight: 700;
+    letter-spacing: 0.04em;
+    border: 1px solid var(--sv-border-strong);
+    cursor: pointer;
+    transition: all 0.15s;
+    white-space: nowrap;
+}
+
+.sv-btn-back:hover {
+    color: var(--sv-text);
+    border-color: var(--sv-text);
+}
+
+.sv-signup-actions .sv-btn-submit {
+    margin-top: 0;
+}
+
+.sv-select-wrap {
+    position: relative;
+}
+
+.sv-field-select {
+    -webkit-appearance: none;
+    appearance: none;
+    padding-right: 2.25rem;
+    cursor: pointer;
+    color: var(--sv-text);
+}
+
+.sv-field-select:invalid,
+.sv-field-select option[value=""] {
+    color: #888888;
+}
+
+.sv-field-select option:not([value=""]) {
+    color: var(--sv-text);
+}
+
+.sv-select-chevron {
+    position: absolute;
+    right: 0.75rem;
+    top: 50%;
+    transform: translateY(-50%);
+    width: 1rem;
+    height: 1rem;
+    color: var(--sv-text-muted);
+    pointer-events: none;
+}
+
+.sv-checkbox-field {
+    display: flex;
+    align-items: flex-start;
+    gap: 0.625rem;
+    cursor: pointer;
+    margin-bottom: 0.25rem;
+    padding: 0.25rem 0;
+}
+
+.sv-checkbox-field input[type="checkbox"] {
+    margin-top: 0.15rem;
+    width: 0.9375rem;
+    height: 0.9375rem;
+    accent-color: #004B23;
+    flex-shrink: 0;
+}
+
+.sv-checkbox-field span {
+    font-size: 0.8125rem;
+    font-weight: 400;
+    line-height: 1.45;
+    color: var(--sv-text-muted);
+    text-transform: none;
+    letter-spacing: 0;
+}
+
+.sv-checkbox-field em {
+    font-style: normal;
+    color: var(--sv-text-faint);
+}
+
+.sv-pw-strength {
+    height: 4px;
+    background: #E5E5E7;
+    margin-top: 0.5rem;
+    overflow: hidden;
+}
+
+.sv-pw-strength-bar {
+    height: 100%;
+    width: 0;
+    transition: width 0.3s, background 0.3s;
+}
+
+.sv-btn-submit {
+    width: 100%;
+    padding: 0.875rem;
+    margin-top: 0.75rem;
+    background: var(--sv-text);
+    color: #ffffff;
+    font-size: 0.8125rem;
+    font-weight: 700;
+    letter-spacing: 0.04em;
+    border: 1px solid var(--sv-text);
+    cursor: pointer;
+    transition: all 0.15s;
+    border-radius: 0;
+    min-height: 48px;
+    text-align: center;
+    justify-content: center;
+    align-items: center;
+}
+
+.sv-btn-submit:hover:not(:disabled) {
+    background: #004B23;
+    border-color: #004B23;
+}
+
+.sv-btn-submit:disabled {
+    opacity: 0.4;
+    cursor: not-allowed;
+}
+
+.sv-form-footer {
+    margin-top: 1.125rem;
+    text-align: center;
+    font-size: 0.875rem;
+    font-weight: 500;
+    color: #555555;
+}
+
+.sv-form-footer button {
+    color: #004B23;
+    font-weight: 700;
+    background: none;
+    border: none;
+    cursor: pointer;
+    padding: 0;
+    text-decoration: underline;
+    text-underline-offset: 3px;
+}
+
+.sv-section {
+    padding: 5rem 0;
+}
+
+.sv-container {
+    max-width: 1140px;
+    margin: 0 auto;
+    padding: 0 24px;
+}
+
+.sv-eyebrow {
+    font-size: 0.625rem;
+    font-weight: 600;
+    letter-spacing: 0.16em;
+    text-transform: uppercase;
+    color: var(--sv-accent);
+    margin-bottom: 1rem;
+    display: flex;
+    align-items: center;
+    gap: 0.625rem;
+}
+
+.sv-eyebrow::before {
+    content: '';
+    width: 1.5rem;
+    height: 1px;
+    background: var(--sv-accent);
+}
+
+.sv-section-title {
+    font-family: 'Plus Jakarta Sans', sans-serif;
+    font-size: clamp(1.75rem, 3.5vw, 2.75rem);
+    font-weight: 400;
+    line-height: 1.15;
+    color: var(--sv-text);
+}
+
+.sv-section-sub {
+    font-size: 0.9375rem;
+    color: var(--sv-text-muted);
+    line-height: 1.65;
+    max-width: 36rem;
+    margin-top: 1rem;
+    font-weight: 300;
+}
+
+/* Cartes landing — hover, shimmer discret, micro-shake au survol */
+.sv-feature-card,
+.sv-step-card {
+    background: var(--sv-surface);
+    padding: 2rem 1.75rem;
+    border: 1px solid var(--sv-border-strong);
+    transition: border-color 0.35s ease, box-shadow 0.35s ease, transform 0.35s ease;
+    position: relative;
+    overflow: hidden;
+}
+
+.sv-step-card {
+    padding: 1.25rem;
+}
+
+.sv-feature-card::after,
+.sv-step-card::after {
+    content: '';
+    position: absolute;
+    inset: 0;
+    background: linear-gradient(105deg, transparent 42%, rgba(255, 255, 255, 0.07) 50%, transparent 58%);
+    transform: translateX(-120%);
+    transition: transform 0.7s ease;
+    pointer-events: none;
+}
+
+.sv-feature-card:hover,
+.sv-step-card:hover {
+    border-color: var(--sv-accent);
+    box-shadow: 0 4px 20px rgba(0, 0, 0, 0.06);
+    transform: translateY(-2px);
+    animation: svCardShake 0.45s ease-in-out;
+}
+
+.sv-feature-card:hover::after,
+.sv-step-card:hover::after {
+    transform: translateX(120%);
+}
+
+@keyframes svCardShake {
+
+    0%,
+    100% {
+        transform: translateY(-2px) translateX(0);
+    }
+
+    25% {
+        transform: translateY(-2px) translateX(-0.5px);
+    }
+
+    75% {
+        transform: translateY(-2px) translateX(0.5px);
+    }
+}
+
+.sv-feature-card.sv-card-enter,
+.sv-step-card.sv-card-enter {
+    animation: svCardEnter 0.5s cubic-bezier(0.16, 1, 0.3, 1) forwards;
+    opacity: 0;
+}
+
+@keyframes svCardEnter {
+    from {
+        opacity: 0;
+        transform: translateY(10px);
+    }
+
+    to {
+        opacity: 1;
+        transform: translateY(0);
+    }
+}
+
+.sv-stats-band {
+    background: var(--sv-accent);
+    padding: 3.5rem 0;
+}
+
+.sv-stat-num {
+    font-family: 'Plus Jakarta Sans', sans-serif;
+    font-size: 3rem;
+    font-weight: 400;
+    color: #fff;
+    line-height: 1;
+}
+
+.sv-stat-label {
+    font-size: 0.8125rem;
+    color: rgba(255, 255, 255, 0.7);
+    margin-top: 0.35rem;
+    font-weight: 300;
+}
+
+/* Bandeau logos partenaires EdTech */
+.sv-partners-band {
+    background: var(--sv-accent);
+    padding: 2.75rem 0;
+    overflow: hidden;
+}
+
+.sv-partners-eyebrow {
+    text-align: center;
+    font-size: 0.6875rem;
+    letter-spacing: 0.18em;
+    text-transform: uppercase;
+    color: rgba(255, 255, 255, 0.65);
+    margin-bottom: 1.75rem;
+    font-weight: 400;
+}
+
+.sv-partners-marquee {
+    overflow: hidden;
+    mask-image: linear-gradient(90deg, transparent, #000 8%, #000 92%, transparent);
+    -webkit-mask-image: linear-gradient(90deg, transparent, #000 8%, #000 92%, transparent);
+}
+
+.sv-partners-track {
+    display: flex;
+    align-items: center;
+    gap: 3.5rem;
+    width: max-content;
+    animation: sv-partners-scroll 45s linear infinite;
+}
+
+.sv-partners-track:hover {
+    animation-play-state: paused;
+}
+
+.sv-partner-logo {
+    flex-shrink: 0;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    min-width: 160px;
+    height: 48px;
+    padding: 0 1rem;
+    background: rgba(255, 255, 255, 0.95);
+    border-radius: 6px;
+    box-shadow: 0 1px 3px rgba(0, 0, 0, 0.08);
+}
+
+.sv-partner-logo img {
+    max-height: 36px;
+    max-width: 180px;
+    width: auto;
+    height: auto;
+    object-fit: contain;
+    filter: grayscale(20%);
+    opacity: 0.92;
+}
+
+@keyframes sv-partners-scroll {
+    0% {
+        transform: translateX(0);
+    }
+
+    100% {
+        transform: translateX(-50%);
+    }
+}
+
+html.dark .sv-partner-logo {
+    background: rgba(255, 255, 255, 0.92);
+}
+
+.sv-footer {
+    background: var(--sv-text);
+    padding: 3rem 0;
+    color: rgba(255, 255, 255, 0.6);
+}
+
+.sv-footer-brand {
+    font-family: 'Plus Jakarta Sans', sans-serif;
+    font-size: 1.25rem;
+    color: #fff;
+    font-weight: 500;
+}
+
+.sv-divider {
+    height: 1px;
+    background: var(--sv-border-warm);
+}
+
+/* Dark mode landing — lisibilité renforcée */
+html.dark .sv-landing {
+    background: #0F0F0F;
+    color: #E8E8E8;
+}
+
+html.dark .sv-navbar {
+    background: #161616;
+    border: 1px solid #3A3A3A;
+}
+
+html.dark .sv-navbar-brand {
+    color: #E8E8E8;
+}
+
+html.dark .sv-navbar-link {
+    color: #CCCCCC;
+    font-weight: 600;
+}
+
+html.dark .sv-navbar-link:hover {
+    color: #4ADE80;
+}
+
+html.dark .sv-auth-card,
+html.dark .sv-feature-card {
+    background: #161616;
+    border: 1px solid #3A3A3A;
+}
+
+html.dark .sv-hero-headline,
+html.dark .sv-section-title,
+html.dark .sv-auth-card-title {
+    color: #F5F5F5;
+}
+
+html.dark .sv-hero-sub,
+html.dark .sv-section-sub,
+html.dark .sv-auth-card-sub {
+    color: #BBBBBB;
+}
+
+html.dark .sv-field-label {
+    color: #E8E8E8;
+}
+
+html.dark .sv-field-input {
+    background: #1E1E1E;
+    border: 2px solid #E8E8E8;
+    color: #F5F5F5;
+}
+
+html.dark .sv-field-input::placeholder {
+    color: #999999;
+}
+
+html.dark .sv-field-input:focus {
+    border-color: #4ADE80;
+    box-shadow: 0 0 0 1px #4ADE80;
+}
+
+html.dark .sv-field-hint {
+    color: #AAAAAA;
+}
+
+html.dark .sv-form-footer {
+    color: #AAAAAA;
+}
+
+html.dark .sv-form-footer button {
+    color: #4ADE80;
+}
+
+html.dark .sv-form-tab {
+    color: #888888;
+}
+
+html.dark .sv-form-tab.active {
+    color: #F5F5F5;
+    border-bottom-color: #4ADE80;
+}
+
+html.dark .sv-form-tabs {
+    border-bottom-color: #E8E8E8;
+}
+
+html.dark .sv-signup-intro {
+    color: #AAAAAA;
+}
+
+html.dark .sv-field-select {
+    background: #1a1a1a;
+    color: #F5F5F5;
+}
+
+html.dark .sv-field-select:invalid {
+    color: #999999;
+}
+
+html.dark .sv-signup-role-chip {
+    background: #142018;
+    border-color: #444444;
+}
+
+html.dark .sv-signup-role-chip[data-role="teacher"] {
+    background: #141c28;
+}
+
+html.dark .sv-signup-role-change {
+    color: #4ADE80;
+}
+
+html.dark .sv-btn-back {
+    border-color: #444444;
+    color: #AAAAAA;
+}
+
+html.dark .sv-btn-back:hover {
+    color: #F5F5F5;
+    border-color: #888888;
+}
+
+html.dark .sv-signup-stepper-dot {
+    background: #1a1a1a;
+    border-color: #444444;
+}
+
+html.dark .sv-signup-stepper-item.active .sv-signup-stepper-dot,
+html.dark .sv-signup-stepper-item.done .sv-signup-stepper-dot {
+    background: #4ADE80;
+    border-color: #4ADE80;
+    color: #0a0a0a;
+}
+
+html.dark .sv-checkbox-field span {
+    color: #AAAAAA;
+}
+
+html.dark .sv-checkbox-field em {
+    color: #777777;
+}
+
+html.dark .sv-badge {
+    background: #161616;
+    border-color: #E8E8E8;
+    color: #CCCCCC;
+}
+
+html.dark .sv-badge-accent {
+    border-color: #4ADE80;
+    color: #4ADE80;
+}
+
+html.dark .sv-btn-primary {
+    background: #E8E8E8;
+    color: #111111;
+    border-color: #E8E8E8;
+}
+
+html.dark .sv-btn-primary:hover {
+    background: #4ADE80;
+    color: #111111;
+    border-color: #4ADE80;
+}
+
+html.dark .sv-btn-outline {
+    background: transparent;
+    color: #E8E8E8;
+    border-color: #E8E8E8;
+}
+
+html.dark .sv-btn-outline:hover {
+    background: #E8E8E8;
+    color: #111111;
+}
+
+html.dark .sv-btn-submit {
+    background: #E8E8E8;
+    color: #111111;
+    border-color: #E8E8E8;
+}
+
+html.dark .sv-btn-submit:hover:not(:disabled) {
+    background: #4ADE80;
+    border-color: #4ADE80;
+    color: #111111;
+}
+
+html.dark .sv-eyebrow {
+    color: #4ADE80;
+}
+
+html.dark .sv-eyebrow::before {
+    background: #4ADE80;
+}
+
+/* Section « Comment ça marche » — dark mode */
+html.dark #comment {
+    background: #161616 !important;
+}
+
+html.dark .sv-step-card {
+    background: #1E1E1E;
+    border-color: #3A3A3A;
+}
+
+html.dark .sv-step-badge {
+    background: #4ADE80;
+    color: #111111;
+}
+
+html.dark .sv-step-title {
+    color: #F5F5F5;
+}
+
+html.dark .sv-step-desc {
+    color: #AAAAAA;
+}
+
+html.dark .sv-footer {
+    background: #141414;
+    border-top: 1px solid #2A2A2A;
+}
+
+html.dark .sv-divider {
+    background: #2A2A2A;
+}
+
+/* Modal certification — apparition élégante */
+.sv-cert-overlay {
+    position: fixed;
+    inset: 0;
+    z-index: 10000;
+    background: rgba(0, 0, 0, 0.45);
+    backdrop-filter: blur(4px);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    padding: 1.5rem;
+    animation: svCertOverlayIn 0.4s ease forwards;
+}
+
+.sv-cert-overlay.hiding {
+    animation: svCertOverlayOut 0.3s ease forwards;
+}
+
+.sv-cert-card {
+    background: var(--sv-surface);
+    border: 1px solid var(--sv-border-strong);
+    padding: 2.5rem 2rem;
+    max-width: 420px;
+    width: 100%;
+    text-align: center;
+    animation: svCertCardIn 0.55s cubic-bezier(0.16, 1, 0.3, 1) forwards;
+}
+
+html.dark .sv-cert-card {
+    background: #1A1A1A;
+    border-color: #3A3A3A;
+}
+
+.sv-cert-icon {
+    font-size: 2.5rem;
+    margin-bottom: 1rem;
+    animation: svCertIconPop 0.6s cubic-bezier(0.34, 1.56, 0.64, 1) 0.15s both;
+}
+
+@keyframes svCertOverlayIn {
+    from {
+        opacity: 0;
+    }
+
+    to {
+        opacity: 1;
+    }
+}
+
+@keyframes svCertOverlayOut {
+    from {
+        opacity: 1;
+    }
+
+    to {
+        opacity: 0;
+    }
+}
+
+@keyframes svCertCardIn {
+    from {
+        opacity: 0;
+        transform: scale(0.92) translateY(16px);
+    }
+
+    to {
+        opacity: 1;
+        transform: scale(1) translateY(0);
+    }
+}
+
+@keyframes svCertIconPop {
+    from {
+        opacity: 0;
+        transform: scale(0.5);
+    }
+
+    to {
+        opacity: 1;
+        transform: scale(1);
+    }
+}
+
+/* Quiz leçon — révélation de réponse */
+.sv-quiz-option-correct {
+    border-color: var(--sv-accent) !important;
+    background: rgba(0, 75, 35, 0.08) !important;
+}
+
+.sv-quiz-option-wrong {
+    border-color: var(--sv-danger) !important;
+    background: rgba(198, 40, 40, 0.06) !important;
+}
+
+html.dark .sv-quiz-option-correct {
+    background: rgba(74, 222, 128, 0.1) !important;
+    border-color: #4ADE80 !important;
+}
+
+html.dark .sv-quiz-option-wrong {
+    background: rgba(239, 83, 80, 0.1) !important;
+}
+
+.sv-quiz-question-exit {
+    animation: svQuizFadeOut 0.45s ease forwards;
+}
+
+@keyframes svQuizFadeOut {
+    to {
+        opacity: 0;
+        transform: translateX(-8px);
+    }
+}
+
+@media (max-width: 960px) {
+    .sv-hero-grid {
+        grid-template-columns: 1fr;
+        gap: 2.5rem;
+    }
+
+    .sv-auth-card {
+        position: static;
+    }
+
+    .sv-navbar {
+        top: 0;
+        width: 100%;
+        border-left: 0;
+        border-right: 0;
+    }
+
+    .sv-hero {
+        padding-top: 6.5rem;
+    }
+
+    .sv-navbar-links .sv-navbar-link {
+        display: none;
+    }
+
+    .sv-steps-grid {
+        grid-template-columns: 1fr !important;
+    }
+
+    .sv-comment-grid {
+        grid-template-columns: 1fr !important;
+        gap: 2rem !important;
+    }
+
+    .sv-stats-grid {
+        grid-template-columns: 1fr !important;
+    }
+
+    .sv-stats-grid>div {
+        border-right: none !important;
+        border-bottom: 1px solid rgba(255, 255, 255, 0.15);
+        padding: 1rem 0 !important;
+    }
+}
+
+/* ── 9. COMPOSANTS APPLICATIFS (dashboards) ─────────────── */
+
+/* ── PDF READER (liseuse leçon) ─────────────────────────── */
+
+.sv-pdf-reader {
+    border: 1px solid var(--sv-border-strong);
+    background: var(--sv-cream-light);
+    overflow: hidden;
+    max-width: 100%;
+}
+
+.sv-pdf-reader__header {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    justify-content: space-between;
+    gap: 0.75rem 1rem;
+    padding: 0.875rem 1.25rem;
+    background: var(--sv-surface);
+    border-bottom: 1px solid var(--sv-border);
+    position: sticky;
+    top: 0;
+    z-index: 10;
+}
+
+.sv-pdf-reader__label {
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+    font-size: 0.6875rem;
+    font-weight: 700;
+    letter-spacing: 0.1em;
+    text-transform: uppercase;
+    color: var(--sv-text-muted);
+}
+
+.sv-pdf-reader__label svg {
+    width: 1rem;
+    height: 1rem;
+    color: var(--sv-accent);
+}
+
+.sv-pdf-reader__toolbar {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    justify-content: flex-end;
+    gap: 0.35rem;
+    flex: 1;
+    min-width: 0;
+}
+
+@media (max-width: 640px) {
+    .sv-pdf-reader__header {
+        flex-direction: column;
+        align-items: stretch;
+    }
+
+    .sv-pdf-reader__toolbar {
+        justify-content: center;
+    }
+
+    .sv-pdf-reader__viewport {
+        min-height: 360px;
+        max-height: 65vh;
+        padding: 1rem;
+    }
+}
+
+.sv-pdf-reader__btn {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    min-width: 2rem;
+    height: 2rem;
+    padding: 0 0.6rem;
+    font-size: 0.75rem;
+    font-weight: 600;
+    font-family: 'Inter', sans-serif;
+    color: var(--sv-text);
+    background: var(--sv-surface);
+    border: 1px solid var(--sv-border-strong);
+    cursor: pointer;
+    transition: border-color 0.15s, background 0.15s, color 0.15s;
+}
+
+.sv-pdf-reader__btn:hover:not(:disabled) {
+    border-color: var(--sv-accent);
+    color: var(--sv-accent);
+}
+
+.sv-pdf-reader__btn:disabled {
+    opacity: 0.35;
+    cursor: not-allowed;
+}
+
+.sv-pdf-reader__btn--primary {
+    background: var(--sv-text);
+    color: #fff;
+    border-color: var(--sv-text);
+}
+
+.sv-pdf-reader__btn--primary:hover:not(:disabled) {
+    background: var(--sv-accent);
+    border-color: var(--sv-accent);
+    color: #fff;
+}
+
+.sv-pdf-reader__page-info {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.35rem;
+    font-size: 0.75rem;
+    font-family: 'Inter', monospace;
+    color: var(--sv-text-muted);
+    padding: 0 0.25rem;
+}
+
+.sv-pdf-reader__page-input {
+    width: 2.75rem;
+    height: 2rem;
+    text-align: center;
+    font-size: 0.75rem;
+    font-family: 'Inter', monospace;
+    font-weight: 600;
+    border: 1px solid var(--sv-border-strong);
+    background: var(--sv-surface);
+    color: var(--sv-text);
+    outline: none;
+}
+
+.sv-pdf-reader__page-input:focus {
+    border-color: var(--sv-accent);
+}
+
+.sv-pdf-reader__zoom-label {
+    min-width: 2.75rem;
+    text-align: center;
+    font-size: 0.6875rem;
+    font-weight: 600;
+    font-family: 'Inter', monospace;
+    color: var(--sv-text-muted);
+}
+
+.sv-pdf-reader__sep {
+    width: 1px;
+    height: 1.25rem;
+    background: var(--sv-border);
+    margin: 0 0.25rem;
+}
+
+.sv-pdf-reader__viewport {
+    position: relative;
+    min-height: 420px;
+    max-height: min(72vh, 820px);
+    overflow: auto;
+    padding: 2rem 1.5rem 2.5rem;
+    background: var(--sv-cream-light);
+    scroll-behavior: smooth;
+}
+
+.sv-pdf-reader__canvas-wrap {
+    display: flex;
+    justify-content: center;
+    align-items: flex-start;
+}
+
+.sv-pdf-reader__page {
+    background: #fff;
+    border: 1px solid var(--sv-border);
+    box-shadow:
+        0 1px 2px rgba(0, 0, 0, 0.04),
+        0 8px 24px rgba(0, 0, 0, 0.08);
+    transition: box-shadow 0.2s ease;
+}
+
+.sv-pdf-reader__page canvas {
+    display: block;
+    max-width: 100%;
+    height: auto !important;
+}
+
+.sv-pdf-reader__loading,
+.sv-pdf-reader__error {
+    position: absolute;
+    inset: 0;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    gap: 0.75rem;
+    font-size: 0.875rem;
+    color: var(--sv-text-muted);
+    background: var(--sv-cream-light);
+}
+
+.sv-pdf-reader__loading::before {
+    content: '';
+    width: 2rem;
+    height: 2rem;
+    border: 2px solid var(--sv-border);
+    border-top-color: var(--sv-accent);
+    border-radius: 50%;
+    animation: svPdfSpin 0.7s linear infinite;
+}
+
+@keyframes svPdfSpin {
+    to {
+        transform: rotate(360deg);
+    }
+}
+
+.sv-pdf-reader__error {
+    color: var(--sv-danger);
+}
+
+.sv-pdf-reader__footer {
+    padding: 0.65rem 1.25rem;
+    font-size: 0.6875rem;
+    color: var(--sv-text-faint);
+    background: var(--sv-surface);
+    border-top: 1px solid var(--sv-border);
+    text-align: center;
+}
+
+html.dark .sv-pdf-reader {
+    background: #141414;
+    border-color: #3A3A3A;
+}
+
+html.dark .sv-pdf-reader__header,
+html.dark .sv-pdf-reader__footer {
+    background: #1A1A1A;
+    border-color: #2A2A2A;
+}
+
+html.dark .sv-pdf-reader__viewport,
+html.dark .sv-pdf-reader__loading,
+html.dark .sv-pdf-reader__error {
+    background: #141414;
+}
+
+html.dark .sv-pdf-reader__btn,
+html.dark .sv-pdf-reader__page-input {
+    background: #1E1E1E;
+    border-color: #3A3A3A;
+    color: #E8E8E8;
+}
+
+html.dark .sv-pdf-reader__btn--primary {
+    background: #E8E8E8;
+    color: #111;
+    border-color: #E8E8E8;
+}
+
+html.dark .sv-pdf-reader__btn--primary:hover:not(:disabled) {
+    background: #4ADE80;
+    border-color: #4ADE80;
+    color: #111;
+}
+
+html.dark .sv-pdf-reader__page {
+    background: #fff;
+    border-color: #D5D0C8;
+    box-shadow: 0 8px 32px rgba(0, 0, 0, 0.35);
+}
+
+/* Cartes à bordure marquée */
+.sv-card {
+    background: #FFFFFF;
+    border: 1px solid var(--sv-border-strong);
+    border-radius: 0;
+}
+
+html.dark .sv-card {
+    background: #161616;
+    border-color: #3A3A3A;
+}
+
+/* Boutons rectangulaires style Microsoft */
+.sv-btn-ms {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    padding: 0.625rem 1.25rem;
+    min-height: 40px;
+    font-size: 0.75rem;
+    font-weight: 700;
+    letter-spacing: 0.03em;
+    text-transform: uppercase;
+    border-radius: 0;
+    cursor: pointer;
+    transition: all 0.15s;
+    border: 1px solid var(--sv-border-strong);
+    background: var(--sv-text);
+    color: #ffffff;
+}
+
+.sv-btn-ms:hover {
+    background: #004B23;
+    border-color: #004B23;
+}
+
+.sv-btn-ms-outline {
+    background: #ffffff;
+    color: var(--sv-text);
+    border: 1px solid var(--sv-border-strong);
+}
+
+.sv-btn-ms-outline:hover {
+    background: #111111;
+    color: #ffffff;
+}
+
+html.dark .sv-btn-ms {
+    background: #E8E8E8;
+    color: #111111;
+    border-color: #E8E8E8;
+}
+
+html.dark .sv-btn-ms:hover {
+    background: #4ADE80;
+    border-color: #4ADE80;
+    color: #111111;
+}
+
+html.dark .sv-btn-ms-outline {
+    background: transparent;
+    color: #E8E8E8;
+    border-color: #E8E8E8;
+}
+
+html.dark .sv-btn-ms-outline:hover {
+    background: #E8E8E8;
+    color: #111111;
+}
+
+/* KPI apprenant — bordure noire, texte gras */
+.sv-kpi-board {
+    border: 1px solid var(--sv-border-strong);
+    background: #FFFFFF;
+    display: grid;
+    grid-template-columns: repeat(2, 1fr);
+}
+
+@media (min-width: 768px) {
+    .sv-kpi-board {
+        grid-template-columns: repeat(4, 1fr);
+    }
+}
+
+.sv-kpi-item {
+    padding: 1.25rem 1.5rem;
+    border-right: 2px solid #111111;
+    border-bottom: 2px solid #111111;
+}
+
+.sv-kpi-board .sv-kpi-item:nth-child(2n) {
+    border-right: none;
+}
+
+@media (min-width: 768px) {
+    .sv-kpi-board .sv-kpi-item {
+        border-bottom: none;
+        border-right: 2px solid #111111;
+    }
+
+    .sv-kpi-board .sv-kpi-item:last-child {
+        border-right: none;
+    }
+
+    .sv-kpi-board .sv-kpi-item:nth-child(2n) {
+        border-right: 2px solid #111111;
+    }
+}
+
+.sv-kpi-value {
+    font-family: 'Plus Jakarta Sans', sans-serif;
+    font-size: 1.75rem;
+    font-weight: 700;
+    color: #111111;
+    line-height: 1.1;
+}
+
+.sv-kpi-label {
+    font-size: 0.6875rem;
+    font-weight: 700;
+    letter-spacing: 0.1em;
+    text-transform: uppercase;
+    color: #111111;
+    margin-top: 0.35rem;
+}
+
+html.dark .sv-kpi-board {
+    background: #161616;
+    border-color: #E8E8E8;
+}
+
+html.dark .sv-kpi-item {
+    border-color: #E8E8E8 !important;
+}
+
+html.dark .sv-kpi-value,
+html.dark .sv-kpi-label {
+    color: #F5F5F5;
+}
+
+/* Grille stats enseignant */
+.sv-stats-teacher {
+    border: 2px solid #111111;
+    background: #FFFFFF;
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+}
+
+html.dark .sv-stats-teacher {
+    background: #161616;
+    border-color: #E8E8E8;
+}
+
+body.sv-page header.sv-header {
+    background: #FFFFFF !important;
+    border-bottom: 2px solid #111111 !important;
+}
+
+body.sv-page aside.sv-sidebar {
+    background: #FFFFFF;
+    border-right: 2px solid #111111;
+}
+
+body.sv-page section.sv-workspace {
+    background: transparent;
+}
+
+body.sv-page .sv-course-link {
+    display: block;
+    padding: 1rem;
+    background: #FFFFFF;
+    border: 2px solid #111111;
+    transition: border-color 0.15s, background 0.15s;
+    text-decoration: none;
+}
+
+body.sv-page .sv-course-link:hover {
+    border-color: #004B23;
+}
+
+body.sv-page .sv-course-link.active {
+    border-color: #004B23;
+    background: #F5F3EF;
+}
+
+body.sv-page .sv-chapter-card {
+    background: #FFFFFF;
+    border: 2px solid #111111;
+}
+
+html.dark body.sv-page header.sv-header {
+    background: #161616 !important;
+    border-color: #E8E8E8 !important;
+}
+
+html.dark body.sv-page aside.sv-sidebar {
+    background: #161616;
+    border-color: #E8E8E8;
+}
+
+html.dark body.sv-page .sv-course-link,
+html.dark body.sv-page .sv-chapter-card,
+html.dark body.sv-page .sv-card {
+    background: #161616;
+    border-color: #E8E8E8;
+}
+
+html.dark body.sv-page .sv-course-link.active {
+    background: #1E1E1E;
+    border-color: #4ADE80;
+}
+
+/* Cartes catalogue / contenu apprenant */
+body.sv-page [data-course-card],
+body.sv-page .sv-content-card {
+    border: 2px solid #111111 !important;
+    background: #FFFFFF;
+}
+
+html.dark body.sv-page [data-course-card],
+html.dark body.sv-page .sv-content-card {
+    border-color: #E8E8E8 !important;
+    background: #161616;
+}
+
+html.dark .sv-stats-teacher .sv-kpi-item {
+    border-color: #E8E8E8 !important;
+}
+
+/* Champs applicatifs — lisibilité clair/sombre */
+body.sv-page input:not([type=file]):not([type=radio]):not([type=checkbox]),
+body.sv-page textarea,
+body.sv-page select {
+    border: 2px solid #111111 !important;
+    font-weight: 500 !important;
+    color: #111111 !important;
+}
+
+body.sv-page input::placeholder,
+body.sv-page textarea::placeholder {
+    color: #888888 !important;
+}
+
+html.dark body.sv-page input:not([type=file]):not([type=radio]):not([type=checkbox]),
+html.dark body.sv-page textarea,
+html.dark body.sv-page select {
+    border-color: #E8E8E8 !important;
+    color: #F5F5F5 !important;
+    background: #1E1E1E !important;
+}
+
+html.dark body.sv-page input::placeholder,
+html.dark body.sv-page textarea::placeholder {
+    color: #999999 !important;
+}
+
+@media (prefers-reduced-motion: reduce) {
+
+    *,
+    *::before,
+    *::after {
+        animation-duration: 0.01ms !important;
+        animation-iteration-count: 1 !important;
+        transition-duration: 0.01ms !important;
+    }
+}
+
+/* ── Animation de glissement du panneau Mot de passe oublié ── */
+#forgot-panel {
+    max-height: 0;
+    overflow: hidden;
+    opacity: 0;
+    transition: max-height 0.4s ease-out, opacity 0.4s ease-out, padding 0.4s ease-out, margin 0.4s ease-out;
+    margin-top: 0;
+    padding-top: 0;
+    border-top: 1px solid transparent;
+}
+
+#forgot-panel.open {
+    max-height: 280px;
+    opacity: 1;
+    margin-top: 1rem;
+    padding-top: 1rem;
+    border-top: 1px solid var(--sv-border-strong);
+}

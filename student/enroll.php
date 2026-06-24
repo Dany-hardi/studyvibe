@@ -1,0 +1,90 @@
+<?php
+declare(strict_types=1);
+
+require_once __DIR__ . '/../auth.php';
+require_once __DIR__ . '/../lib/CourseSchedule.php';
+
+header('Content-Type: application/json');
+
+if (!isLoggedIn() || $_SESSION['user_role'] !== 'student') {
+    echo json_encode([
+        'success' => false,
+        'message' => 'Accès non autorisé.'
+    ]);
+    exit;
+}
+
+if ($_SERVER['REQUEST_METHOD'] !== 'POST') {
+    echo json_encode([
+        'success' => false,
+        'message' => 'Méthode de requête non autorisée.'
+    ]);
+    exit;
+}
+
+
+// requireCsrf();
+$courseId = isset($_POST['course_id']) ? (int)$_POST['course_id'] : 0;
+$providedKey = isset($_POST['enrollment_key']) ? trim((string)$_POST['enrollment_key']) : null;
+
+if ($courseId <= 0) {
+    echo json_encode([
+        'success' => false,
+        'message' => 'Identifiant de cours non valide.'
+    ]);
+    exit;
+}
+
+try {
+    $pdo = Database::getInstance();
+
+    // Fetch the course and its enrollment key
+    $stmt = $pdo->prepare("SELECT id, enrollment_key, start_date, end_date, is_published FROM courses WHERE id = :id");
+    $stmt->execute(['id' => $courseId]);
+    $course = $stmt->fetch();
+
+    if (!$course) {
+        echo json_encode([
+            'success' => false,
+            'message' => 'Cours introuvable.'
+        ]);
+        exit;
+    }
+
+    $scheduleError = CourseSchedule::canEnroll($course);
+    if ($scheduleError) {
+        echo json_encode(['success' => false, 'message' => $scheduleError]);
+        exit;
+    }
+
+    // Check key requirements
+    if ($course['enrollment_key'] !== null && $course['enrollment_key'] !== '') {
+        if ($providedKey !== $course['enrollment_key']) {
+            echo json_encode([
+                'success' => false,
+                'message' => 'Clé d\'inscription incorrecte.'
+            ]);
+            exit;
+        }
+    }
+
+    // Enroll the student
+    $stmt = $pdo->prepare("
+        INSERT INTO enrollments (student_id, course_id, progress_percent)
+        VALUES (:student_id, :course_id, 0)
+        ON DUPLICATE KEY UPDATE enrolled_at = enrolled_at
+    ");
+    $stmt->execute([
+        'student_id' => $_SESSION['user_id'],
+        'course_id' => $courseId
+    ]);
+
+    echo json_encode([
+        'success' => true,
+        'message' => 'Inscription validée.'
+    ]);
+    exit;
+
+} catch (PDOException $e) {
+    jsonError('Erreur serveur. Veuillez réessayer.', $e, 'enroll.php');
+}
