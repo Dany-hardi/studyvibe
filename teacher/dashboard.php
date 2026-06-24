@@ -480,6 +480,32 @@ try {
             }
         }
 
+        // ── Modifier une séance de téléévaluation ───────────────────
+        if ($action === 'edit_live_session') {
+            $sid = (int)($_POST['session_id'] ?? 0);
+            $title = trim((string)($_POST['live_title'] ?? ''));
+            $startTime = trim((string)($_POST['live_start_time'] ?? ''));
+            $endTime = trim((string)($_POST['live_end_time'] ?? ''));
+            $limit = (int)($_POST['default_time_limit'] ?? 30);
+
+            if ($sid > 0 && !empty($title) && !empty($startTime) && !empty($endTime)) {
+                $stmt = $pdo->prepare("
+                    UPDATE live_eval_sessions 
+                    SET title = :title, start_time = :start, end_time = :end, default_time_limit = :limit
+                    WHERE id = :id AND teacher_id = :tid
+                ");
+                $stmt->execute([
+                    'title' => $title,
+                    'start' => $startTime,
+                    'end'   => $endTime,
+                    'limit' => $limit,
+                    'id'    => $sid,
+                    'tid'   => $teacherId
+                ]);
+                header("Location: /teacher/dashboard.php?course_id={$selectedCourse['id']}&success=live_session_updated&open_live_modal=1&open_session={$sid}"); exit;
+            }
+        }
+
         // ── N. Activer/Désactiver une séance de téléévaluation ────────
         if ($action === 'toggle_live_session') {
             $sid = (int)($_POST['session_id'] ?? 0);
@@ -2116,6 +2142,17 @@ $successMsg = $successMessages[$successKey] ?? null;
                                     </button>
                                 </form>
 
+                                <!-- Bouton Modifier -->
+                                <button type="button" onclick='openEditLiveSessionModal(<?= json_encode([
+                                    "id" => $ls["id"],
+                                    "title" => $ls["title"],
+                                    "start_time" => date("Y-m-d\TH:i", strtotime($ls["start_time"])),
+                                    "end_time" => date("Y-m-d\TH:i", strtotime($ls["end_time"])),
+                                    "default_time_limit" => $ls["default_time_limit"]
+                                ]) ?>)' class="p-1.5 border border-[#E5E5E7] text-[#111111] rounded-sm hover:bg-gray-50" title="Modifier la séance">
+                                    <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15.232 5.232l3.536 3.536m-2.036-5.036a2.5 2.5 0 113.536 3.536L6.5 21.036H3v-3.572L16.732 3.732z"/></svg>
+                                </button>
+
                                 <!-- Bouton Supprimer -->
                                 <form method="POST" action="/teacher/dashboard.php?course_id=<?= $selectedCourse['id'] ?>&action=delete_live_session" onsubmit="return confirm('Supprimer cette séance ? Toutes les questions et réponses seront perdues.');">
                                     <input type="hidden" name="session_id" value="<?= $ls['id'] ?>">
@@ -2283,6 +2320,49 @@ $successMsg = $successMessages[$successKey] ?? null;
         </div>
     </div>
 </div>
+
+<!-- ── Modal : Éditer une séance de téléévaluation ────────── -->
+<div id="edit-live-session-modal" class="hidden fixed inset-0 bg-black/40 backdrop-blur-sm z-[60] flex items-center justify-center p-6">
+    <div class="bg-white p-8 max-w-lg w-full border border-[#E5E5E7] modal-inner">
+        <div class="flex justify-between items-center mb-6">
+            <h3 class="font-serif text-2xl font-light">Modifier la Séance</h3>
+            <button type="button" onclick="toggleModal('edit-live-session-modal')" class="text-[#888888] hover:text-[#D32F2F]">
+                <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"/>
+                </svg>
+            </button>
+        </div>
+
+        <form method="POST" action="/teacher/dashboard.php?course_id=<?= $selectedCourse['id'] ?>&action=edit_live_session" class="space-y-4">
+            <input type="hidden" name="session_id" id="edit-live-session-id">
+            
+            <div>
+                <label class="block text-xs font-semibold text-[#555555] uppercase tracking-wider mb-2">Titre de la Séance</label>
+                <input type="text" name="live_title" id="edit-live-title" required class="w-full px-3 py-2 border border-[#E5E5E7] rounded-sm focus:outline-none focus:border-[#004B23] text-sm bg-white">
+            </div>
+            
+            <div>
+                <label class="block text-xs font-semibold text-[#555555] uppercase tracking-wider mb-2">Temps par question (secondes)</label>
+                <input type="number" name="default_time_limit" id="edit-live-limit" required min="5" class="w-full px-3 py-2 border border-[#E5E5E7] rounded-sm focus:outline-none focus:border-[#004B23] text-sm bg-white">
+            </div>
+            
+            <div>
+                <label class="block text-xs font-semibold text-[#555555] uppercase tracking-wider mb-2">Date/Heure de Début</label>
+                <input type="datetime-local" name="live_start_time" id="edit-live-start-time" required class="w-full px-3 py-2 border border-[#E5E5E7] rounded-sm focus:outline-none focus:border-[#004B23] text-sm bg-white">
+            </div>
+            
+            <div>
+                <label class="block text-xs font-semibold text-[#555555] uppercase tracking-wider mb-2">Date/Heure de Fin</label>
+                <input type="datetime-local" name="live_end_time" id="edit-live-end-time" required class="w-full px-3 py-2 border border-[#E5E5E7] rounded-sm focus:outline-none focus:border-[#004B23] text-sm bg-white">
+            </div>
+            
+            <div class="flex justify-end gap-3 pt-2">
+                <button type="button" onclick="toggleModal('edit-live-session-modal')" class="px-4 py-2 border border-[#E5E5E7] text-xs font-semibold uppercase tracking-wider rounded-sm text-[#555555] hover:bg-gray-50 bg-white">Annuler</button>
+                <button type="submit" class="px-4 py-2 bg-[#111111] text-white text-xs font-semibold uppercase tracking-wider rounded-sm hover:bg-black">Enregistrer</button>
+            </div>
+        </form>
+    </div>
+</div>
 <?php endif; ?>
 
 <!-- ── Modal : Import questions CSV/Excel ─────────────── -->
@@ -2318,6 +2398,15 @@ $successMsg = $successMessages[$successKey] ?? null;
 // ── Modal generic ─────────────────────────────────────────
 function toggleModal(id) {
     document.getElementById(id).classList.toggle('hidden');
+}
+
+function openEditLiveSessionModal(session) {
+    document.getElementById('edit-live-session-id').value = session.id;
+    document.getElementById('edit-live-title').value = session.title;
+    document.getElementById('edit-live-limit').value = session.default_time_limit;
+    document.getElementById('edit-live-start-time').value = session.start_time;
+    document.getElementById('edit-live-end-time').value = session.end_time;
+    toggleModal('edit-live-session-modal');
 }
 
 function closeAllModals() {
