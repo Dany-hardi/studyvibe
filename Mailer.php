@@ -27,7 +27,7 @@ class Mailer
 
         if (self::isConfigured()) {
             $ok = self::sendSmtp($to, $subject, $htmlBody, $from, $fromName);
-            if (!$ok) {
+            if (!$ok && self::$lastError === null) {
                 self::$lastError = 'Échec de connexion ou d\'envoi SMTP.';
             }
             return $ok;
@@ -311,8 +311,27 @@ class Mailer
         $user = SMTP_USER;
         $pass = defined('SMTP_PASS') ? SMTP_PASS : '';
 
-        $socket = @fsockopen(($port === 465 ? 'ssl://' : '') . $host, $port, $errno, $errstr, 10);
-        if (!$socket) return false;
+        // Si c'est un mot de passe d'application Google (16 char sans espace), on nettoie les espaces
+        if (str_contains($host, 'gmail.com') && strlen(str_replace(' ', '', $pass)) === 16) {
+            $pass = str_replace(' ', '', $pass);
+        }
+
+        // Désactiver la vérification SSL stricte pour éviter les échecs dus aux certificats CA manquants sur Railway
+        $context = stream_context_create([
+            'ssl' => [
+                'verify_peer' => false,
+                'verify_peer_name' => false,
+                'allow_self_signed' => true
+            ]
+        ]);
+
+        $remoteSocketAddress = ($port === 465 ? 'ssl://' : 'tcp://') . $host . ':' . $port;
+        $socket = @stream_socket_client($remoteSocketAddress, $errno, $errstr, 10, STREAM_CLIENT_CONNECT, $context);
+        
+        if (!$socket) {
+            self::$lastError = "Connexion impossible à {$remoteSocketAddress} : [{$errno}] {$errstr}";
+            return false;
+        }
 
         $read = static function () use ($socket): string {
             $data = '';
@@ -332,28 +351,71 @@ class Mailer
 
         if ($port !== 465) {
             $write('STARTTLS');
-            $read();
-            stream_socket_enable_crypto($socket, true, STREAM_CRYPTO_METHOD_TLS_CLIENT);
+            $tlsResponse = $read();
+            if (!str_starts_with($tlsResponse, '220')) {
+                self::$lastError = "STARTTLS rejeté par le serveur : " . trim($tlsResponse);
+                fclose($socket);
+                return false;
+            }
+            
+            // Activer le chiffrement TLS sur la socket
+            if (!@stream_socket_enable_crypto($socket, true, STREAM_CRYPTO_METHOD_TLS_CLIENT)) {
+                self::$lastError = "Échec de l'activation du chiffrement TLS (Handshake)";
+                fclose($socket);
+                return false;
+            }
+            
             $write("EHLO studyvibe.local");
             $read();
         }
 
         $write('AUTH LOGIN');
-        $read();
+        $authLoginRes = $read();
+        if (!str_starts_with($authLoginRes, '334')) {
+            self::$lastError = "AUTH LOGIN non supporté ou rejeté : " . trim($authLoginRes);
+            fclose($socket);
+            return false;
+        }
+
         $write(base64_encode($user));
-        $read();
+        $userRes = $read();
+        if (!str_starts_with($userRes, '334')) {
+            self::$lastError = "SMTP Username base64 rejeté : " . trim($userRes);
+            fclose($socket);
+            return false;
+        }
+
         $write(base64_encode($pass));
-        if (!str_starts_with($read(), '235')) {
+        $authResponse = $read();
+        if (!str_starts_with($authResponse, '235')) {
+            self::$lastError = "Authentification SMTP échouée : " . trim($authResponse);
             fclose($socket);
             return false;
         }
 
         $write("MAIL FROM:<{$from}>");
-        $read();
+        $mailFromRes = $read();
+        if (!str_starts_with($mailFromRes, '250')) {
+            self::$lastError = "MAIL FROM rejeté : " . trim($mailFromRes);
+            fclose($socket);
+            return false;
+        }
+
         $write("RCPT TO:<{$to}>");
-        $read();
+        $rcptRes = $read();
+        if (!str_starts_with($rcptRes, '250') && !str_starts_with($rcptRes, '251')) {
+            self::$lastError = "Destinataire RCPT TO rejeté ({$to}) : " . trim($rcptRes);
+            fclose($socket);
+            return false;
+        }
+
         $write('DATA');
-        $read();
+        $dataRes = $read();
+        if (!str_starts_with($dataRes, '354')) {
+            self::$lastError = "Commande DATA rejetée : " . trim($dataRes);
+            fclose($socket);
+            return false;
+        }
 
         $encodedSubject = '=?UTF-8?B?' . base64_encode($subject) . '?=';
         $message  = "From: {$fromName} <{$from}>\r\n";
@@ -362,8 +424,14 @@ class Mailer
         $message .= "MIME-Version: 1.0\r\n";
         $message .= "Content-Type: text/html; charset=UTF-8\r\n";
         $message .= "\r\n{$html}\r\n.";
+        
         $write($message);
-        $ok = str_starts_with($read(), '250');
+        $dataEndRes = $read();
+        $ok = str_starts_with($dataEndRes, '250');
+        if (!$ok) {
+            self::$lastError = "Envoi du corps du message échoué : " . trim($dataEndRes);
+        }
+
         $write('QUIT');
         fclose($socket);
         return $ok;
