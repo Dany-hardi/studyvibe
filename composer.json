@@ -1,0 +1,9 @@
+{
+    "name": "studyvibe/lms",
+    "description": "StudyVibe LMS Platform",
+    "type": "project",
+    "require": {
+        "php": ">=8.1",
+        "ext-pdo_mysql": "*"
+    }
+}
