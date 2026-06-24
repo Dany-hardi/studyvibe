@@ -47,6 +47,15 @@ function handlePdfUpload(array $file): ?string {
     return null;
 }
 
+function clearLiveSessionCache(): void {
+    $cacheDir = __DIR__ . '/../uploads/live_cache';
+    if (is_dir($cacheDir)) {
+        foreach (glob($cacheDir . '/*.json') as $file) {
+            @unlink($file);
+        }
+    }
+}
+
 try {
     $teacherId = (int)$user['id'];
     $modules = $pdo->query("SELECT * FROM modules ORDER BY title ASC")->fetchAll();
@@ -145,6 +154,10 @@ try {
     // ─────────────────────────────────────────────────────────────────────
     if ($_SERVER['REQUEST_METHOD'] === 'POST' && $selectedCourse) {
         $action = (string)($_POST['action'] ?? $_GET['action'] ?? '');
+
+        if (in_array($action, ['add_live_session', 'edit_live_session', 'toggle_live_session', 'delete_live_session', 'add_live_question', 'delete_live_question'], true)) {
+            clearLiveSessionCache();
+        }
 
         // ── A. Ajouter un chapitre ─────────────────────────────────────
         if ($action === 'add_chapter') {
@@ -2143,13 +2156,17 @@ $successMsg = $successMessages[$successKey] ?? null;
                                 </form>
 
                                 <!-- Bouton Modifier -->
-                                <button type="button" onclick='openEditLiveSessionModal(<?= json_encode([
-                                    "id" => $ls["id"],
-                                    "title" => $ls["title"],
-                                    "start_time" => date("Y-m-d\TH:i", strtotime($ls["start_time"])),
-                                    "end_time" => date("Y-m-d\TH:i", strtotime($ls["end_time"])),
-                                    "default_time_limit" => $ls["default_time_limit"]
-                                ]) ?>)' class="p-1.5 border border-[#E5E5E7] text-[#111111] rounded-sm hover:bg-gray-50" title="Modifier la séance">
+                                <button type="button" 
+                                        data-session="<?= htmlspecialchars(json_encode([
+                                            "id" => $ls["id"],
+                                            "title" => $ls["title"],
+                                            "start_time" => date("Y-m-d\TH:i", strtotime($ls["start_time"])),
+                                            "end_time" => date("Y-m-d\TH:i", strtotime($ls["end_time"])),
+                                            "default_time_limit" => $ls["default_time_limit"]
+                                        ]), ENT_QUOTES, 'UTF-8') ?>"
+                                        onclick="openEditLiveSessionModal(this)"
+                                        class="p-1.5 border border-[#E5E5E7] text-[#111111] rounded-sm hover:bg-gray-50" 
+                                        title="Modifier la séance">
                                     <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15.232 5.232l3.536 3.536m-2.036-5.036a2.5 2.5 0 113.536 3.536L6.5 21.036H3v-3.572L16.732 3.732z"/></svg>
                                 </button>
 
@@ -2171,9 +2188,15 @@ $successMsg = $successMessages[$successKey] ?? null;
 
                         <!-- Statistiques & Boutons d'édition -->
                         <div class="flex flex-wrap items-center justify-between gap-4 pt-2 border-t border-[#F0F0F2] text-xs text-[#555555]">
-                            <div class="space-x-4">
-                                <span>Questions : <strong><?= $ls['question_count'] ?></strong></span>
-                                <span>Inscrits : <strong><?= $ls['participant_count'] ?></strong></span>
+                            <div class="space-x-4 flex flex-wrap items-center gap-y-2">
+                                <span>Questions : <strong class="questions-count-<?= $ls['id'] ?>"><?= $ls['question_count'] ?></strong></span>
+                                <span>Inscrits : <strong class="live-inscrits-count-<?= $ls['id'] ?>"><?= $ls['participant_count'] ?></strong></span>
+                                <span class="live-votes-badge-<?= $ls['id'] ?> hidden bg-[#E2ECE9] text-[#004B23] text-[10px] px-2.5 py-0.5 rounded-full font-semibold">
+                                    <span class="live-votes-count-<?= $ls['id'] ?>">0</span> réponses reçues
+                                </span>
+                                <span class="live-status-glow-<?= $ls['id'] ?> hidden text-xs font-semibold text-green-700 flex items-center gap-1">
+                                    <span class="inline-block w-2.5 h-2.5 rounded-full bg-green-500 animate-pulse"></span> En cours
+                                </span>
                             </div>
 
                             <div class="flex items-center gap-3">
@@ -2400,7 +2423,8 @@ function toggleModal(id) {
     document.getElementById(id).classList.toggle('hidden');
 }
 
-function openEditLiveSessionModal(session) {
+function openEditLiveSessionModal(button) {
+    const session = JSON.parse(button.getAttribute('data-session'));
     document.getElementById('edit-live-session-id').value = session.id;
     document.getElementById('edit-live-title').value = session.title;
     document.getElementById('edit-live-limit').value = session.default_time_limit;
@@ -2412,6 +2436,57 @@ function openEditLiveSessionModal(session) {
 function closeAllModals() {
     document.querySelectorAll('[id$="-modal"]').forEach(m => m.classList.add('hidden'));
 }
+
+// Polling temps réel des séances de téléévaluation côté enseignant
+function pollLiveStats() {
+    const modal = document.getElementById('live-evaluation-modal');
+    if (!modal || modal.classList.contains('hidden')) {
+        return;
+    }
+    const params = new URLSearchParams(window.location.search);
+    const courseId = params.get('course_id');
+    if (!courseId) return;
+
+    fetch('/api/teacher-live-stats.php?course_id=' + courseId)
+        .then(res => res.json())
+        .then(data => {
+            if (data.success && data.sessions) {
+                data.sessions.forEach(session => {
+                    // Mettre à jour les inscrits
+                    const inscritsEl = document.querySelector('.live-inscrits-count-' + session.id);
+                    if (inscritsEl) {
+                        inscritsEl.textContent = session.participant_count;
+                    }
+
+                    // Mettre à jour les questions
+                    const questionsEl = document.querySelector('.questions-count-' + session.id);
+                    if (questionsEl) {
+                        questionsEl.textContent = session.total_questions;
+                    }
+
+                    // Mettre à jour les réponses reçues et l'état en cours
+                    const badgeEl = document.querySelector('.live-votes-badge-' + session.id);
+                    const votesEl = document.querySelector('.live-votes-count-' + session.id);
+                    const glowEl = document.querySelector('.live-status-glow-' + session.id);
+
+                    if (session.status === 'active') {
+                        if (glowEl) glowEl.classList.remove('hidden');
+                        if (badgeEl) {
+                            badgeEl.classList.remove('hidden');
+                            if (votesEl) {
+                                votesEl.textContent = session.active_question_votes;
+                            }
+                        }
+                    } else {
+                        if (glowEl) glowEl.classList.add('hidden');
+                        if (badgeEl) badgeEl.classList.add('hidden');
+                    }
+                });
+            }
+        })
+        .catch(err => console.error("Erreur de synchronisation en direct :", err));
+}
+setInterval(pollLiveStats, 3000);
 
 // Close modal on backdrop click
 document.querySelectorAll('[id$="-modal"]').forEach(modal => {

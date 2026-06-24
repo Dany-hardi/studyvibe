@@ -17,18 +17,59 @@ if ($code === '') {
     exit;
 }
 
+/**
+ * Récupère les métadonnées de la session et de ses questions de manière optimisée via un cache local.
+ */
+function getCachedSessionData(PDO $pdo, string $code): ?array
+{
+    $cacheDir = __DIR__ . '/../uploads/live_cache';
+    if (!is_dir($cacheDir)) {
+        @mkdir($cacheDir, 0755, true);
+    }
+    $cacheFile = $cacheDir . '/session_' . md5($code) . '.json';
+    
+    // Le cache est valide pendant 2 secondes (permet de limiter les accès DB pour 100 étudiants simultanés)
+    if (file_exists($cacheFile) && (time() - filemtime($cacheFile)) < 2) {
+        $cached = json_decode((string)@file_get_contents($cacheFile), true);
+        if ($cached) {
+            return $cached;
+        }
+    }
+    
+    // Requête principale
+    $stmt = $pdo->prepare("SELECT * FROM live_eval_sessions WHERE session_code = :code");
+    $stmt->execute(['code' => $code]);
+    $session = $stmt->fetch(PDO::FETCH_ASSOC);
+    
+    if (!$session) {
+        return null;
+    }
+    
+    $stmt = $pdo->prepare("SELECT * FROM live_eval_questions WHERE session_id = :sid ORDER BY sort_order ASC, id ASC");
+    $stmt->execute(['sid' => $session['id']]);
+    $questions = $stmt->fetchAll(PDO::FETCH_ASSOC);
+    
+    $data = [
+        'session' => $session,
+        'questions' => $questions
+    ];
+    
+    @file_put_contents($cacheFile, json_encode($data));
+    return $data;
+}
+
 try {
     $pdo = Database::getInstance();
 
-    // Récupérer la session de téléévaluation
-    $stmt = $pdo->prepare("SELECT * FROM live_eval_sessions WHERE session_code = :code");
-    $stmt->execute(['code' => $code]);
-    $session = $stmt->fetch();
-
-    if (!$session) {
+    // Récupérer la session via le cache
+    $cachedData = getCachedSessionData($pdo, $code);
+    if (!$cachedData) {
         echo json_encode(['success' => false, 'message' => 'Séance introuvable.']);
         exit;
     }
+
+    $session = $cachedData['session'];
+    $questions = $cachedData['questions'];
 
     if ((int)$session['status'] === 0) {
         echo json_encode(['success' => false, 'message' => 'Cette séance est actuellement désactivée par l\'enseignant.', 'status' => 'inactive']);
@@ -40,10 +81,18 @@ try {
 
     // ── ACTION 1 : Poll Lobby (Salle d'attente) ──────────────────────
     if ($action === 'poll_lobby') {
-        // Compter les personnes inscrites à cette session
-        $countStmt = $pdo->prepare("SELECT COUNT(*) FROM live_eval_registrations WHERE session_id = :sid");
-        $countStmt->execute(['sid' => $session['id']]);
-        $registeredCount = (int)$countStmt->fetchColumn();
+        // Mettre en cache le nombre d'inscrits pendant 2 secondes pour éviter d'inonder la base de données
+        $lobbyCacheFile = __DIR__ . '/../uploads/live_cache/lobby_count_' . $session['id'] . '.json';
+        $registeredCount = 0;
+        
+        if (file_exists($lobbyCacheFile) && (time() - filemtime($lobbyCacheFile)) < 2) {
+            $registeredCount = (int)@file_get_contents($lobbyCacheFile);
+        } else {
+            $countStmt = $pdo->prepare("SELECT COUNT(*) FROM live_eval_registrations WHERE session_id = :sid");
+            $countStmt->execute(['sid' => $session['id']]);
+            $registeredCount = (int)$countStmt->fetchColumn();
+            @file_put_contents($lobbyCacheFile, (string)$registeredCount);
+        }
 
         $secondsToStart = $startTime - $now;
 
@@ -57,41 +106,84 @@ try {
         exit;
     }
 
-    // Pour les autres actions, il faut être enregistré (avoir un registration_id)
+    // Pour les autres actions, il faut être enregistré
     $regId = (int)($_SESSION['live_registrations'][$code] ?? 0);
     if ($regId <= 0) {
         echo json_encode(['success' => false, 'message' => 'Vous n\'êtes pas inscrit à cette session.', 'not_registered' => true]);
         exit;
     }
 
-    // Vérifier que l'inscription correspond
-    $regStmt = $pdo->prepare("SELECT * FROM live_eval_registrations WHERE id = :id AND session_id = :sid");
-    $regStmt->execute(['id' => $regId, 'sid' => $session['id']]);
-    $registration = $regStmt->fetch();
-    if (!$registration) {
-        echo json_encode(['success' => false, 'message' => 'Inscription invalide.', 'not_registered' => true]);
-        exit;
+    // Récupérer et mettre en cache la validité de l'inscription dans la session PHP de l'étudiant
+    $registration = $_SESSION['verified_registrations'][$code] ?? null;
+    if (!$registration || (int)$registration['id'] !== $regId) {
+        $regStmt = $pdo->prepare("SELECT * FROM live_eval_registrations WHERE id = :id AND session_id = :sid");
+        $regStmt->execute(['id' => $regId, 'sid' => $session['id']]);
+        $registration = $regStmt->fetch(PDO::FETCH_ASSOC);
+        if (!$registration) {
+            echo json_encode(['success' => false, 'message' => 'Inscription invalide.', 'not_registered' => true]);
+            exit;
+        }
+        $_SESSION['verified_registrations'][$code] = $registration;
     }
 
-    // Récupérer le planning dynamique des questions
-    $schedule = getActiveQuestionInfo($pdo, $session, $now);
-    if (!$schedule) {
+    // Déterminer le planning dynamique de la question active
+    if (empty($questions)) {
         echo json_encode(['success' => false, 'message' => 'Aucune question configurée pour cette évaluation.']);
         exit;
     }
 
+    // Calculer la durée totale
+    $totalDuration = 0;
+    foreach ($questions as $q) {
+        $limit = $q['time_limit'] !== null ? (int)$q['time_limit'] : (int)$session['default_time_limit'];
+        $totalDuration += $limit;
+    }
+
+    $isFinished = $now >= ($startTime + $totalDuration);
+
+    $currentTime = $startTime;
+    $activeQ = null;
+    $activeIndex = -1;
+    $secondsLeft = 0;
+
+    if (!$isFinished) {
+        foreach ($questions as $idx => $q) {
+            $limit = $q['time_limit'] !== null ? (int)$q['time_limit'] : (int)$session['default_time_limit'];
+            $qStart = $currentTime;
+            $qEnd = $currentTime + $limit;
+
+            if ($now >= $qStart && $now < $qEnd) {
+                $activeQ = $q;
+                $activeIndex = $idx;
+                $secondsLeft = $qEnd - $now;
+                break;
+            }
+            $currentTime = $qEnd;
+        }
+    }
+
     // ── ACTION 2 : Poll Quiz (État en direct du QCM) ──────────────────
     if ($action === 'poll_quiz') {
-        // Si l'évaluation est finie
-        if ($schedule['is_finished']) {
+        if ($isFinished) {
             // Traiter la notation et l'envoi de l'e-mail si ce n'est pas déjà fait
             if ($registration['score'] === null) {
-                calculateAndEmailScore($pdo, $session, $registration, $schedule['questions']);
+                // Charger le score récent de la session PHP pour éviter des calculs doublons
+                $scorePercent = calculateAndEmailScore($pdo, $session, $registration, $questions);
+                $registration['score'] = $scorePercent;
+                $_SESSION['verified_registrations'][$code]['score'] = $scorePercent;
             }
-            // Compter le total des personnes inscrites
-            $totalRegStmt = $pdo->prepare("SELECT COUNT(*) FROM live_eval_registrations WHERE session_id = :sid");
-            $totalRegStmt->execute(['sid' => $session['id']]);
-            $totalRegistered = (int)$totalRegStmt->fetchColumn();
+            
+            // Total inscrits
+            $regCountCacheFile = __DIR__ . '/../uploads/live_cache/lobby_count_' . $session['id'] . '.json';
+            $totalRegistered = 0;
+            if (file_exists($regCountCacheFile) && (time() - filemtime($regCountCacheFile)) < 5) {
+                $totalRegistered = (int)@file_get_contents($regCountCacheFile);
+            } else {
+                $totalRegStmt = $pdo->prepare("SELECT COUNT(*) FROM live_eval_registrations WHERE session_id = :sid");
+                $totalRegStmt->execute(['sid' => $session['id']]);
+                $totalRegistered = (int)$totalRegStmt->fetchColumn();
+                @file_put_contents($regCountCacheFile, (string)$totalRegistered);
+            }
 
             echo json_encode([
                 'success'          => true,
@@ -102,7 +194,6 @@ try {
             exit;
         }
 
-        $activeQ = $schedule['active_question'];
         if (!$activeQ) {
             // Dans une transition ou avant le début
             echo json_encode([
@@ -113,37 +204,48 @@ try {
             exit;
         }
 
-        // Compter combien d'inscrits ont répondu à la question active
-        $ansCountStmt = $pdo->prepare("SELECT COUNT(*) FROM live_eval_answers WHERE question_id = :qid");
-        $ansCountStmt->execute(['qid' => $activeQ['id']]);
-        $answersReceived = (int)$ansCountStmt->fetchColumn();
+        // Total inscrits
+        $regCountCacheFile = __DIR__ . '/../uploads/live_cache/lobby_count_' . $session['id'] . '.json';
+        $totalRegistered = 0;
+        if (file_exists($regCountCacheFile) && (time() - filemtime($regCountCacheFile)) < 3) {
+            $totalRegistered = (int)@file_get_contents($regCountCacheFile);
+        } else {
+            $totalRegStmt = $pdo->prepare("SELECT COUNT(*) FROM live_eval_registrations WHERE session_id = :sid");
+            $totalRegStmt->execute(['sid' => $session['id']]);
+            $totalRegistered = (int)$totalRegStmt->fetchColumn();
+            @file_put_contents($regCountCacheFile, (string)$totalRegistered);
+        }
 
-        // Compter le total des personnes inscrites
-        $totalRegStmt = $pdo->prepare("SELECT COUNT(*) FROM live_eval_registrations WHERE session_id = :sid");
-        $totalRegStmt->execute(['sid' => $session['id']]);
-        $totalRegistered = (int)$totalRegStmt->fetchColumn();
-
-        // Vérifier si l'étudiant courant a déjà répondu
-        $alreadyAnsweredStmt = $pdo->prepare("SELECT COUNT(*) FROM live_eval_answers WHERE registration_id = :rid AND question_id = :qid");
-        $alreadyAnsweredStmt->execute(['rid' => $regId, 'qid' => $activeQ['id']]);
-        $alreadyAnswered = (int)$alreadyAnsweredStmt->fetchColumn() > 0;
+        // Vérifier si l'étudiant courant a déjà répondu (utilisant le cache de session)
+        $alreadyAnswered = false;
+        $qid = (int)$activeQ['id'];
+        if (isset($_SESSION['answered_questions'][$qid])) {
+            $alreadyAnswered = true;
+        } else {
+            $alreadyAnsweredStmt = $pdo->prepare("SELECT COUNT(*) FROM live_eval_answers WHERE registration_id = :rid AND question_id = :qid");
+            $alreadyAnsweredStmt->execute(['rid' => $regId, 'qid' => $qid]);
+            $alreadyAnswered = (int)$alreadyAnsweredStmt->fetchColumn() > 0;
+            if ($alreadyAnswered) {
+                $_SESSION['answered_questions'][$qid] = true;
+            }
+        }
 
         echo json_encode([
             'success' => true,
             'status'  => 'active',
-            'current_question_index' => $schedule['active_index'],
-            'total_questions'        => count($schedule['questions']),
+            'current_question_index' => $activeIndex,
+            'total_questions'        => count($questions),
             'question' => [
-                'id'            => $activeQ['id'],
+                'id'            => $qid,
                 'question_text' => $activeQ['question_text'],
                 'option_a'      => $activeQ['option_a'],
                 'option_b'      => $activeQ['option_b'],
                 'option_c'      => $activeQ['option_c'],
                 'option_d'      => $activeQ['option_d'],
                 'image_path'    => $activeQ['image_path'] ? '/uploads/live_questions/' . $activeQ['image_path'] : null,
-                'seconds_left'  => $schedule['seconds_left'],
+                'seconds_left'  => $secondsLeft,
             ],
-            'answers_received' => $answersReceived,
+            'answers_received' => 0, // Inutilisé par le client de l'étudiant
             'total_registered' => $totalRegistered,
             'already_answered' => $alreadyAnswered,
             'is_finished'      => false,
@@ -161,8 +263,6 @@ try {
             exit;
         }
 
-        // Vérifier que la question soumise est bien la question active en cours
-        $activeQ = $schedule['active_question'];
         if (!$activeQ || (int)$activeQ['id'] !== $questionId) {
             echo json_encode(['success' => false, 'message' => 'Le temps imparti pour cette question est écoulé.']);
             exit;
@@ -181,6 +281,9 @@ try {
             'sel2' => $selectedOption,
         ]);
 
+        // Mettre en cache la soumission dans la session de l'étudiant
+        $_SESSION['answered_questions'][$questionId] = true;
+
         echo json_encode(['success' => true, 'message' => 'Réponse enregistrée.']);
         exit;
     }
@@ -192,69 +295,9 @@ try {
 }
 
 /**
- * Calcule la question actuellement active par rapport au temps écoulé
- */
-function getActiveQuestionInfo(PDO $pdo, array $session, int $nowTime): ?array
-{
-    $stmt = $pdo->prepare("
-        SELECT * FROM live_eval_questions
-        WHERE session_id = :sid
-        ORDER BY sort_order ASC, id ASC
-    ");
-    $stmt->execute(['sid' => $session['id']]);
-    $questions = $stmt->fetchAll();
-
-    if (empty($questions)) {
-        return null;
-    }
-
-    $startTime = strtotime($session['start_time']);
-
-    // Calculate total duration of all questions first
-    $totalDuration = 0;
-    foreach ($questions as $q) {
-        $limit = $q['time_limit'] !== null ? (int)$q['time_limit'] : (int)$session['default_time_limit'];
-        $totalDuration += $limit;
-    }
-
-    $isFinished = $nowTime >= ($startTime + $totalDuration);
-
-    $currentTime = $startTime;
-    $activeQuestion = null;
-    $activeIndex = -1;
-    $secondsLeft = 0;
-
-    if (!$isFinished) {
-        foreach ($questions as $idx => $q) {
-            $limit = $q['time_limit'] !== null ? (int)$q['time_limit'] : (int)$session['default_time_limit'];
-            $qStart = $currentTime;
-            $qEnd = $currentTime + $limit;
-
-            if ($nowTime >= $qStart && $nowTime < $qEnd) {
-                $activeQuestion = $q;
-                $activeIndex = $idx;
-                $secondsLeft = $qEnd - $nowTime;
-                break;
-            }
-
-            $currentTime = $qEnd;
-        }
-    }
-
-    return [
-        'questions'       => $questions,
-        'active_question' => $activeQuestion,
-        'active_index'    => $activeIndex,
-        'seconds_left'    => $secondsLeft,
-        'is_finished'     => $isFinished,
-        'end_time'        => $startTime + $totalDuration,
-    ];
-}
-
-/**
  * Calcule le score final de l'utilisateur et envoie ses résultats par e-mail
  */
-function calculateAndEmailScore(PDO $pdo, array $session, array $registration, array $questions): void
+function calculateAndEmailScore(PDO $pdo, array $session, array $registration, array $questions): float
 {
     $regId = (int)$registration['id'];
     
@@ -298,6 +341,8 @@ function calculateAndEmailScore(PDO $pdo, array $session, array $registration, a
         require_once __DIR__ . '/../Mailer.php';
         Mailer::sendLiveEvalResults($registration['email'], $registration['name'], $session['title'], (float)$scorePercent, $qasDetails);
     } catch (Exception $e) {
-        // Ignorer l'erreur d'envoi d'e-mail pour ne pas bloquer
+        // Ignorer l'erreur d'envoi d'e-mail
     }
+
+    return (float)$scorePercent;
 }

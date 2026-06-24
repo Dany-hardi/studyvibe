@@ -960,31 +960,38 @@ if (!$error) {
         let questionTotalDuration = 0;
 
         function updateQuestionTimer(seconds) {
-            questionSecondsLeft = seconds;
-            document.getElementById('quiz-timer-text').textContent = `${seconds}s`;
-            
-            if (questionTotalDuration === 0 || seconds > questionTotalDuration) {
-                questionTotalDuration = seconds;
+            // Synchronisation intelligente : si la dérive est supérieure à 2s ou si le timer local est à 0, on resynchronise
+            const drift = Math.abs(questionSecondsLeft - seconds);
+            if (drift > 2 || questionSecondsLeft <= 0) {
+                questionSecondsLeft = seconds;
+                if (questionTotalDuration === 0 || seconds > questionTotalDuration) {
+                    questionTotalDuration = seconds;
+                }
             }
-            
-            const pct = (seconds / questionTotalDuration) * 100;
+
+            // Mettre à jour l'affichage immédiatement
+            document.getElementById('quiz-timer-text').textContent = `${questionSecondsLeft}s`;
+            const pct = (questionSecondsLeft / questionTotalDuration) * 100;
             document.getElementById('quiz-progress-bar').style.width = `${pct}%`;
 
-            if (questionTimer) clearInterval(questionTimer);
-            
-            questionTimer = setInterval(() => {
-                questionSecondsLeft--;
-                if (questionSecondsLeft <= 0) {
-                    clearInterval(questionTimer);
-                    document.getElementById('quiz-timer-text').textContent = `0s`;
-                    document.getElementById('quiz-progress-bar').style.width = `0%`;
-                    disableOptions();
-                } else {
-                    document.getElementById('quiz-timer-text').textContent = `${questionSecondsLeft}s`;
-                    const currentPct = (questionSecondsLeft / questionTotalDuration) * 100;
-                    document.getElementById('quiz-progress-bar').style.width = `${currentPct}%`;
-                }
-            }, 1000);
+            // Démarrer l'intervalle local unique s'il n'est pas déjà actif
+            if (!questionTimer) {
+                questionTimer = setInterval(() => {
+                    if (questionSecondsLeft > 0) {
+                        questionSecondsLeft--;
+                        document.getElementById('quiz-timer-text').textContent = `${questionSecondsLeft}s`;
+                        const currentPct = (questionSecondsLeft / questionTotalDuration) * 100;
+                        document.getElementById('quiz-progress-bar').style.width = `${currentPct}%`;
+                    }
+                    if (questionSecondsLeft <= 0) {
+                        clearInterval(questionTimer);
+                        questionTimer = null;
+                        document.getElementById('quiz-timer-text').textContent = `0s`;
+                        document.getElementById('quiz-progress-bar').style.width = `0%`;
+                        disableOptions();
+                    }
+                }, 1000);
+            }
         }
 
         function showView(viewId) {
@@ -1107,7 +1114,12 @@ if (!$error) {
         }
 
         function resetQuizForm(q) {
+            if (questionTimer) {
+                clearInterval(questionTimer);
+                questionTimer = null;
+            }
             questionTotalDuration = q.seconds_left;
+            questionSecondsLeft = q.seconds_left;
             document.getElementById('quiz-question-text').textContent = q.question_text;
             
             const imgContainer = document.getElementById('quiz-image-container');

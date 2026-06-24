@@ -118,6 +118,15 @@ try {
         LessonProgressionHelper::handleLessonUpdate($pdo, $lessonId);
     }
 
+    if ($type === 'live' && $count > 0) {
+        $cacheDir = __DIR__ . '/../uploads/live_cache';
+        if (is_dir($cacheDir)) {
+            foreach (glob($cacheDir . '/*.json') as $file) {
+                @unlink($file);
+            }
+        }
+    }
+
     auditLog('questions_imported', "{$type}: {$count} questions, course #{$courseId}");
 
     echo json_encode([
