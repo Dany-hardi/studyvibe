@@ -165,10 +165,10 @@ try {
     // ── ACTION 2 : Poll Quiz (État en direct du QCM) ──────────────────
     if ($action === 'poll_quiz') {
         if ($isFinished) {
-            // Traiter la notation et l'envoi de l'e-mail si ce n'est pas déjà fait
+            // Traiter la notation si ce n'est pas déjà fait
             if ($registration['score'] === null) {
                 // Charger le score récent de la session PHP pour éviter des calculs doublons
-                $scorePercent = calculateAndEmailScore($pdo, $session, $registration, $questions);
+                $scorePercent = calculateAndSaveScore($pdo, $session, $registration, $questions);
                 $registration['score'] = $scorePercent;
                 $_SESSION['verified_registrations'][$code]['score'] = $scorePercent;
             }
@@ -297,7 +297,7 @@ try {
 /**
  * Calcule le score final de l'utilisateur et envoie ses résultats par e-mail
  */
-function calculateAndEmailScore(PDO $pdo, array $session, array $registration, array $questions): float
+function calculateAndSaveScore(PDO $pdo, array $session, array $registration, array $questions): float
 {
     $regId = (int)$registration['id'];
     
@@ -335,14 +335,6 @@ function calculateAndEmailScore(PDO $pdo, array $session, array $registration, a
     // Enregistrer le score final en base de données
     $updateStmt = $pdo->prepare("UPDATE live_eval_registrations SET score = :score WHERE id = :id");
     $updateStmt->execute(['score' => $scorePercent, 'id' => $regId]);
-
-    // Envoyer l'email
-    try {
-        require_once __DIR__ . '/../Mailer.php';
-        Mailer::sendLiveEvalResults($registration['email'], $registration['name'], $session['title'], $correctCount, $totalQuestions, $qasDetails);
-    } catch (Exception $e) {
-        // Ignorer l'erreur d'envoi d'e-mail
-    }
 
     return (float)$scorePercent;
 }

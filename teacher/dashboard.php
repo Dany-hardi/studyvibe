@@ -2508,15 +2508,18 @@ function closeAllModals() {
 }
 
 let currentDispatchSessionId = null;
+let dispatchRegistrationIds = [];
 
 function openDispatchModal(sessionId) {
     currentDispatchSessionId = sessionId;
+    dispatchRegistrationIds = [];
     
     document.getElementById('dispatch-loading').classList.remove('hidden');
     document.getElementById('dispatch-table').classList.add('hidden');
     document.getElementById('dispatch-session-title').textContent = 'Chargement...';
     document.getElementById('dispatch-count-info').textContent = '';
     document.getElementById('dispatch-confirm-btn').disabled = true;
+    document.getElementById('dispatch-confirm-btn').textContent = 'Approuver et Envoyer';
     
     toggleModal('dispatch-emails-modal');
     
@@ -2533,6 +2536,7 @@ function openDispatchModal(sessionId) {
             
             const tbody = document.getElementById('dispatch-tbody');
             tbody.innerHTML = '';
+            dispatchRegistrationIds = data.drafts.map(s => s.id);
             
             if (data.drafts.length === 0) {
                 tbody.innerHTML = `<tr><td colspan="4" class="p-4 text-center text-[#888888] italic">Aucun participant inscrit à cette session.</td></tr>`;
@@ -2573,40 +2577,71 @@ function openDispatchModal(sessionId) {
         });
 }
 
-function confirmDispatch() {
-    if (!currentDispatchSessionId) return;
+async function confirmDispatch() {
+    if (!currentDispatchSessionId || dispatchRegistrationIds.length === 0) return;
     
     const btn = document.getElementById('dispatch-confirm-btn');
-    const originalText = btn.textContent;
+    const countInfo = document.getElementById('dispatch-count-info');
+    
     btn.disabled = true;
     btn.textContent = 'Envoi en cours...';
     
-    const formData = new FormData();
-    formData.append('session_id', currentDispatchSessionId);
-    formData.append('action', 'dispatch');
+    const totalEmails = dispatchRegistrationIds.length;
+    let processedCount = 0;
     
-    fetch('/api/teacher-dispatch-live-emails.php', {
-        method: 'POST',
-        body: formData
-    })
-    .then(response => response.json())
-    .then(data => {
-        btn.disabled = false;
-        btn.textContent = originalText;
-        
-        if (data.success) {
-            alert(data.message);
-            toggleModal('dispatch-emails-modal');
-        } else {
-            alert("Erreur: " + data.message);
+    const CHUNK_SIZE = 5;
+    const CONCURRENT_CHANNELS = 3;
+    
+    const chunks = [];
+    for (let i = 0; i < totalEmails; i += CHUNK_SIZE) {
+        chunks.push(dispatchRegistrationIds.slice(i, i + CHUNK_SIZE));
+    }
+    
+    countInfo.innerHTML = `<span class="text-[#004B23] font-semibold flex items-center gap-2"><span class="w-3 h-3 rounded-full border-2 border-t-transparent border-[#004B23] animate-spin"></span> Envoi : 0 / ${totalEmails}</span>`;
+    
+    let chunkIndex = 0;
+    
+    const worker = async () => {
+        while (chunkIndex < chunks.length) {
+            const currentIndex = chunkIndex++;
+            const currentChunk = chunks[currentIndex];
+            if (!currentChunk) break;
+            
+            const formData = new FormData();
+            formData.append('session_id', currentDispatchSessionId);
+            formData.append('action', 'dispatch');
+            formData.append('registration_ids', JSON.stringify(currentChunk));
+            
+            try {
+                const response = await fetch('/api/teacher-dispatch-live-emails.php', {
+                    method: 'POST',
+                    body: formData
+                });
+                const data = await response.json();
+                
+                processedCount += currentChunk.length;
+                countInfo.innerHTML = `<span class="text-[#004B23] font-semibold flex items-center gap-2"><span class="w-3 h-3 rounded-full border-2 border-t-transparent border-[#004B23] animate-spin"></span> Envoi : ${processedCount} / ${totalEmails}</span>`;
+            } catch (err) {
+                console.error("Erreur d'envoi pour un lot", err);
+                processedCount += currentChunk.length; // Skip over the failed ones in UI logic to prevent infinite hanging
+            }
         }
-    })
-    .catch(err => {
-        console.error(err);
-        btn.disabled = false;
-        btn.textContent = originalText;
-        alert("Erreur lors de l'envoi des e-mails.");
-    });
+    };
+    
+    const channels = [];
+    for (let i = 0; i < CONCURRENT_CHANNELS; i++) {
+        channels.push(worker());
+    }
+    
+    await Promise.all(channels);
+    
+    btn.textContent = 'Terminé';
+    countInfo.innerHTML = `<span class="text-[#004B23] font-semibold">Envoi terminé ! (${processedCount}/${totalEmails})</span>`;
+    
+    setTimeout(() => {
+        alert("Tous les e-mails ont été traités avec succès.");
+        toggleModal('dispatch-emails-modal');
+    }, 500);
 }
 
 function escapeHtml(str) {

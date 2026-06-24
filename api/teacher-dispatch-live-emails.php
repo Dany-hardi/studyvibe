@@ -95,10 +95,21 @@ try {
     }
 
     if ($action === 'dispatch') {
+        $rawIds = $_POST['registration_ids'] ?? '[]';
+        $targetIds = json_decode((string)$rawIds, true);
+        if (!is_array($targetIds)) {
+            $targetIds = [];
+        }
+
         $successCount = 0;
         $failCount = 0;
 
         foreach ($registrations as $r) {
+            // Seulement traiter les IDs demandés
+            if (!in_array($r['id'], $targetIds)) {
+                continue;
+            }
+
             // Récupérer les réponses soumises
             $ansStmt = $pdo->prepare("
                 SELECT question_id, selected_option FROM live_eval_answers
@@ -142,6 +153,8 @@ try {
 
         echo json_encode([
             'success' => true,
+            'success_count' => $successCount,
+            'fail_count' => $failCount,
             'message' => "E-mails envoyés avec succès à {$successCount} étudiant(s)." . ($failCount > 0 ? " Échec pour {$failCount} étudiant(s)." : "")
         ]);
         exit;
