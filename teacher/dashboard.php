@@ -2588,16 +2588,22 @@ async function confirmDispatch() {
     
     const totalEmails = dispatchRegistrationIds.length;
     let processedCount = 0;
+    let failedCount = 0;
     
-    const CHUNK_SIZE = 5;
-    const CONCURRENT_CHANNELS = 3;
+    // Config: 1 channel, chunks of 2 emails to prevent Gmail SMTP blocks/timeouts
+    const CHUNK_SIZE = 2;
+    const CONCURRENT_CHANNELS = 1;
     
     const chunks = [];
     for (let i = 0; i < totalEmails; i += CHUNK_SIZE) {
         chunks.push(dispatchRegistrationIds.slice(i, i + CHUNK_SIZE));
     }
     
-    countInfo.innerHTML = `<span class="text-[#004B23] font-semibold flex items-center gap-2"><span class="w-3 h-3 rounded-full border-2 border-t-transparent border-[#004B23] animate-spin"></span> Envoi : 0 / ${totalEmails}</span>`;
+    const updateProgressUI = () => {
+        countInfo.innerHTML = `<span class="text-[#004B23] font-semibold flex items-center gap-2"><span class="w-3 h-3 rounded-full border-2 border-t-transparent border-[#004B23] animate-spin"></span> Envoi : ${processedCount} / ${totalEmails} ${failedCount > 0 ? `(<span class="text-red-500">${failedCount} échecs</span>)` : ''}</span>`;
+    };
+
+    updateProgressUI();
     
     let chunkIndex = 0;
     
@@ -2617,13 +2623,23 @@ async function confirmDispatch() {
                     method: 'POST',
                     body: formData
                 });
+                
+                if (!response.ok) throw new Error("HTTP " + response.status);
+                
                 const data = await response.json();
                 
                 processedCount += currentChunk.length;
-                countInfo.innerHTML = `<span class="text-[#004B23] font-semibold flex items-center gap-2"><span class="w-3 h-3 rounded-full border-2 border-t-transparent border-[#004B23] animate-spin"></span> Envoi : ${processedCount} / ${totalEmails}</span>`;
+                if (!data.success) {
+                    failedCount += currentChunk.length;
+                } else if (data.fail_count > 0) {
+                    failedCount += data.fail_count;
+                }
+                updateProgressUI();
             } catch (err) {
                 console.error("Erreur d'envoi pour un lot", err);
                 processedCount += currentChunk.length; // Skip over the failed ones in UI logic to prevent infinite hanging
+                failedCount += currentChunk.length;
+                updateProgressUI();
             }
         }
     };
@@ -2636,10 +2652,14 @@ async function confirmDispatch() {
     await Promise.all(channels);
     
     btn.textContent = 'Terminé';
-    countInfo.innerHTML = `<span class="text-[#004B23] font-semibold">Envoi terminé ! (${processedCount}/${totalEmails})</span>`;
+    countInfo.innerHTML = `<span class="text-[#004B23] font-semibold">Envoi terminé ! (${processedCount}/${totalEmails}) ${failedCount > 0 ? `<span class="text-red-500">[${failedCount} échecs]</span>` : ''}</span>`;
     
     setTimeout(() => {
-        alert("Tous les e-mails ont été traités avec succès.");
+        if (failedCount > 0) {
+            alert(`Processus terminé, mais il y a eu ${failedCount} échecs. Vérifiez les limites SMTP ou votre connexion.`);
+        } else {
+            alert("Tous les e-mails ont été traités avec succès.");
+        }
         toggleModal('dispatch-emails-modal');
     }, 500);
 }
