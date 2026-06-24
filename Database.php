@@ -27,6 +27,16 @@ class Database
                 PDO::ATTR_EMULATE_PREPARES   => false,
             ];
 
+            // Activer SSL si l'hôte pointe vers Aiven ou si SSL est spécifié
+            $host = DB_HOST;
+            $useSsl = str_contains(strtolower($host), 'aivencloud.com') 
+                      || (defined('DB_SSL') && (DB_SSL === 'true' || DB_SSL === true));
+
+            if ($useSsl && defined('PDO::MYSQL_ATTR_SSL_CA')) {
+                $options[PDO::MYSQL_ATTR_SSL_CA] = '';
+                $options[PDO::MYSQL_ATTR_SSL_VERIFY_SERVER_CERT] = false;
+            }
+
             self::$instance = new PDO($dsn, DB_USER, DB_PASS, $options);
         }
 
