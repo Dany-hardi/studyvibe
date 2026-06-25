@@ -38,8 +38,20 @@ class Database
             }
 
             self::$instance = new PDO($dsn, DB_USER, DB_PASS, $options);
-        }
 
+            // Auto-migration check for is_async and async_deadline columns
+            try {
+                self::$instance->query("SELECT is_async, async_deadline FROM live_eval_sessions LIMIT 1");
+            } catch (PDOException $e) {
+                try {
+                    self::$instance->exec("ALTER TABLE `live_eval_sessions` ADD COLUMN `is_async` TINYINT(1) NOT NULL DEFAULT 0");
+                    self::$instance->exec("ALTER TABLE `live_eval_sessions` ADD COLUMN `async_deadline` DATETIME DEFAULT NULL");
+                } catch (PDOException $ex) {
+                    // Silently fail if columns are already being altered or added
+                }
+            }
+        }
+        
         return self::$instance;
     }
 

@@ -49,7 +49,7 @@ try {
         SELECT name, email, score, registered_at
         FROM live_eval_registrations
         WHERE session_id = :sid
-        ORDER BY name ASC
+        ORDER BY CASE WHEN score IS NULL THEN 1 ELSE 0 END, score DESC, name ASC
     ");
     $stmt->execute(['sid' => $sessionId]);
     $registrations = $stmt->fetchAll();

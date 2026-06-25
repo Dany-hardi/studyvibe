@@ -506,11 +506,14 @@ try {
             $startTime = trim((string)($_POST['live_start_time'] ?? ''));
             $endTime = trim((string)($_POST['live_end_time'] ?? ''));
             $limit = (int)($_POST['default_time_limit'] ?? 30);
+            $isAsync = isset($_POST['is_async']) ? 1 : 0;
+            $asyncDeadline = isset($_POST['async_deadline']) && $_POST['async_deadline'] !== '' ? trim((string)$_POST['async_deadline']) : null;
 
             if ($sid > 0 && !empty($title) && !empty($startTime) && !empty($endTime)) {
                 $stmt = $pdo->prepare("
                     UPDATE live_eval_sessions 
-                    SET title = :title, start_time = :start, end_time = :end, default_time_limit = :limit
+                    SET title = :title, start_time = :start, end_time = :end, default_time_limit = :limit,
+                        is_async = :is_async, async_deadline = :async_deadline
                     WHERE id = :id AND teacher_id = :tid
                 ");
                 $stmt->execute([
@@ -518,6 +521,8 @@ try {
                     'start' => $startTime,
                     'end'   => $endTime,
                     'limit' => $limit,
+                    'is_async' => $isAsync,
+                    'async_deadline' => $asyncDeadline,
                     'id'    => $sid,
                     'tid'   => $teacherId
                 ]);
@@ -2233,7 +2238,9 @@ $successMsg = $successMessages[$successKey] ?? null;
                                             "title" => $ls["title"],
                                             "start_time" => date("Y-m-d\TH:i", strtotime($ls["start_time"])),
                                             "end_time" => date("Y-m-d\TH:i", strtotime($ls["end_time"])),
-                                            "default_time_limit" => $ls["default_time_limit"]
+                                            "default_time_limit" => $ls["default_time_limit"],
+                                            "is_async" => $ls["is_async"],
+                                            "async_deadline" => $ls["async_deadline"] ? date("Y-m-d\TH:i", strtotime($ls["async_deadline"])) : ""
                                         ]), ENT_QUOTES, 'UTF-8') ?>"
                                         onclick="openEditLiveSessionModal(this)"
                                         class="p-1.5 border border-[#E5E5E7] text-[#111111] rounded-sm hover:bg-gray-50" 
@@ -2282,6 +2289,12 @@ $successMsg = $successMessages[$successKey] ?? null;
                                 <a href="/teacher/export-live-grades.php?session_id=<?= $ls['id'] ?>" class="px-3 py-1.5 border border-[#E5E5E7] text-[11px] font-semibold uppercase tracking-wider rounded-sm hover:bg-gray-50 bg-white text-[#111111] flex items-center gap-1.5">
                                     <svg class="w-3.5 h-3.5 text-green-700" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4"/></svg>
                                     Rapport Excel
+                                </a>
+
+                                <!-- Exporter PDF -->
+                                <a href="/teacher/export-live-pdf.php?session_id=<?= $ls['id'] ?>" class="px-3 py-1.5 border border-[#E5E5E7] text-[11px] font-semibold uppercase tracking-wider rounded-sm hover:bg-gray-50 bg-white text-[#111111] flex items-center gap-1.5">
+                                    <svg class="w-3.5 h-3.5 text-red-700" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M7 21h10a2 2 0 002-2V9.414a1 1 0 00-.293-.707l-5.414-5.414A1 1 0 0012.586 3H7a2 2 0 00-2 2v14a2 2 0 002 2z"/></svg>
+                                    Rapport PDF
                                 </a>
 
                                 <!-- Gérer les questions -->
@@ -2467,6 +2480,16 @@ $successMsg = $successMessages[$successKey] ?? null;
                 <label class="block text-xs font-semibold text-[#555555] uppercase tracking-wider mb-2">Date/Heure de Fin</label>
                 <input type="datetime-local" name="live_end_time" id="edit-live-end-time" required class="w-full px-3 py-2 border border-[#E5E5E7] rounded-sm focus:outline-none focus:border-[#004B23] text-sm bg-white">
             </div>
+
+            <div class="flex items-center gap-2 py-1">
+                <input type="checkbox" name="is_async" id="edit-live-is-async" value="1" onchange="toggleAsyncDeadlineField(this.checked)" class="w-4 h-4 text-[#004B23] border-[#E5E5E7] rounded focus:ring-0">
+                <label for="edit-live-is-async" class="text-xs font-semibold text-[#555555] uppercase tracking-wider cursor-pointer">Activer le Mode Asynchrone (Devoir Libre)</label>
+            </div>
+            
+            <div id="async-deadline-container" class="hidden">
+                <label class="block text-xs font-semibold text-[#555555] uppercase tracking-wider mb-2">Date Limite d'Accès Asynchrone</label>
+                <input type="datetime-local" name="async_deadline" id="edit-live-async-deadline" class="w-full px-3 py-2 border border-[#E5E5E7] rounded-sm focus:outline-none focus:border-[#004B23] text-sm bg-white">
+            </div>
             
             <div class="flex justify-end gap-3 pt-2">
                 <button type="button" onclick="toggleModal('edit-live-session-modal')" class="px-4 py-2 border border-[#E5E5E7] text-xs font-semibold uppercase tracking-wider rounded-sm text-[#555555] hover:bg-gray-50 bg-white">Annuler</button>
@@ -2564,6 +2587,17 @@ function toggleModal(id) {
     }
 }
 
+function toggleAsyncDeadlineField(checked) {
+    const container = document.getElementById('async-deadline-container');
+    if (container) {
+        if (checked) {
+            container.classList.remove('hidden');
+        } else {
+            container.classList.add('hidden');
+        }
+    }
+}
+
 function openEditLiveSessionModal(button) {
     const session = JSON.parse(button.getAttribute('data-session'));
     document.getElementById('edit-live-session-id').value = session.id;
@@ -2571,6 +2605,18 @@ function openEditLiveSessionModal(button) {
     document.getElementById('edit-live-limit').value = session.default_time_limit;
     document.getElementById('edit-live-start-time').value = session.start_time;
     document.getElementById('edit-live-end-time').value = session.end_time;
+    
+    const isAsync = (parseInt(session.is_async) === 1);
+    const cb = document.getElementById('edit-live-is-async');
+    if (cb) {
+        cb.checked = isAsync;
+        toggleAsyncDeadlineField(isAsync);
+    }
+    const deadlineInput = document.getElementById('edit-live-async-deadline');
+    if (deadlineInput) {
+        deadlineInput.value = session.async_deadline || '';
+    }
+    
     toggleModal('edit-live-session-modal');
 }
 

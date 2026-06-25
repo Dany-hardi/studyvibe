@@ -32,6 +32,14 @@ class PdfReportBuilder
     }
 
     /**
+     * Ajuste la position verticale courante du curseur de dessin.
+     */
+    public function setCursorY(float $y): void
+    {
+        $this->cursorY = $y;
+    }
+
+    /**
      * Convertit une chaîne UTF-8 en Latin-1 sûre pour les polices PDF standard.
      */
     public static function encodeText(string $text): string

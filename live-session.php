@@ -28,11 +28,19 @@ $isStudent = isset($_SESSION['user_id'], $_SESSION['user_role']) && $_SESSION['u
 $redirectUrl = $isStudent ? 'student/dashboard.php' : 'index.php';
 $redirectLabel = $isStudent ? 'Retour au tableau de bord' : "Retour à l'accueil";
 
+$isAsync = isset($session['is_async']) && (int)$session['is_async'] === 1;
+$asyncDeadlinePassed = false;
+if ($isAsync && !empty($session['async_deadline'])) {
+    $asyncDeadlinePassed = (time() > strtotime($session['async_deadline']));
+}
+
 $error = null;
 if (!$session) {
     $error = "Cette séance de téléévaluation est introuvable ou le lien est invalide.";
 } elseif ((int)$session['status'] === 0) {
     $error = "Cette séance de téléévaluation a été désactivée par l'enseignant.";
+} elseif ($isAsync && $asyncDeadlinePassed) {
+    $error = "La date limite pour participer à cette évaluation asynchrone est dépassée.";
 }
 
 // Gérer l'enregistrement du participant
@@ -769,6 +777,7 @@ if (!$error) {
         const serverStartTimestamp = <?= strtotime($session['start_time']) ?>;
         const serverCurrentTimestamp = <?= time() ?>;
         const serverTimeOffset = (serverCurrentTimestamp * 1000) - Date.now();
+        const isAsync = <?= $isAsync ? 'true' : 'false' ?>;
 
         function getServerTime() {
             return Date.now() + serverTimeOffset;
@@ -1030,6 +1039,9 @@ if (!$error) {
                         document.getElementById('quiz-timer-text').textContent = `0s`;
                         document.getElementById('quiz-progress-bar').style.width = `0%`;
                         disableOptions();
+                        if (isAsync) {
+                            submitLiveAnswer("");
+                        }
                     }
                 }, 1000);
             }

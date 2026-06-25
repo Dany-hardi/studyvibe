@@ -71,8 +71,19 @@ try {
     $session = $cachedData['session'];
     $questions = $cachedData['questions'];
 
+    $isAsync = isset($session['is_async']) && (int)$session['is_async'] === 1;
+    $asyncDeadlinePassed = false;
+    if ($isAsync && !empty($session['async_deadline'])) {
+        $asyncDeadlinePassed = (time() > strtotime($session['async_deadline']));
+    }
+
     if ((int)$session['status'] === 0) {
         echo json_encode(['success' => false, 'message' => 'Cette séance est actuellement désactivée par l\'enseignant.', 'status' => 'inactive']);
+        exit;
+    }
+
+    if ($isAsync && $asyncDeadlinePassed) {
+        echo json_encode(['success' => false, 'message' => 'La date limite de cette évaluation asynchrone est dépassée.', 'status' => 'inactive']);
         exit;
     }
 
@@ -95,10 +106,15 @@ try {
         }
 
         $secondsToStart = $startTime - $now;
+        $status = $secondsToStart > 0 ? 'waiting' : 'active';
+        if ($isAsync && !$asyncDeadlinePassed) {
+            $status = 'active';
+            $secondsToStart = 0;
+        }
 
         echo json_encode([
             'success'          => true,
-            'status'           => $secondsToStart > 0 ? 'waiting' : 'active',
+            'status'           => $status,
             'registered_count' => $registeredCount,
             'seconds_to_start' => max(0, $secondsToStart),
             'start_time'       => $session['start_time'],
@@ -146,19 +162,77 @@ try {
     $activeIndex = -1;
     $secondsLeft = 0;
 
-    if (!$isFinished) {
-        foreach ($questions as $idx => $q) {
-            $limit = $q['time_limit'] !== null ? (int)$q['time_limit'] : (int)$session['default_time_limit'];
-            $qStart = $currentTime;
-            $qEnd = $currentTime + $limit;
+    if ($isAsync) {
+        // Compter les réponses déjà données par cet étudiant
+        $stmt = $pdo->prepare("SELECT COUNT(*) FROM live_eval_answers WHERE registration_id = :rid");
+        $stmt->execute(['rid' => $regId]);
+        $submittedCount = (int)$stmt->fetchColumn();
 
-            if ($now >= $qStart && $now < $qEnd) {
-                $activeQ = $q;
-                $activeIndex = $idx;
-                $secondsLeft = $qEnd - $now;
-                break;
+        if ($submittedCount >= count($questions)) {
+            $isFinished = true;
+            $activeQ = null;
+            $activeIndex = -1;
+            $secondsLeft = 0;
+        } else {
+            $isFinished = false;
+            $activeIndex = $submittedCount;
+            $activeQ = $questions[$activeIndex];
+            
+            $limit = $activeQ['time_limit'] !== null ? (int)$activeQ['time_limit'] : (int)$session['default_time_limit'];
+            
+            if (!isset($_SESSION['async_q_start'][$session['id']][$activeQ['id']])) {
+                $_SESSION['async_q_start'][$session['id']][$activeQ['id']] = $now;
             }
-            $currentTime = $qEnd;
+            
+            $startTimeQ = $_SESSION['async_q_start'][$session['id']][$activeQ['id']];
+            $elapsed = $now - $startTimeQ;
+            $secondsLeft = max(0, $limit - $elapsed);
+            
+            if ($secondsLeft <= 0) {
+                // Soumettre automatiquement une réponse vide pour avancer
+                try {
+                    $insertStmt = $pdo->prepare("
+                        INSERT INTO live_eval_answers (registration_id, question_id, selected_option)
+                        VALUES (:rid, :qid, '')
+                        ON DUPLICATE KEY UPDATE selected_option = '', answered_at = CURRENT_TIMESTAMP
+                    ");
+                    $insertStmt->execute([
+                        'rid' => $regId,
+                        'qid' => $activeQ['id']
+                    ]);
+                    $_SESSION['answered_questions'][$activeQ['id']] = true;
+                } catch (PDOException $ex) {}
+                
+                $submittedCount++;
+                if ($submittedCount >= count($questions)) {
+                    $isFinished = true;
+                    $activeQ = null;
+                    $activeIndex = -1;
+                    $secondsLeft = 0;
+                } else {
+                    $activeIndex = $submittedCount;
+                    $activeQ = $questions[$activeIndex];
+                    $limit = $activeQ['time_limit'] !== null ? (int)$activeQ['time_limit'] : (int)$session['default_time_limit'];
+                    $_SESSION['async_q_start'][$session['id']][$activeQ['id']] = $now;
+                    $secondsLeft = $limit;
+                }
+            }
+        }
+    } else {
+        if (!$isFinished) {
+            foreach ($questions as $idx => $q) {
+                $limit = $q['time_limit'] !== null ? (int)$q['time_limit'] : (int)$session['default_time_limit'];
+                $qStart = $currentTime;
+                $qEnd = $currentTime + $limit;
+
+                if ($now >= $qStart && $now < $qEnd) {
+                    $activeQ = $q;
+                    $activeIndex = $idx;
+                    $secondsLeft = $qEnd - $now;
+                    break;
+                }
+                $currentTime = $qEnd;
+            }
         }
     }
 
@@ -270,7 +344,7 @@ try {
         $questionId     = (int)($_POST['question_id'] ?? 0);
         $selectedOption = strtoupper(trim((string)($_POST['selected_option'] ?? '')));
 
-        if ($questionId <= 0 || !in_array($selectedOption, ['A', 'B', 'C', 'D'], true)) {
+        if ($questionId <= 0 || !in_array($selectedOption, ['', 'A', 'B', 'C', 'D'], true)) {
             echo json_encode(['success' => false, 'message' => 'Données de réponse invalides.']);
             exit;
         }
@@ -347,6 +421,20 @@ function calculateAndSaveScore(PDO $pdo, array $session, array $registration, ar
     // Enregistrer le score final en base de données
     $updateStmt = $pdo->prepare("UPDATE live_eval_registrations SET score = :score WHERE id = :id");
     $updateStmt->execute(['score' => $scorePercent, 'id' => $regId]);
+
+    // Envoyer les résultats par e-mail immédiatement en mode asynchrone
+    $isAsync = isset($session['is_async']) && (int)$session['is_async'] === 1;
+    if ($isAsync) {
+        require_once __DIR__ . '/../Mailer.php';
+        @Mailer::sendLiveEvalResults(
+            $registration['email'],
+            $registration['name'],
+            $session['title'],
+            $correctCount,
+            $totalQuestions,
+            $qasDetails
+        );
+    }
 
     return (float)$scorePercent;
 }
