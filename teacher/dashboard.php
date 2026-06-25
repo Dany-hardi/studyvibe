@@ -732,6 +732,8 @@ try {
                 $limit = $q['time_limit'] !== null ? (int)$q['time_limit'] : (int)$ls['default_time_limit'];
                 $totalDuration += $limit;
             }
+            $sessionStart = strtotime($ls['start_time']);
+            $sessionEnd = $sessionStart + $totalDuration;
             $isSessionAsync = isset($ls['is_async']) && (int)$ls['is_async'] === 1;
             if ($isSessionAsync) {
                 $ls['is_finished'] = !empty($ls['async_deadline']) && (time() >= strtotime($ls['async_deadline']));
