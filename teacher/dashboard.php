@@ -83,6 +83,9 @@ try {
                 if (in_array($fileExtension, $allowedExtensions, true) && $fileSize <= 3 * 1024 * 1024) {
                     $newFileName = md5(uniqid() . $fileName) . '.' . $fileExtension;
                     $uploadFileDir = __DIR__ . '/../uploads/course-covers/';
+                    if (!is_dir($uploadFileDir)) {
+                        mkdir($uploadFileDir, 0755, true);
+                    }
                     if (move_uploaded_file($fileTmpPath, $uploadFileDir . $newFileName)) {
                         $coverImage = $newFileName;
                     }
@@ -377,6 +380,9 @@ try {
                     if (in_array($fileExtension, $allowedExtensions, true) && $fileSize <= 3 * 1024 * 1024) {
                         $newFileName = md5(uniqid() . $fileName) . '.' . $fileExtension;
                         $uploadFileDir = __DIR__ . '/../uploads/course-covers/';
+                        if (!is_dir($uploadFileDir)) {
+                            mkdir($uploadFileDir, 0755, true);
+                        }
                         if (move_uploaded_file($fileTmpPath, $uploadFileDir . $newFileName)) {
                             $coverImage = $newFileName;
                         }
