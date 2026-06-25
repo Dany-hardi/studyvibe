@@ -803,7 +803,7 @@ $successMsg = $successMessages[$successKey] ?? null;
         }
     </script>
     <script defer src="https://cdn.jsdelivr.net/npm/katex@0.16.8/dist/katex.min.js"></script>
-    <script defer src="https://cdn.jsdelivr.net/npm/katex@0.16.8/dist/render-math-in-element.min.js" onload="renderMath()"></script>
+    <script defer src="https://cdn.jsdelivr.net/npm/katex@0.16.8/dist/contrib/auto-render.min.js" onload="renderMath()"></script>
     
     <?= csrfMetaTag(); ?>
 
@@ -2511,7 +2511,11 @@ $successMsg = $successMessages[$successKey] ?? null;
 <script>
 // ── Modal generic ─────────────────────────────────────────
 function toggleModal(id) {
-    document.getElementById(id).classList.toggle('hidden');
+    const modal = document.getElementById(id);
+    modal.classList.toggle('hidden');
+    if (!modal.classList.contains('hidden')) {
+        setTimeout(renderMath, 50);
+    }
 }
 
 function openEditLiveSessionModal(button) {
