@@ -103,6 +103,12 @@ if (!$error) {
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600&family=Plus+Jakarta+Sans:wght@300;400;500;600;700&display=swap" rel="stylesheet">
     <link rel="stylesheet" href="/assets/css/app.css">
+    
+    <!-- Bibliothèques KaTeX pour le rendu des formules mathématiques et caractères spéciaux en LaTeX -->
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/katex@0.16.8/dist/katex.min.css">
+    <script defer src="https://cdn.jsdelivr.net/npm/katex@0.16.8/dist/katex.min.js"></script>
+    <script defer src="https://cdn.jsdelivr.net/npm/katex@0.16.8/dist/render-math-in-element.min.js" onload="renderMath()"></script>
+    
     <style>
         *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
 
@@ -1113,6 +1119,20 @@ if (!$error) {
             }, 1000);
         }
 
+        function renderMath() {
+            if (typeof renderMathInElement === 'function') {
+                renderMathInElement(document.body, {
+                    delimiters: [
+                        {left: '$$', right: '$$', display: true},
+                        {left: '$', right: '$', display: false},
+                        {left: '\\(', right: '\\)', display: false},
+                        {left: '\\[', right: '\\]', display: true}
+                    ],
+                    throwOnError: false
+                });
+            }
+        }
+
         function resetQuizForm(q) {
             if (questionTimer) {
                 clearInterval(questionTimer);
@@ -1143,6 +1163,9 @@ if (!$error) {
             });
 
             document.getElementById('quiz-submit-status').classList.add('hidden');
+
+            // Lancer le rendu des formules mathématiques sur le nouveau contenu
+            setTimeout(renderMath, 50);
         }
 
         function submitLiveAnswer(option) {
