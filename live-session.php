@@ -80,6 +80,18 @@ if (!$error && $_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['register_l
             // Enregistrer dans la session PHP
             $_SESSION['live_registrations'][$code] = $regId;
 
+            if ($isAsync) {
+                $stmt = $pdo->prepare("UPDATE live_eval_registrations SET score = NULL WHERE id = :id");
+                $stmt->execute(['id' => $regId]);
+                
+                $stmt = $pdo->prepare("DELETE FROM live_eval_answers WHERE registration_id = :id");
+                $stmt->execute(['id' => $regId]);
+                
+                unset($_SESSION['verified_registrations'][$code]);
+                unset($_SESSION['async_q_start'][$session['id']]);
+                $_SESSION['answered_questions'] = [];
+            }
+
             header("Location: /live-session.php?code=" . urlencode($code));
             exit;
         } catch (PDOException $e) {
@@ -97,6 +109,25 @@ if (!$error) {
         $stmt = $pdo->prepare("SELECT * FROM live_eval_registrations WHERE id = :id AND session_id = :sid");
         $stmt->execute(['id' => $regId, 'sid' => $session['id']]);
         $registration = $stmt->fetch();
+
+        // Gérer le redémarrage automatique d'une tentative complétée en mode asynchrone
+        if ($isAsync) {
+            $shouldReset = (isset($_GET['restart']) && (int)$_GET['restart'] === 1) || ($registration && $registration['score'] !== null);
+            if ($shouldReset) {
+                $stmt = $pdo->prepare("UPDATE live_eval_registrations SET score = NULL WHERE id = :id");
+                $stmt->execute(['id' => $regId]);
+
+                $stmt = $pdo->prepare("DELETE FROM live_eval_answers WHERE registration_id = :id");
+                $stmt->execute(['id' => $regId]);
+
+                unset($_SESSION['verified_registrations'][$code]);
+                unset($_SESSION['async_q_start'][$session['id']]);
+                $_SESSION['answered_questions'] = [];
+
+                header("Location: /live-session.php?code=" . urlencode($code));
+                exit;
+            }
+        }
     }
 }
 ?>
@@ -743,6 +774,11 @@ if (!$error) {
                                 </div>
 
                                 <a href="<?= htmlspecialchars($redirectUrl) ?>" class="btn-primary"><?= htmlspecialchars($redirectLabel) ?></a>
+                                <?php if ($isAsync): ?>
+                                    <div style="margin-top: 1rem;">
+                                        <a href="/live-session.php?code=<?= urlencode($code) ?>&restart=1" class="btn-primary" style="background-color: var(--ink); border-color: var(--ink); text-decoration: none; display: inline-block;">Recommencer l'évaluation</a>
+                                    </div>
+                                <?php endif; ?>
                             </div>
 
                         </div>

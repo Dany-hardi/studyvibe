@@ -422,19 +422,16 @@ function calculateAndSaveScore(PDO $pdo, array $session, array $registration, ar
     $updateStmt = $pdo->prepare("UPDATE live_eval_registrations SET score = :score WHERE id = :id");
     $updateStmt->execute(['score' => $scorePercent, 'id' => $regId]);
 
-    // Envoyer les résultats par e-mail immédiatement en mode asynchrone
-    $isAsync = isset($session['is_async']) && (int)$session['is_async'] === 1;
-    if ($isAsync) {
-        require_once __DIR__ . '/../Mailer.php';
-        @Mailer::sendLiveEvalResults(
-            $registration['email'],
-            $registration['name'],
-            $session['title'],
-            $correctCount,
-            $totalQuestions,
-            $qasDetails
-        );
-    }
+    // Envoyer les résultats par e-mail immédiatement au participant (pour les modes asynchrone et synchrone)
+    require_once __DIR__ . '/../Mailer.php';
+    @Mailer::sendLiveEvalResults(
+        $registration['email'],
+        $registration['name'],
+        $session['title'],
+        $correctCount,
+        $totalQuestions,
+        $qasDetails
+    );
 
     return (float)$scorePercent;
 }

@@ -513,7 +513,7 @@ try {
                 $stmt = $pdo->prepare("
                     UPDATE live_eval_sessions 
                     SET title = :title, start_time = :start, end_time = :end, default_time_limit = :limit,
-                        is_async = :is_async, async_deadline = :async_deadline
+                        is_async = :is_async, async_deadline = :async_deadline, status = 1
                     WHERE id = :id AND teacher_id = :tid
                 ");
                 $stmt->execute([
@@ -732,9 +732,12 @@ try {
                 $limit = $q['time_limit'] !== null ? (int)$q['time_limit'] : (int)$ls['default_time_limit'];
                 $totalDuration += $limit;
             }
-            $sessionStart = strtotime($ls['start_time']);
-            $sessionEnd = $sessionStart + $totalDuration;
-            $ls['is_finished'] = (time() >= $sessionEnd || time() >= strtotime($ls['end_time']));
+            $isSessionAsync = isset($ls['is_async']) && (int)$ls['is_async'] === 1;
+            if ($isSessionAsync) {
+                $ls['is_finished'] = !empty($ls['async_deadline']) && (time() >= strtotime($ls['async_deadline']));
+            } else {
+                $ls['is_finished'] = (time() >= $sessionEnd || time() >= strtotime($ls['end_time']));
+            }
         }
         unset($ls);
     }
