@@ -158,7 +158,7 @@ try {
     if ($_SERVER['REQUEST_METHOD'] === 'POST' && $selectedCourse) {
         $action = (string)($_POST['action'] ?? $_GET['action'] ?? '');
 
-        if (in_array($action, ['add_live_session', 'edit_live_session', 'toggle_live_session', 'delete_live_session', 'add_live_question', 'delete_live_question'], true)) {
+        if (in_array($action, ['add_live_session', 'edit_live_session', 'toggle_live_session', 'delete_live_session', 'add_live_question', 'delete_live_question', 'delete_all_live_questions'], true)) {
             clearLiveSessionCache();
         }
 
@@ -618,6 +618,34 @@ try {
                 }
             }
         }
+
+        // ── Q2. Supprimer TOUTES les questions d'une séance de téléévaluation ──
+        if ($action === 'delete_all_live_questions') {
+            $sid = (int)($_POST['session_id'] ?? 0);
+            if ($sid > 0) {
+                $stmt = $pdo->prepare("
+                    SELECT s.id 
+                    FROM live_eval_sessions s
+                    WHERE s.id = :id AND s.teacher_id = :tid AND s.course_id = :cid
+                ");
+                $stmt->execute(['id' => $sid, 'tid' => $teacherId, 'cid' => $selectedCourse['id']]);
+                if ($stmt->fetch()) {
+                    $imgStmt = $pdo->prepare("SELECT image_path FROM live_eval_questions WHERE session_id = :sid");
+                    $imgStmt->execute(['sid' => $sid]);
+                    $images = $imgStmt->fetchAll(PDO::FETCH_COLUMN);
+                    foreach ($images as $img) {
+                        if ($img) {
+                            @unlink(__DIR__ . '/../uploads/live_questions/' . $img);
+                        }
+                    }
+                    
+                    $del = $pdo->prepare("DELETE FROM live_eval_questions WHERE session_id = :sid");
+                    $del->execute(['sid' => $sid]);
+                    
+                    header("Location: /teacher/dashboard.php?course_id={$selectedCourse['id']}&success=live_all_questions_deleted&open_live_modal=1&open_session={$sid}"); exit;
+                }
+            }
+        }
     }
 
     // ─────────────────────────────────────────────────────────────────────
@@ -771,6 +799,7 @@ $successMessages = [
     'questions_imported'     => '✓ Questions importées avec succès.',
     'course_updated'         => '✓ Informations du cours mises à jour.',
     'course_created'         => '✓ Cours créé avec succès. Le promoteur a été informé.',
+    'live_all_questions_deleted' => '✓ Toutes les questions de la séance ont été supprimées.',
 ];
 $successKey = (string)($_GET['success'] ?? '');
 $successMsg = $successMessages[$successKey] ?? null;
@@ -2376,6 +2405,17 @@ $successMsg = $successMessages[$successKey] ?? null;
                                                 </form>
                                             </div>
                                         <?php endforeach; ?>
+                                    </div>
+
+                                    <!-- Bouton de suppression en masse de toutes les questions -->
+                                    <div class="pt-4 border-t border-[#E5E5E7] flex justify-end">
+                                        <form method="POST" action="/teacher/dashboard.php?course_id=<?= $selectedCourse['id'] ?>&action=delete_all_live_questions" onsubmit="return confirm('Êtes-vous absolument sûr de vouloir supprimer TOUTES les questions de cette séance ? Cette action est irréversible.');">
+                                            <input type="hidden" name="session_id" value="<?= $ls['id'] ?>">
+                                            <button type="submit" class="px-4 py-2 bg-red-600 hover:bg-red-700 text-white text-[11px] font-semibold uppercase tracking-wider rounded-sm transition-colors flex items-center gap-2">
+                                                <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16"/></svg>
+                                                Supprimer toutes les questions
+                                            </button>
+                                        </form>
                                     </div>
                                 <?php endif; ?>
                             </div>
