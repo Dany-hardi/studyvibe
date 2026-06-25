@@ -784,6 +784,12 @@ $successMsg = $successMessages[$successKey] ?? null;
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&family=Plus+Jakarta+Sans:ital,wght@0,300..800;1,300..800&display=swap" rel="stylesheet">
     <link rel="stylesheet" href="/assets/css/app.css">
+    
+    <!-- Bibliothèques KaTeX pour le rendu des formules mathématiques et caractères spéciaux en LaTeX -->
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/katex@0.16.8/dist/katex.min.css">
+    <script defer src="https://cdn.jsdelivr.net/npm/katex@0.16.8/dist/katex.min.js"></script>
+    <script defer src="https://cdn.jsdelivr.net/npm/katex@0.16.8/dist/render-math-in-element.min.js" onload="renderMath()"></script>
+    
     <?= csrfMetaTag(); ?>
 
     <script src="https://cdn.tailwindcss.com"></script>
@@ -3184,56 +3190,41 @@ function openImportModal(type) {
 
 document.getElementById('import-questions-btn')?.addEventListener('click', async () => {
     const fileInput = document.getElementById('import-questions-file');
-    const resultEl  = document.getElementById('import-result');
     const file      = fileInput.files[0];
     if (!file) { Toast.error('Sélectionnez un fichier.'); return; }
 
-    const btn = document.getElementById('import-questions-btn');
-    btn.disabled = true;
-    btn.textContent = 'Import…';
-
-    const fd = new FormData();
-    fd.append('type', importType);
-    fd.append('course_id', courseIdForImport);
-    if (importType === 'lesson') {
-        fd.append('lesson_id', document.getElementById('question-lesson-id').value);
-    }
-
     const ext = file.name.split('.').pop().toLowerCase();
-    try {
-        if (ext === 'csv' || ext === 'txt') {
-            fd.append('file', file);
-        } else if (ext === 'xlsx' || ext === 'xls') {
+    closeAllModals();
+
+    const lessonIdVal = document.getElementById('question-lesson-id')?.value || null;
+
+    if (ext === 'csv' || ext === 'txt') {
+        const reader = new FileReader();
+        reader.onload = function(e) {
+            try {
+                const text = e.target.result;
+                const rawRows = parseCsvJs(text);
+                const { questions, mathCount } = processParsedRows(rawRows);
+                openCsvPreview(questions, mathCount, importType, courseIdForImport, null, lessonIdVal);
+            } catch (err) {
+                Toast.error("Erreur de lecture CSV : " + err.message);
+            }
+        };
+        reader.readAsText(file);
+    } else if (ext === 'xlsx' || ext === 'xls') {
+        try {
             const buf = await file.arrayBuffer();
             const wb  = XLSX.read(buf, { type: 'array' });
             const sheet = wb.Sheets[wb.SheetNames[0]];
             const rows  = XLSX.utils.sheet_to_json(sheet, { header: 1, defval: '' });
-            fd.append('rows_json', JSON.stringify(rows));
-        } else {
-            Toast.error('Format non supporté. Utilisez .csv ou .xlsx');
-            btn.disabled = false;
-            btn.textContent = 'Importer';
-            return;
+            const { questions, mathCount } = processParsedRows(rows);
+            openCsvPreview(questions, mathCount, importType, courseIdForImport, null, lessonIdVal);
+        } catch (err) {
+            Toast.error("Erreur de lecture Excel : " + err.message);
         }
-
-        const res  = await fetch('/teacher/import-questions.php', { method: 'POST', body: fd });
-        const data = await res.json();
-        resultEl.classList.remove('hidden');
-        if (data.success) {
-            resultEl.className = 'text-xs p-3 border border-[#004B23] text-[#004B23]';
-            resultEl.textContent = data.message + (data.errors?.length ? ' Avertissements : ' + data.errors.join(' ') : '');
-            Toast.success(data.message);
-            setTimeout(() => location.reload(), 1500);
-        } else {
-            resultEl.className = 'text-xs p-3 border border-[#D32F2F] text-[#D32F2F]';
-            resultEl.textContent = data.message + (data.errors?.length ? ' ' + data.errors.join(' ') : '');
-            Toast.error(data.message);
-        }
-    } catch (err) {
-        Toast.error('Erreur : ' + err.message);
+    } else {
+        Toast.error('Format non supporté. Utilisez .csv ou .xlsx');
     }
-    btn.disabled = false;
-    btn.textContent = 'Importer';
 });
 
 // Statistiques enseignant
@@ -3609,30 +3600,319 @@ function copyToClipboard(text) {
 function importLiveQuestionsFile(input, sessionId) {
     if (!input.files || input.files.length === 0) return;
     const file = input.files[0];
-    const formData = new FormData();
-    formData.append('file', file);
-    formData.append('type', 'live');
-    formData.append('course_id', <?= (int)$selectedCourse['id'] ?>);
-    formData.append('session_id', sessionId);
-    
-    fetch('/teacher/import-questions.php', {
-        method: 'POST',
-        body: formData
-    })
-    .then(res => res.json())
-    .then(data => {
-        if (data.success) {
-            alert(data.message);
-            window.location.reload();
-        } else {
-            alert("Erreur : " + data.message + (data.errors ? "\n" + data.errors.join("\n") : ""));
+    const ext = file.name.split('.').pop().toLowerCase();
+    closeAllModals();
+
+    const courseId = <?= (int)$selectedCourse['id'] ?>;
+
+    if (ext === 'csv' || ext === 'txt') {
+        const reader = new FileReader();
+        reader.onload = function(e) {
+            try {
+                const text = e.target.result;
+                const rawRows = parseCsvJs(text);
+                const { questions, mathCount } = processParsedRows(rawRows);
+                openCsvPreview(questions, mathCount, 'live', courseId, sessionId, null);
+            } catch (err) {
+                alert("Erreur de lecture CSV : " + err.message);
+            }
+        };
+        reader.readAsText(file);
+    } else if (ext === 'xlsx' || ext === 'xls') {
+        try {
+            const reader = new FileReader();
+            reader.onload = function(e) {
+                try {
+                    const data = new Uint8Array(e.target.result);
+                    const wb = XLSX.read(data, {type: 'array'});
+                    const sheet = wb.Sheets[wb.SheetNames[0]];
+                    const rows = XLSX.utils.sheet_to_json(sheet, { header: 1, defval: '' });
+                    const { questions, mathCount } = processParsedRows(rows);
+                    openCsvPreview(questions, mathCount, 'live', courseId, sessionId, null);
+                } catch (err) {
+                    alert("Erreur de traitement Excel : " + err.message);
+                }
+            };
+            reader.readAsArrayBuffer(file);
+        } catch (err) {
+            alert("Erreur de lecture Excel : " + err.message);
         }
-    })
-    .catch(err => {
-        console.error(err);
-        alert("Erreur lors de l'importation.");
-    });
+    } else {
+        alert('Format non supporté. Utilisez .csv ou .xlsx');
+    }
 }
+
+// ── Client-side CSV Parser & Validation Helpers ──
+function parseCsvJs(text) {
+    let lines = [];
+    let row = [""];
+    let inQuotes = false;
+    
+    for (let i = 0; i < text.length; i++) {
+        let c = text[i];
+        let next = text[i+1];
+        
+        if (c === '"') {
+            if (inQuotes && next === '"') {
+                row[row.length - 1] += '"';
+                i++;
+            } else {
+                inQuotes = !inQuotes;
+            }
+        } else if (c === ',' && !inQuotes) {
+            row.push("");
+        } else if ((c === '\r' || c === '\n') && !inQuotes) {
+            if (c === '\r' && next === '\n') i++;
+            if (row.length > 1 || row[0] !== "") {
+                lines.push(row);
+            }
+            row = [""];
+        } else {
+            row[row.length - 1] += c;
+        }
+    }
+    if (row.length > 1 || row[0] !== "") {
+        lines.push(row);
+    }
+    return lines;
+}
+
+function processParsedRows(rows) {
+    let header = null;
+    let startIndex = 0;
+    
+    if (rows.length > 0) {
+        let firstRow = rows[0];
+        let joined = firstRow.join(' ').toLowerCase();
+        if (joined.includes('question') || joined.includes('option') || joined.includes('correct') || joined.includes('reponse')) {
+            header = firstRow.map(h => h.toLowerCase().trim());
+            startIndex = 1;
+        }
+    }
+    
+    let questions = [];
+    let mathCount = 0;
+    
+    for (let i = startIndex; i < rows.length; i++) {
+        let cols = rows[i];
+        if (cols.length < 6) continue;
+        
+        let qText = cols[0] || "";
+        let optA = cols[1] || "";
+        let optB = cols[2] || "";
+        let optC = cols[3] || "";
+        let optD = cols[4] || "";
+        let correct = (cols[5] || "").toUpperCase().trim();
+        
+        if (header) {
+            let qIdx = header.findIndex(h => h.includes('question') || h.includes('libelle') || h.includes('enonce'));
+            let aIdx = header.findIndex(h => h === 'a' || h.includes('option_a'));
+            let bIdx = header.findIndex(h => h === 'b' || h.includes('option_b'));
+            let cIdx = header.findIndex(h => h === 'c' || h.includes('option_c'));
+            let dIdx = header.findIndex(h => h === 'd' || h.includes('option_d'));
+            let corIdx = header.findIndex(h => h.includes('correct') || h.includes('reponse') || h.includes('bonne'));
+            
+            if (qIdx !== -1) qText = cols[qIdx] || "";
+            if (aIdx !== -1) optA = cols[aIdx] || "";
+            if (bIdx !== -1) optB = cols[bIdx] || "";
+            if (cIdx !== -1) optC = cols[cIdx] || "";
+            if (dIdx !== -1) optD = cols[dIdx] || "";
+            if (corIdx !== -1) correct = (cols[corIdx] || "").toUpperCase().trim();
+        }
+        
+        if (!qText.trim() && !optA.trim() && !optB.trim()) continue;
+        
+        let allText = qText + optA + optB + optC + optD;
+        let hasMath = allText.includes('$');
+        if (hasMath) mathCount++;
+        
+        let errors = [];
+        if (!qText.trim()) errors.push("Question vide");
+        if (!optA.trim() || !optB.trim() || !optC.trim() || !optD.trim()) errors.push("Toutes les options (A, B, C, D) doivent être remplies");
+        if (!['A', 'B', 'C', 'D'].includes(correct)) {
+            if (correct === '1') correct = 'A';
+            else if (correct === '2') correct = 'B';
+            else if (correct === '3') correct = 'C';
+            else if (correct === '4') correct = 'D';
+            else errors.push("Réponse correcte invalide (doit être A, B, C ou D)");
+        }
+        
+        questions.push({
+            question_text: qText,
+            option_a: optA,
+            option_b: optB,
+            option_c: optC,
+            option_d: optD,
+            correct_option: correct,
+            has_math: hasMath,
+            errors: errors
+        });
+    }
+    
+    return { questions, mathCount };
+}
+
+let currentImportSessionId = null;
+let currentImportCourseId = null;
+let currentImportType = null;
+let currentImportLessonId = null;
+let parsedQuestionsToImport = [];
+
+function openCsvPreview(questions, mathCount, type, courseId, sessionId, lessonId) {
+    currentImportType = type;
+    currentImportCourseId = courseId;
+    currentImportSessionId = sessionId;
+    currentImportLessonId = lessonId;
+    parsedQuestionsToImport = questions;
+    
+    document.getElementById('csv-stat-total').textContent = questions.length;
+    document.getElementById('csv-stat-math').textContent = mathCount;
+    
+    const tbody = document.getElementById('csv-preview-table-body');
+    tbody.innerHTML = "";
+    
+    let hasAnyWarnings = false;
+    
+    questions.forEach((q, idx) => {
+        const row = document.createElement('tr');
+        row.className = "border-b border-gray-100 hover:bg-gray-50/50";
+        
+        let statusBadge = `<span class="bg-green-100 text-green-800 px-2 py-0.5 rounded font-semibold text-[10px]">Valide</span>`;
+        if (q.errors.length > 0) {
+            hasAnyWarnings = true;
+            statusBadge = `<span class="bg-red-100 text-red-800 px-2 py-0.5 rounded font-semibold text-[10px]" title="${q.errors.join(', ')}">Erreur</span>`;
+        }
+        
+        const escapeHtml = (str) => str.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;");
+        
+        row.innerHTML = `
+            <td class="p-3 text-center text-gray-400 font-medium">${idx + 1}</td>
+            <td class="p-3 space-y-1.5 text-left">
+                <div class="font-bold text-gray-900 math-render">${escapeHtml(q.question_text)}</div>
+                <div class="grid grid-cols-2 gap-x-4 gap-y-1 text-gray-600 mt-1">
+                    <div class="math-render"><span class="font-semibold text-gray-400">A:</span> ${escapeHtml(q.option_a)}</div>
+                    <div class="math-render"><span class="font-semibold text-gray-400">B:</span> ${escapeHtml(q.option_b)}</div>
+                    <div class="math-render"><span class="font-semibold text-gray-400">C:</span> ${escapeHtml(q.option_c)}</div>
+                    <div class="math-render"><span class="font-semibold text-gray-400">D:</span> ${escapeHtml(q.option_d)}</div>
+                </div>
+                ${q.errors.length > 0 ? `<div class="text-[10px] text-red-600 font-medium mt-1">⚠️ ${q.errors.join(' | ')}</div>` : ''}
+            </td>
+            <td class="p-3 text-center font-bold text-[#004B23]">${q.correct_option}</td>
+            <td class="p-3 text-center">${statusBadge}</td>
+        `;
+        
+        tbody.appendChild(row);
+    });
+    
+    const warnBadge = document.getElementById('csv-warning-badge');
+    if (hasAnyWarnings) {
+        warnBadge.classList.remove('hidden');
+    } else {
+        warnBadge.classList.add('hidden');
+    }
+    
+    const modal = document.getElementById('csv-preview-modal');
+    modal.classList.remove('hidden');
+    
+    setTimeout(() => {
+        if (typeof renderMathInElement === 'function') {
+            renderMathInElement(tbody, {
+                delimiters: [
+                    {left: '$$', right: '$$', display: true},
+                    {left: '$', right: '$', display: false},
+                    {left: '\\(', right: '\\)', display: false},
+                    {left: '\\[', right: '\\]', display: true}
+                ],
+                throwOnError: false
+            });
+        }
+    }, 50);
+}
+
+function closeCsvPreview() {
+    document.getElementById('csv-preview-modal').classList.add('hidden');
+    const inputs = document.querySelectorAll('input[type="file"]');
+    inputs.forEach(input => input.value = "");
+}
+
+function renderMath() {
+    if (typeof renderMathInElement === 'function') {
+        renderMathInElement(document.body, {
+            delimiters: [
+                {left: '$$', right: '$$', display: true},
+                {left: '$', right: '$', display: false},
+                {left: '\\(', right: '\\)', display: false},
+                {left: '\\[', right: '\\]', display: true}
+            ],
+            throwOnError: false
+        });
+    }
+}
+
+document.addEventListener('DOMContentLoaded', () => {
+    setTimeout(renderMath, 200);
+    
+    document.getElementById('csv-confirm-btn')?.addEventListener('click', async () => {
+        if (parsedQuestionsToImport.length === 0) return;
+        
+        const hasErrors = parsedQuestionsToImport.some(q => q.errors.length > 0);
+        if (hasErrors) {
+            if (!confirm("Attention : certaines questions contiennent des erreurs et ne seront pas importées. Continuer quand même ?")) {
+                return;
+            }
+        }
+        
+        const btn = document.getElementById('csv-confirm-btn');
+        const spinner = document.getElementById('csv-confirm-spinner');
+        
+        btn.disabled = true;
+        spinner.classList.remove('hidden');
+        
+        const formData = new FormData();
+        formData.append('type', currentImportType);
+        formData.append('course_id', currentImportCourseId);
+        if (currentImportSessionId) {
+            formData.append('session_id', currentImportSessionId);
+        }
+        if (currentImportLessonId) {
+            formData.append('lesson_id', currentImportLessonId);
+        }
+        
+        const rowsJson = parsedQuestionsToImport.map(q => [
+            q.question_text,
+            q.option_a,
+            q.option_b,
+            q.option_c,
+            q.option_d,
+            q.correct_option
+        ]);
+        
+        formData.append('rows_json', JSON.stringify(rowsJson));
+        
+        try {
+            const res = await fetch('/teacher/import-questions.php', {
+                method: 'POST',
+                body: formData
+            });
+            const data = await res.json();
+            if (data.success) {
+                if (typeof Toast !== 'undefined') Toast.success(data.message);
+                else alert(data.message);
+                setTimeout(() => window.location.reload(), 1000);
+            } else {
+                if (typeof Toast !== 'undefined') Toast.error(data.message);
+                else alert("Erreur : " + data.message);
+            }
+        } catch (err) {
+            console.error(err);
+            if (typeof Toast !== 'undefined') Toast.error("Erreur réseau.");
+            else alert("Erreur réseau.");
+        } finally {
+            btn.disabled = false;
+            spinner.classList.add('hidden');
+        }
+    });
+});
 
 loadTeacherGrades(<?= (int)$selectedCourse['id']; ?>);
 <?php endif; ?>
@@ -3735,5 +4015,62 @@ function moderateComment(commentId, hide) {
     .catch(err => { if (typeof Toast !== 'undefined') Toast.error('Erreur réseau: ' + err.message); });
 }
 </script>
+
+<!-- Modal d'aperçu et de validation de QCM (CSV / Excel) -->
+<div id="csv-preview-modal" class="fixed inset-0 bg-black/60 backdrop-blur-sm z-[9999] hidden flex items-center justify-center p-4">
+    <div class="bg-white rounded-lg shadow-2xl w-full max-w-4xl max-h-[90vh] flex flex-col slide-in">
+        <!-- Header -->
+        <div class="px-6 py-4 border-b border-gray-200 flex justify-between items-center bg-gray-50 rounded-t-lg">
+            <div class="flex items-center gap-3">
+                <span class="text-xl">🔍</span>
+                <div>
+                    <h3 class="text-base font-bold text-gray-900">Validation et Aperçu du QCM</h3>
+                    <p class="text-xs text-gray-500 font-medium">Vérifiez la lisibilité et le rendu de vos formules mathématiques LaTeX avant de valider l'importation.</p>
+                </div>
+            </div>
+            <button onclick="closeCsvPreview()" class="text-gray-400 hover:text-gray-600 text-xl font-bold">&times;</button>
+        </div>
+        
+        <!-- Stats and Warnings -->
+        <div class="px-6 py-3 bg-blue-50/50 border-b border-blue-100 flex flex-wrap gap-4 items-center justify-between">
+            <div class="flex gap-4 text-xs font-semibold text-gray-700">
+                <span>Total détecté : <strong id="csv-stat-total" class="text-blue-700">0</strong> questions</span>
+                <span>Formules LaTeX validées : <strong id="csv-stat-math" class="text-green-700">0</strong></span>
+            </div>
+            <div id="csv-warning-badge" class="hidden text-xs bg-amber-100 text-amber-800 px-2.5 py-1 rounded font-medium">
+                ⚠️ Avertissements de formatage détectés
+            </div>
+        </div>
+
+        <!-- Table Content -->
+        <div class="flex-1 overflow-y-auto p-6">
+            <table class="w-full border-collapse text-left text-xs">
+                <thead>
+                    <tr class="border-b-2 border-gray-200 bg-gray-50 text-gray-600 font-bold uppercase tracking-wider">
+                        <th class="p-3 w-12 text-center">N°</th>
+                        <th class="p-3">Question &amp; Options (Aperçu Live)</th>
+                        <th class="p-3 w-20 text-center">Correct</th>
+                        <th class="p-3 w-24 text-center">Statut</th>
+                    </tr>
+                </thead>
+                <tbody id="csv-preview-table-body" class="divide-y divide-gray-100">
+                    <!-- Rempli dynamiquement -->
+                </tbody>
+            </table>
+        </div>
+
+        <!-- Footer -->
+        <div class="px-6 py-4 border-t border-gray-200 bg-gray-50 flex justify-between items-center rounded-b-lg">
+            <button onclick="closeCsvPreview()" class="px-4 py-2 border border-gray-300 text-gray-700 rounded text-xs font-semibold hover:bg-gray-100 transition-colors">
+                Annuler
+            </button>
+            <button id="csv-confirm-btn" class="px-5 py-2 bg-[#004B23] text-white rounded text-xs font-semibold hover:bg-[#003c1c] transition-colors flex items-center gap-2">
+                <span>Confirmer l'importation</span>
+                <span id="csv-confirm-spinner" class="hidden animate-spin h-3 w-3 border-2 border-white border-t-transparent rounded-full"></span>
+            </button>
+        </div>
+    </div>
+</div>
+
 </body>
 </html>
