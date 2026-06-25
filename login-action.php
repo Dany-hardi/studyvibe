@@ -32,7 +32,7 @@ if (isRateLimited($email)) {
 
 try {
     $pdo  = Database::getInstance();
-    $stmt = $pdo->prepare("SELECT id, name, email, password, role, email_verified_at, is_active FROM users WHERE email = :email");
+    $stmt = $pdo->prepare("SELECT id, name, email, password, role, email_verified_at, is_active, is_approved FROM users WHERE email = :email");
     $stmt->execute(['email' => $email]);
     $user = $stmt->fetch();
 
