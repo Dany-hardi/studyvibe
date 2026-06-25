@@ -2206,7 +2206,10 @@ $successMsg = $successMessages[$successKey] ?? null;
             <div class="space-y-6">
                 <?php foreach ($liveSessions as $ls): 
                     $isActive = (int)$ls['status'] === 1;
-                    $sessionLink = (isset($_SERVER['HTTPS']) && $_SERVER['HTTPS'] === 'on' ? "https" : "http") . "://" . $_SERVER['HTTP_HOST'] . "/live-session.php?code=" . $ls['session_code'];
+                    $isHttps = (isset($_SERVER['HTTPS']) && $_SERVER['HTTPS'] === 'on') 
+                            || (isset($_SERVER['HTTP_X_FORWARDED_PROTO']) && $_SERVER['HTTP_X_FORWARDED_PROTO'] === 'https');
+                    $proto = $isHttps ? 'https' : 'http';
+                    $sessionLink = $proto . "://" . $_SERVER['HTTP_HOST'] . "/live-session.php?code=" . $ls['session_code'];
                 ?>
                     <div class="border border-[#E5E5E7] p-5 rounded-sm bg-white space-y-4">
                         <!-- En-tête de la séance -->

@@ -9,38 +9,45 @@ if (session_status() === PHP_SESSION_NONE) {
 
 $code = trim((string)($_GET['code'] ?? ''));
 
-$pdo = Database::getInstance();
+$pdo = null;
 $session = null;
 $courseTitle = '';
+$error = null;
 
-if ($code !== '') {
-    $stmt = $pdo->prepare("
-        SELECT s.*, c.title AS course_title
-        FROM live_eval_sessions s
-        JOIN courses c ON s.course_id = c.id
-        WHERE s.session_code = :code
-    ");
-    $stmt->execute(['code' => $code]);
-    $session = $stmt->fetch();
+try {
+    $pdo = Database::getInstance();
+    if ($code !== '') {
+        $stmt = $pdo->prepare("
+            SELECT s.*, c.title AS course_title
+            FROM live_eval_sessions s
+            JOIN courses c ON s.course_id = c.id
+            WHERE s.session_code = :code
+        ");
+        $stmt->execute(['code' => $code]);
+        $session = $stmt->fetch();
+    }
+} catch (Exception $e) {
+    $error = "Erreur de connexion à la base de données (trop de connexions ou serveur saturé). Veuillez rafraîchir la page dans quelques instants.";
+}
+
+$isAsync = ($session && isset($session['is_async']) && (int)$session['is_async'] === 1);
+$asyncDeadlinePassed = false;
+if ($isAsync && !empty($session['async_deadline'])) {
+    $asyncDeadlinePassed = (time() > strtotime($session['async_deadline']));
 }
 
 $isStudent = isset($_SESSION['user_id'], $_SESSION['user_role']) && $_SESSION['user_role'] === 'student';
 $redirectUrl = $isStudent ? 'student/dashboard.php' : 'index.php';
 $redirectLabel = $isStudent ? 'Retour au tableau de bord' : "Retour à l'accueil";
 
-$isAsync = isset($session['is_async']) && (int)$session['is_async'] === 1;
-$asyncDeadlinePassed = false;
-if ($isAsync && !empty($session['async_deadline'])) {
-    $asyncDeadlinePassed = (time() > strtotime($session['async_deadline']));
-}
-
-$error = null;
-if (!$session) {
-    $error = "Cette séance de téléévaluation est introuvable ou le lien est invalide.";
-} elseif ((int)$session['status'] === 0) {
-    $error = "Cette séance de téléévaluation a été désactivée par l'enseignant.";
-} elseif ($isAsync && $asyncDeadlinePassed) {
-    $error = "La date limite pour participer à cette évaluation asynchrone est dépassée.";
+if ($error === null) {
+    if (!$session) {
+        $error = "Cette séance de téléévaluation est introuvable ou le lien est invalide.";
+    } elseif ((int)$session['status'] === 0) {
+        $error = "Cette séance de téléévaluation a été désactivée par l'enseignant.";
+    } elseif ($isAsync && $asyncDeadlinePassed) {
+        $error = "La date limite pour participer à cette évaluation asynchrone est dépassée.";
+    }
 }
 
 // Gérer l'enregistrement du participant
