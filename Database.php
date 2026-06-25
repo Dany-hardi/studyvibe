@@ -50,6 +50,17 @@ class Database
                     // Silently fail if columns are already being altered or added
                 }
             }
+
+            // Auto-migration check for last_activity column in live_eval_registrations
+            try {
+                self::$instance->query("SELECT last_activity FROM live_eval_registrations LIMIT 1");
+            } catch (PDOException $e) {
+                try {
+                    self::$instance->exec("ALTER TABLE `live_eval_registrations` ADD COLUMN `last_activity` DATETIME DEFAULT NULL");
+                } catch (PDOException $ex) {
+                    // Silently fail if columns are already being altered or added
+                }
+            }
         }
         
         return self::$instance;

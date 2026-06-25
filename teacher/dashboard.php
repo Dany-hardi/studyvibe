@@ -158,7 +158,7 @@ try {
     if ($_SERVER['REQUEST_METHOD'] === 'POST' && $selectedCourse) {
         $action = (string)($_POST['action'] ?? $_GET['action'] ?? '');
 
-        if (in_array($action, ['add_live_session', 'edit_live_session', 'toggle_live_session', 'delete_live_session', 'add_live_question', 'delete_live_question', 'delete_all_live_questions'], true)) {
+        if (in_array($action, ['add_live_session', 'edit_live_session', 'toggle_live_session', 'delete_live_session', 'add_live_question', 'delete_live_question', 'delete_all_live_questions', 'delete_live_participant'], true)) {
             clearLiveSessionCache();
         }
 
@@ -548,6 +548,22 @@ try {
                 $stmt = $pdo->prepare("DELETE FROM live_eval_sessions WHERE id=:id AND teacher_id=:tid");
                 $stmt->execute(['id' => $sid, 'tid' => $teacherId]);
                 header("Location: /teacher/dashboard.php?course_id={$selectedCourse['id']}&success=live_session_deleted&open_live_modal=1"); exit;
+            }
+        }
+
+        // ── O2. Supprimer/Exclure un participant d'une séance ───────────
+        if ($action === 'delete_live_participant') {
+            $regId = (int)($_POST['registration_id'] ?? 0);
+            $sid   = (int)($_POST['session_id'] ?? 0);
+            if ($regId > 0 && $sid > 0) {
+                $stmt = $pdo->prepare("SELECT id FROM live_eval_sessions WHERE id = :sid AND teacher_id = :tid");
+                $stmt->execute(['sid' => $sid, 'tid' => $teacherId]);
+                if ($stmt->fetch()) {
+                    $delStmt = $pdo->prepare("DELETE FROM live_eval_registrations WHERE id = :id AND session_id = :sid");
+                    $delStmt->execute(['id' => $regId, 'sid' => $sid]);
+                    header("Location: /teacher/dashboard.php?course_id={$selectedCourse['id']}&success=live_participant_deleted&open_live_modal=1&open_session={$sid}");
+                    exit;
+                }
             }
         }
 
@@ -2309,6 +2325,10 @@ $successMsg = $successMessages[$successKey] ?? null;
                                 <button onclick="toggleAccordion('live-session-questions-<?= $ls['id'] ?>')" class="px-3 py-1.5 bg-[#111111] text-white text-[11px] font-semibold uppercase tracking-wider rounded-sm hover:bg-black">
                                     Gérer les questions
                                 </button>
+                                <!-- Résultats & Inscrits -->
+                                <button onclick="toggleAccordion('live-session-results-<?= $ls['id'] ?>')" class="px-3 py-1.5 bg-[#004B23] text-white text-[11px] font-semibold uppercase tracking-wider rounded-sm hover:bg-[#003d1c]">
+                                    Résultats &amp; Inscrits
+                                </button>
                             </div>
                         </div>
 
@@ -2441,6 +2461,79 @@ $successMsg = $successMessages[$successKey] ?? null;
                                 <?php endif; ?>
                             </div>
 
+                        </div>
+
+                        <!-- Accordéon : Résultats & Inscrits -->
+                        <div id="live-session-results-<?= $ls['id'] ?>" class="hidden border-t border-[#E5E5E7] pt-4 space-y-4">
+                            <h4 class="font-serif text-sm font-semibold text-[#111111] uppercase tracking-wider">Participants inscrits &amp; Résultats</h4>
+                            <?php
+                            // Récupérer tous les participants inscrits à cette séance
+                            $partStmt = $pdo->prepare("
+                                SELECT id, name, email, score, last_activity, registered_at
+                                FROM live_eval_registrations
+                                WHERE session_id = :sid
+                                ORDER BY registered_at DESC
+                            ");
+                            $partStmt->execute(['sid' => $ls['id']]);
+                            $participants = $partStmt->fetchAll(PDO::FETCH_ASSOC);
+                            ?>
+
+                            <?php if (empty($participants)): ?>
+                                <p class="text-xs text-[#888888] italic p-4 text-center bg-gray-50 border border-[#E5E5E7]">Aucun participant inscrit pour le moment.</p>
+                            <?php else: ?>
+                                <div class="overflow-x-auto border border-[#E5E5E7] rounded-sm bg-white">
+                                    <table class="w-full text-left text-xs border-collapse">
+                                        <thead>
+                                            <tr class="bg-gray-100 border-b border-[#E5E5E7]">
+                                                <th class="p-3 font-semibold text-[#111111]">Nom complet</th>
+                                                <th class="p-3 font-semibold text-[#111111]">E-mail</th>
+                                                <th class="p-3 font-semibold text-[#111111] text-center">Score / Note</th>
+                                                <th class="p-3 font-semibold text-[#111111] text-center">Présence</th>
+                                                <th class="p-3 font-semibold text-[#111111] text-center">Date d'inscription</th>
+                                                <th class="p-3 font-semibold text-[#111111] text-center">Actions</th>
+                                            </tr>
+                                        </thead>
+                                        <tbody>
+                                            <?php foreach ($participants as $p): 
+                                                // Un participant est en ligne s'il a poll dans les 10 dernières secondes
+                                                $isOnline = false;
+                                                if ($p['last_activity']) {
+                                                    $isOnline = (time() - strtotime($p['last_activity']) <= 10);
+                                                }
+                                                $scoreVal = $p['score'] !== null ? number_format((float)$p['score'], 2) . '/20' : 'Non complété';
+                                                $scoreClass = $p['score'] !== null ? 'text-green-700 font-semibold' : 'text-gray-500 italic';
+                                            ?>
+                                                <tr class="border-b border-[#E5E5E7] hover:bg-gray-50">
+                                                    <td class="p-3 font-medium text-[#111111]"><?= htmlspecialchars($p['name']) ?></td>
+                                                    <td class="p-3 text-[#555555]"><?= htmlspecialchars($p['email']) ?></td>
+                                                    <td class="p-3 text-center <?= $scoreClass ?>"><?= $scoreVal ?></td>
+                                                    <td class="p-3 text-center">
+                                                        <?php if ($isOnline): ?>
+                                                            <span class="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-semibold bg-green-50 border border-green-200 text-green-700">
+                                                                <span class="w-1.5 h-1.5 rounded-full bg-green-500 animate-pulse"></span> En ligne
+                                                            </span>
+                                                        <?php else: ?>
+                                                            <span class="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-semibold bg-gray-50 border border-gray-200 text-gray-500">
+                                                                Hors ligne
+                                                            </span>
+                                                        <?php endif; ?>
+                                                    </td>
+                                                    <td class="p-3 text-center text-gray-500"><?= date('d/m/Y H:i', strtotime($p['registered_at'])) ?></td>
+                                                    <td class="p-3 text-center">
+                                                        <form method="POST" action="/teacher/dashboard.php?course_id=<?= $selectedCourse['id'] ?>&action=delete_live_participant" onsubmit="return confirm('Exclure ce participant ? Ses réponses et notes pour cette séance seront définitivement perdues.');" class="inline-block">
+                                                            <input type="hidden" name="registration_id" value="<?= $p['id'] ?>">
+                                                            <input type="hidden" name="session_id" value="<?= $ls['id'] ?>">
+                                                            <button type="submit" class="px-2 py-1 text-[10px] font-semibold uppercase tracking-wider text-red-600 bg-red-50 hover:bg-red-100 border border-red-200 rounded-sm">
+                                                                Exclure
+                                                            </button>
+                                                        </form>
+                                                    </td>
+                                                </tr>
+                                            <?php endforeach; ?>
+                                        </tbody>
+                                    </table>
+                                </div>
+                            <?php endif; ?>
                         </div>
                     </div>
                 <?php endforeach; ?>

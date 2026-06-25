@@ -55,6 +55,7 @@ if (isLoggedIn()) {
         StudyVibe
     </a>
     <div class="sv-navbar-links">
+        <a href="/evaluations.php" class="sv-navbar-link" style="color:var(--004B23); font-weight:600;">Évaluations</a>
         <a href="#fonctionnalites" class="sv-navbar-link">Fonctionnalités</a>
         <a href="#roles" class="sv-navbar-link">Pour qui</a>
         <a href="#comment" class="sv-navbar-link">Comment ça marche</a>

@@ -286,6 +286,9 @@ try {
             <button onclick="switchTab('profil')" id="tab-btn-profil" class="pb-4 text-sm font-light border-b-2 border-transparent text-[#555555] uppercase tracking-wider transition-all whitespace-nowrap">
                 Profil
             </button>
+            <a href="/evaluations.php" class="pb-4 text-sm font-light text-[#555555] hover:text-[#004B23] hover:border-b-2 hover:border-[#004B23] uppercase tracking-wider transition-all whitespace-nowrap flex items-center">
+                Évaluations
+            </a>
         </div>
 
         <!-- 1. Onglet CATALOGUE -->

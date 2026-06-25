@@ -129,6 +129,14 @@ try {
         exit;
     }
 
+    // Mettre à jour la date de dernière activité du participant pour le suivi "En ligne"
+    try {
+        $updateActStmt = $pdo->prepare("UPDATE live_eval_registrations SET last_activity = NOW() WHERE id = :id");
+        $updateActStmt->execute(['id' => $regId]);
+    } catch (PDOException $e) {
+        // Silencieusement ignorer
+    }
+
     // Récupérer et mettre en cache la validité de l'inscription dans la session PHP de l'étudiant
     $registration = $_SESSION['verified_registrations'][$code] ?? null;
     if (!$registration || (int)$registration['id'] !== $regId) {

@@ -8,6 +8,29 @@ if (session_status() === PHP_SESSION_NONE) {
 }
 
 $code = trim((string)($_GET['code'] ?? ''));
+$action = trim((string)($_GET['action'] ?? ''));
+
+if ($code !== '' && $action === 'disconnect') {
+    if (isset($_SESSION['live_registrations'][$code])) {
+        $regId = (int)$_SESSION['live_registrations'][$code];
+        unset($_SESSION['live_registrations'][$code]);
+        unset($_SESSION['verified_registrations'][$code]);
+        
+        try {
+            $pdo = Database::getInstance();
+            $stmt = $pdo->prepare("SELECT score FROM live_eval_registrations WHERE id = :id");
+            $stmt->execute(['id' => $regId]);
+            $score = $stmt->fetchColumn();
+            if ($score === false || $score === null) {
+                // Supprimer l'inscription si aucun score n'a encore été enregistré (pour vider le dashboard)
+                $delStmt = $pdo->prepare("DELETE FROM live_eval_registrations WHERE id = :id");
+                $delStmt->execute(['id' => $regId]);
+            }
+        } catch (Exception $e) {}
+    }
+    header('Location: /evaluations.php');
+    exit;
+}
 
 $pdo = null;
 $session = null;
@@ -600,12 +623,19 @@ if (!$error) {
                     </a>
 
                     <!-- Badge Status -->
-                    <span class="badge" id="state-badge">
-                        <svg width="6" height="6" viewBox="0 0 8 8" fill="none" style="margin-right: 2px;">
-                            <circle cx="4" cy="4" r="3" fill="#004B23"/>
-                        </svg>
-                        Téléévaluation
-                    </span>
+                    <div style="display: flex; align-items: center; gap: 8px;">
+                        <span class="badge" id="state-badge">
+                            <svg width="6" height="6" viewBox="0 0 8 8" fill="none" style="margin-right: 2px;">
+                                <circle cx="4" cy="4" r="3" fill="#004B23"/>
+                            </svg>
+                            Téléévaluation
+                        </span>
+                        <?php if (isset($registration) && $registration): ?>
+                            <a href="live-session.php?code=<?= urlencode($code) ?>&action=disconnect" class="badge" style="background-color: #FDE8E8; color: #E02424; text-decoration: none; border: 1px solid #F8B4B4; font-weight: 600; cursor: pointer; transition: background-color 0.2s;" onmouseover="this.style.backgroundColor='#FBD5D5'" onmouseout="this.style.backgroundColor='#FDE8E8'">
+                                Quitter ✕
+                            </a>
+                        <?php endif; ?>
+                    </div>
                 </div>
 
                 <!-- Main dynamic content area -->
