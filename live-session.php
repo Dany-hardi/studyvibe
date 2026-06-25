@@ -650,8 +650,8 @@ if (!$error) {
                                 </p>
                             </div>
 
-                            <!-- 3. VUE : Quiz Actif -->
-                            <div id="quiz-view" class="hidden">
+                             <!-- 3. VUE : Quiz Actif -->
+                             <div id="quiz-view" class="hidden" style="user-select: none; -webkit-user-select: none; -moz-user-select: none; -ms-user-select: none;">
 
                                 <!-- Barre de chrono + question -->
                                 <div style="display:flex; align-items:center; justify-content:space-between; margin-bottom:1rem; gap:10px;">
@@ -865,6 +865,14 @@ if (!$error) {
 
         // Start polling loop
         function startApp() {
+            // Sécuriser les questions contre la copie
+            const quizViewEl = document.getElementById('quiz-view');
+            if (quizViewEl) {
+                quizViewEl.addEventListener('selectstart', (e) => e.preventDefault());
+                quizViewEl.addEventListener('copy', (e) => e.preventDefault());
+                quizViewEl.addEventListener('contextmenu', (e) => e.preventDefault());
+            }
+
             // Start real-time absolute timer ticking for lobby
             updateLobbyClock();
             lobbyClockInterval = setInterval(updateLobbyClock, 1000);
