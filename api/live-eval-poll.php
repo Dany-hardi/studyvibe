@@ -230,6 +230,18 @@ try {
             }
         }
 
+        // Compter les réponses reçues pour la question active (avec cache de 1 seconde pour soulager MySQL)
+        $answersCacheFile = __DIR__ . '/../uploads/live_cache/answers_count_' . $qid . '.json';
+        $answersReceived = 0;
+        if (file_exists($answersCacheFile) && (time() - filemtime($answersCacheFile)) < 1) {
+            $answersReceived = (int)@file_get_contents($answersCacheFile);
+        } else {
+            $answersStmt = $pdo->prepare("SELECT COUNT(*) FROM live_eval_answers WHERE question_id = :qid");
+            $answersStmt->execute(['qid' => $qid]);
+            $answersReceived = (int)$answersStmt->fetchColumn();
+            @file_put_contents($answersCacheFile, (string)$answersReceived);
+        }
+
         echo json_encode([
             'success' => true,
             'status'  => 'active',
@@ -245,7 +257,7 @@ try {
                 'image_path'    => $activeQ['image_path'] ? '/uploads/live_questions/' . $activeQ['image_path'] : null,
                 'seconds_left'  => $secondsLeft,
             ],
-            'answers_received' => 0, // Inutilisé par le client de l'étudiant
+            'answers_received' => $answersReceived,
             'total_registered' => $totalRegistered,
             'already_answered' => $alreadyAnswered,
             'is_finished'      => false,

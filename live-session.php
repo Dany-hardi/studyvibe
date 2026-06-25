@@ -631,6 +631,14 @@ if (!$error) {
                                 <p style="font-size: 0.85rem; font-weight: 300; line-height: 1.7; color: var(--muted); margin-bottom: 1.5rem; max-width: 44ch;">
                                     L'évaluation <strong><?= htmlspecialchars($session['title']) ?></strong> (cours : <em><?= htmlspecialchars($session['course_title']) ?></em>) débutera automatiquement à l'heure programmée. Veuillez patienter dans cette salle d'attente.
                                 </p>
+
+                                <!-- Nouveau compteur temps réel d'inscrits -->
+                                <div style="background-color: rgba(0,75,35,0.04); border-left: 3px solid var(--green); padding: 12px 16px; border-radius: 4px; display: inline-flex; align-items: center; gap: 8px; margin-bottom: 1.5rem;">
+                                    <span style="display:inline-block; width: 8px; height: 8px; background-color: #22C55E; border-radius: 50%; animation: pulse 1.5s infinite;"></span>
+                                    <span style="font-size: 0.85rem; font-weight: 500; color: var(--ink);">
+                                        Participants connectés : <strong id="lobby-registered-count">0</strong>
+                                    </span>
+                                </div>
                             </div>
 
                             <!-- 2. VUE : Compte à rebours final (5s avant lancement) -->
@@ -646,8 +654,15 @@ if (!$error) {
                             <div id="quiz-view" class="hidden">
 
                                 <!-- Barre de chrono + question -->
-                                <div style="display:flex; align-items:center; justify-content:space-between; margin-bottom:1rem;">
+                                <div style="display:flex; align-items:center; justify-content:space-between; margin-bottom:1rem; gap:10px;">
                                     <span style="font-size:0.65rem; font-weight:700; letter-spacing:0.08em; text-transform:uppercase; color:var(--green); border:1px solid var(--green); padding:3px 10px;" id="quiz-question-number">Question -- / --</span>
+                                    
+                                    <!-- Compteur dynamique des participants restants à répondre -->
+                                    <span id="quiz-live-participants-container" style="font-size:0.75rem; font-weight:500; color:var(--ink); display:flex; align-items:center; gap:6px; background: rgba(0,0,0,0.04); padding: 4px 10px; border-radius: 9999px;">
+                                        <svg width="14" height="14" fill="none" stroke="currentColor" viewBox="0 0 24 24" style="stroke-width:2;"><path stroke-linecap="round" stroke-linejoin="round" d="M17 20h5v-2a3 3 0 00-5.356-1.857M17 20H7m10 0v-2c0-.656-.126-1.283-.356-1.857M7 20H2v-2a3 3 0 015.356-1.857M7 20v-2c0-.656.126-1.283.356-1.857m0 0a5.002 5.002 0 019.288 0M15 7a3 3 0 11-6 0 3 3 0 016 0zm6 3a2 2 0 11-4 0 2 2 0 014 0zM7 10a2 2 0 11-4 0 2 2 0 014 0z"/></svg>
+                                        <span>En attente : <strong id="quiz-live-remaining-count">--</strong></span>
+                                    </span>
+
                                     <span style="font-size:1rem; font-weight:800; color:#E02424; display:flex; align-items:center; gap:5px; font-family:'Plus Jakarta Sans',sans-serif;">
                                         <svg width="16" height="16" fill="none" stroke="currentColor" viewBox="0 0 24 24" style="stroke-width:2.5;"><path stroke-linecap="round" stroke-linejoin="round" d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z"/></svg>
                                         <span id="quiz-timer-text">--s</span>
@@ -904,6 +919,10 @@ if (!$error) {
 
                 if (data.status === 'waiting') {
                     showView('lobby-view');
+                    const lobbyRegCountEl = document.getElementById('lobby-registered-count');
+                    if (lobbyRegCountEl) {
+                        lobbyRegCountEl.textContent = data.registered_count || 0;
+                    }
                 } else if (data.status === 'active') {
                     if (lobbyClockInterval) clearInterval(lobbyClockInterval);
                     pollQuiz();
@@ -947,6 +966,14 @@ if (!$error) {
                 const qNumText = `Question ${data.current_question_index + 1} / ${data.total_questions}`;
                 document.getElementById('quiz-question-number').textContent = qNumText;
                 document.getElementById('live-bar-question').textContent = qNumText;
+
+                // Mettre à jour le compteur dynamique des participants restants à répondre
+                const remainingEl = document.getElementById('quiz-live-remaining-count');
+                if (remainingEl) {
+                    const total = data.total_registered || 0;
+                    const answers = data.answers_received || 0;
+                    remainingEl.textContent = Math.max(0, total - answers);
+                }
 
                 const q = data.question;
                 
