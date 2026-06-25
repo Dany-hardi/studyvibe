@@ -158,7 +158,7 @@ try {
     if ($_SERVER['REQUEST_METHOD'] === 'POST' && $selectedCourse) {
         $action = (string)($_POST['action'] ?? $_GET['action'] ?? '');
 
-        if (in_array($action, ['add_live_session', 'edit_live_session', 'toggle_live_session', 'delete_live_session', 'add_live_question', 'delete_live_question', 'delete_all_live_questions', 'delete_live_participant'], true)) {
+        if (in_array($action, ['add_live_session', 'edit_live_session', 'toggle_live_session', 'delete_live_session', 'add_live_question', 'delete_live_question', 'delete_all_live_questions', 'delete_live_participant', 'reset_live_session', 'toggle_live_pause'], true)) {
             clearLiveSessionCache();
         }
 
@@ -563,6 +563,83 @@ try {
                     $delStmt->execute(['id' => $regId, 'sid' => $sid]);
                     header("Location: /teacher/dashboard.php?course_id={$selectedCourse['id']}&success=live_participant_deleted&open_live_modal=1&open_session={$sid}");
                     exit;
+                }
+            }
+        }
+
+        // ── O3. Réinitialiser la séance (reset exam) ─────────────────────
+        if ($action === 'reset_live_session') {
+            $sid = (int)($_POST['session_id'] ?? 0);
+            if ($sid > 0) {
+                $stmt = $pdo->prepare("SELECT id FROM live_eval_sessions WHERE id = :sid AND teacher_id = :tid");
+                $stmt->execute(['sid' => $sid, 'tid' => $teacherId]);
+                if ($stmt->fetch()) {
+                    // Supprimer toutes les réponses des participants de cette session
+                    $stmtDelAnswers = $pdo->prepare("
+                        DELETE FROM live_eval_answers 
+                        WHERE registration_id IN (
+                            SELECT id FROM live_eval_registrations WHERE session_id = :sid
+                        )
+                    ");
+                    $stmtDelAnswers->execute(['sid' => $sid]);
+                    
+                    // Supprimer les participants
+                    $stmtDelRegs = $pdo->prepare("DELETE FROM live_eval_registrations WHERE session_id = :sid");
+                    $stmtDelRegs->execute(['sid' => $sid]);
+                    
+                    // Réinitialiser les champs de pause
+                    $stmtResetSession = $pdo->prepare("
+                        UPDATE live_eval_sessions 
+                        SET is_paused = 0, paused_at = NULL, pause_duration = 0 
+                        WHERE id = :sid
+                    ");
+                    $stmtResetSession->execute(['sid' => $sid]);
+                    
+                    header("Location: /teacher/dashboard.php?course_id={$selectedCourse['id']}&success=live_session_reset&open_live_modal=1&open_session={$sid}");
+                    exit;
+                }
+            }
+        }
+
+        // ── O4. Mettre en pause ou Reprendre la séance ───────────────────
+        if ($action === 'toggle_live_pause') {
+            $sid = (int)($_POST['session_id'] ?? 0);
+            if ($sid > 0) {
+                $stmt = $pdo->prepare("SELECT id, is_paused, paused_at, pause_duration FROM live_eval_sessions WHERE id = :sid AND teacher_id = :tid");
+                $stmt->execute(['sid' => $sid, 'tid' => $teacherId]);
+                $session = $stmt->fetch();
+                if ($session) {
+                    if ((int)$session['is_paused'] === 1) {
+                        // Actuellement en pause -> on reprend
+                        $pausedAt = $session['paused_at'];
+                        $addedPause = 0;
+                        if ($pausedAt) {
+                            $addedPause = time() - strtotime($pausedAt);
+                            if ($addedPause < 0) $addedPause = 0;
+                        }
+                        $newPauseDuration = (int)$session['pause_duration'] + $addedPause;
+                        
+                        $update = $pdo->prepare("
+                            UPDATE live_eval_sessions 
+                            SET is_paused = 0, paused_at = NULL, pause_duration = :pd 
+                            WHERE id = :sid
+                        ");
+                        $update->execute(['pd' => $newPauseDuration, 'sid' => $sid]);
+                        
+                        header("Location: /teacher/dashboard.php?course_id={$selectedCourse['id']}&success=live_session_resumed&open_live_modal=1&open_session={$sid}");
+                        exit;
+                    } else {
+                        // Actuellement en cours -> on met en pause
+                        $update = $pdo->prepare("
+                            UPDATE live_eval_sessions 
+                            SET is_paused = 1, paused_at = NOW() 
+                            WHERE id = :sid
+                        ");
+                        $update->execute(['sid' => $sid]);
+                        
+                        header("Location: /teacher/dashboard.php?course_id={$selectedCourse['id']}&success=live_session_paused&open_live_modal=1&open_session={$sid}");
+                        exit;
+                    }
                 }
             }
         }
@@ -2301,7 +2378,7 @@ $successMsg = $successMessages[$successKey] ?? null;
                                 </span>
                             </div>
 
-                            <div class="flex items-center gap-3">
+                            <div class="flex flex-wrap items-center gap-3">
                                 <?php if ($ls['is_finished']): ?>
                                     <button type="button" onclick="openDispatchModal(<?= $ls['id'] ?>)" class="px-3 py-1.5 bg-[#004B23] text-white text-[11px] font-semibold uppercase tracking-wider rounded-sm hover:bg-[#003d1c] flex items-center gap-1.5">
                                         <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M3 8l7.89 5.26a2 2 0 002.22 0L21 8M5 19h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v10a2 2 0 002 2z"/></svg>
@@ -2320,6 +2397,33 @@ $successMsg = $successMessages[$successKey] ?? null;
                                     <svg class="w-3.5 h-3.5 text-red-700" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M7 21h10a2 2 0 002-2V9.414a1 1 0 00-.293-.707l-5.414-5.414A1 1 0 0012.586 3H7a2 2 0 00-2 2v14a2 2 0 002 2z"/></svg>
                                     Rapport PDF
                                 </a>
+
+                                <!-- Pause / Reprendre (Synchronized sessions only) -->
+                                <?php if (!(isset($ls['is_async']) && (int)$ls['is_async'] === 1)): ?>
+                                    <form method="POST" action="/teacher/dashboard.php?course_id=<?= $selectedCourse['id'] ?>&action=toggle_live_pause" class="inline-block">
+                                        <input type="hidden" name="session_id" value="<?= $ls['id'] ?>">
+                                        <?php if ((int)$ls['is_paused'] === 1): ?>
+                                            <button type="submit" class="px-3 py-1.5 bg-[#004B23] text-white text-[11px] font-semibold uppercase tracking-wider rounded-sm hover:bg-[#003d1c] flex items-center gap-1.5" title="Reprendre l'évaluation">
+                                                <svg class="w-3.5 h-3.5 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M14.752 11.168l-3.197-2.132A1 1 0 0010 9.87v4.263a1 1 0 001.555.832l3.197-2.132a1 1 0 000-1.664z"/></svg>
+                                                Reprendre
+                                            </button>
+                                        <?php else: ?>
+                                            <button type="submit" class="px-3 py-1.5 bg-yellow-600 text-white text-[11px] font-semibold uppercase tracking-wider rounded-sm hover:bg-yellow-700 flex items-center gap-1.5" title="Mettre en pause l'évaluation">
+                                                <svg class="w-3.5 h-3.5 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10 9v6m4-6v6m7-3a9 9 0 11-18 0 9 9 0 0118 0z"/></svg>
+                                                Pause
+                                            </button>
+                                        <?php endif; ?>
+                                    </form>
+                                <?php endif; ?>
+
+                                <!-- Réinitialiser (Reset exam for both Sync & Async) -->
+                                <form method="POST" action="/teacher/dashboard.php?course_id=<?= $selectedCourse['id'] ?>&action=reset_live_session" onsubmit="return confirm('Réinitialiser la séance ? TOUS les étudiants inscrits et leurs notes/réponses seront définitivement supprimés.');" class="inline-block">
+                                    <input type="hidden" name="session_id" value="<?= $ls['id'] ?>">
+                                    <button type="submit" class="px-3 py-1.5 border border-red-200 text-red-600 text-[11px] font-semibold uppercase tracking-wider rounded-sm hover:bg-red-50 bg-white flex items-center gap-1.5" title="Réinitialiser l'examen (Reset)">
+                                        <svg class="w-3.5 h-3.5 text-red-600" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 4v5h.582m15.356 2A8.001 8.001 0 1121.21 7.89M9 11l3-3 3 3m-3-3v12"/></svg>
+                                        Réinitialiser
+                                    </button>
+                                </form>
 
                                 <!-- Gérer les questions -->
                                 <button onclick="toggleAccordion('live-session-questions-<?= $ls['id'] ?>')" class="px-3 py-1.5 bg-[#111111] text-white text-[11px] font-semibold uppercase tracking-wider rounded-sm hover:bg-black">

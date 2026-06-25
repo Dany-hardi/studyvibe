@@ -61,6 +61,19 @@ class Database
                     // Silently fail if columns are already being altered or added
                 }
             }
+
+            // Auto-migration check for is_paused, paused_at, pause_duration columns in live_eval_sessions
+            try {
+                self::$instance->query("SELECT is_paused, paused_at, pause_duration FROM live_eval_sessions LIMIT 1");
+            } catch (PDOException $e) {
+                try {
+                    self::$instance->exec("ALTER TABLE `live_eval_sessions` ADD COLUMN `is_paused` TINYINT(1) NOT NULL DEFAULT 0");
+                    self::$instance->exec("ALTER TABLE `live_eval_sessions` ADD COLUMN `paused_at` DATETIME DEFAULT NULL");
+                    self::$instance->exec("ALTER TABLE `live_eval_sessions` ADD COLUMN `pause_duration` INT NOT NULL DEFAULT 0");
+                } catch (PDOException $ex) {
+                    // Silently fail if columns are already being altered or added
+                }
+            }
         }
         
         return self::$instance;

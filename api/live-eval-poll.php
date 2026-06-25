@@ -129,6 +129,18 @@ try {
         exit;
     }
 
+    // Toujours vérifier en base de données pour détecter instantanément la réinitialisation ou l'exclusion
+    $regStmt = $pdo->prepare("SELECT * FROM live_eval_registrations WHERE id = :id AND session_id = :sid");
+    $regStmt->execute(['id' => $regId, 'sid' => $session['id']]);
+    $registration = $regStmt->fetch(PDO::FETCH_ASSOC);
+    if (!$registration) {
+        unset($_SESSION['live_registrations'][$code]);
+        unset($_SESSION['verified_registrations'][$code]);
+        echo json_encode(['success' => false, 'message' => 'Votre inscription a été réinitialisée ou annulée par l\'enseignant.', 'not_registered' => true]);
+        exit;
+    }
+    $_SESSION['verified_registrations'][$code] = $registration;
+
     // Mettre à jour la date de dernière activité du participant pour le suivi "En ligne"
     try {
         $updateActStmt = $pdo->prepare("UPDATE live_eval_registrations SET last_activity = NOW() WHERE id = :id");
@@ -137,17 +149,14 @@ try {
         // Silencieusement ignorer
     }
 
-    // Récupérer et mettre en cache la validité de l'inscription dans la session PHP de l'étudiant
-    $registration = $_SESSION['verified_registrations'][$code] ?? null;
-    if (!$registration || (int)$registration['id'] !== $regId) {
-        $regStmt = $pdo->prepare("SELECT * FROM live_eval_registrations WHERE id = :id AND session_id = :sid");
-        $regStmt->execute(['id' => $regId, 'sid' => $session['id']]);
-        $registration = $regStmt->fetch(PDO::FETCH_ASSOC);
-        if (!$registration) {
-            echo json_encode(['success' => false, 'message' => 'Inscription invalide.', 'not_registered' => true]);
-            exit;
-        }
-        $_SESSION['verified_registrations'][$code] = $registration;
+    // Calculer le temps virtuel ajusté en cas de pause (uniquement pour les sessions synchronisées)
+    $pauseDuration = (int)($session['pause_duration'] ?? 0);
+    $isPaused = isset($session['is_paused']) && (int)$session['is_paused'] === 1;
+
+    if ($isPaused && !empty($session['paused_at'])) {
+        $virtualNow = strtotime($session['paused_at']) - $pauseDuration;
+    } else {
+        $virtualNow = time() - $pauseDuration;
     }
 
     // Déterminer le planning dynamique de la question active
@@ -163,7 +172,7 @@ try {
         $totalDuration += $limit;
     }
 
-    $isFinished = $now >= ($startTime + $totalDuration);
+    $isFinished = $virtualNow >= ($startTime + $totalDuration);
 
     $currentTime = $startTime;
     $activeQ = null;
@@ -233,10 +242,10 @@ try {
                 $qStart = $currentTime;
                 $qEnd = $currentTime + $limit;
 
-                if ($now >= $qStart && $now < $qEnd) {
+                if ($virtualNow >= $qStart && $virtualNow < $qEnd) {
                     $activeQ = $q;
                     $activeIndex = $idx;
-                    $secondsLeft = $qEnd - $now;
+                    $secondsLeft = $qEnd - $virtualNow;
                     break;
                 }
                 $currentTime = $qEnd;
@@ -343,12 +352,18 @@ try {
             'total_registered' => $totalRegistered,
             'already_answered' => $alreadyAnswered,
             'is_finished'      => false,
+            'is_paused'        => $isPaused,
         ]);
         exit;
     }
 
     // ── ACTION 3 : Submit Answer (Soumission de réponse) ─────────────
     if ($action === 'submit_answer') {
+        if ($isPaused) {
+            echo json_encode(['success' => false, 'message' => 'L\'évaluation est en pause par l\'enseignant.']);
+            exit;
+        }
+
         $questionId     = (int)($_POST['question_id'] ?? 0);
         $selectedOption = strtoupper(trim((string)($_POST['selected_option'] ?? '')));
 

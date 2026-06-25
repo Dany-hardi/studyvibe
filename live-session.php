@@ -133,15 +133,22 @@ if (!$error && $_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['register_l
 // Vérifier si le participant est déjà enregistré
 $regId = 0;
 $registration = null;
+$isReset = false;
 if (!$error) {
     $regId = (int)($_SESSION['live_registrations'][$code] ?? 0);
     if ($regId > 0) {
         $stmt = $pdo->prepare("SELECT * FROM live_eval_registrations WHERE id = :id AND session_id = :sid");
         $stmt->execute(['id' => $regId, 'sid' => $session['id']]);
         $registration = $stmt->fetch();
+        if (!$registration) {
+            // L'inscription existait en session mais plus en BDD -> Reset/Exclusion !
+            $isReset = true;
+            unset($_SESSION['live_registrations'][$code]);
+            unset($_SESSION['verified_registrations'][$code]);
+        }
 
         // Gérer le redémarrage automatique d'une tentative complétée en mode asynchrone
-        if ($isAsync) {
+        if ($isAsync && $registration) {
             $shouldReset = (isset($_GET['restart']) && (int)$_GET['restart'] === 1) || ($registration && $registration['score'] !== null);
             if ($shouldReset) {
                 $stmt = $pdo->prepare("UPDATE live_eval_registrations SET score = NULL WHERE id = :id");
@@ -654,8 +661,26 @@ if (!$error) {
                         </div>
 
                     <?php elseif (!$registration): ?>
-                        <!-- ÉCRAN : ENREGISTREMENT -->
+                        <!-- ÉCRAN : ENREGISTREMENT / RÉINSCRIPTION -->
                         <div>
+                            <?php if (isset($isReset) && $isReset): ?>
+                                <!-- Rapprochement premium en cas de réinitialisation -->
+                                <div style="display: flex; flex-direction: column; gap: 1.5rem; align-items: center; justify-content: center; text-align: center; margin-bottom: 2rem;">
+                                    <div style="max-width: 280px; width: 100%;">
+                                        <img src="/assets/img/reset_eval_illustration.png" alt="Session Reset" style="width: 100%; height: auto; border-radius: 8px; border: 1px solid #E5E5E7; box-shadow: 0 4px 12px rgba(0,0,0,0.05);">
+                                    </div>
+                                    <div style="max-width: 450px;">
+                                        <span style="font-size:0.65rem; font-weight:700; color:#9B1C1C; background:#FDE8E8; border: 1px solid #F8B4B4; padding: 4px 10px; border-radius:12px; text-transform:uppercase; letter-spacing: 0.05em;">Séance Réinitialisée</span>
+                                        <h2 style="font-family:'Plus Jakarta Sans',sans-serif; font-size:1.4rem; font-weight:600; margin: 1rem 0 0.5rem 0; line-height:1.2; color:#111111;">
+                                            L'examen a été réinitialisé
+                                        </h2>
+                                        <p style="font-size:0.8rem; color:var(--muted); line-height:1.6;">
+                                            L'enseignant a réinitialisé la séance d'évaluation afin d'accueillir les nouveaux participants. Veuillez remplir à nouveau le formulaire pour continuer.
+                                        </p>
+                                    </div>
+                                </div>
+                            <?php endif; ?>
+
                             <h2 style="font-family:'Plus Jakarta Sans',sans-serif; font-size:1.6rem; font-weight:500; margin-bottom: 0.5rem; line-height:1.2;">
                                 <?= htmlspecialchars($session['title']) ?>
                             </h2>
@@ -691,7 +716,22 @@ if (!$error) {
 
                     <?php else: ?>
                         <!-- ÉCRAN PRINCIPAL DYNAMIQUE (Lobby / Quiz / Fin) -->
-                        <div id="live-app">
+                        <div id="live-app" style="position: relative;">
+                            
+                            <!-- ÉCRAN : PAUSE (Overlay global de verrouillage) -->
+                            <div id="pause-overlay" class="hidden" style="position: absolute; inset: 0; background: rgba(255,255,255,0.96); z-index: 100; flex-direction: column; align-items: center; justify-content: center; text-align: center; padding: 2rem;">
+                                <div style="width: 64px; height: 64px; border-radius: 50%; background: #FEF08A; border: 2px solid #FACC15; display: flex; align-items: center; justify-content: center; margin-bottom: 1.5rem; animation: pulse 2s infinite;">
+                                    <svg class="w-8 h-8 text-yellow-600" fill="none" stroke="currentColor" viewBox="0 0 24 24" style="width: 2rem; height: 2rem;">
+                                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2.5" d="M10 9v6m4-6v6m7-3a9 9 0 11-18 0 9 9 0 0118 0z"/>
+                                    </svg>
+                                </div>
+                                <h3 style="font-family:'Plus Jakarta Sans',sans-serif; font-size:1.6rem; font-weight:600; color:#111111; margin-bottom:0.75rem;">
+                                    Évaluation suspendue
+                                </h3>
+                                <p style="font-size:0.85rem; color:var(--muted); max-width: 35ch; line-height: 1.6;">
+                                    L'enseignant a mis l'examen en pause. Le temps est arrêté et le quiz reprendra sous peu.
+                                </p>
+                            </div>
                             
                             <!-- Chargement initial -->
                             <div class="text-center py-8" id="loading-state">
@@ -968,6 +1008,12 @@ if (!$error) {
         function updateLobbyClock() {
             if (isFinalCountdown) return;
 
+            // Si la séance est suspendue, on gèle le compte à rebours
+            const pauseOverlay = document.getElementById('pause-overlay');
+            if (pauseOverlay && !pauseOverlay.classList.contains('hidden')) {
+                return;
+            }
+
             const msLeft = (serverStartTimestamp * 1000) - getServerTime();
             const seconds = Math.max(0, Math.floor(msLeft / 1000));
             const watermark = document.getElementById('lobby-timer-watermark');
@@ -1007,6 +1053,18 @@ if (!$error) {
                     return;
                 }
 
+                // Gérer l'overlay de pause
+                const pauseOverlay = document.getElementById('pause-overlay');
+                if (pauseOverlay) {
+                    if (data.is_paused) {
+                        pauseOverlay.classList.remove('hidden');
+                        pauseOverlay.style.display = 'flex';
+                    } else {
+                        pauseOverlay.classList.add('hidden');
+                        pauseOverlay.style.display = 'none';
+                    }
+                }
+
                 if (data.status === 'waiting') {
                     showView('lobby-view');
                     const lobbyRegCountEl = document.getElementById('lobby-registered-count');
@@ -1035,6 +1093,23 @@ if (!$error) {
                         showError(data.message);
                     }
                     return;
+                }
+
+                // Gérer l'overlay de pause
+                const pauseOverlay = document.getElementById('pause-overlay');
+                if (pauseOverlay) {
+                    if (data.is_paused) {
+                        pauseOverlay.classList.remove('hidden');
+                        pauseOverlay.style.display = 'flex';
+                        // Arrêter immédiatement le timer local de la question si actif
+                        if (questionTimer) {
+                            clearInterval(questionTimer);
+                            questionTimer = null;
+                        }
+                    } else {
+                        pauseOverlay.classList.add('hidden');
+                        pauseOverlay.style.display = 'none';
+                    }
                 }
 
                 if (data.status === 'finished' || data.is_finished) {
@@ -1073,7 +1148,7 @@ if (!$error) {
                     logTelemetry(`Question ${data.current_question_index + 1} activée: ${q.question_text.slice(0, 30)}...`);
                 }
 
-                updateQuestionTimer(q.seconds_left);
+                updateQuestionTimer(q.seconds_left, data.is_paused);
             })
             .catch(err => console.error("Erreur quiz : ", err));
         }
@@ -1082,10 +1157,10 @@ if (!$error) {
         let questionSecondsLeft = 0;
         let questionTotalDuration = 0;
 
-        function updateQuestionTimer(seconds) {
+        function updateQuestionTimer(seconds, isPaused) {
             // Synchronisation intelligente : si la dérive est supérieure à 2s ou si le timer local est à 0, on resynchronise
             const drift = Math.abs(questionSecondsLeft - seconds);
-            if (drift > 2 || questionSecondsLeft <= 0) {
+            if (drift > 2 || questionSecondsLeft <= 0 || isPaused) {
                 questionSecondsLeft = seconds;
                 if (questionTotalDuration === 0 || seconds > questionTotalDuration) {
                     questionTotalDuration = seconds;
@@ -1096,6 +1171,15 @@ if (!$error) {
             document.getElementById('quiz-timer-text').textContent = `${questionSecondsLeft}s`;
             const pct = (questionSecondsLeft / questionTotalDuration) * 100;
             document.getElementById('quiz-progress-bar').style.width = `${pct}%`;
+
+            // Si en pause, on arrête l'intervalle local et on ne relance rien
+            if (isPaused) {
+                if (questionTimer) {
+                    clearInterval(questionTimer);
+                    questionTimer = null;
+                }
+                return;
+            }
 
             // Démarrer l'intervalle local unique s'il n'est pas déjà actif
             if (!questionTimer) {
