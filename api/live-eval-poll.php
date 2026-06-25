@@ -134,8 +134,8 @@ try {
     $regStmt->execute(['id' => $regId, 'sid' => $session['id']]);
     $registration = $regStmt->fetch(PDO::FETCH_ASSOC);
     if (!$registration) {
-        unset($_SESSION['live_registrations'][$code]);
-        unset($_SESSION['verified_registrations'][$code]);
+        // Ne pas détruire la session immédiatement ici pour permettre à live-session.php
+        // de détecter l'état $isReset au rechargement de la page et d'afficher le lobby de réinscription.
         echo json_encode(['success' => false, 'message' => 'Votre inscription a été réinitialisée ou annulée par l\'enseignant.', 'not_registered' => true]);
         exit;
     }
