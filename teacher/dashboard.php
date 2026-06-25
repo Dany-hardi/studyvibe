@@ -787,6 +787,21 @@ $successMsg = $successMessages[$successKey] ?? null;
     
     <!-- Bibliothèques KaTeX pour le rendu des formules mathématiques et caractères spéciaux en LaTeX -->
     <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/katex@0.16.8/dist/katex.min.css">
+    <script>
+        function renderMath() {
+            if (typeof renderMathInElement === 'function') {
+                renderMathInElement(document.body, {
+                    delimiters: [
+                        {left: '$$', right: '$$', display: true},
+                        {left: '$', right: '$', display: false},
+                        {left: '\\(', right: '\\)', display: false},
+                        {left: '\\[', right: '\\]', display: true}
+                    ],
+                    throwOnError: false
+                });
+            }
+        }
+    </script>
     <script defer src="https://cdn.jsdelivr.net/npm/katex@0.16.8/dist/katex.min.js"></script>
     <script defer src="https://cdn.jsdelivr.net/npm/katex@0.16.8/dist/render-math-in-element.min.js" onload="renderMath()"></script>
     
@@ -3815,38 +3830,14 @@ function openCsvPreview(questions, mathCount, type, courseId, sessionId, lessonI
     modal.classList.remove('hidden');
     
     setTimeout(() => {
-        if (typeof renderMathInElement === 'function') {
-            renderMathInElement(tbody, {
-                delimiters: [
-                    {left: '$$', right: '$$', display: true},
-                    {left: '$', right: '$', display: false},
-                    {left: '\\(', right: '\\)', display: false},
-                    {left: '\\[', right: '\\]', display: true}
-                ],
-                throwOnError: false
-            });
-        }
-    }, 50);
+        renderMath();
+    }, 150);
 }
 
 function closeCsvPreview() {
     document.getElementById('csv-preview-modal').classList.add('hidden');
     const inputs = document.querySelectorAll('input[type="file"]');
     inputs.forEach(input => input.value = "");
-}
-
-function renderMath() {
-    if (typeof renderMathInElement === 'function') {
-        renderMathInElement(document.body, {
-            delimiters: [
-                {left: '$$', right: '$$', display: true},
-                {left: '$', right: '$', display: false},
-                {left: '\\(', right: '\\)', display: false},
-                {left: '\\[', right: '\\]', display: true}
-            ],
-            throwOnError: false
-        });
-    }
 }
 
 document.addEventListener('DOMContentLoaded', () => {
