@@ -718,14 +718,40 @@ if (!$error) {
                             </p>
                             
                             <!-- Heure de début de la téléévaluation (depuis la base de données) -->
-                            <div style="background-color: rgba(0,75,35,0.04); border: 1px dashed rgba(0,75,35,0.25); border-radius: 6px; padding: 10px 14px; display: flex; align-items: center; gap: 8px; margin-bottom: 1.5rem;">
-                                <svg width="16" height="16" fill="none" stroke="var(--green)" viewBox="0 0 24 24" style="flex-shrink:0;">
-                                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z"/>
-                                </svg>
-                                <span style="font-size: 0.8rem; font-weight: 500; color: var(--green);">
-                                    Début programmé : <strong style="text-transform: capitalize;"><?= htmlspecialchars(getFormattedEvalStartTime($session['start_time'])) ?></strong>
-                                </span>
-                            </div>
+                            <?php if ($isAsync): ?>
+                                <!-- Devoir libre (Asynchrone) -->
+                                <div style="background-color: rgba(26,86,219,0.04); border: 1px dashed rgba(26,86,219,0.3); border-radius: 6px; padding: 12px 14px; display: flex; flex-direction: column; gap: 6px; margin-bottom: 1.5rem; position: relative;">
+                                    <div style="display: flex; align-items: center; justify-content: space-between; width: 100%;">
+                                        <div style="display: flex; align-items: center; gap: 8px;">
+                                            <svg width="16" height="16" fill="none" stroke="#1A56DB" viewBox="0 0 24 24" style="flex-shrink:0;">
+                                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z"/>
+                                            </svg>
+                                            <span style="font-size: 0.8rem; font-weight: 600; color: #1A56DB;">
+                                                Devoir Libre disponible jusqu'au : <strong style="text-transform: capitalize;"><?= htmlspecialchars(getFormattedEvalStartTime($session['async_deadline'] ?? '')) ?></strong>
+                                            </span>
+                                        </div>
+                                        <!-- Clickable Question Mark -->
+                                        <button type="button" onclick="toggleAsyncExplanation()" style="background: none; border: none; cursor: pointer; display: flex; align-items: center; justify-content: center; width: 20px; height: 20px; border-radius: 50%; background-color: rgba(26,86,219,0.1); color: #1A56DB; font-size: 0.75rem; font-weight: 700; transition: background-color 0.2s;" onmouseover="this.style.backgroundColor='rgba(26,86,219,0.2)'" onmouseout="this.style.backgroundColor='rgba(26,86,219,0.1)'" title="En savoir plus sur le Devoir Libre">
+                                            ?
+                                        </button>
+                                    </div>
+                                    
+                                    <!-- Inline explanation (hidden by default) -->
+                                    <div id="async-explanation-box" style="display: none; margin-top: 8px; padding-top: 8px; border-top: 1px solid rgba(26,86,219,0.15); font-size: 0.75rem; color: #1E3A8A; line-height: 1.5;">
+                                        <strong>Qu'est-ce qu'un Devoir Libre ?</strong><br>
+                                        Il s'agit d'une évaluation asynchrone autonome. Contrairement aux sessions en direct animées en temps réel par l'enseignant, vous pouvez réaliser cette évaluation à votre rythme, à n'importe quel moment avant la date limite indiquée.
+                                    </div>
+                                </div>
+                            <?php else: ?>
+                                <div style="background-color: rgba(0,75,35,0.04); border: 1px dashed rgba(0,75,35,0.25); border-radius: 6px; padding: 10px 14px; display: flex; align-items: center; gap: 8px; margin-bottom: 1.5rem;">
+                                    <svg width="16" height="16" fill="none" stroke="var(--green)" viewBox="0 0 24 24" style="flex-shrink:0;">
+                                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z"/>
+                                    </svg>
+                                    <span style="font-size: 0.8rem; font-weight: 500; color: var(--green);">
+                                        Début programmé : <strong style="text-transform: capitalize;"><?= htmlspecialchars(getFormattedEvalStartTime($session['start_time'])) ?></strong>
+                                    </span>
+                                </div>
+                            <?php endif; ?>
 
                             <?php if (isset($regError)): ?>
                                 <div style="margin-bottom: 1.5rem; padding: 0.8rem 1rem; background-color: #FDF2F2; border: 1px solid #FBD5D5; color: #9B1C1C; font-size: 0.8rem;">
@@ -783,19 +809,49 @@ if (!$error) {
                                 <h2 style="font-family:'Plus Jakarta Sans',sans-serif; font-size: 2rem; font-weight: 400; line-height: 1.25; color: var(--ink); margin-bottom: 0.75rem;">
                                     En attente du<br><em>lancement</em>.
                                 </h2>
-                                <p style="font-size: 0.85rem; font-weight: 300; line-height: 1.7; color: var(--muted); margin-bottom: 1rem; max-width: 44ch;">
-                                    L'évaluation <strong><?= htmlspecialchars($session['title']) ?></strong> (cours : <em><?= htmlspecialchars($session['course_title']) ?></em>) débutera automatiquement à l'heure programmée. Veuillez patienter dans cette salle d'attente.
-                                </p>
+                                <?php if ($isAsync): ?>
+                                    <p style="font-size: 0.85rem; font-weight: 300; line-height: 1.7; color: var(--muted); margin-bottom: 1rem; max-width: 44ch;">
+                                        L'évaluation <strong><?= htmlspecialchars($session['title']) ?></strong> (cours : <em><?= htmlspecialchars($session['course_title']) ?></em>) est disponible en Devoir Libre. Vous pouvez la commencer à tout moment.
+                                    </p>
 
-                                <!-- Heure de début de la téléévaluation (depuis la base de données) -->
-                                <div style="margin-bottom: 1.5rem; display: flex; align-items: center; gap: 8px;">
-                                    <svg width="18" height="18" fill="none" stroke="var(--green)" viewBox="0 0 24 24" style="flex-shrink:0;">
-                                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z"/>
-                                    </svg>
-                                    <span style="font-size: 0.85rem; font-weight: 500; color: var(--green);">
-                                        Début de l'évaluation programmé : <strong style="text-transform: capitalize;"><?= htmlspecialchars(getFormattedEvalStartTime($session['start_time'])) ?></strong>
-                                    </span>
-                                </div>
+                                    <!-- Devoir libre (Asynchrone) -->
+                                    <div style="background-color: rgba(26,86,219,0.04); border: 1px dashed rgba(26,86,219,0.3); border-radius: 6px; padding: 12px 14px; display: flex; flex-direction: column; gap: 6px; margin-bottom: 1.5rem; position: relative;">
+                                        <div style="display: flex; align-items: center; justify-content: space-between; width: 100%;">
+                                            <div style="display: flex; align-items: center; gap: 8px;">
+                                                <svg width="16" height="16" fill="none" stroke="#1A56DB" viewBox="0 0 24 24" style="flex-shrink:0;">
+                                                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z"/>
+                                                </svg>
+                                                <span style="font-size: 0.85rem; font-weight: 600; color: #1A56DB;">
+                                                    Disponible en Devoir Libre jusqu'au : <strong style="text-transform: capitalize;"><?= htmlspecialchars(getFormattedEvalStartTime($session['async_deadline'] ?? '')) ?></strong>
+                                                </span>
+                                            </div>
+                                            <!-- Clickable Question Mark -->
+                                            <button type="button" onclick="toggleAsyncExplanationLobby()" style="background: none; border: none; cursor: pointer; display: flex; align-items: center; justify-content: center; width: 20px; height: 20px; border-radius: 50%; background-color: rgba(26,86,219,0.1); color: #1A56DB; font-size: 0.75rem; font-weight: 700; transition: background-color 0.2s;" onmouseover="this.style.backgroundColor='rgba(26,86,219,0.2)'" onmouseout="this.style.backgroundColor='rgba(26,86,219,0.1)'" title="En savoir plus sur le Devoir Libre">
+                                                ?
+                                            </button>
+                                        </div>
+                                        
+                                        <!-- Inline explanation (hidden by default) -->
+                                        <div id="async-explanation-box-lobby" style="display: none; margin-top: 8px; padding-top: 8px; border-top: 1px solid rgba(26,86,219,0.15); font-size: 0.75rem; color: #1E3A8A; line-height: 1.5;">
+                                            <strong>Qu'est-ce qu'un Devoir Libre ?</strong><br>
+                                            Il s'agit d'une évaluation asynchrone autonome. Contrairement aux sessions en direct animées en temps réel par l'enseignant, vous pouvez réaliser cette évaluation à votre rythme, à n'importe quel moment avant la date limite indiquée.
+                                        </div>
+                                    </div>
+                                <?php else: ?>
+                                    <p style="font-size: 0.85rem; font-weight: 300; line-height: 1.7; color: var(--muted); margin-bottom: 1rem; max-width: 44ch;">
+                                        L'évaluation <strong><?= htmlspecialchars($session['title']) ?></strong> (cours : <em><?= htmlspecialchars($session['course_title']) ?></em>) débutera automatiquement à l'heure programmée. Veuillez patienter dans cette salle d'attente.
+                                    </p>
+
+                                    <!-- Heure de début de la téléévaluation (depuis la base de données) -->
+                                    <div style="margin-bottom: 1.5rem; display: flex; align-items: center; gap: 8px;">
+                                        <svg width="18" height="18" fill="none" stroke="var(--green)" viewBox="0 0 24 24" style="flex-shrink:0;">
+                                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z"/>
+                                        </svg>
+                                        <span style="font-size: 0.85rem; font-weight: 500; color: var(--green);">
+                                            Début de l'évaluation programmé : <strong style="text-transform: capitalize;"><?= htmlspecialchars(getFormattedEvalStartTime($session['start_time'])) ?></strong>
+                                        </span>
+                                    </div>
+                                <?php endif; ?>
 
                                 <!-- Nouveau compteur temps réel d'inscrits -->
                                 <div style="background-color: rgba(0,75,35,0.04); border-left: 3px solid var(--green); padding: 12px 16px; border-radius: 4px; display: inline-flex; align-items: center; gap: 8px; margin-bottom: 1.5rem;">
@@ -1000,6 +1056,20 @@ if (!$error) {
 
         function getServerTime() {
             return Date.now() + serverTimeOffset;
+        }
+
+        function toggleAsyncExplanation() {
+            const box = document.getElementById('async-explanation-box');
+            if (box) {
+                box.style.display = (box.style.display === 'none' || box.style.display === '') ? 'block' : 'none';
+            }
+        }
+
+        function toggleAsyncExplanationLobby() {
+            const box = document.getElementById('async-explanation-box-lobby');
+            if (box) {
+                box.style.display = (box.style.display === 'none' || box.style.display === '') ? 'block' : 'none';
+            }
         }
 
         let pollingInterval = null;
