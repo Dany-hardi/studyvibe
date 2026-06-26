@@ -50,6 +50,15 @@ try {
         $countStmt->execute(['sid' => $sid]);
         $participantCount = (int)$countStmt->fetchColumn();
 
+        // 1b. Nombre d'utilisateurs connectés (dernières 10 secondes d'activité)
+        $onlineStmt = $pdo->prepare("
+            SELECT COUNT(*) 
+            FROM live_eval_registrations 
+            WHERE session_id = :sid AND last_activity >= NOW() - INTERVAL 10 SECOND
+        ");
+        $onlineStmt->execute(['sid' => $sid]);
+        $onlineCount = (int)$onlineStmt->fetchColumn();
+
         // 2. Récupérer les questions pour déterminer la question en cours
         $qStmt = $pdo->prepare("SELECT id, time_limit FROM live_eval_questions WHERE session_id = :sid ORDER BY sort_order ASC, id ASC");
         $qStmt->execute(['sid' => $sid]);
@@ -104,6 +113,7 @@ try {
             'title'                  => $session['title'],
             'session_code'           => $session['session_code'],
             'participant_count'      => $participantCount,
+            'online_count'           => $onlineCount,
             'status'                 => $status,
             'total_questions'        => $totalQuestions,
             'active_question_index'  => $activeQuestionIndex,

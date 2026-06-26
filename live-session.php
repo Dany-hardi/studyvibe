@@ -819,24 +819,28 @@ if (!$error) {
                              <div id="quiz-view" class="hidden" style="user-select: none; -webkit-user-select: none; -moz-user-select: none; -ms-user-select: none;">
 
                                 <!-- Barre de chrono + question -->
-                                <div style="display:flex; align-items:center; justify-content:space-between; margin-bottom:1rem; gap:10px;">
-                                    <span style="font-size:0.65rem; font-weight:700; letter-spacing:0.08em; text-transform:uppercase; color:var(--green); border:1px solid var(--green); padding:3px 10px;" id="quiz-question-number">Question -- / --</span>
-                                    
-                                    <!-- Compteur dynamique des participants restants à répondre -->
-                                    <span id="quiz-live-participants-container" style="font-size:0.75rem; font-weight:500; color:var(--ink); display:flex; align-items:center; gap:6px; background: rgba(0,0,0,0.04); padding: 4px 10px; border-radius: 9999px;">
-                                        <svg width="14" height="14" fill="none" stroke="currentColor" viewBox="0 0 24 24" style="stroke-width:2;"><path stroke-linecap="round" stroke-linejoin="round" d="M17 20h5v-2a3 3 0 00-5.356-1.857M17 20H7m10 0v-2c0-.656-.126-1.283-.356-1.857M7 20H2v-2a3 3 0 015.356-1.857M7 20v-2c0-.656.126-1.283.356-1.857m0 0a5.002 5.002 0 019.288 0M15 7a3 3 0 11-6 0 3 3 0 016 0zm6 3a2 2 0 11-4 0 2 2 0 014 0zM7 10a2 2 0 11-4 0 2 2 0 014 0z"/></svg>
-                                        <span>En attente : <strong id="quiz-live-remaining-count">--</strong></span>
-                                    </span>
+                                <div style="display:flex; align-items:center; justify-content:space-between; margin-bottom:1.5rem; border-bottom:1px solid rgba(0,0,0,0.06); padding-bottom:0.85rem; gap:12px;">
+                                    <div style="display:flex; flex-direction:column; gap:6px; flex-grow: 1;">
+                                        <span style="font-size:0.65rem; font-weight:700; letter-spacing:0.08em; text-transform:uppercase; color:var(--green); border:1px solid var(--green); padding:3px 10px; width: fit-content; border-radius: 2px;" id="quiz-question-number">Question -- / --</span>
+                                        
+                                        <!-- Compteur dynamique des participants restants à répondre -->
+                                        <span id="quiz-live-participants-container" style="font-size:0.75rem; font-weight:500; color:var(--ink); display:flex; align-items:center; gap:6px; background: rgba(0,0,0,0.04); padding: 4px 10px; border-radius: 9999px; width: fit-content;">
+                                            <svg width="14" height="14" fill="none" stroke="currentColor" viewBox="0 0 24 24" style="stroke-width:2;"><path stroke-linecap="round" stroke-linejoin="round" d="M17 20h5v-2a3 3 0 00-5.356-1.857M17 20H7m10 0v-2c0-.656-.126-1.283-.356-1.857M7 20H2v-2a3 3 0 015.356-1.857M7 20v-2c0-.656.126-1.283.356-1.857m0 0a5.002 5.002 0 019.288 0M15 7a3 3 0 11-6 0 3 3 0 016 0zm6 3a2 2 0 11-4 0 2 2 0 014 0zM7 10a2 2 0 11-4 0 2 2 0 014 0z"/></svg>
+                                            <span>Restants : <strong id="quiz-live-remaining-count">--</strong></span>
+                                        </span>
+                                    </div>
 
-                                    <span style="font-size:1rem; font-weight:800; color:#E02424; display:flex; align-items:center; gap:5px; font-family:'Plus Jakarta Sans',sans-serif;">
-                                        <svg width="16" height="16" fill="none" stroke="currentColor" viewBox="0 0 24 24" style="stroke-width:2.5;"><path stroke-linecap="round" stroke-linejoin="round" d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z"/></svg>
-                                        <span id="quiz-timer-text">--s</span>
-                                    </span>
-                                </div>
-
-                                <!-- Barre de progression du temps -->
-                                <div class="progress-bar-container">
-                                    <div class="progress-bar" id="quiz-progress-bar"></div>
+                                    <!-- Circular SVG countdown (Feature 5) -->
+                                    <div style="position: relative; width: 56px; height: 56px; display: flex; align-items: center; justify-content: center; flex-shrink: 0; transition: transform 0.2s ease;" id="quiz-svg-timer-container">
+                                        <svg width="56" height="56" style="transform: rotate(-90deg); filter: drop-shadow(0 2px 4px rgba(0,0,0,0.02));">
+                                            <!-- Circle background -->
+                                            <circle cx="28" cy="28" r="23" stroke="rgba(0,0,0,0.05)" stroke-width="3.5" fill="transparent" />
+                                            <!-- Animated ring -->
+                                            <circle id="quiz-svg-timer-circle" cx="28" cy="28" r="23" stroke="var(--green)" stroke-width="3.5" fill="transparent" 
+                                                    stroke-dasharray="144.51" stroke-dashoffset="0" stroke-linecap="round" style="transition: stroke-dashoffset 0.3s linear, stroke 0.3s ease;" />
+                                        </svg>
+                                        <span id="quiz-timer-text" style="position: absolute; font-family:'Plus Jakarta Sans',sans-serif; font-size: 1rem; font-weight: 700; color: var(--ink); tabular-nums: true;">--</span>
+                                    </div>
                                 </div>
 
                                 <!-- Énoncé de la question -->
@@ -889,6 +893,59 @@ if (!$error) {
                                     <span style="display:block; margin-top:0.5rem; font-size:0.75rem; color:var(--muted);">
                                         Vous pouvez consulter votre boîte de réception ou attendre le fichier de résultats publié par votre enseignant.
                                     </span>
+                                </div>
+
+                                <!-- Podium / Leaderboard en direct -->
+                                <div id="live-leaderboard-container" class="hidden" style="margin: 2rem 0; padding: 1.5rem; background: #FFFFFF; border: 1px solid #E5E5E7; border-radius: 4px; box-shadow: 0 4px 12px rgba(0,0,0,0.02); text-align: left;">
+                                    <h3 style="font-family:'Plus Jakarta Sans',sans-serif; font-size:1.15rem; font-weight:600; color:var(--ink); margin-bottom:1.5rem; display:flex; align-items:center; gap:8px;">
+                                        <span>🏆</span> Tableau d'Honneur (Classement Live)
+                                    </h3>
+                                    
+                                    <!-- Dynamic Podium layout -->
+                                    <div id="podium-wrapper" style="display:flex; justify-content:center; align-items:flex-end; gap:16px; margin-bottom:2rem; height:160px; padding-top:20px;">
+                                        <!-- Place 2 (Left) -->
+                                        <div id="podium-2" style="display:flex; flex-direction:column; align-items:center; width:90px;">
+                                            <div id="podium-name-2" style="font-size:0.75rem; font-weight:600; color:var(--muted); text-align:center; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; width:100%;">--</div>
+                                            <div style="background:#F3F4F6; border:1px solid #E5E7EB; width:100%; height:60px; display:flex; align-items:center; justify-content:center; border-radius:4px 4px 0 0; box-shadow: inset 0 -4px 0 rgba(0,0,0,0.05);">
+                                                <span style="font-size:1.5rem; font-weight:700; color:#4B5563;">2</span>
+                                            </div>
+                                            <div id="podium-score-2" style="font-size:0.7rem; font-weight:600; color:var(--muted); margin-top:4px;">--%</div>
+                                        </div>
+                                        
+                                        <!-- Place 1 (Center) -->
+                                        <div id="podium-1" style="display:flex; flex-direction:column; align-items:center; width:100px;">
+                                            <div id="podium-name-1" style="font-size:0.8rem; font-weight:700; color:#B45309; text-align:center; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; width:100%;">--</div>
+                                            <div style="background:#FEF08A; border:2px solid #FACC15; width:100%; height:90px; display:flex; align-items:center; justify-content:center; border-radius:6px 6px 0 0; box-shadow: 0 6px 12px rgba(250,204,21,0.25), inset 0 -4px 0 rgba(234,179,8,0.2);">
+                                                <span style="font-size:2.2rem; font-weight:800; color:#854D0E;">1</span>
+                                            </div>
+                                            <div id="podium-score-1" style="font-size:0.75rem; font-weight:700; color:#854D0E; margin-top:4px;">--%</div>
+                                        </div>
+                                        
+                                        <!-- Place 3 (Right) -->
+                                        <div id="podium-3" style="display:flex; flex-direction:column; align-items:center; width:90px;">
+                                            <div id="podium-name-3" style="font-size:0.75rem; font-weight:600; color:var(--muted); text-align:center; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; width:100%;">--</div>
+                                            <div style="background:#FFF7ED; border:1px solid #FFEDD5; width:100%; height:40px; display:flex; align-items:center; justify-content:center; border-radius:4px 4px 0 0; box-shadow: inset 0 -4px 0 rgba(253,186,116,0.15);">
+                                                <span style="font-size:1.25rem; font-weight:700; color:#C2410C;">3</span>
+                                            </div>
+                                            <div id="podium-score-3" style="font-size:0.7rem; font-weight:600; color:#C2410C; margin-top:4px;">--%</div>
+                                        </div>
+                                    </div>
+                                    
+                                    <!-- Rest of leaderboard table -->
+                                    <div style="max-height: 220px; overflow-y: auto; border: 1px solid rgba(0,0,0,0.06); border-radius: 4px; background: rgba(0,0,0,0.01);">
+                                        <table style="width: 100%; border-collapse: collapse; font-size: 0.8rem; text-align: left;">
+                                            <thead>
+                                                <tr style="background: rgba(0,0,0,0.03); border-bottom: 1px solid rgba(0,0,0,0.06);">
+                                                    <th style="padding: 8px 12px; font-weight: 600; color: var(--ink);">Rang</th>
+                                                    <th style="padding: 8px 12px; font-weight: 600; color: var(--ink);">Participant</th>
+                                                    <th style="padding: 8px 12px; font-weight: 600; color: var(--ink); text-align: right;">Score Final</th>
+                                                </tr>
+                                            </thead>
+                                            <tbody id="leaderboard-tbody">
+                                                <!-- Dynamic rows -->
+                                            </tbody>
+                                        </table>
+                                    </div>
                                 </div>
 
                                 <div style="font-size: 0.82rem; color: var(--muted); margin-bottom: 1.5rem;">
@@ -1051,6 +1108,9 @@ if (!$error) {
             if (registrationId !== null) {
                 poll();
                 pollingInterval = setInterval(poll, 2500);
+                
+                // Queue background sync (Feature 4)
+                setInterval(syncPendingAnswers, 3000);
             }
         }
 
@@ -1168,6 +1228,64 @@ if (!$error) {
                     if (totalUsersEl) {
                         totalUsersEl.textContent = data.total_registered || '--';
                     }
+
+                    // Render podium & leaderboard (Feature 2)
+                    if (data.leaderboard && data.leaderboard.length > 0) {
+                        const boardContainer = document.getElementById('live-leaderboard-container');
+                        if (boardContainer) boardContainer.classList.remove('hidden');
+
+                        // Fill Podium
+                        const top1 = data.leaderboard[0] || null;
+                        const top2 = data.leaderboard[1] || null;
+                        const top3 = data.leaderboard[2] || null;
+
+                        if (top1) {
+                            document.getElementById('podium-name-1').textContent = top1.name;
+                            document.getElementById('podium-score-1').textContent = parseFloat(top1.score).toFixed(1) + '%';
+                            document.getElementById('podium-1').style.opacity = '1';
+                        } else {
+                            document.getElementById('podium-1').style.opacity = '0.3';
+                        }
+
+                        if (top2) {
+                            document.getElementById('podium-name-2').textContent = top2.name;
+                            document.getElementById('podium-score-2').textContent = parseFloat(top2.score).toFixed(1) + '%';
+                            document.getElementById('podium-2').style.opacity = '1';
+                        } else {
+                            document.getElementById('podium-2').style.opacity = '0.3';
+                        }
+
+                        if (top3) {
+                            document.getElementById('podium-name-3').textContent = top3.name;
+                            document.getElementById('podium-score-3').textContent = parseFloat(top3.score).toFixed(1) + '%';
+                            document.getElementById('podium-3').style.opacity = '1';
+                        } else {
+                            document.getElementById('podium-3').style.opacity = '0.3';
+                        }
+
+                        // Fill Table for rest of top 10
+                        const tbody = document.getElementById('leaderboard-tbody');
+                        if (tbody) {
+                            tbody.innerHTML = '';
+                            data.leaderboard.forEach((player, idx) => {
+                                const tr = document.createElement('tr');
+                                tr.style.borderBottom = '1px solid rgba(0,0,0,0.05)';
+                                tr.style.background = (idx < 3) ? 'rgba(0,75,35,0.02)' : 'transparent';
+                                tr.innerHTML = `
+                                    <td style="padding: 8px 12px; font-weight: ${idx < 3 ? '700' : 'normal'};">
+                                        ${idx + 1} ${idx === 0 ? '🥇' : idx === 1 ? '🥈' : idx === 2 ? '🥉' : ''}
+                                    </td>
+                                    <td style="padding: 8px 12px; font-weight: ${idx < 3 ? '600' : 'normal'}; color: var(--ink);">
+                                        ${player.name}
+                                    </td>
+                                    <td style="padding: 8px 12px; text-align: right; font-weight: 700; color: var(--green);">
+                                        ${parseFloat(player.score).toFixed(1)}%
+                                    </td>
+                                `;
+                                tbody.appendChild(tr);
+                            });
+                        }
+                    }
                     return;
                 }
 
@@ -1193,6 +1311,7 @@ if (!$error) {
                 
                 if (currentQuestionId !== q.id) {
                     currentQuestionId = q.id;
+                    questionTotalDuration = 0; // Reset total duration for the new question
                     resetQuizForm(q);
                     logTelemetry(`Question ${data.current_question_index + 1} activée: ${q.question_text.slice(0, 30)}...`);
                 }
@@ -1206,6 +1325,81 @@ if (!$error) {
         let questionSecondsLeft = 0;
         let questionTotalDuration = 0;
 
+        // Native Audio Synthesizers (Feature 4)
+        function playPositiveChime() {
+            try {
+                const ctx = new (window.AudioContext || window.webkitAudioContext)();
+                const osc1 = ctx.createOscillator();
+                const gain1 = ctx.createGain();
+                osc1.type = 'sine';
+                osc1.frequency.setValueAtTime(523.25, ctx.currentTime); // C5
+                osc1.frequency.exponentialRampToValueAtTime(880, ctx.currentTime + 0.15); // A5
+                
+                gain1.gain.setValueAtTime(0.15, ctx.currentTime);
+                gain1.gain.exponentialRampToValueAtTime(0.001, ctx.currentTime + 0.35);
+                
+                osc1.connect(gain1);
+                gain1.connect(ctx.destination);
+                
+                osc1.start();
+                osc1.stop(ctx.currentTime + 0.35);
+            } catch (e) {
+                console.log("Audio Context blocked or not supported", e);
+            }
+        }
+
+        function playTickSound() {
+            try {
+                const ctx = new (window.AudioContext || window.webkitAudioContext)();
+                const osc = ctx.createOscillator();
+                const gain = ctx.createGain();
+                
+                osc.type = 'triangle';
+                osc.frequency.setValueAtTime(1000, ctx.currentTime);
+                
+                gain.gain.setValueAtTime(0.05, ctx.currentTime);
+                gain.gain.exponentialRampToValueAtTime(0.001, ctx.currentTime + 0.05);
+                
+                osc.connect(gain);
+                gain.connect(ctx.destination);
+                
+                osc.start();
+                osc.stop(ctx.currentTime + 0.05);
+            } catch (e) {}
+        }
+
+        // Circular Timer Visual Updater (Feature 5)
+        function updateSvgTimer(seconds, total) {
+            const circle = document.getElementById('quiz-svg-timer-circle');
+            const text = document.getElementById('quiz-timer-text');
+            if (!circle || !text) return;
+
+            // Set text (seconds only)
+            text.textContent = seconds;
+
+            // Calculate circumference and dashoffset
+            const radius = 23;
+            const circumference = 2 * Math.PI * radius; // 144.51
+            
+            let pct = total > 0 ? (seconds / total) : 0;
+            pct = Math.min(Math.max(pct, 0), 1); // Clamp to 0-1
+            
+            const offset = circumference - (pct * circumference);
+            circle.style.strokeDashoffset = offset;
+
+            // Color adjustments
+            if (seconds > 10) {
+                circle.style.stroke = '#004B23'; // var(--green)
+                text.style.color = '#111111';
+            } else if (seconds > 5) {
+                circle.style.stroke = '#D97706'; // Yellow/Orange
+                text.style.color = '#D97706';
+            } else {
+                circle.style.stroke = '#DC2626'; // Red
+                text.style.color = '#DC2626';
+            }
+        }
+
         function updateQuestionTimer(seconds, isPaused) {
             // Synchronisation intelligente : si la dérive est supérieure à 2s ou si le timer local est à 0, on resynchronise
             const drift = Math.abs(questionSecondsLeft - seconds);
@@ -1217,9 +1411,7 @@ if (!$error) {
             }
 
             // Mettre à jour l'affichage immédiatement
-            document.getElementById('quiz-timer-text').textContent = `${questionSecondsLeft}s`;
-            const pct = (questionSecondsLeft / questionTotalDuration) * 100;
-            document.getElementById('quiz-progress-bar').style.width = `${pct}%`;
+            updateSvgTimer(questionSecondsLeft, questionTotalDuration);
 
             // Si en pause, on arrête l'intervalle local et on ne relance rien
             if (isPaused) {
@@ -1235,15 +1427,25 @@ if (!$error) {
                 questionTimer = setInterval(() => {
                     if (questionSecondsLeft > 0) {
                         questionSecondsLeft--;
-                        document.getElementById('quiz-timer-text').textContent = `${questionSecondsLeft}s`;
-                        const currentPct = (questionSecondsLeft / questionTotalDuration) * 100;
-                        document.getElementById('quiz-progress-bar').style.width = `${currentPct}%`;
+                        
+                        // Heartbeat pulsing & ticking sounds on the last 5 seconds (Feature 5)
+                        if (questionSecondsLeft <= 5 && questionSecondsLeft > 0) {
+                            const container = document.getElementById('quiz-svg-timer-container');
+                            if (container) {
+                                container.style.transform = 'scale(1.25)';
+                                setTimeout(() => {
+                                    container.style.transform = 'scale(1)';
+                                }, 150);
+                            }
+                            playTickSound();
+                        }
+                        
+                        updateSvgTimer(questionSecondsLeft, questionTotalDuration);
                     }
                     if (questionSecondsLeft <= 0) {
                         clearInterval(questionTimer);
                         questionTimer = null;
-                        document.getElementById('quiz-timer-text').textContent = `0s`;
-                        document.getElementById('quiz-progress-bar').style.width = `0%`;
+                        updateSvgTimer(0, questionTotalDuration);
                         disableOptions();
                         if (isAsync) {
                             submitLiveAnswer("");
@@ -1424,16 +1626,35 @@ if (!$error) {
         function submitLiveAnswer(option) {
             ['A', 'B', 'C', 'D'].forEach(opt => {
                 const btn = document.getElementById(`btn-opt-${opt}`);
-                if (opt === option) {
-                    btn.className = "option-btn selected";
-                } else {
-                    btn.className = "option-btn opacity-40";
+                if (btn) {
+                    if (opt === option) {
+                        btn.className = "option-btn selected";
+                    } else {
+                        btn.className = "option-btn opacity-40";
+                    }
                 }
             });
 
             disableOptions();
-            document.getElementById('quiz-submit-status').classList.remove('hidden');
+            const statusEl = document.getElementById('quiz-submit-status');
+            if (statusEl) {
+                statusEl.classList.remove('hidden');
+                statusEl.innerHTML = 'Enregistrement de votre réponse...';
+                statusEl.style.borderColor = 'rgba(16,185,129,0.25)';
+                statusEl.style.background = 'rgba(16,185,129,0.07)';
+                statusEl.style.color = '#065F46';
+            }
             logTelemetry(`Option ${option} soumise. En attente...`);
+
+            // Save to Local Storage Queue for Resiliency (Feature 4)
+            const pendingAnswer = {
+                code: sessionCode,
+                action: 'submit_answer',
+                question_id: currentQuestionId,
+                selected_option: option,
+                timestamp: Date.now()
+            };
+            localStorage.setItem('pending_live_answer_' + sessionCode, JSON.stringify(pendingAnswer));
 
             const formData = new FormData();
             formData.append('code', sessionCode);
@@ -1447,11 +1668,78 @@ if (!$error) {
             })
             .then(res => res.json())
             .then(data => {
-                if (!data.success) {
+                if (data.success) {
+                    localStorage.removeItem('pending_live_answer_' + sessionCode);
+                    if (statusEl) {
+                        statusEl.innerHTML = '✓ Réponse enregistrée — en attente de la prochaine question...';
+                    }
+                    playPositiveChime();
+                } else {
                     console.error(data.message);
+                    if (statusEl) {
+                        statusEl.innerHTML = '⚠️ Erreur: ' + data.message;
+                        statusEl.style.borderColor = '#EF4444';
+                        statusEl.style.background = '#FEF2F2';
+                        statusEl.style.color = '#991B1B';
+                    }
                 }
             })
-            .catch(err => console.error("Erreur de soumission :", err));
+            .catch(err => {
+                console.error("Erreur de soumission :", err);
+                if (statusEl) {
+                    statusEl.innerHTML = '⚠️ Connexion instable — Réponse mise en attente (synchronisation automatique...)';
+                    statusEl.style.borderColor = '#F59E0B';
+                    statusEl.style.background = '#FEF3C7';
+                    statusEl.style.color = '#92400E';
+                }
+            });
+        }
+
+        // Background synchronization function for offline answers (Feature 4)
+        function syncPendingAnswers() {
+            const pendingKey = 'pending_live_answer_' + sessionCode;
+            const dataStr = localStorage.getItem(pendingKey);
+            if (!dataStr) return;
+
+            let pending;
+            try {
+                pending = JSON.parse(dataStr);
+            } catch(e) {
+                localStorage.removeItem(pendingKey);
+                return;
+            }
+
+            // If the pending answer is for a different question than the current active one, discard it
+            if (pending.question_id !== currentQuestionId) {
+                localStorage.removeItem(pendingKey);
+                return;
+            }
+
+            const formData = new FormData();
+            formData.append('code', pending.code);
+            formData.append('action', pending.action);
+            formData.append('question_id', pending.question_id);
+            formData.append('selected_option', pending.selected_option);
+
+            fetch('/api/live-eval-poll.php', {
+                method: 'POST',
+                body: formData
+            })
+            .then(res => res.json())
+            .then(data => {
+                if (data.success) {
+                    localStorage.removeItem(pendingKey);
+                    const statusEl = document.getElementById('quiz-submit-status');
+                    if (statusEl) {
+                        statusEl.innerHTML = '✓ Réponse enregistrée (synchronisée) — en attente de la prochaine question...';
+                        statusEl.style.borderColor = 'rgba(16,185,129,0.25)';
+                        statusEl.style.background = 'rgba(16,185,129,0.07)';
+                        statusEl.style.color = '#065F46';
+                    }
+                    playPositiveChime();
+                }
+            })
+            .catch(err => console.log("Retrying pending sync... connection still offline."));
         }
 
         function disableOptions() {

@@ -807,7 +807,8 @@ try {
         $stmt = $pdo->prepare("
             SELECT s.*, 
                    (SELECT COUNT(*) FROM live_eval_questions WHERE session_id = s.id) AS question_count,
-                   (SELECT COUNT(*) FROM live_eval_registrations WHERE session_id = s.id) AS participant_count
+                   (SELECT COUNT(*) FROM live_eval_registrations WHERE session_id = s.id) AS participant_count,
+                   (SELECT COUNT(*) FROM live_eval_registrations WHERE session_id = s.id AND last_activity >= NOW() - INTERVAL 10 SECOND) AS online_count
             FROM live_eval_sessions s
             WHERE s.course_id = :cid AND s.teacher_id = :tid
             ORDER BY s.created_at DESC
@@ -2370,6 +2371,7 @@ $successMsg = $successMessages[$successKey] ?? null;
                             <div class="space-x-4 flex flex-wrap items-center gap-y-2">
                                 <span>Questions : <strong class="questions-count-<?= $ls['id'] ?>"><?= $ls['question_count'] ?></strong></span>
                                 <span>Inscrits : <strong class="live-inscrits-count-<?= $ls['id'] ?>"><?= $ls['participant_count'] ?></strong></span>
+                                <span>En ligne : <strong class="live-online-count-<?= $ls['id'] ?> text-green-700 font-semibold"><?= $ls['online_count'] ?></strong></span>
                                 <span class="live-votes-badge-<?= $ls['id'] ?> hidden bg-[#E2ECE9] text-[#004B23] text-[10px] px-2.5 py-0.5 rounded-full font-semibold">
                                     <span class="live-votes-count-<?= $ls['id'] ?>">0</span> réponses reçues
                                 </span>
@@ -3014,6 +3016,12 @@ function pollLiveStats() {
                     const inscritsEl = document.querySelector('.live-inscrits-count-' + session.id);
                     if (inscritsEl) {
                         inscritsEl.textContent = session.participant_count;
+                    }
+
+                    // Mettre à jour les participants en ligne
+                    const onlineEl = document.querySelector('.live-online-count-' + session.id);
+                    if (onlineEl) {
+                        onlineEl.textContent = session.online_count;
                     }
 
                     // Mettre à jour les questions

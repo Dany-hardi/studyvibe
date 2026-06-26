@@ -105,6 +105,22 @@ try {
             @file_put_contents($lobbyCacheFile, (string)$registeredCount);
         }
 
+        // Compter les participants connectés (dernières 10 secondes d'activité)
+        $onlineCount = 0;
+        $onlineCacheFile = __DIR__ . '/../uploads/live_cache/online_count_' . $session['id'] . '.json';
+        if (file_exists($onlineCacheFile) && (time() - filemtime($onlineCacheFile)) < 2) {
+            $onlineCount = (int)@file_get_contents($onlineCacheFile);
+        } else {
+            $onlineStmt = $pdo->prepare("
+                SELECT COUNT(*) 
+                FROM live_eval_registrations 
+                WHERE session_id = :sid AND last_activity >= NOW() - INTERVAL 10 SECOND
+            ");
+            $onlineStmt->execute(['sid' => $session['id']]);
+            $onlineCount = (int)$onlineStmt->fetchColumn();
+            @file_put_contents($onlineCacheFile, (string)$onlineCount);
+        }
+
         $secondsToStart = $startTime - $now;
         $status = $secondsToStart > 0 ? 'waiting' : 'active';
         if ($isAsync && !$asyncDeadlinePassed) {
@@ -116,6 +132,7 @@ try {
             'success'          => true,
             'status'           => $status,
             'registered_count' => $registeredCount,
+            'online_count'     => $onlineCount,
             'seconds_to_start' => max(0, $secondsToStart),
             'start_time'       => $session['start_time'],
         ]);
@@ -276,11 +293,23 @@ try {
                 @file_put_contents($regCountCacheFile, (string)$totalRegistered);
             }
 
+            // Leaderboard (Top 10)
+            $leaderStmt = $pdo->prepare("
+                SELECT name, score 
+                FROM live_eval_registrations 
+                WHERE session_id = :sid AND score IS NOT NULL 
+                ORDER BY score DESC, name ASC 
+                LIMIT 10
+            ");
+            $leaderStmt->execute(['sid' => $session['id']]);
+            $leaderboard = $leaderStmt->fetchAll(PDO::FETCH_ASSOC);
+
             echo json_encode([
                 'success'          => true,
                 'status'           => 'finished',
                 'is_finished'      => true,
-                'total_registered' => $totalRegistered
+                'total_registered' => $totalRegistered,
+                'leaderboard'      => $leaderboard
             ]);
             exit;
         }
