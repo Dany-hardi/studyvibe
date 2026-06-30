@@ -146,7 +146,13 @@ $hasPassed = $scorePercent >= 50;
             <span class="text-xs text-gray-300 font-light">|</span>
             <span class="text-xs text-gray-500 font-medium">Rapport d'évaluation</span>
         </div>
-        <div>
+        <div class="flex items-center gap-4">
+            <a href="/student/export-evaluation-pdf.php?registration_id=<?= $regId ?>&token=<?= urlencode($token) ?>" class="text-xs font-semibold uppercase tracking-wider bg-brand text-white hover:bg-brandHover px-3 py-1.5 rounded-sm flex items-center gap-1.5 transition-colors shadow-sm">
+                <svg class="w-4 h-4" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24">
+                    <path stroke-linecap="round" stroke-linejoin="round" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4"/>
+                </svg>
+                <span>Télécharger PDF (LaTeX)</span>
+            </a>
             <?php if ($currentUser['role'] === 'student'): ?>
                 <a href="/student/dashboard.php" class="text-xs font-semibold uppercase tracking-wider text-brand hover:text-brandHover flex items-center gap-1.5 transition-colors">
                     <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
