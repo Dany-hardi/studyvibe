@@ -102,14 +102,57 @@ $isStudent = isset($_SESSION['user_id'], $_SESSION['user_role']) && $_SESSION['u
 $redirectUrl = $isStudent ? 'student/dashboard.php' : 'index.php';
 $redirectLabel = $isStudent ? 'Retour au tableau de bord' : "Retour à l'accueil";
 
-if ($error === null) {
-    if (!$session) {
-        $error = "Cette séance de téléévaluation est introuvable ou le lien est invalide.";
-    } elseif ((int)$session['status'] === 0) {
-        $error = "Cette séance de téléévaluation a été désactivée par l'enseignant.";
-    } elseif ($isAsync && $asyncDeadlinePassed) {
-        $error = "La date limite pour participer à cette évaluation asynchrone est dépassée.";
-    }
+if ($error !== null) {
+    $errorCode = 500;
+    $errorTitle = "Erreur de connexion";
+    $errorMessage = $error;
+    $badgeText = "Alerte de connexion";
+    $typewriterLines = [
+        '> ERREUR 500 : Échec de la liaison de données',
+        '> Vérification des pools de connexion… Saturé.',
+        '> Suggestion : Rafraîchissez la page ou réessayez plus tard.',
+    ];
+    include __DIR__ . '/error.php';
+    exit;
+}
+
+if (!$session) {
+    $errorCode = 404;
+    $errorTitle = 'Séance de téléévaluation introuvable';
+    $errorMessage = 'Le code de session saisi est introuvable ou le lien a expiré. Veuillez vérifier le code et réessayer.';
+    $badgeText = 'Session introuvable';
+    $typewriterLines = [
+        '> ERREUR : Code de session inconnu',
+        '> Recherche de la téléévaluation dans l\'annuaire académique…',
+        '> Aucun résultat trouvé pour la clé fournie.',
+        '> Veuillez contacter votre enseignant ou promoteur.',
+    ];
+    include __DIR__ . '/error.php';
+    exit;
+} elseif ((int)$session['status'] === 0) {
+    $errorCode = 403;
+    $errorTitle = 'Téléévaluation désactivée';
+    $errorMessage = 'Cette séance d\'évaluation a été désactivée par l\'enseignant responsable.';
+    $badgeText = 'Session inactive';
+    $typewriterLines = [
+        '> SÉCURITÉ : Session archivée ou suspendue',
+        '> Accès refusé pour les tentatives de connexion active.',
+        '> Contactez le secrétariat pédagogique si nécessaire.',
+    ];
+    include __DIR__ . '/error.php';
+    exit;
+} elseif ($isAsync && $asyncDeadlinePassed) {
+    $errorCode = 403;
+    $errorTitle = 'Date limite dépassée';
+    $errorMessage = 'La date limite pour participer à cette évaluation asynchrone est dépassée.';
+    $badgeText = 'Date limite dépassée';
+    $typewriterLines = [
+        '> ALERTE : Soumission tardive refusée',
+        '> Date de clôture enregistrée : ' . htmlspecialchars($session['async_deadline']),
+        '> Protocole académique : Inscription fermée.',
+    ];
+    include __DIR__ . '/error.php';
+    exit;
 }
 
 // Gérer l'enregistrement du participant

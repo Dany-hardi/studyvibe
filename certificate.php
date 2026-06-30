@@ -4,7 +4,14 @@ require_once __DIR__ . '/auth.php';
 requireRole('student');
 
 $code = trim((string)($_GET['code'] ?? ''));
-if (empty($code)) { header('Location: /student/dashboard.php'); exit; }
+if (empty($code)) {
+    $errorCode = 404;
+    $errorTitle = "Certificat Introuvable";
+    $errorMessage = "Le code de certificat demandé est manquant ou vide.";
+    $badgeText = "Code manquant";
+    include __DIR__ . '/error.php';
+    exit;
+}
 
 $user = getCurrentUser();
 $cert = null;
@@ -20,9 +27,16 @@ try {
     ");
     $stmt->execute(['code' => $code, 'student_id' => $user['id']]);
     $cert = $stmt->fetch();
-} catch (PDOException) {}
+} catch (PDOException $e) {}
 
-if (!$cert) { header('Location: /student/dashboard.php'); exit; }
+if (!$cert) {
+    $errorCode = 404;
+    $errorTitle = "Certificat Introuvable";
+    $errorMessage = "Aucun certificat correspondant au code fourni n'a été trouvé pour votre compte.";
+    $badgeText = "Non Trouvé";
+    include __DIR__ . '/error.php';
+    exit;
+}
 
 $verifyUrl = APP_URL . '/verify.php?code=' . urlencode($code);
 ?>

@@ -13,13 +13,23 @@ $regId = (int)($_GET['registration_id'] ?? 0);
 $token = trim((string)($_GET['token'] ?? ''));
 
 if ($regId <= 0 || empty($token)) {
-    dieSafe("Accès interdit : paramètres manquants.");
+    $errorCode = 403;
+    $errorTitle = "Accès Interdit";
+    $errorMessage = "Accès interdit : les paramètres d'accès requis sont manquants ou corrompus.";
+    $badgeText = "Paramètres manquants";
+    include __DIR__ . '/../error.php';
+    exit;
 }
 
 // Validation du jeton sécurisé
 $expectedToken = hash_hmac('sha256', (string)$regId, APP_SECRET);
 if (!hash_equals($expectedToken, $token)) {
-    dieSafe("Lien expiré ou signature invalide.");
+    $errorCode = 403;
+    $errorTitle = "Signature Invalide";
+    $errorMessage = "Le jeton d'authentification fourni est invalide ou expiré.";
+    $badgeText = "Jeton incorrect";
+    include __DIR__ . '/../error.php';
+    exit;
 }
 
 $pdo = Database::getInstance();
@@ -41,12 +51,22 @@ try {
 }
 
 if (!$registration) {
-    dieSafe("Rapport d'évaluation introuvable.");
+    $errorCode = 404;
+    $errorTitle = "Rapport Introuvable";
+    $errorMessage = "Le rapport d'évaluation demandé n'existe pas ou a été archivé.";
+    $badgeText = "Non Trouvé";
+    include __DIR__ . '/../error.php';
+    exit;
 }
 
 // Vérification de propriété : seul l'étudiant concerné, l'enseignant ou le promoteur peut voir le rapport
 if ($currentUser['role'] === 'student' && (int)$registration['student_id'] !== $currentUser['id'] && $registration['email'] !== $currentUser['email']) {
-    dieSafe("Accès refusé : ce rapport ne vous appartient pas.");
+    $errorCode = 403;
+    $errorTitle = "Accès Refusé";
+    $errorMessage = "Accès refusé : vous n'avez pas l'autorisation de consulter ce rapport d'évaluation.";
+    $badgeText = "Propriétaire différent";
+    include __DIR__ . '/../error.php';
+    exit;
 }
 
 // Charger les réponses soumises et les questions associées

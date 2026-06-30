@@ -220,6 +220,18 @@ function dieSafe(string $message = 'Erreur serveur. Veuillez réessayer.', ?Thro
     if ($e !== null) {
         logServerError($e, $context);
     }
+    
+    $errorCode = 500;
+    $errorTitle = "Erreur Système";
+    $errorMessage = $message;
+    $badgeText = "Alerte";
+    
+    $errorFile = __DIR__ . '/error.php';
+    if (file_exists($errorFile)) {
+        include $errorFile;
+        exit;
+    }
+    
     die(htmlspecialchars($message, ENT_QUOTES, 'UTF-8'));
 }
 

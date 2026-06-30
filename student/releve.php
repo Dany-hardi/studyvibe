@@ -52,8 +52,12 @@ try {
     ");
     $stmt->execute(['sid' => $user['id']]);
     $failedAttempts = $stmt->fetchAll();
-} catch (PDOException) {
-    header('Location: /student/dashboard.php');
+} catch (PDOException $e) {
+    $errorCode = 500;
+    $errorTitle = "Erreur de base de données";
+    $errorMessage = "Une erreur est survenue lors de la récupération de votre relevé de notes.";
+    $badgeText = "Erreur SQL";
+    include __DIR__ . '/../error.php';
     exit;
 }
 

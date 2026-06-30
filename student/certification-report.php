@@ -9,7 +9,11 @@ $user      = getCurrentUser();
 $attempt   = null;
 
 if ($attemptId <= 0) {
-    header('Location: /student/dashboard.php');
+    $errorCode = 404;
+    $errorTitle = "Relevé Introuvable";
+    $errorMessage = "L'identifiant du relevé de tentative demandé est invalide ou absent.";
+    $badgeText = "Paramètre incorrect";
+    include __DIR__ . '/../error.php';
     exit;
 }
 
@@ -25,12 +29,16 @@ try {
     ");
     $stmt->execute(['id' => $attemptId, 'sid' => $user['id']]);
     $attempt = $stmt->fetch();
-} catch (PDOException) {
+} catch (PDOException $e) {
     $attempt = null;
 }
 
 if (!$attempt) {
-    header('Location: /student/dashboard.php');
+    $errorCode = 404;
+    $errorTitle = "Relevé Introuvable";
+    $errorMessage = "Le relevé de tentative demandé est introuvable ou vous n'êtes pas autorisé à y accéder.";
+    $badgeText = "Non Trouvé";
+    include __DIR__ . '/../error.php';
     exit;
 }
 
