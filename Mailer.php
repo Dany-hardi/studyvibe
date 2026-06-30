@@ -160,46 +160,9 @@ class Mailer
 
     public static function sendLiveEvalResults(string $to, string $studentName, string $sessionTitle, int $correctCount, int $totalQuestions, array $qas, int $registrationId = 0): bool
     {
-        $qasHtml = '';
-        foreach ($qas as $idx => $qa) {
-            $num = $idx + 1;
-            $isCorrect = $qa['selected_option'] === $qa['correct_option'];
-            $status = $isCorrect ? "<span style='color:#004B23; font-weight:bold;'>✓ Correct (+1)</span>" : "<span style='color:#C62828; font-weight:bold;'>✕ Incorrect (0)</span>";
-            
-            $optionsHtml = '';
-            foreach (['A', 'B', 'C', 'D'] as $opt) {
-                $optText = $qa['option_' . strtolower($opt)] ?? '';
-                $isCorrectOpt = $opt === $qa['correct_option'];
-                $isSelectedOpt = $opt === $qa['selected_option'];
-                
-                $style = 'padding: 6px 12px; margin-bottom: 4px; border: 1px solid #E5E5E7; font-size: 13px;';
-                if ($isCorrectOpt) {
-                    $style .= 'background-color: #E2F0D9; border-color: #A2D190; color: #385723; font-weight: 500;';
-                } elseif ($isSelectedOpt) {
-                    $style .= 'background-color: #FCE4D6; border-color: #F8CBAD; color: #C65911;';
-                } else {
-                    $style .= 'background-color: #FAFAFA; color: #555555;';
-                }
-                
-                $label = "<strong>Option {$opt} :</strong> " . htmlspecialchars($optText);
-                if ($isSelectedOpt) {
-                    $label .= " <span style='font-size:11px; font-style:italic;'> (Votre réponse)</span>";
-                }
-                if ($isCorrectOpt) {
-                    $label .= " <span style='font-size:11px; font-style:italic;'> (Réponse correcte)</span>";
-                }
-                
-                $optionsHtml .= "<div style='{$style}'>{$label}</div>";
-            }
-            
-            $qasHtml .= "
-                <div style='margin-bottom: 24px; border-bottom: 1px solid #E5E5E7; padding-bottom: 16px;'>
-                     <h4 style='margin: 0 0 10px 0; font-size: 14px; font-weight: 600; color: #111;'>Question {$num} : " . htmlspecialchars($qa['question_text']) . "</h4>
-                     <div style='margin-bottom: 10px;'>{$optionsHtml}</div>
-                     <div style='font-size: 12px;'>Statut : {$status}</div>
-                </div>
-            ";
-        }
+        $scorePercent = $totalQuestions > 0 ? round(($correctCount / $totalQuestions) * 100, 1) : 0.0;
+        $statusLabel = $scorePercent >= 50 ? 'Validé (Réussite)' : 'Non validé';
+        $statusColor = $scorePercent >= 50 ? '#004B23' : '#C62828';
 
         $linkHtml = '';
         if ($registrationId > 0 && defined('APP_SECRET')) {
@@ -212,8 +175,8 @@ class Mailer
             $url = rtrim($baseUrl, '/') . "/student/evaluation-results.php?registration_id={$registrationId}&token={$token}";
             $linkHtml = "
                 <div style='margin: 25px 0; text-align: center;'>
-                    <a href='" . htmlspecialchars($url, ENT_QUOTES) . "' style='display: inline-block; padding: 12px 24px; background-color: #004B23; color: #FFFFFF; font-weight: bold; text-decoration: none; border-radius: 4px; font-size: 14px; box-shadow: 0 2px 5px rgba(0,0,0,0.15);'>Consulter mon rapport détaillé</a>
-                    <div style='font-size: 11px; color: #888; margin-top: 8px;'>Ce lien sécurisé vous permet d'accéder aux justifications et explications de chaque question.</div>
+                    <a href='" . htmlspecialchars($url, ENT_QUOTES) . "' style='display: inline-block; padding: 12px 24px; background-color: #004B23; color: #FFFFFF; font-weight: bold; text-decoration: none; border-radius: 4px; font-size: 14px; box-shadow: 0 2px 5px rgba(0,0,0,0.15);'>Consulter mon rapport détaillé & correction</a>
+                    <div style='font-size: 11px; color: #888; margin-top: 8px;'>Ce lien sécurisé vous permet d'accéder aux justifications et explications de chaque question en ligne.</div>
                 </div>
             ";
         }
@@ -223,16 +186,26 @@ class Mailer
             <p>Bonjour <strong>" . htmlspecialchars($studentName) . "</strong>,</p>
             <p>Vous avez participé à la séance de téléévaluation : <strong>" . htmlspecialchars($sessionTitle) . "</strong>.</p>
             
-            <div style='background-color:#F5F5F7; border: 1px solid #E5E5E7; padding: 16px; margin: 20px 0; text-align: center;'>
-                <div style='font-size:12px; text-transform:uppercase; color:#888; letter-spacing:1px;'>Note Obtenue</div>
-                <div style='font-size:36px; font-weight:bold; color:#004B23; margin: 5px 0;'>{$correctCount} / {$totalQuestions}</div>
-                <div style='font-size:12px; color:#555;'>Ce résultat a été transmis à votre enseignant.</div>
+            <div style='background-color:#F5F5F7; border: 1px solid #E5E5E7; padding: 16px; margin: 20px 0;'>
+                <div style='font-size:12px; text-transform:uppercase; color:#888; letter-spacing:1px; text-align: center; margin-bottom: 10px;'>Statistiques Individuelles d'Évaluation</div>
+                
+                <table style='width: 100%; border-collapse: collapse; font-size: 13px;'>
+                    <tr style='border-bottom: 1px solid #E5E5E7;'>
+                        <td style='padding: 8px 0; color: #555;'>Score obtenu :</td>
+                        <td style='padding: 8px 0; text-align: right; font-weight: bold; color: #111;'>{$correctCount} / {$totalQuestions}</td>
+                    </tr>
+                    <tr style='border-bottom: 1px solid #E5E5E7;'>
+                        <td style='padding: 8px 0; color: #555;'>Taux de réussite :</td>
+                        <td style='padding: 8px 0; text-align: right; font-weight: bold; color: #111;'>{$scorePercent}%</td>
+                    </tr>
+                    <tr>
+                        <td style='padding: 8px 0; color: #555;'>Statut :</td>
+                        <td style='padding: 8px 0; text-align: right; font-weight: bold; color: {$statusColor};'>{$statusLabel}</td>
+                    </tr>
+                </table>
             </div>
             
             {$linkHtml}
-
-            <h3 style='font-family:Georgia,serif;font-weight:300;border-bottom:2px solid #004B23;padding-bottom:6px;margin-top:30px;'>Détails des questions</h3>
-            {$qasHtml}
         ");
         
         return self::send($to, "StudyVibe — Résultats Téléévaluation : {$sessionTitle}", $body);

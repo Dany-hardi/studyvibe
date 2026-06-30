@@ -318,6 +318,7 @@ if (!$error && $_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['register_l
 $regId = 0;
 $registration = null;
 $isReset = false;
+$resultsUrl = '';
 if (!$error) {
     $regId = (int)($_SESSION['live_registrations'][$code] ?? 0);
     if ($regId <= 0 && isset($_SESSION['user_id'])) {
@@ -338,6 +339,11 @@ if (!$error) {
             $isReset = true;
             unset($_SESSION['live_registrations'][$code]);
             unset($_SESSION['verified_registrations'][$code]);
+        } else {
+            if (defined('APP_SECRET')) {
+                $resultsToken = hash_hmac('sha256', (string)$regId, APP_SECRET);
+                $resultsUrl = "/student/evaluation-results.php?registration_id={$regId}&token={$resultsToken}";
+            }
         }
 
         // Gérer le redémarrage automatique d'une tentative complétée en mode asynchrone
@@ -1190,11 +1196,19 @@ if (!$error) {
                                     Merci pour votre participation, <strong><?= htmlspecialchars($registration['name']) ?></strong>.
                                 </p>
                                 
+                                <?php if (!empty($resultsUrl)): ?>
+                                <div style="margin: 1.5rem 0;">
+                                    <a href="<?= htmlspecialchars($resultsUrl) ?>" class="btn-primary" style="background-color: var(--green); border-color: var(--green); text-decoration: none; display: inline-block; width: auto; min-width: 250px; font-weight: 700; border-radius: 4px; padding: 0.9rem 1.8rem;">
+                                        Consulter mes résultats & explications en ligne
+                                    </a>
+                                </div>
+                                <?php endif; ?>
+                                
                                 <div style="background: rgba(0,75,35,0.04); border: 1px solid rgba(0,75,35,0.1); padding: 1.25rem; font-size: 0.8rem; line-height: 1.6; color: var(--ink); text-align: left; margin-bottom: 1.5rem; border-radius: 1px;">
-                                    Vos réponses ont été soumises avec succès. Vos résultats et votre note officielle ont été envoyés à l'adresse e-mail suivante :
+                                    Vos réponses ont été soumises avec succès. Un e-mail contenant votre score, vos statistiques individuelles et le lien sécurisé vers votre rapport de correction a été envoyé à :
                                     <strong style="display:block; font-size:0.9rem; color:var(--green); margin-top:0.4rem;"><?= htmlspecialchars($registration['email']) ?></strong>
                                     <span style="display:block; margin-top:0.5rem; font-size:0.75rem; color:var(--muted);">
-                                        Vous pouvez consulter votre boîte de réception ou attendre le fichier de résultats publié par votre enseignant.
+                                        Vous pouvez consulter votre boîte de réception ou accéder à vos résultats directement ci-dessus.
                                     </span>
                                 </div>
 
