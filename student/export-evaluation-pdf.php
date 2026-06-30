@@ -258,8 +258,8 @@ if (file_put_contents($texFile, $tex) === false) {
     exit('Erreur d\'écriture du fichier LaTeX temporaire.');
 }
 
-// Exécuter pdflatex
-$cmd = "pdflatex -interaction=nonstopmode -output-directory=" . escapeshellarg($tempDir) . " " . escapeshellarg($texFile);
+// Exécuter pdflatex avec HOME configuré sur le répertoire temporaire pour éviter les blocages d'écriture de cache de polices par www-data
+$cmd = "HOME=" . escapeshellarg($tempDir) . " /usr/bin/pdflatex -interaction=nonstopmode -output-directory=" . escapeshellarg($tempDir) . " " . escapeshellarg($texFile) . " 2>&1";
 exec($cmd, $execOutput, $returnVar);
 
 if (file_exists($pdfFile) && $returnVar === 0) {
@@ -282,7 +282,8 @@ if (file_exists($pdfFile) && $returnVar === 0) {
     exit;
 } else {
     // Si la compilation échoue, renvoyer le log d'erreur LaTeX
-    $logContent = file_exists($logFile) ? file_get_contents($logFile) : 'Aucun journal de compilation généré.';
+    $logContent = file_exists($logFile) ? file_get_contents($logFile) : '';
+    $shellOutput = implode("\n", $execOutput);
     
     // Nettoyer tout
     @unlink($texFile);
@@ -294,7 +295,13 @@ if (file_exists($pdfFile) && $returnVar === 0) {
     
     http_response_code(500);
     echo "<h1>Erreur de compilation du document PDF via LaTeX</h1>";
-    echo "<p>Veuillez contacter votre administrateur. Journal de compilation :</p>";
-    echo "<pre>" . htmlspecialchars($logContent) . "</pre>";
+    echo "<p>Veuillez contacter votre administrateur.</p>";
+    if (!empty($logContent)) {
+        echo "<h3>Journal de compilation LaTeX :</h3>";
+        echo "<pre style='background:#f4f4f4; padding:10px; border:1px solid #ccc; overflow:auto; max-height:300px;'>" . htmlspecialchars($logContent) . "</pre>";
+    }
+    echo "<h3>Sortie du terminal (Shell Output) :</h3>";
+    echo "<pre style='background:#f4f4f4; padding:10px; border:1px solid #ccc; overflow:auto; max-height:300px;'>" . htmlspecialchars($shellOutput) . "</pre>";
+    echo "<p>Commande exécutée : <code>" . htmlspecialchars($cmd) . "</code></p>";
     exit;
 }
