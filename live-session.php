@@ -3,9 +3,19 @@ declare(strict_types=1);
 
 require_once __DIR__ . '/auth.php';
 
-if (!isLoggedIn()) {
-    $redirectPath = $_SERVER['REQUEST_URI'] ?? '/live-session.php';
-    header('Location: /index.php?error=auth_required&redirect=' . urlencode($redirectPath));
+// Gérer la déconnexion spécifique à l'évaluation pour changer de compte
+if (isset($_GET['action']) && $_GET['action'] === 'logout') {
+    $code = trim((string)($_GET['code'] ?? ''));
+    $_SESSION = [];
+    if (ini_get("session.use_cookies")) {
+        $params = session_get_cookie_params();
+        setcookie(session_name(), '', time() - 42000,
+            $params["path"], $params["domain"],
+            $params["secure"], $params["httponly"]
+        );
+    }
+    session_destroy();
+    header("Location: /live-session.php?code=" . urlencode($code));
     exit;
 }
 
@@ -155,30 +165,121 @@ if (!$session) {
     exit;
 }
 
-// Gérer l'enregistrement du participant
+// Gérer l'enregistrement et l'authentification/inscription intégrée
+$regError = null;
 if (!$error && $_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['register_live'])) {
-    $name  = trim((string)($_POST['name'] ?? ''));
-    $email = trim((string)($_POST['email'] ?? ''));
-
-    if ($name === '' || $email === '') {
-        $regError = "Veuillez remplir tous les champs.";
-    } elseif (!filter_var($email, FILTER_VALIDATE_EMAIL)) {
-        $regError = "Adresse e-mail invalide.";
+    $authAction = trim((string)($_POST['auth_action'] ?? ''));
+    
+    if (isLoggedIn()) {
+        $currentUser = getCurrentUser();
+        $name = $currentUser['name'];
+        $email = $currentUser['email'];
+        $studentId = $currentUser['id'];
     } else {
+        $email = trim((string)($_POST['email'] ?? ''));
+        $password = (string)($_POST['password'] ?? '');
+        $name = trim((string)($_POST['name'] ?? ''));
+        
+        if (empty($email) || empty($password)) {
+            $regError = "Veuillez remplir les identifiants d'accès.";
+        } elseif (!filter_var($email, FILTER_VALIDATE_EMAIL)) {
+            $regError = "Adresse e-mail invalide.";
+        } else {
+            try {
+                $pdo = Database::getInstance();
+                
+                if ($authAction === 'login') {
+                    // Connexion
+                    $stmt = $pdo->prepare("SELECT id, name, password, role, is_active FROM users WHERE email = :email");
+                    $stmt->execute(['email' => $email]);
+                    $user = $stmt->fetch();
+                    
+                    if (!$user || !password_verify($password, $user['password'])) {
+                        $regError = "Adresse e-mail ou mot de passe incorrect.";
+                    } elseif (!(int)($user['is_active'] ?? 1)) {
+                        $regError = "Ce compte a été désactivé. Veuillez contacter l'administrateur.";
+                    } else {
+                        // Ouvrir la session
+                        $_SESSION['user_id'] = (int)$user['id'];
+                        $_SESSION['user_role'] = $user['role'];
+                        $_SESSION['last_regen'] = time();
+                        
+                        $name = $user['name'];
+                        $studentId = $user['id'];
+                    }
+                } elseif ($authAction === 'signup') {
+                    // Création de compte
+                    if (empty($name)) {
+                        $regError = "Le nom complet est requis pour créer un compte.";
+                    } elseif (strlen($password) < 6) {
+                        $regError = "Le mot de passe doit contenir au moins 6 caractères.";
+                    } else {
+                        // Vérifier si l'adresse e-mail existe déjà
+                        $stmt = $pdo->prepare("SELECT id FROM users WHERE email = :email");
+                        $stmt->execute(['email' => $email]);
+                        if ($stmt->fetch()) {
+                            $regError = "Cette adresse e-mail est déjà associée à un compte StudyVibe. Veuillez vous connecter.";
+                        } else {
+                            // Créer l'utilisateur (étudiant)
+                            $hashedPassword = password_hash($password, PASSWORD_DEFAULT);
+                            $stmt = $pdo->prepare("
+                                INSERT INTO users (name, email, password, role, is_approved)
+                                VALUES (:name, :email, :password, 'student', 1)
+                            ");
+                            $stmt->execute([
+                                'name' => $name,
+                                'email' => $email,
+                                'password' => $hashedPassword,
+                            ]);
+                            $newUserId = (int)$pdo->lastInsertId();
+                            
+                            // Log in
+                            $_SESSION['user_id'] = $newUserId;
+                            $_SESSION['user_role'] = 'student';
+                            $_SESSION['last_regen'] = time();
+                            
+                            $studentId = $newUserId;
+                            
+                            // Audit log & welcome messages (non-blocking)
+                            try {
+                                require_once __DIR__ . '/lib/AuthTokens.php';
+                                require_once __DIR__ . '/Mailer.php';
+                                require_once __DIR__ . '/Newsletter.php';
+                                
+                                $verifyToken = AuthTokens::createEmailVerification($pdo, $newUserId);
+                                Mailer::emailVerification($email, $name, $verifyToken);
+                                Mailer::welcome($email, $name, 'apprenant');
+                            } catch (Exception $e) {
+                                // non-blocking
+                            }
+                        }
+                    }
+                } else {
+                    $regError = "Action d'authentification invalide.";
+                }
+            } catch (PDOException $e) {
+                $regError = "Erreur de base de données : " . $e->getMessage();
+            }
+        }
+    }
+    
+    // Si pas d'erreur d'authentification, on procède à l'inscription à l'évaluation
+    if ($regError === null) {
         try {
-            // Insérer ou récupérer l'inscription existante (si même e-mail pour cette session)
+            $pdo = Database::getInstance();
+            // Insérer ou récupérer l'inscription existante
             $stmt = $pdo->prepare("
                 INSERT INTO live_eval_registrations (session_id, name, email, student_id)
                 VALUES (:sid, :name, :email, :student_id)
                 ON DUPLICATE KEY UPDATE name = :name2, student_id = :student_id2
             ");
             $stmt->execute([
-                'sid'   => $session['id'],
-                'name'  => $name,
-                'name2' => $name,
-                'email' => $email,
-                'student_id'  => $_SESSION['user_id'] ?? null,
-                'student_id2' => $_SESSION['user_id'] ?? null,
+                'sid'        => $session['id'],
+                'name'       => $name,
+                'name2'      => $name,
+                'email'      => $email,
+                'student_id'  => $studentId ?? null,
+                'student_id2' => $studentId ?? null,
             ]);
 
             // Récupérer le ID d'inscription
@@ -208,7 +309,7 @@ if (!$error && $_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['register_l
             header("Location: /live-session.php?code=" . urlencode($code));
             exit;
         } catch (PDOException $e) {
-            $regError = "Erreur lors de l'inscription : " . $e->getMessage();
+            $regError = "Erreur lors de l'enregistrement de l'évaluation : " . $e->getMessage();
         }
     }
 }
@@ -822,24 +923,107 @@ if (!$error) {
                                 </div>
                             <?php endif; ?>
 
-                            <form method="POST" class="space-y-4">
-                                <input type="hidden" name="register_live" value="1">
+                            <?php if (isLoggedIn()): ?>
+                                <div style="margin-bottom: 1.5rem; font-size: 0.75rem; color: var(--muted); background-color: rgba(0,75,35,0.03); border: 1px solid rgba(0,75,35,0.1); padding: 8px 12px; border-radius: 6px;">
+                                    Connecté en tant que <strong style="color: var(--ink);"><?= htmlspecialchars($currentUserName) ?></strong> (<?= htmlspecialchars($currentUserEmail) ?>).
+                                    <a href="/live-session.php?code=<?= urlencode($code) ?>&action=logout" style="color: #9B1C1C; text-decoration: underline; margin-left: 0.5rem; font-weight: 600;">
+                                        Changer de compte
+                                    </a>
+                                </div>
                                 
-                                <div>
-                                    <label style="display:block; font-size:0.65rem; font-weight:600; text-transform:uppercase; letter-spacing:0.08em; color:var(--muted); margin-bottom:0.5rem;">Nom Complet</label>
-                                    <input type="text" name="name" required value="<?= htmlspecialchars($currentUserName) ?>" readonly style="background-color: #F9FAFB; cursor: not-allowed;" class="input-field">
+                                <form method="POST" class="space-y-4">
+                                    <input type="hidden" name="register_live" value="1">
+                                    
+                                    <div>
+                                        <label style="display:block; font-size:0.65rem; font-weight:600; text-transform:uppercase; letter-spacing:0.08em; color:var(--muted); margin-bottom:0.5rem;">Nom Complet</label>
+                                        <input type="text" name="name" required value="<?= htmlspecialchars($currentUserName) ?>" readonly style="background-color: #F9FAFB; cursor: not-allowed;" class="input-field">
+                                    </div>
+
+                                    <div>
+                                        <label style="display:block; font-size:0.65rem; font-weight:600; text-transform:uppercase; letter-spacing:0.08em; color:var(--muted); margin-bottom:0.5rem;">Adresse E-mail</label>
+                                        <input type="email" name="email" required value="<?= htmlspecialchars($currentUserEmail) ?>" readonly style="background-color: #F9FAFB; cursor: not-allowed;" class="input-field">
+                                        <p style="font-size:0.68rem; color:var(--faint); mt-1">Vos résultats et votre note officielle y seront envoyés.</p>
+                                    </div>
+
+                                    <div style="padding-top: 1rem;">
+                                        <button type="submit" class="btn-primary">Rejoindre la séance</button>
+                                    </div>
+                                </form>
+                            <?php else: ?>
+                                <!-- Tabs pour Connexion / Création de compte -->
+                                <div style="display: flex; gap: 1rem; border-bottom: 1px solid #E5E5E7; margin-bottom: 1.5rem; padding-bottom: 0.5rem;">
+                                    <button type="button" id="tab-login-btn" onclick="switchAuthMode('login')" style="background:none; border:none; padding: 0.5rem 0.75rem; font-size: 0.8rem; font-weight: 600; color: var(--green); border-bottom: 2px solid var(--green); cursor: pointer; transition: all 0.2s;">Se connecter</button>
+                                    <button type="button" id="tab-signup-btn" onclick="switchAuthMode('signup')" style="background:none; border:none; padding: 0.5rem 0.75rem; font-size: 0.8rem; font-weight: 500; color: var(--muted); border-bottom: 2px solid transparent; cursor: pointer; transition: all 0.2s;">Créer un compte</button>
                                 </div>
 
-                                <div>
-                                    <label style="display:block; font-size:0.65rem; font-weight:600; text-transform:uppercase; letter-spacing:0.08em; color:var(--muted); margin-bottom:0.5rem;">Adresse E-mail</label>
-                                    <input type="email" name="email" required value="<?= htmlspecialchars($currentUserEmail) ?>" readonly style="background-color: #F9FAFB; cursor: not-allowed;" class="input-field">
-                                    <p style="font-size:0.68rem; color:var(--faint); mt-1">Vos résultats et votre note officielle y seront envoyés.</p>
-                                </div>
+                                <form method="POST" class="space-y-4">
+                                    <input type="hidden" name="register_live" value="1">
+                                    <input type="hidden" name="auth_action" id="auth_action_input" value="login">
+                                    
+                                    <!-- Nom Complet (affiché pour l'inscription) -->
+                                    <div id="field-name-container" style="display: none;">
+                                        <label style="display:block; font-size:0.65rem; font-weight:600; text-transform:uppercase; letter-spacing:0.08em; color:var(--muted); margin-bottom:0.5rem;">Nom Complet</label>
+                                        <input type="text" name="name" id="auth-name-input" placeholder="Ex: Jean Dupont" class="input-field">
+                                    </div>
 
-                                <div style="padding-top: 1rem;">
-                                    <button type="submit" class="btn-primary">Rejoindre la séance</button>
-                                </div>
-                            </form>
+                                    <!-- Adresse E-mail -->
+                                    <div>
+                                        <label style="display:block; font-size:0.65rem; font-weight:600; text-transform:uppercase; letter-spacing:0.08em; color:var(--muted); margin-bottom:0.5rem;">Adresse E-mail</label>
+                                        <input type="email" name="email" required placeholder="Ex: jean.dupont@email.com" class="input-field">
+                                    </div>
+
+                                    <!-- Mot de passe -->
+                                    <div>
+                                        <label style="display:block; font-size:0.65rem; font-weight:600; text-transform:uppercase; letter-spacing:0.08em; color:var(--muted); margin-bottom:0.5rem;">Mot de passe</label>
+                                        <input type="password" name="password" required placeholder="Saisissez votre mot de passe" class="input-field">
+                                    </div>
+
+                                    <div style="padding-top: 1rem;">
+                                        <button type="submit" id="submit-auth-btn" class="btn-primary">Se connecter & Rejoindre</button>
+                                    </div>
+                                </form>
+                                
+                                <script>
+                                function switchAuthMode(mode) {
+                                    const nameContainer = document.getElementById('field-name-container');
+                                    const nameInput = document.getElementById('auth-name-input');
+                                    const authActionInput = document.getElementById('auth_action_input');
+                                    const tabLoginBtn = document.getElementById('tab-login-btn');
+                                    const tabSignupBtn = document.getElementById('tab-signup-btn');
+                                    const submitBtn = document.getElementById('submit-auth-btn');
+
+                                    if (mode === 'signup') {
+                                        nameContainer.style.display = 'block';
+                                        nameInput.required = true;
+                                        authActionInput.value = 'signup';
+                                        
+                                        tabLoginBtn.style.color = 'var(--muted)';
+                                        tabLoginBtn.style.borderBottomColor = 'transparent';
+                                        tabLoginBtn.style.fontWeight = '500';
+                                        
+                                        tabSignupBtn.style.color = 'var(--green)';
+                                        tabSignupBtn.style.borderBottomColor = 'var(--green)';
+                                        tabSignupBtn.style.fontWeight = '600';
+                                        
+                                        submitBtn.textContent = 'Créer mon compte & Rejoindre';
+                                    } else {
+                                        nameContainer.style.display = 'none';
+                                        nameInput.required = false;
+                                        authActionInput.value = 'login';
+                                        
+                                        tabLoginBtn.style.color = 'var(--green)';
+                                        tabLoginBtn.style.borderBottomColor = 'var(--green)';
+                                        tabLoginBtn.style.fontWeight = '600';
+                                        
+                                        tabSignupBtn.style.color = 'var(--muted)';
+                                        tabSignupBtn.style.borderBottomColor = 'transparent';
+                                        tabSignupBtn.style.fontWeight = '500';
+                                        
+                                        submitBtn.textContent = 'Se connecter & Rejoindre';
+                                    }
+                                }
+                                </script>
+                            <?php endif; ?>
                         </div>
 
                     <?php else: ?>

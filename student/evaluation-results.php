@@ -5,7 +5,8 @@ require_once __DIR__ . '/../auth.php';
 
 // Exiger que l'utilisateur soit connecté
 if (!isLoggedIn()) {
-    header('Location: /index.php?error=auth_required');
+    $redirectPath = $_SERVER['REQUEST_URI'] ?? '/student/dashboard.php';
+    header('Location: /index.php?error=auth_required&redirect=' . urlencode($redirectPath));
     exit;
 }
 
