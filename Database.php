@@ -74,6 +74,39 @@ class Database
                     // Silently fail if columns are already being altered or added
                 }
             }
+
+            // Auto-migration check for explanation in lesson_questions, course_questions, live_eval_questions
+            try {
+                self::$instance->query("SELECT explanation FROM lesson_questions LIMIT 1");
+            } catch (PDOException $e) {
+                try {
+                    self::$instance->exec("ALTER TABLE `lesson_questions` ADD COLUMN `explanation` TEXT DEFAULT NULL");
+                } catch (PDOException $ex) {}
+            }
+            try {
+                self::$instance->query("SELECT explanation FROM course_questions LIMIT 1");
+            } catch (PDOException $e) {
+                try {
+                    self::$instance->exec("ALTER TABLE `course_questions` ADD COLUMN `explanation` TEXT DEFAULT NULL");
+                } catch (PDOException $ex) {}
+            }
+            try {
+                self::$instance->query("SELECT explanation FROM live_eval_questions LIMIT 1");
+            } catch (PDOException $e) {
+                try {
+                    self::$instance->exec("ALTER TABLE `live_eval_questions` ADD COLUMN `explanation` TEXT DEFAULT NULL");
+                } catch (PDOException $ex) {}
+            }
+
+            // Auto-migration check for student_id column in live_eval_registrations
+            try {
+                self::$instance->query("SELECT student_id FROM live_eval_registrations LIMIT 1");
+            } catch (PDOException $e) {
+                try {
+                    self::$instance->exec("ALTER TABLE `live_eval_registrations` ADD COLUMN `student_id` INT DEFAULT NULL");
+                    self::$instance->exec("ALTER TABLE `live_eval_registrations` ADD CONSTRAINT `fk_live_eval_regs_student` FOREIGN KEY (`student_id`) REFERENCES `users` (`id`) ON DELETE SET NULL");
+                } catch (PDOException $ex) {}
+            }
         }
         
         return self::$instance;
