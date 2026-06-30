@@ -147,12 +147,26 @@ class QuestionImporter
 
     private static function looksLikeHeaderArray(array $cols): bool
     {
-        $joined = strtolower(implode(' ', array_map('strval', $cols)));
-        return str_contains($joined, 'question')
-            || str_contains($joined, 'option')
-            || str_contains($joined, 'reponse')
-            || str_contains($joined, 'réponse')
-            || str_contains($joined, 'correct');
+        // A real header row has SHORT cells whose trimmed value exactly matches
+        // known column-name keywords. We must NOT fire on data rows whose long
+        // free-text explanation or question body merely *contains* these words.
+        $knownNames = [
+            'question', 'libelle', 'enonce',
+            'option_a', 'option_b', 'option_c', 'option_d',
+            'a', 'b', 'c', 'd',
+            'correct', 'reponse', 'réponse', 'bonne_reponse',
+            'explanation', 'explication', 'justification',
+        ];
+        $matches = 0;
+        foreach ($cols as $col) {
+            $val = strtolower(trim((string)$col));
+            // A header cell is always short (≤ 30 chars) and matches a known name.
+            if (strlen($val) <= 30 && in_array($val, $knownNames, true)) {
+                $matches++;
+            }
+        }
+        // Require at least 2 cells to look like header names.
+        return $matches >= 2;
     }
 
     private static function normalizeHeader(array $cols): array

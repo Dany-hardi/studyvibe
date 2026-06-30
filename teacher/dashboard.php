@@ -4013,10 +4013,22 @@ function processParsedRows(rows) {
     let startIndex = 0;
     
     if (rows.length > 0) {
+        const knownNames = [
+            'question', 'libelle', 'enonce',
+            'option_a', 'option_b', 'option_c', 'option_d',
+            'a', 'b', 'c', 'd',
+            'correct', 'reponse', 'réponse', 'bonne_reponse',
+            'explanation', 'explication', 'justification',
+        ];
         let firstRow = rows[0];
-        let joined = firstRow.join(' ').toLowerCase();
-        if (joined.includes('question') || joined.includes('option') || joined.includes('correct') || joined.includes('reponse')) {
-            header = firstRow.map(h => h.toLowerCase().trim());
+        // A real header row has SHORT cells (≤30 chars) that exactly match known names.
+        // We must NOT trigger on data rows whose long free-text contains trigger words.
+        let headerMatches = firstRow.filter(cell =>
+            typeof cell === 'string' && cell.trim().length <= 30 &&
+            knownNames.includes(cell.trim().toLowerCase())
+        ).length;
+        if (headerMatches >= 2) {
+            header = firstRow.map(h => (h || '').toLowerCase().trim());
             startIndex = 1;
         }
     }
