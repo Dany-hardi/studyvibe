@@ -2037,6 +2037,7 @@ $successMsg = $successMessages[$successKey] ?? null;
                 <button type="button" onclick="openImportModal('lesson')"
                     class="text-xs text-[#004B23] font-semibold hover:underline">Importer depuis un fichier →</button>
                 <a href="/teacher/sample-questions.csv" download class="text-xs text-[#888] ml-3 hover:underline">Modèle CSV</a>
+                <a href="#" onclick="event.preventDefault(); downloadCurrentQuestions('lesson')" class="text-xs text-[#004B23] ml-3 hover:underline">Télécharger les questions (.csv)</a>
             </div>
         </form>
     </div>
@@ -2085,6 +2086,7 @@ $successMsg = $successMessages[$successKey] ?? null;
                 <button type="button" onclick="openImportModal('course')"
                     class="text-xs text-[#004B23] font-semibold hover:underline">Importer depuis un fichier →</button>
                 <a href="/teacher/sample-questions.csv" download class="text-xs text-[#888] ml-3 hover:underline">Modèle CSV</a>
+                <a href="#" onclick="event.preventDefault(); downloadCurrentQuestions('course')" class="text-xs text-[#004B23] ml-3 hover:underline">Télécharger les questions (.csv)</a>
             </div>
         </form>
     </div>
@@ -2517,7 +2519,12 @@ $successMsg = $successMessages[$successKey] ?? null;
 
                             <!-- Liste des questions existantes de la séance -->
                             <div class="space-y-3">
-                                <h6 class="text-xs font-semibold text-[#111111] uppercase tracking-wider">Questions de la séance (<?= count($ls['questions']) ?>)</h6>
+                                <div class="flex justify-between items-center mb-2">
+                                    <h6 class="text-xs font-semibold text-[#111111] uppercase tracking-wider">Questions de la séance (<?= count($ls['questions']) ?>)</h6>
+                                    <?php if (!empty($ls['questions'])): ?>
+                                        <a href="/teacher/download-async-csv.php?type=live&id=<?= $ls['id'] ?>" class="text-[10px] text-[#004B23] font-semibold hover:underline bg-[#EAF2EC] px-2 py-1 rounded-sm">Exporter en CSV</a>
+                                    <?php endif; ?>
+                                </div>
                                 
                                 <?php if (empty($ls['questions'])): ?>
                                     <p class="text-xs text-[#888888] italic">Aucune question pour le moment.</p>
@@ -4027,6 +4034,7 @@ function processParsedRows(rows) {
         let optC = cols[3] || "";
         let optD = cols[4] || "";
         let correct = (cols[5] || "").toUpperCase().trim();
+        let explanation = cols[6] || "";
         
         if (header) {
             let qIdx = header.findIndex(h => h.includes('question') || h.includes('libelle') || h.includes('enonce'));
@@ -4035,6 +4043,7 @@ function processParsedRows(rows) {
             let cIdx = header.findIndex(h => h === 'c' || h.includes('option_c'));
             let dIdx = header.findIndex(h => h === 'd' || h.includes('option_d'));
             let corIdx = header.findIndex(h => h.includes('correct') || h.includes('reponse') || h.includes('bonne'));
+            let expIdx = header.findIndex(h => h.includes('explanation') || h.includes('explication') || h.includes('justification'));
             
             if (qIdx !== -1) qText = cols[qIdx] || "";
             if (aIdx !== -1) optA = cols[aIdx] || "";
@@ -4042,11 +4051,12 @@ function processParsedRows(rows) {
             if (cIdx !== -1) optC = cols[cIdx] || "";
             if (dIdx !== -1) optD = cols[dIdx] || "";
             if (corIdx !== -1) correct = (cols[corIdx] || "").toUpperCase().trim();
+            if (expIdx !== -1) explanation = cols[expIdx] || "";
         }
         
         if (!qText.trim() && !optA.trim() && !optB.trim()) continue;
         
-        let allText = qText + optA + optB + optC + optD;
+        let allText = qText + optA + optB + optC + optD + explanation;
         let hasMath = allText.includes('$');
         if (hasMath) mathCount++;
         
@@ -4068,6 +4078,7 @@ function processParsedRows(rows) {
             option_c: optC,
             option_d: optD,
             correct_option: correct,
+            explanation: explanation,
             has_math: hasMath,
             errors: errors
         });
@@ -4119,6 +4130,7 @@ function openCsvPreview(questions, mathCount, type, courseId, sessionId, lessonI
                     <div class="math-render"><span class="font-semibold text-gray-400">C:</span> ${escapeHtml(q.option_c)}</div>
                     <div class="math-render"><span class="font-semibold text-gray-400">D:</span> ${escapeHtml(q.option_d)}</div>
                 </div>
+                ${q.explanation ? `<div class="text-[11px] text-[#004B23] font-medium mt-1 math-render"><span class="font-semibold text-[#888]">Explication :</span> ${escapeHtml(q.explanation)}</div>` : ''}
                 ${q.errors.length > 0 ? `<div class="text-[10px] text-red-600 font-medium mt-1">⚠️ ${q.errors.join(' | ')}</div>` : ''}
             </td>
             <td class="p-3 text-center font-bold text-[#004B23]">${q.correct_option}</td>
@@ -4184,7 +4196,8 @@ document.addEventListener('DOMContentLoaded', () => {
             q.option_b,
             q.option_c,
             q.option_d,
-            q.correct_option
+            q.correct_option,
+            q.explanation || ""
         ]);
         
         formData.append('rows_json', JSON.stringify(rowsJson));
@@ -4313,6 +4326,21 @@ function moderateComment(commentId, hide) {
         }
     })
     .catch(err => { if (typeof Toast !== 'undefined') Toast.error('Erreur réseau: ' + err.message); });
+}
+
+function downloadCurrentQuestions(type) {
+    let id = 0;
+    if (type === 'lesson') {
+        id = document.getElementById('question-lesson-id')?.value || 0;
+    } else if (type === 'course') {
+        id = <?= (int)($selectedCourseId ?? 0) ?>;
+    }
+    if (!id || id == 0) {
+        if (typeof Toast !== 'undefined') Toast.error("Impossible de récupérer l'identifiant pour l'export.");
+        else alert("Impossible de récupérer l'identifiant pour l'export.");
+        return;
+    }
+    window.location.href = `/teacher/download-async-csv.php?type=${type}&id=${id}`;
 }
 </script>
 

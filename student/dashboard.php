@@ -68,6 +68,18 @@ try {
     $stmt->execute(['sid' => $user['id']]);
     $myBadges = $stmt->fetchAll();
 
+    // 4. Récupérer les téléévaluations de l'étudiant
+    $stmt = $pdo->prepare("
+        SELECT r.id AS registration_id, r.score, r.registered_at, s.id AS session_id, s.title AS session_title, s.session_code, s.status AS session_status, s.is_async, c.title AS course_title
+        FROM live_eval_registrations r
+        JOIN live_eval_sessions s ON r.session_id = s.id
+        JOIN courses c ON s.course_id = c.id
+        WHERE r.student_id = :student_id OR r.email = :email
+        ORDER BY r.registered_at DESC
+    ");
+    $stmt->execute(['student_id' => $user['id'], 'email' => $user['email']]);
+    $myEvaluations = $stmt->fetchAll();
+
 } catch (PDOException $e) {
     dieSafe('Erreur serveur. Veuillez réessayer.', $e, 'student/dashboard');
 }
@@ -282,6 +294,9 @@ try {
             </button>
             <button onclick="switchTab('certifications')" id="tab-btn-certifications" class="pb-4 text-sm font-light border-b-2 border-transparent text-[#555555] uppercase tracking-wider transition-all whitespace-nowrap">
                 Certifications
+            </button>
+            <button onclick="switchTab('tele-evaluations')" id="tab-btn-tele-evaluations" class="pb-4 text-sm font-light border-b-2 border-transparent text-[#555555] uppercase tracking-wider transition-all whitespace-nowrap">
+                Téléévaluations
             </button>
             <button onclick="switchTab('profil')" id="tab-btn-profil" class="pb-4 text-sm font-light border-b-2 border-transparent text-[#555555] uppercase tracking-wider transition-all whitespace-nowrap">
                 Profil
@@ -505,6 +520,80 @@ try {
                                 </div>
                             </div>
                         <?php endforeach; ?>
+                    </div>
+                <?php endif; ?>
+            </div>
+        </div>
+
+        <!-- 3b. Onglet TÉLÉÉVALUATIONS -->
+        <div id="tab-tele-evaluations" class="tab-content hidden space-y-12">
+            <div class="space-y-3">
+                <h2 class="font-serif text-3xl font-light">Mes Téléévaluations</h2>
+                <p class="text-sm font-light text-[#555555]">
+                    Retrouvez ici toutes vos séances d'évaluation en direct et asynchrones, vos scores et vos rapports de correction détaillés.
+                </p>
+            </div>
+
+            <div class="space-y-6">
+                <?php if (empty($myEvaluations)): ?>
+                    <div class="p-12 border border-dashed border-[#E5E5E7] text-center text-sm font-light text-[#888888]">
+                        Vous n'avez participé à aucune téléévaluation pour le moment.<br>
+                        <a href="/evaluations.php" class="text-brand font-semibold hover:underline mt-2 inline-block">Parcourir les évaluations disponibles</a>
+                    </div>
+                <?php else: ?>
+                    <div class="overflow-x-auto border border-[#E5E5E7] rounded-sm bg-white shadow-sm">
+                        <table class="w-full text-sm">
+                            <thead>
+                                <tr class="border-b border-[#111111] text-xs uppercase text-[#555555] bg-[#FAFAFA]">
+                                    <th class="p-4 text-left font-medium">Session / Cours</th>
+                                    <th class="p-4 text-center font-medium">Type</th>
+                                    <th class="p-4 text-center font-medium">Date d'inscription</th>
+                                    <th class="p-4 text-center font-medium">Score / Résultat</th>
+                                    <th class="p-4 text-right font-medium">Actions</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                <?php foreach ($myEvaluations as $eval): 
+                                    $isFinished = $eval['score'] !== null;
+                                    $token = $isFinished ? hash_hmac('sha256', (string)$eval['registration_id'], APP_SECRET) : '';
+                                ?>
+                                    <tr class="border-b border-[#E5E5E7] hover:bg-[#FAFAFA]/50 transition-colors">
+                                        <td class="p-4">
+                                            <div class="font-serif font-semibold text-[#111111] text-base"><?= htmlspecialchars($eval['session_title']); ?></div>
+                                            <div class="text-xs text-[#888888] font-light mt-0.5"><?= htmlspecialchars($eval['course_title']); ?></div>
+                                        </td>
+                                        <td class="p-4 text-center">
+                                            <span class="px-2.5 py-1 text-[10px] uppercase font-bold rounded-sm border <?= $eval['is_async'] ? 'bg-blue-50 text-blue-700 border-blue-200/50' : 'bg-orange-50 text-orange-700 border-orange-200/50' ?>">
+                                                <?= $eval['is_async'] ? 'Asynchrone' : 'En direct' ?>
+                                            </span>
+                                        </td>
+                                        <td class="p-4 text-center text-xs text-[#555555]">
+                                            <?= date('d/m/Y H:i', strtotime($eval['registered_at'])); ?>
+                                        </td>
+                                        <td class="p-4 text-center">
+                                            <?php if ($isFinished): ?>
+                                                <span class="text-brand font-semibold text-sm"><?= round((float)$eval['score'], 1); ?> %</span>
+                                            <?php else: ?>
+                                                <span class="text-xs font-medium text-orange-600 bg-orange-50 px-2 py-0.5 border border-orange-200/50 rounded-sm">En attente</span>
+                                            <?php endif; ?>
+                                        </td>
+                                        <td class="p-4 text-right">
+                                            <?php if ($isFinished): ?>
+                                                <a href="/student/evaluation-results.php?registration_id=<?= $eval['registration_id']; ?>&token=<?= $token; ?>"
+                                                   class="inline-block px-4 py-2 bg-[#111111] hover:bg-brand text-[#FFFFFF] text-xs font-semibold uppercase tracking-wider transition-colors rounded-sm shadow-sm">
+                                                    Rapport détaillé
+                                                </a>
+                                            <?php else: ?>
+                                                <a href="/live-session.php?code=<?= urlencode($eval['session_code']); ?>"
+                                                   class="inline-block px-4 py-2 bg-brand hover:bg-brandHover text-[#FFFFFF] text-xs font-semibold uppercase tracking-wider transition-colors rounded-sm shadow-sm">
+                                                    Rejoindre
+                                                </a>
+                                            <?php endif; ?>
+                                        </td>
+                                    </tr>
+                                <?php endforeach; ?>
+                            </tbody>
+                        </table>
                     </div>
                 <?php endif; ?>
             </div>
@@ -822,7 +911,7 @@ try {
     <!-- Scripts Javascript Applicatifs (Vanilla JS & AJAX Fetch) -->
     <script src="/assets/js/app.js"></script>
     <script>
-        const STUDENT_TABS = ['catalogue', 'mes-cours', 'releve', 'certifications', 'profil'];
+        const STUDENT_TABS = ['catalogue', 'mes-cours', 'releve', 'certifications', 'profil', 'tele-evaluations'];
 
         document.addEventListener('DOMContentLoaded', () => {
             initCourseSearch('course-search', 'course-grid');
@@ -1350,6 +1439,7 @@ try {
                 : 'À terminer : ' + reqs.join(', ');
         }
 
+        // fonction pour déverrouiller les évaluation de la leçon
         function unlockLessonEvaluations(lessonId, lesson, autoLaunchQuiz, videos) {
             lessonContentConsumed = true;
             updateContentProgressHint(lesson, videos, true);
@@ -1377,6 +1467,7 @@ try {
             }
         }
 
+        // fonction pour afficher les évaluation de la leçon
         function showLockedLessonEvaluations(lesson, videos) {
             lessonContentConsumed = false;
             document.getElementById('lesson-quiz-container').classList.add('hidden');
@@ -1390,6 +1481,7 @@ try {
             }
         }
 
+        // fonction pour charger une leçon
         function loadLesson(lessonId) {
             currentLessonId = lessonId;
             currentLessonContentType = '';
@@ -1588,6 +1680,7 @@ try {
             });
         }
 
+
         document.getElementById('lesson-comment-form').addEventListener('submit', function(e) {
             e.preventDefault();
             const fd = new FormData();
@@ -1700,6 +1793,7 @@ try {
             }
         }
 
+        // fonction pour marquer une leçon comme terminée
         function markLessonComplete(lessonId) {
             const btn = document.getElementById('mark-lesson-complete-btn');
             if (btn) {

@@ -69,8 +69,8 @@ class QuestionImporter
     public static function importLessonQuestions(PDO $pdo, int $lessonId, array $questions): int
     {
         $stmt = $pdo->prepare("
-            INSERT INTO lesson_questions (lesson_id, question_text, option_a, option_b, option_c, option_d, correct_option)
-            VALUES (:lid, :qt, :a, :b, :c, :d, :co)
+            INSERT INTO lesson_questions (lesson_id, question_text, option_a, option_b, option_c, option_d, correct_option, explanation)
+            VALUES (:lid, :qt, :a, :b, :c, :d, :co, :exp)
         ");
         $count = 0;
         foreach ($questions as $q) {
@@ -82,6 +82,7 @@ class QuestionImporter
                 'c'   => $q['option_c'],
                 'd'   => $q['option_d'],
                 'co'  => $q['correct_option'],
+                'exp' => $q['explanation'] ?? null,
             ]);
             $count++;
         }
@@ -91,8 +92,8 @@ class QuestionImporter
     public static function importCourseQuestions(PDO $pdo, int $courseId, array $questions): int
     {
         $stmt = $pdo->prepare("
-            INSERT INTO course_questions (course_id, question_text, option_a, option_b, option_c, option_d, correct_option)
-            VALUES (:cid, :qt, :a, :b, :c, :d, :co)
+            INSERT INTO course_questions (course_id, question_text, option_a, option_b, option_c, option_d, correct_option, explanation)
+            VALUES (:cid, :qt, :a, :b, :c, :d, :co, :exp)
         ");
         $count = 0;
         foreach ($questions as $q) {
@@ -104,6 +105,7 @@ class QuestionImporter
                 'c'   => $q['option_c'],
                 'd'   => $q['option_d'],
                 'co'  => $q['correct_option'],
+                'exp' => $q['explanation'] ?? null,
             ]);
             $count++;
         }
@@ -113,8 +115,8 @@ class QuestionImporter
     public static function importLiveQuestions(PDO $pdo, int $sessionId, array $questions): int
     {
         $stmt = $pdo->prepare("
-            INSERT INTO live_eval_questions (session_id, question_text, option_a, option_b, option_c, option_d, correct_option)
-            VALUES (:sid, :qt, :a, :b, :c, :d, :co)
+            INSERT INTO live_eval_questions (session_id, question_text, option_a, option_b, option_c, option_d, correct_option, explanation)
+            VALUES (:sid, :qt, :a, :b, :c, :d, :co, :exp)
         ");
         $count = 0;
         foreach ($questions as $q) {
@@ -126,6 +128,7 @@ class QuestionImporter
                 'c'   => $q['option_c'],
                 'd'   => $q['option_d'],
                 'co'  => $q['correct_option'],
+                'exp' => $q['explanation'] ?? null,
             ]);
             $count++;
         }
@@ -166,6 +169,7 @@ class QuestionImporter
                 $key === 'c', str_contains($key, 'option_c') => 'option_c',
                 $key === 'd', str_contains($key, 'option_d') => 'option_d',
                 str_contains($key, 'correct'), str_contains($key, 'reponse'), str_contains($key, 'bonne') => 'correct',
+                str_contains($key, 'explanation'), str_contains($key, 'explication'), str_contains($key, 'justification') => 'explanation',
                 default => $key,
             };
         }
@@ -181,6 +185,7 @@ class QuestionImporter
             'option_c'       => '',
             'option_d'       => '',
             'correct_option' => '',
+            'explanation'    => '',
         ];
         foreach ($header as $i => $field) {
             $val = trim((string)($cols[$i] ?? ''));
@@ -204,6 +209,7 @@ class QuestionImporter
             'option_c'       => trim((string)($cols[3] ?? '')),
             'option_d'       => trim((string)($cols[4] ?? '')),
             'correct_option' => trim((string)($cols[5] ?? '')),
+            'explanation'    => trim((string)($cols[6] ?? '')),
         ];
     }
 
@@ -220,6 +226,7 @@ class QuestionImporter
             $c    = trim($row['option_c'] ?? '');
             $d    = trim($row['option_d'] ?? '');
             $co   = self::normalizeCorrect($row['correct_option'] ?? '');
+            $exp  = trim($row['explanation'] ?? '');
 
             if ($q === '' && $a === '' && $b === '') {
                 continue;
@@ -239,6 +246,7 @@ class QuestionImporter
                 'option_c'       => $c,
                 'option_d'       => $d,
                 'correct_option' => $co,
+                'explanation'    => $exp,
             ];
         }
 

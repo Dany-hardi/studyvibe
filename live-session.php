@@ -1,7 +1,13 @@
 <?php
 declare(strict_types=1);
 
-require_once __DIR__ . '/Database.php';
+require_once __DIR__ . '/auth.php';
+
+if (!isLoggedIn()) {
+    $redirectPath = $_SERVER['REQUEST_URI'] ?? '/live-session.php';
+    header('Location: /index.php?error=auth_required&redirect=' . urlencode($redirectPath));
+    exit;
+}
 
 function getFormattedEvalStartTime(string $dateTimeStr): string {
     $timestamp = strtotime($dateTimeStr);
@@ -66,6 +72,10 @@ $session = null;
 $courseTitle = '';
 $error = null;
 
+$currentUser = getCurrentUser();
+$currentUserName = $currentUser['name'] ?? '';
+$currentUserEmail = $currentUser['email'] ?? '';
+
 try {
     $pdo = Database::getInstance();
     if ($code !== '') {
@@ -114,17 +124,18 @@ if (!$error && $_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['register_l
     } else {
         try {
             // Insérer ou récupérer l'inscription existante (si même e-mail pour cette session)
-            // Note: PDO interdit de réutiliser le même placeholder nommé — on utilise :name2 pour le UPDATE
             $stmt = $pdo->prepare("
-                INSERT INTO live_eval_registrations (session_id, name, email)
-                VALUES (:sid, :name, :email)
-                ON DUPLICATE KEY UPDATE name = :name2
+                INSERT INTO live_eval_registrations (session_id, name, email, student_id)
+                VALUES (:sid, :name, :email, :student_id)
+                ON DUPLICATE KEY UPDATE name = :name2, student_id = :student_id2
             ");
             $stmt->execute([
                 'sid'   => $session['id'],
                 'name'  => $name,
                 'name2' => $name,
                 'email' => $email,
+                'student_id'  => $_SESSION['user_id'] ?? null,
+                'student_id2' => $_SESSION['user_id'] ?? null,
             ]);
 
             // Récupérer le ID d'inscription
@@ -165,6 +176,15 @@ $registration = null;
 $isReset = false;
 if (!$error) {
     $regId = (int)($_SESSION['live_registrations'][$code] ?? 0);
+    if ($regId <= 0 && isset($_SESSION['user_id'])) {
+        $stmt = $pdo->prepare("SELECT id FROM live_eval_registrations WHERE session_id = :sid AND student_id = :student_id");
+        $stmt->execute(['sid' => $session['id'], 'student_id' => $_SESSION['user_id']]);
+        $dbRegId = (int)$stmt->fetchColumn();
+        if ($dbRegId > 0) {
+            $regId = $dbRegId;
+            $_SESSION['live_registrations'][$code] = $regId;
+        }
+    }
     if ($regId > 0) {
         $stmt = $pdo->prepare("SELECT * FROM live_eval_registrations WHERE id = :id AND session_id = :sid");
         $stmt->execute(['id' => $regId, 'sid' => $session['id']]);
@@ -764,12 +784,12 @@ if (!$error) {
                                 
                                 <div>
                                     <label style="display:block; font-size:0.65rem; font-weight:600; text-transform:uppercase; letter-spacing:0.08em; color:var(--muted); margin-bottom:0.5rem;">Nom Complet</label>
-                                    <input type="text" name="name" required placeholder="Ex: Jean Dupont" class="input-field">
+                                    <input type="text" name="name" required value="<?= htmlspecialchars($currentUserName) ?>" readonly style="background-color: #F9FAFB; cursor: not-allowed;" class="input-field">
                                 </div>
 
                                 <div>
                                     <label style="display:block; font-size:0.65rem; font-weight:600; text-transform:uppercase; letter-spacing:0.08em; color:var(--muted); margin-bottom:0.5rem;">Adresse E-mail</label>
-                                    <input type="email" name="email" required placeholder="Ex: jean.dupont@email.com" class="input-field">
+                                    <input type="email" name="email" required value="<?= htmlspecialchars($currentUserEmail) ?>" readonly style="background-color: #F9FAFB; cursor: not-allowed;" class="input-field">
                                     <p style="font-size:0.68rem; color:var(--faint); mt-1">Vos résultats et votre note officielle y seront envoyés.</p>
                                 </div>
 

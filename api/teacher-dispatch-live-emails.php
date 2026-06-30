@@ -143,7 +143,7 @@ try {
             $updateStmt->execute(['score' => $scorePercent, 'id' => $r['id']]);
 
             // Envoyer l'email
-            $sent = Mailer::sendLiveEvalResults($r['email'], $r['name'], $session['title'], $correctCount, $totalQuestions, $qasDetails);
+            $sent = Mailer::sendLiveEvalResults($r['email'], $r['name'], $session['title'], $correctCount, $totalQuestions, $qasDetails, (int)$r['id']);
             if ($sent) {
                 $successCount++;
             } else {

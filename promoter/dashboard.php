@@ -28,6 +28,68 @@ try {
         }
     }
 
+    // Handle Tele-Evaluation Postpone (Form POST)
+    if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action']) && $_POST['action'] === 'postpone_session') {
+        $sessionId = (int)($_POST['session_id'] ?? 0);
+        $startTime = trim((string)($_POST['start_time'] ?? ''));
+        $endTime   = trim((string)($_POST['end_time'] ?? ''));
+        
+        if ($sessionId > 0 && !empty($startTime) && !empty($endTime)) {
+            // Check status isn't active/finished if we want to guard, but let's allow promoter full override
+            $stmt = $pdo->prepare("UPDATE live_eval_sessions SET start_time = :start, end_time = :end WHERE id = :id");
+            $stmt->execute(['start' => $startTime, 'end' => $endTime, 'id' => $sessionId]);
+            auditLog('live_eval_postponed', "Session ID: {$sessionId}");
+            header("Location: /promoter/dashboard.php?success=session_postponed");
+            exit;
+        }
+    }
+
+    // Handle Tele-Evaluation Cancel (Form POST)
+    if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action']) && $_POST['action'] === 'cancel_session') {
+        $sessionId = (int)($_POST['session_id'] ?? 0);
+        if ($sessionId > 0) {
+            $stmt = $pdo->prepare("DELETE FROM live_eval_sessions WHERE id = :id");
+            $stmt->execute(['id' => $sessionId]);
+            auditLog('live_eval_cancelled', "Session ID: {$sessionId}");
+            header("Location: /promoter/dashboard.php?success=session_cancelled");
+            exit;
+        }
+    }
+
+    // Fetch Live Session data and telemetry
+    $liveSessions = $pdo->query("
+        SELECT s.*, u.name AS teacher_name, c.title AS course_title,
+               (SELECT COUNT(*) FROM live_eval_registrations r WHERE r.session_id = s.id) AS registered_count,
+               (SELECT COUNT(*) FROM live_eval_registrations r WHERE r.session_id = s.id AND r.score IS NOT NULL) AS evaluated_count,
+               (SELECT COALESCE(AVG(r.score), 0) FROM live_eval_registrations r WHERE r.session_id = s.id AND r.score IS NOT NULL) AS avg_score
+        FROM live_eval_sessions s
+        JOIN courses c ON s.course_id = c.id
+        JOIN users u ON s.teacher_id = u.id
+        ORDER BY s.start_time DESC
+    ")->fetchAll();
+
+    $allRegs = $pdo->query("SELECT score FROM live_eval_registrations WHERE score IS NOT NULL")->fetchAll(PDO::FETCH_COLUMN);
+    $totalEvaluatedCount = count($allRegs);
+    $overallAvgScore = $totalEvaluatedCount > 0 ? array_sum($allRegs) / $totalEvaluatedCount : 0.0;
+    
+    $successCount = 0;
+    foreach ($allRegs as $sc) {
+        if ($sc >= 50.0) {
+            $successCount++;
+        }
+    }
+    $overallSuccessRate = $totalEvaluatedCount > 0 ? ($successCount / $totalEvaluatedCount) * 100 : 0.0;
+
+    $buckets = [0, 0, 0, 0, 0];
+    foreach ($allRegs as $sc) {
+        if ($sc <= 20) $buckets[0]++;
+        elseif ($sc <= 40) $buckets[1]++;
+        elseif ($sc <= 60) $buckets[2]++;
+        elseif ($sc <= 80) $buckets[3]++;
+        else $buckets[4]++;
+    }
+    $maxBucket = max(1, max($buckets));
+
     // Handle Course Creation (Form POST)
     // (Création de cours déplacée vers l'espace enseignant)
 
@@ -566,7 +628,7 @@ try {
             <div id="user-error"   class="hidden p-3 border border-[#D32F2F] text-[#D32F2F] text-xs font-medium"></div>
 
             <!-- Dashboard Cards pour les Modals -->
-            <div class="grid grid-cols-1 md:grid-cols-2 gap-8">
+            <div class="grid grid-cols-1 lg:grid-cols-3 gap-8">
                 <!-- Card 1: Corps Enseignant -->
                 <div class="bg-white border border-[#E5E5E7] p-8 flex flex-col justify-between hover:shadow-lg transition-all duration-300 rounded-sm relative group">
                     <div class="space-y-4">
@@ -634,6 +696,42 @@ try {
                         <button onclick="toggleModal('students-list-modal')"
                             class="w-full py-2.5 bg-[#111111] text-white text-xs font-semibold uppercase tracking-wider hover:bg-[#004B23] transition-colors rounded-sm flex items-center justify-center gap-2">
                             <span>Gérer les Apprenants</span>
+                            <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5l7 7-7 7" />
+                            </svg>
+                        </button>
+                    </div>
+                </div>
+
+                <!-- Card 3: Téléévaluations -->
+                <div class="bg-white border border-[#E5E5E7] p-8 flex flex-col justify-between hover:shadow-lg transition-all duration-300 rounded-sm group">
+                    <div class="space-y-4">
+                        <div class="flex justify-between items-start">
+                            <div class="w-12 h-12 bg-[#E3F2FD] text-[#1E88E5] flex items-center justify-center rounded-full">
+                                <svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M9 19v-6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2a2 2 0 002-2zm0 0V9a2 2 0 012-2h2a2 2 0 012 2v10m-6 0a2 2 0 002 2h2a2 2 0 002-2m0 0V5a2 2 0 012-2h2a2 2 0 012 2v14a2 2 0 01-2 2h-2a2 2 0 01-2-2z" />
+                                </svg>
+                            </div>
+                        </div>
+                        <div>
+                            <h3 class="font-serif text-xl text-[#111111] font-medium">Téléévaluations</h3>
+                            <p class="text-xs text-[#888888] mt-1">Supervisez les sessions, modifiez les horaires ou annulez des séances.</p>
+                        </div>
+                        <div class="flex gap-6 pt-2 text-xs">
+                            <div>
+                                <span class="font-bold text-lg text-[#111111]"><?= count($liveSessions); ?></span>
+                                <span class="text-[#888888] block text-[10px] uppercase">Séances</span>
+                            </div>
+                            <div>
+                                <span class="font-bold text-lg text-[#111111]"><?= $totalEvaluatedCount; ?></span>
+                                <span class="text-[#888888] block text-[10px] uppercase">Évalués</span>
+                            </div>
+                        </div>
+                    </div>
+                    <div class="pt-6">
+                        <button onclick="toggleModal('tele-evaluations-modal')"
+                            class="w-full py-2.5 bg-[#111111] text-white text-xs font-semibold uppercase tracking-wider hover:bg-[#004B23] transition-colors rounded-sm flex items-center justify-center gap-2">
+                            <span>Console de Supervision</span>
                             <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                                 <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5l7 7-7 7" />
                             </svg>
@@ -839,6 +937,197 @@ try {
                     </button>
                 </div>
             </form>
+        </div>
+    </div>
+
+    <!-- Modal : Supervision des Téléévaluations -->
+    <div id="tele-evaluations-modal" class="hidden fixed inset-0 bg-black/50 backdrop-blur-sm z-50 flex items-start justify-center p-4 overflow-y-auto">
+        <div class="bg-white w-full max-w-6xl border border-[#E5E5E7] my-8 rounded-sm shadow-2xl overflow-hidden">
+            <!-- Header -->
+            <div class="flex justify-between items-center px-8 py-6 border-b border-[#E5E5E7] bg-[#F5F5F7]">
+                <div>
+                    <h3 class="font-serif text-2xl font-light text-[#111111]">Supervision des Téléévaluations</h3>
+                    <p class="text-xs text-[#888888] mt-1">Gérez le calendrier des séances de télé-évaluation et consultez les statistiques en temps réel.</p>
+                </div>
+                <button type="button" onclick="toggleModal('tele-evaluations-modal')" class="text-[#888888] hover:text-[#D32F2F] p-1">
+                    <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"/>
+                    </svg>
+                </button>
+            </div>
+
+            <div class="p-8 space-y-8 max-h-[80vh] overflow-y-auto bg-[#FAFAFA]">
+                <!-- Stats Overview & Chart -->
+                <div class="grid grid-cols-1 lg:grid-cols-3 gap-8">
+                    <!-- Metrics Column -->
+                    <div class="space-y-4 lg:col-span-1">
+                        <h4 class="text-xs font-semibold text-gray-500 uppercase tracking-wider">Indicateurs clés</h4>
+                        
+                        <!-- Metric 1: Total évalués -->
+                        <div class="bg-white border border-[#E5E5E7] p-5 rounded-sm flex items-center justify-between">
+                            <div>
+                                <span class="text-[10px] text-gray-400 uppercase tracking-wider block font-medium">Participants Évalués</span>
+                                <span class="text-3xl font-light text-gray-900 mt-1 block"><?= $totalEvaluatedCount ?></span>
+                            </div>
+                            <div class="w-10 h-10 bg-green-50 text-[#004B23] flex items-center justify-center rounded-full">
+                                <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M12 4.354a4 4 0 110 5.292M15 21H3v-1a6 6 0 0112 0v1zm0 0h6v-1a6 6 0 00-9-5.197M13 7a4 4 0 11-8 0 4 4 0 018 0z" />
+                                </svg>
+                            </div>
+                        </div>
+
+                        <!-- Metric 2: Moyenne générale -->
+                        <div class="bg-white border border-[#E5E5E7] p-5 rounded-sm flex items-center justify-between">
+                            <div>
+                                <span class="text-[10px] text-gray-400 uppercase tracking-wider block font-medium">Moyenne Générale</span>
+                                <span class="text-3xl font-light text-gray-900 mt-1 block"><?= round($overallAvgScore, 1) ?> %</span>
+                            </div>
+                            <div class="w-10 h-10 bg-blue-50 text-blue-600 flex items-center justify-center rounded-full">
+                                <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M9 19v-6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2a2 2 0 002-2zm0 0V9a2 2 0 012-2h2a2 2 0 012 2v10m-6 0a2 2 0 002 2h2a2 2 0 002-2m0 0V5a2 2 0 012-2h2a2 2 0 012 2v14a2 2 0 01-2 2h-2a2 2 0 01-2-2z" />
+                                </svg>
+                            </div>
+                        </div>
+
+                        <!-- Metric 3: Taux de réussite -->
+                        <div class="bg-white border border-[#E5E5E7] p-5 rounded-sm flex items-center justify-between">
+                            <div>
+                                <span class="text-[10px] text-gray-400 uppercase tracking-wider block font-medium">Taux de Réussite (≥50%)</span>
+                                <span class="text-3xl font-light text-gray-900 mt-1 block"><?= round($overallSuccessRate, 1) ?> %</span>
+                            </div>
+                            <div class="w-10 h-10 bg-purple-50 text-purple-600 flex items-center justify-center rounded-full">
+                                <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M9 12l2 2 4-4M7.835 4.697a3.42 3.42 0 001.946-.806 3.42 3.42 0 014.438 0 3.42 3.42 0 001.946.806 3.42 3.42 0 013.138 3.138 3.42 3.42 0 00.806 1.946 3.42 3.42 0 010 4.438 3.42 3.42 0 00-.806 1.946 3.42 3.42 0 01-3.138 3.138 3.42 3.42 0 00-1.946.806 3.42 3.42 0 01-4.438 0 3.42 3.42 0 00-1.946-.806 3.42 3.42 0 01-3.138-3.138 3.42 3.42 0 00-.806-1.946 3.42 3.42 0 010-4.438 3.42 3.42 0 00.806-1.946 3.42 3.42 0 013.138-3.138z" />
+                                </svg>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- Score Distribution SVG Chart -->
+                    <div class="bg-white border border-[#E5E5E7] p-6 rounded-sm lg:col-span-2 flex flex-col justify-between">
+                        <div>
+                            <h4 class="text-xs font-semibold text-gray-500 uppercase tracking-wider mb-1">Distribution des notes</h4>
+                            <p class="text-[11px] text-gray-400">Répartition du nombre d'étudiants évalués par tranches de notes (en %)</p>
+                        </div>
+                        
+                        <div class="w-full h-48 mt-4 flex items-end justify-between relative px-2">
+                            <!-- Draw Y axis grid lines -->
+                            <div class="absolute inset-0 flex flex-col justify-between pointer-events-none border-b border-gray-100 pb-6">
+                                <div class="border-b border-dashed border-gray-100 w-full h-0"></div>
+                                <div class="border-b border-dashed border-gray-100 w-full h-0"></div>
+                                <div class="border-b border-dashed border-gray-100 w-full h-0"></div>
+                            </div>
+                            
+                            <?php 
+                            $labels = ['0-20%', '21-40%', '41-60%', '61-80%', '81-100%'];
+                            foreach ($buckets as $idx => $val):
+                                $heightPercent = ($val / $maxBucket) * 120; // Scale to max height
+                            ?>
+                                <div class="flex-grow flex flex-col items-center group relative z-10 mx-2">
+                                    <!-- Tooltip -->
+                                    <div class="absolute bottom-full mb-2 bg-[#111] text-white text-[10px] px-2 py-1 rounded opacity-0 group-hover:opacity-100 transition-opacity duration-200 pointer-events-none font-semibold">
+                                        <?= $val ?> participant(s)
+                                    </div>
+                                    <!-- Bar -->
+                                    <div class="w-full bg-[#EAF2EC] border border-[#004B23]/10 hover:bg-[#004B23] hover:border-[#004B23] transition-all duration-300 rounded-t-sm" style="height: <?= max(4, $heightPercent) ?>px;"></div>
+                                    <!-- Label -->
+                                    <span class="text-[10px] text-gray-500 mt-2 font-medium"><?= $labels[$idx] ?></span>
+                                </div>
+                            <?php endforeach; ?>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Live Sessions List -->
+                <div class="space-y-4">
+                    <h4 class="text-xs font-semibold text-gray-500 uppercase tracking-wider">Séances programmées & passées</h4>
+                    
+                    <div class="bg-white border border-[#E5E5E7] rounded-sm overflow-hidden">
+                        <table class="w-full text-left text-xs border-collapse">
+                            <thead>
+                                <tr class="bg-[#F5F5F7] text-gray-500 uppercase tracking-wider font-semibold border-b border-[#E5E5E7]">
+                                    <th class="p-4">Séance / Cours</th>
+                                    <th class="p-4">Enseignant</th>
+                                    <th class="p-4">Statut</th>
+                                    <th class="p-4">Inscrits / Évalués</th>
+                                    <th class="p-4">Moyenne</th>
+                                    <th class="p-4">Date & Heures</th>
+                                    <th class="p-4 text-right">Actions</th>
+                                </tr>
+                            </thead>
+                            <tbody class="divide-y divide-[#E5E5E7]">
+                                <?php if (empty($liveSessions)): ?>
+                                    <tr>
+                                        <td colspan="7" class="p-8 text-center text-gray-400 italic">Aucune séance de télé-évaluation n'est actuellement configurée.</td>
+                                    </tr>
+                                <?php else: ?>
+                                    <?php foreach ($liveSessions as $session): 
+                                        $statusColor = match($session['status']) {
+                                            'lobby' => 'bg-blue-100 text-blue-800 border-blue-200',
+                                            'active' => 'bg-green-100 text-green-800 border-green-200',
+                                            'finished' => 'bg-gray-100 text-gray-800 border-gray-200',
+                                            default => 'bg-yellow-100 text-yellow-800 border-yellow-200'
+                                        };
+                                        $statusText = match($session['status']) {
+                                            'lobby' => 'Lobby',
+                                            'active' => 'En cours',
+                                            'finished' => 'Terminé',
+                                            default => 'Brouillon'
+                                        };
+                                    ?>
+                                        <tr class="hover:bg-gray-50/50">
+                                            <td class="p-4">
+                                                <div class="font-semibold text-gray-900"><?= htmlspecialchars($session['title']) ?></div>
+                                                <div class="text-[10px] text-gray-400 mt-0.5">Code: <span class="font-mono bg-gray-100 px-1 py-0.5"><?= htmlspecialchars($session['session_code']) ?></span> | Cours: <?= htmlspecialchars($session['course_title']) ?></div>
+                                            </td>
+                                            <td class="p-4 text-gray-600"><?= htmlspecialchars($session['teacher_name']) ?></td>
+                                            <td class="p-4">
+                                                <span class="px-2 py-0.5 text-[10px] rounded-full border font-medium <?= $statusColor ?>"><?= $statusText ?></span>
+                                            </td>
+                                            <td class="p-4 text-gray-600 font-medium">
+                                                <?= $session['registered_count'] ?> inscrits / <?= $session['evaluated_count'] ?> évalués
+                                            </td>
+                                            <td class="p-4 text-gray-700 font-semibold"><?= round((float)$session['avg_score'], 1) ?> %</td>
+                                            <td class="p-4 text-gray-500 space-y-0.5">
+                                                <div>Début: <?= date('d/m/Y H:i', strtotime($session['start_time'])) ?></div>
+                                                <div>Fin: <?= date('d/m/Y H:i', strtotime($session['end_time'])) ?></div>
+                                            </td>
+                                            <td class="p-4 text-right">
+                                                <div class="flex items-center justify-end gap-2" id="session-actions-<?= $session['id'] ?>">
+                                                    <button onclick="showPostponeForm(<?= $session['id'] ?>)" class="px-2 py-1 text-[10px] font-semibold text-[#004B23] bg-green-50 hover:bg-[#EAF2EC] border border-green-200/50 rounded-sm">Reporter</button>
+                                                    
+                                                    <form action="" method="POST" onsubmit="return confirm('Êtes-vous sûr de vouloir supprimer/annuler définitivement cette séance ?');" class="inline">
+                                                        <input type="hidden" name="action" value="cancel_session">
+                                                        <input type="hidden" name="session_id" value="<?= $session['id'] ?>">
+                                                        <button type="submit" class="px-2 py-1 text-[10px] font-semibold text-red-600 bg-red-50 hover:bg-red-100 border border-red-200/50 rounded-sm">Annuler</button>
+                                                    </form>
+                                                </div>
+                                                
+                                                <form action="" method="POST" id="postpone-form-<?= $session['id'] ?>" class="hidden text-left mt-2 p-3 bg-[#F5F5F7] border border-[#E5E5E7] rounded-sm space-y-2 max-w-xs ml-auto">
+                                                    <input type="hidden" name="action" value="postpone_session">
+                                                    <input type="hidden" name="session_id" value="<?= $session['id'] ?>">
+                                                    <div>
+                                                        <label class="block text-[9px] uppercase tracking-wider text-gray-500 font-semibold mb-1">Date de début</label>
+                                                        <input type="datetime-local" name="start_time" required value="<?= date('Y-m-d\TH:i', strtotime($session['start_time'])) ?>" class="w-full px-2 py-1 bg-white border border-[#E5E5E7] text-[11px] focus:outline-none rounded-sm">
+                                                    </div>
+                                                    <div>
+                                                        <label class="block text-[9px] uppercase tracking-wider text-gray-500 font-semibold mb-1">Date de fin</label>
+                                                        <input type="datetime-local" name="end_time" required value="<?= date('Y-m-d\TH:i', strtotime($session['end_time'])) ?>" class="w-full px-2 py-1 bg-white border border-[#E5E5E7] text-[11px] focus:outline-none rounded-sm">
+                                                    </div>
+                                                    <div class="flex gap-2 justify-end">
+                                                        <button type="button" onclick="hidePostponeForm(<?= $session['id'] ?>)" class="px-2 py-1 text-[9px] font-semibold text-gray-500 border border-gray-300 bg-white rounded-sm">Retour</button>
+                                                        <button type="submit" class="px-2 py-1 text-[9px] font-semibold text-white bg-[#004B23] rounded-sm hover:bg-[#003d1c]">Enregistrer</button>
+                                                    </div>
+                                                </form>
+                                            </td>
+                                        </tr>
+                                    <?php endforeach; ?>
+                                <?php endif; ?>
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+            </div>
         </div>
     </div>
 
@@ -1364,6 +1653,15 @@ try {
             loadNotifications();
         });
         loadNotifications();
+
+        function showPostponeForm(id) {
+            document.getElementById('session-actions-' + id).classList.add('hidden');
+            document.getElementById('postpone-form-' + id).classList.remove('hidden');
+        }
+        function hidePostponeForm(id) {
+            document.getElementById('session-actions-' + id).classList.remove('hidden');
+            document.getElementById('postpone-form-' + id).classList.add('hidden');
+        }
     </script>
     <script src="/assets/js/app.js"></script>
 </body>

@@ -482,7 +482,8 @@ function calculateAndSaveScore(PDO $pdo, array $session, array $registration, ar
         $session['title'],
         $correctCount,
         $totalQuestions,
-        $qasDetails
+        $qasDetails,
+        (int)$regId
     );
 
     return (float)$scorePercent;

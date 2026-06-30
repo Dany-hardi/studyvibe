@@ -158,7 +158,7 @@ class Mailer
         return self::send($to, "StudyVibe — Résultats du Quiz : {$lessonTitle}", $body);
     }
 
-    public static function sendLiveEvalResults(string $to, string $studentName, string $sessionTitle, int $correctCount, int $totalQuestions, array $qas): bool
+    public static function sendLiveEvalResults(string $to, string $studentName, string $sessionTitle, int $correctCount, int $totalQuestions, array $qas, int $registrationId = 0): bool
     {
         $qasHtml = '';
         foreach ($qas as $idx => $qa) {
@@ -194,9 +194,26 @@ class Mailer
             
             $qasHtml .= "
                 <div style='margin-bottom: 24px; border-bottom: 1px solid #E5E5E7; padding-bottom: 16px;'>
-                    <h4 style='margin: 0 0 10px 0; font-size: 14px; font-weight: 600; color: #111;'>Question {$num} : " . htmlspecialchars($qa['question_text']) . "</h4>
-                    <div style='margin-bottom: 10px;'>{$optionsHtml}</div>
-                    <div style='font-size: 12px;'>Statut : {$status}</div>
+                     <h4 style='margin: 0 0 10px 0; font-size: 14px; font-weight: 600; color: #111;'>Question {$num} : " . htmlspecialchars($qa['question_text']) . "</h4>
+                     <div style='margin-bottom: 10px;'>{$optionsHtml}</div>
+                     <div style='font-size: 12px;'>Statut : {$status}</div>
+                </div>
+            ";
+        }
+
+        $linkHtml = '';
+        if ($registrationId > 0 && defined('APP_SECRET')) {
+            $token = hash_hmac('sha256', (string)$registrationId, APP_SECRET);
+            $baseUrl = defined('APP_URL') ? APP_URL : '';
+            if (empty($baseUrl)) {
+                $proto = (!empty($_SERVER['HTTPS']) && $_SERVER['HTTPS'] !== 'off') ? 'https' : 'http';
+                $baseUrl = $proto . '://' . ($_SERVER['HTTP_HOST'] ?? 'localhost');
+            }
+            $url = rtrim($baseUrl, '/') . "/student/evaluation-results.php?registration_id={$registrationId}&token={$token}";
+            $linkHtml = "
+                <div style='margin: 25px 0; text-align: center;'>
+                    <a href='" . htmlspecialchars($url, ENT_QUOTES) . "' style='display: inline-block; padding: 12px 24px; background-color: #004B23; color: #FFFFFF; font-weight: bold; text-decoration: none; border-radius: 4px; font-size: 14px; box-shadow: 0 2px 5px rgba(0,0,0,0.15);'>Consulter mon rapport détaillé</a>
+                    <div style='font-size: 11px; color: #888; margin-top: 8px;'>Ce lien sécurisé vous permet d'accéder aux justifications et explications de chaque question.</div>
                 </div>
             ";
         }
@@ -212,6 +229,8 @@ class Mailer
                 <div style='font-size:12px; color:#555;'>Ce résultat a été transmis à votre enseignant.</div>
             </div>
             
+            {$linkHtml}
+
             <h3 style='font-family:Georgia,serif;font-weight:300;border-bottom:2px solid #004B23;padding-bottom:6px;margin-top:30px;'>Détails des questions</h3>
             {$qasHtml}
         ");

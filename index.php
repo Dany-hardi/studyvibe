@@ -494,6 +494,13 @@ if (isLoggedIn()) {
         const fd = new FormData();
         fd.append('email',    document.getElementById('login-email').value.trim());
         fd.append('password', document.getElementById('login-password').value);
+        
+        const urlParams = new URLSearchParams(window.location.search);
+        const redirectVal = urlParams.get('redirect');
+        if (redirectVal) {
+            fd.append('redirect', redirectVal);
+        }
+
         try {
             const data = await svPost('/login-action.php', fd);
             if (data.success) {
@@ -504,6 +511,15 @@ if (isLoggedIn()) {
                 btn.disabled = false; btn.textContent = 'Se connecter';
             }
         } catch { btn.disabled = false; btn.textContent = 'Se connecter'; }
+    });
+
+    window.addEventListener('DOMContentLoaded', () => {
+        const urlParams = new URLSearchParams(window.location.search);
+        if (urlParams.get('error') === 'auth_required') {
+            if (typeof Toast !== 'undefined') {
+                Toast.error("Authentification requise pour accéder à cette évaluation.");
+            }
+        }
     });
 
     /* ── Soumission inscription ── */
