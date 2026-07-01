@@ -73,7 +73,7 @@ if ($currentUser['role'] === 'student' && (int)$registration['student_id'] !== $
 // Charger les réponses soumises et les questions associées
 try {
     $stmt = $pdo->prepare("
-        SELECT q.id AS question_id, q.question_text, q.option_a, q.option_b, q.option_c, q.option_d, q.correct_option, q.explanation, a.selected_option
+        SELECT q.id AS question_id, q.question_text, q.option_a, q.option_b, q.option_c, q.option_d, q.correct_option, q.explanation, q.question_type, a.selected_option
         FROM live_eval_answers a
         JOIN live_eval_questions q ON a.question_id = q.id
         WHERE a.registration_id = :reg_id
@@ -89,7 +89,15 @@ try {
 $totalQuestions = count($answers);
 $correctCount = 0;
 foreach ($answers as $ans) {
-    if ($ans['selected_option'] === $ans['correct_option']) {
+    $isCorrect = false;
+    if (($ans['question_type'] ?? 'mcq') === 'written') {
+        $normalizedSelected = str_replace([',', ' '], ['.', ''], strtolower(trim($ans['selected_option'])));
+        $normalizedCorrect = str_replace([',', ' '], ['.', ''], strtolower(trim($ans['correct_option'])));
+        $isCorrect = ($normalizedSelected === $normalizedCorrect);
+    } else {
+        $isCorrect = ($ans['selected_option'] === $ans['correct_option']);
+    }
+    if ($isCorrect) {
         $correctCount++;
     }
 }
@@ -200,7 +208,14 @@ $hasPassed = $scorePercent >= 50;
         <div class="space-y-6">
             <?php foreach ($answers as $index => $qa): 
                 $num = $index + 1;
-                $isCorrect = $qa['selected_option'] === $qa['correct_option'];
+                $isCorrect = false;
+                if (($qa['question_type'] ?? 'mcq') === 'written') {
+                    $normalizedSelected = str_replace([',', ' '], ['.', ''], strtolower(trim($qa['selected_option'])));
+                    $normalizedCorrect = str_replace([',', ' '], ['.', ''], strtolower(trim($qa['correct_option'])));
+                    $isCorrect = ($normalizedSelected === $normalizedCorrect);
+                } else {
+                    $isCorrect = ($qa['selected_option'] === $qa['correct_option']);
+                }
             ?>
                 <div class="bg-white border border-[#E5E5E7] rounded-sm p-6 space-y-4 shadow-sm relative overflow-hidden">
                     <!-- Status indicator line on the left border -->
@@ -217,36 +232,52 @@ $hasPassed = $scorePercent >= 50;
                         </span>
                     </div>
 
-                    <!-- Options list -->
-                    <div class="grid grid-cols-1 md:grid-cols-2 gap-3 pt-2">
-                        <?php foreach (['A', 'B', 'C', 'D'] as $opt): 
-                            $optText = $qa['option_' . strtolower($opt)] ?? '';
-                            if (empty($optText)) continue;
-                            
-                            $isCorrectOpt = $opt === $qa['correct_option'];
-                            $isSelectedOpt = $opt === $qa['selected_option'];
-                            
-                            $bgClass = 'bg-white border-[#E5E5E7] text-gray-700';
-                            $icon = '';
-                            if ($isCorrectOpt) {
-                                $bgClass = 'bg-green-50/50 border-[#A2D190] text-[#385723] font-medium';
-                                $icon = '<svg class="w-4 h-4 text-brand" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2.5" d="M5 13l4 4L19 7"/></svg>';
-                            } elseif ($isSelectedOpt) {
-                                $bgClass = 'bg-red-50/50 border-[#F8CBAD] text-red-700';
-                                $icon = '<svg class="w-4 h-4 text-red-600" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2.5" d="M6 18L18 6M6 6l12 12"/></svg>';
-                            }
-                        ?>
-                            <div class="border rounded-sm p-3.5 flex items-center justify-between text-xs transition-all <?= $bgClass ?>">
-                                <div class="flex items-center gap-2">
-                                    <span class="font-mono font-bold uppercase text-[10px] px-1.5 py-0.5 bg-black/5 rounded-sm"><?= $opt ?></span>
-                                    <span class="latex-container"><?= htmlspecialchars($optText) ?></span>
-                                </div>
-                                <?php if ($icon): ?>
-                                    <span class="flex-shrink-0"><?= $icon ?></span>
-                                <?php endif; ?>
+                    <!-- For written/calculation questions -->
+                    <?php if (($qa['question_type'] ?? 'mcq') === 'written'): ?>
+                        <div class="space-y-3 pt-2">
+                            <div class="border rounded-sm p-4 text-sm <?= $isCorrect ? 'bg-green-50/50 border-[#A2D190] text-[#385723]' : 'bg-red-50/50 border-[#F8CBAD] text-red-700' ?>">
+                                <div class="font-semibold text-xs uppercase mb-1">Votre réponse :</div>
+                                <span class="latex-container font-mono"><?= empty($qa['selected_option']) ? '<em>(Aucune réponse soumise)</em>' : htmlspecialchars($qa['selected_option']) ?></span>
                             </div>
-                        <?php endforeach; ?>
-                    </div>
+                            <?php if (!$isCorrect): ?>
+                                <div class="border rounded-sm p-4 text-sm bg-green-50/50 border-[#A2D190] text-[#385723]">
+                                    <div class="font-semibold text-xs uppercase mb-1">Réponse correcte :</div>
+                                    <span class="latex-container font-mono"><?= htmlspecialchars($qa['correct_option']) ?></span>
+                                </div>
+                            <?php endif; ?>
+                        </div>
+                    <?php else: ?>
+                        <!-- Options list -->
+                        <div class="grid grid-cols-1 md:grid-cols-2 gap-3 pt-2">
+                            <?php foreach (['A', 'B', 'C', 'D'] as $opt): 
+                                $optText = $qa['option_' . strtolower($opt)] ?? '';
+                                if (empty($optText)) continue;
+                                
+                                $isCorrectOpt = $opt === $qa['correct_option'];
+                                $isSelectedOpt = $opt === $qa['selected_option'];
+                                
+                                $bgClass = 'bg-white border-[#E5E5E7] text-gray-700';
+                                $icon = '';
+                                if ($isCorrectOpt) {
+                                    $bgClass = 'bg-green-50/50 border-[#A2D190] text-[#385723] font-medium';
+                                    $icon = '<svg class="w-4 h-4 text-brand" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2.5" d="M5 13l4 4L19 7"/></svg>';
+                                } elseif ($isSelectedOpt) {
+                                    $bgClass = 'bg-red-50/50 border-[#F8CBAD] text-red-700';
+                                    $icon = '<svg class="w-4 h-4 text-red-600" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2.5" d="M6 18L18 6M6 6l12 12"/></svg>';
+                                }
+                            ?>
+                                <div class="border rounded-sm p-3.5 flex items-center justify-between text-xs transition-all <?= $bgClass ?>">
+                                    <div class="flex items-center gap-2">
+                                        <span class="font-mono font-bold uppercase text-[10px] px-1.5 py-0.5 bg-black/5 rounded-sm"><?= $opt ?></span>
+                                        <span class="latex-container"><?= htmlspecialchars($optText) ?></span>
+                                    </div>
+                                    <?php if ($icon): ?>
+                                        <span class="flex-shrink-0"><?= $icon ?></span>
+                                    <?php endif; ?>
+                                </div>
+                            <?php endforeach; ?>
+                        </div>
+                    <?php endif; ?>
 
                     <!-- Explanation/Justification block -->
                     <?php if (!empty($qa['explanation'])): ?>

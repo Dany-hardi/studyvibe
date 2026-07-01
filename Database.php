@@ -107,6 +107,17 @@ class Database
                     self::$instance->exec("ALTER TABLE `live_eval_registrations` ADD CONSTRAINT `fk_live_eval_regs_student` FOREIGN KEY (`student_id`) REFERENCES `users` (`id`) ON DELETE SET NULL");
                 } catch (PDOException $ex) {}
             }
+
+            // Auto-migration check for question_type in live_eval_questions and sizing adjustments for open/written answers
+            try {
+                self::$instance->query("SELECT question_type FROM live_eval_questions LIMIT 1");
+            } catch (PDOException $e) {
+                try {
+                    self::$instance->exec("ALTER TABLE `live_eval_questions` ADD COLUMN `question_type` VARCHAR(32) NOT NULL DEFAULT 'mcq'");
+                    self::$instance->exec("ALTER TABLE `live_eval_questions` MODIFY COLUMN `correct_option` VARCHAR(255) NOT NULL");
+                    self::$instance->exec("ALTER TABLE `live_eval_answers` MODIFY COLUMN `selected_option` VARCHAR(255) NOT NULL");
+                } catch (PDOException $ex) {}
+            }
         }
         
         return self::$instance;

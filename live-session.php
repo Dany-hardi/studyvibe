@@ -1176,6 +1176,16 @@ if (!$error) {
                                     </button>
                                 </div>
 
+                                <!-- Réponse écrite / calculée -->
+                                <div id="quiz-written-container" class="hidden" style="display:flex; flex-direction:column; gap:0.85rem;">
+                                    <div style="position: relative;">
+                                        <input type="text" id="written-answer-input" placeholder="Saisissez votre réponse (ex: 2.5, x^2, ...)" class="input-field" style="font-size: 1rem; padding: 0.95rem 1.2rem; border-radius: 4px; border: 1px solid rgba(0, 75, 35, 0.2);">
+                                    </div>
+                                    <button onclick="submitWrittenAnswer()" id="btn-submit-written" class="btn-primary" style="background-color: var(--green); border-color: var(--green); font-weight: 700; border-radius: 4px; padding: 0.95rem;">
+                                        Soumettre ma réponse
+                                    </button>
+                                </div>
+
                                 <!-- Confirmation de soumission -->
                                 <div id="quiz-submit-status" class="hidden" style="margin-top:1.25rem; padding:0.9rem 1rem; background:rgba(16,185,129,0.07); border:1px solid rgba(16,185,129,0.25); color:#065F46; font-size:0.82rem; text-align:center; font-weight:600; border-radius:3px;">
                                     ✓ Réponse enregistrée — en attente de la prochaine question...
@@ -1647,6 +1657,18 @@ if (!$error) {
                     logTelemetry(`Question ${data.current_question_index + 1} activée: ${q.question_text.slice(0, 30)}...`);
                 }
 
+                if (data.already_answered) {
+                    disableOptions();
+                    const statusEl = document.getElementById('quiz-submit-status');
+                    if (statusEl) {
+                        statusEl.classList.remove('hidden');
+                        statusEl.innerHTML = '✓ Réponse enregistrée — en attente de la prochaine question...';
+                        statusEl.style.borderColor = 'rgba(16,185,129,0.25)';
+                        statusEl.style.background = 'rgba(16,185,129,0.07)';
+                        statusEl.style.color = '#065F46';
+                    }
+                }
+
                 updateQuestionTimer(q.seconds_left, data.is_paused);
             })
             .catch(err => console.error("Erreur quiz : ", err));
@@ -1779,7 +1801,7 @@ if (!$error) {
                         updateSvgTimer(0, questionTotalDuration);
                         disableOptions();
                         if (isAsync) {
-                            submitLiveAnswer("");
+                            submitLiveAnswerRaw("");
                         }
                     }
                 }, 1000);
@@ -1937,16 +1959,36 @@ if (!$error) {
                 imgContainer.classList.add('hidden');
             }
 
-            document.getElementById('text-opt-A').textContent = q.option_a;
-            document.getElementById('text-opt-B').textContent = q.option_b;
-            document.getElementById('text-opt-C').textContent = q.option_c;
-            document.getElementById('text-opt-D').textContent = q.option_d;
+            const qType = q.question_type || 'mcq';
+            const mcqContainer = document.getElementById('quiz-options-container');
+            const writtenContainer = document.getElementById('quiz-written-container');
+            
+            if (qType === 'written') {
+                mcqContainer.classList.add('hidden');
+                writtenContainer.classList.remove('hidden');
+                
+                const wrInput = document.getElementById('written-answer-input');
+                wrInput.value = '';
+                wrInput.disabled = false;
+                
+                const wrBtn = document.getElementById('btn-submit-written');
+                wrBtn.disabled = false;
+                wrBtn.className = "btn-primary";
+            } else {
+                mcqContainer.classList.remove('hidden');
+                writtenContainer.classList.add('hidden');
+                
+                document.getElementById('text-opt-A').textContent = q.option_a;
+                document.getElementById('text-opt-B').textContent = q.option_b;
+                document.getElementById('text-opt-C').textContent = q.option_c;
+                document.getElementById('text-opt-D').textContent = q.option_d;
 
-            ['A', 'B', 'C', 'D'].forEach(opt => {
-                const btn = document.getElementById(`btn-opt-${opt}`);
-                btn.disabled = false;
-                btn.className = "option-btn";
-            });
+                ['A', 'B', 'C', 'D'].forEach(opt => {
+                    const btn = document.getElementById(`btn-opt-${opt}`);
+                    btn.disabled = false;
+                    btn.className = "option-btn";
+                });
+            }
 
             document.getElementById('quiz-submit-status').classList.add('hidden');
 
@@ -1967,6 +2009,22 @@ if (!$error) {
             });
 
             disableOptions();
+            submitLiveAnswerRaw(option);
+        }
+
+        function submitWrittenAnswer() {
+            const input = document.getElementById('written-answer-input');
+            const val = input.value.trim();
+            if (val === '') {
+                alert("Veuillez saisir une réponse avant de soumettre.");
+                return;
+            }
+            
+            disableOptions();
+            submitLiveAnswerRaw(val);
+        }
+
+        function submitLiveAnswerRaw(option) {
             const statusEl = document.getElementById('quiz-submit-status');
             if (statusEl) {
                 statusEl.classList.remove('hidden');
@@ -1975,7 +2033,7 @@ if (!$error) {
                 statusEl.style.background = 'rgba(16,185,129,0.07)';
                 statusEl.style.color = '#065F46';
             }
-            logTelemetry(`Option ${option} soumise. En attente...`);
+            logTelemetry(`Réponse "${option}" soumise. En attente...`);
 
             // Save to Local Storage Queue for Resiliency (Feature 4)
             const pendingAnswer = {
@@ -2003,6 +2061,9 @@ if (!$error) {
                     localStorage.removeItem('pending_live_answer_' + sessionCode);
                     if (statusEl) {
                         statusEl.innerHTML = '✓ Réponse enregistrée — en attente de la prochaine question...';
+                        statusEl.style.borderColor = 'rgba(16,185,129,0.25)';
+                        statusEl.style.background = 'rgba(16,185,129,0.07)';
+                        statusEl.style.color = '#065F46';
                     }
                     playPositiveChime();
                 } else {
@@ -2078,6 +2139,10 @@ if (!$error) {
                 const btn = document.getElementById(`btn-opt-${opt}`);
                 if (btn) btn.disabled = true;
             });
+            const wrInput = document.getElementById('written-answer-input');
+            if (wrInput) wrInput.disabled = true;
+            const wrBtn = document.getElementById('btn-submit-written');
+            if (wrBtn) wrBtn.disabled = true;
         }
 
         window.addEventListener('DOMContentLoaded', startApp);

@@ -376,6 +376,7 @@ try {
                 'option_d'      => $activeQ['option_d'],
                 'image_path'    => $activeQ['image_path'] ? '/uploads/live_questions/' . $activeQ['image_path'] : null,
                 'seconds_left'  => $secondsLeft,
+                'question_type' => $activeQ['question_type'] ?? 'mcq',
             ],
             'answers_received' => $answersReceived,
             'total_registered' => $totalRegistered,
@@ -394,11 +395,31 @@ try {
         }
 
         $questionId     = (int)($_POST['question_id'] ?? 0);
-        $selectedOption = strtoupper(trim((string)($_POST['selected_option'] ?? '')));
-
-        if ($questionId <= 0 || !in_array($selectedOption, ['', 'A', 'B', 'C', 'D'], true)) {
-            echo json_encode(['success' => false, 'message' => 'Données de réponse invalides.']);
+        
+        // Find question type
+        $activeQForSubmission = null;
+        foreach ($questions as $q) {
+            if ((int)$q['id'] === $questionId) {
+                $activeQForSubmission = $q;
+                break;
+            }
+        }
+        
+        if (!$activeQForSubmission) {
+            echo json_encode(['success' => false, 'message' => 'Question introuvable.']);
             exit;
+        }
+        
+        $qType = $activeQForSubmission['question_type'] ?? 'mcq';
+        if ($qType === 'mcq') {
+            $selectedOption = strtoupper(trim((string)($_POST['selected_option'] ?? '')));
+            if ($questionId <= 0 || !in_array($selectedOption, ['', 'A', 'B', 'C', 'D'], true)) {
+                echo json_encode(['success' => false, 'message' => 'Données de réponse invalides.']);
+                exit;
+            }
+        } else {
+            // For written/calculation questions
+            $selectedOption = trim((string)($_POST['selected_option'] ?? ''));
         }
 
         if (!$activeQ || (int)$activeQ['id'] !== $questionId) {
@@ -453,7 +474,14 @@ function calculateAndSaveScore(PDO $pdo, array $session, array $registration, ar
 
     foreach ($questions as $q) {
         $selected = $submittedAnswers[$q['id']] ?? '';
-        $isCorrect = $selected === $q['correct_option'];
+        $isCorrect = false;
+        if (($q['question_type'] ?? 'mcq') === 'written') {
+            $normalizedSelected = str_replace([',', ' '], ['.', ''], strtolower(trim($selected)));
+            $normalizedCorrect = str_replace([',', ' '], ['.', ''], strtolower(trim($q['correct_option'])));
+            $isCorrect = ($normalizedSelected === $normalizedCorrect);
+        } else {
+            $isCorrect = ($selected === $q['correct_option']);
+        }
         if ($isCorrect) {
             $correctCount++;
         }
@@ -465,6 +493,7 @@ function calculateAndSaveScore(PDO $pdo, array $session, array $registration, ar
             'option_d'       => $q['option_d'],
             'correct_option' => $q['correct_option'],
             'selected_option'=> $selected,
+            'question_type'  => $q['question_type'] ?? 'mcq',
         ];
     }
 

@@ -646,16 +646,27 @@ try {
 
         // ── P. Ajouter une question à une téléévaluation ──────────────
         if ($action === 'add_live_question') {
-            $sid = (int)($_POST['session_id'] ?? 0);
+            $sid          = (int)($_POST['session_id'] ?? 0);
             $questionText = trim((string)($_POST['question_text'] ?? ''));
+            $qType        = trim((string)($_POST['question_type'] ?? 'mcq'));
             $optionA      = trim((string)($_POST['option_a'] ?? ''));
             $optionB      = trim((string)($_POST['option_b'] ?? ''));
             $optionC      = trim((string)($_POST['option_c'] ?? ''));
             $optionD      = trim((string)($_POST['option_d'] ?? ''));
             $correct      = trim((string)($_POST['correct_option'] ?? ''));
+            $explanation  = trim((string)($_POST['explanation'] ?? ''));
             $timeLimit    = trim((string)($_POST['time_limit'] ?? ''));
             
-            if ($sid > 0 && !empty($questionText) && !empty($optionA) && !empty($optionB) && !empty($optionC) && !empty($optionD)) {
+            $isValid = false;
+            if ($sid > 0 && !empty($questionText) && !empty($correct)) {
+                if ($qType === 'written') {
+                    $isValid = true;
+                } elseif (!empty($optionA) && !empty($optionB) && !empty($optionC) && !empty($optionD)) {
+                    $isValid = true;
+                }
+            }
+            
+            if ($isValid) {
                 $imagePath = null;
                 if (!empty($_FILES['live_image']['tmp_name']) && is_uploaded_file($_FILES['live_image']['tmp_name'])) {
                     $ext = strtolower(pathinfo($_FILES['live_image']['name'], PATHINFO_EXTENSION));
@@ -674,17 +685,19 @@ try {
                 $tLimit = ($timeLimit === '') ? null : (int)$timeLimit;
 
                 $stmt = $pdo->prepare("
-                    INSERT INTO live_eval_questions (session_id, question_text, option_a, option_b, option_c, option_d, correct_option, time_limit, image_path)
-                    VALUES (:sid, :qt, :a, :b, :c, :d, :co, :limit, :img)
+                    INSERT INTO live_eval_questions (session_id, question_text, question_type, option_a, option_b, option_c, option_d, correct_option, explanation, time_limit, image_path)
+                    VALUES (:sid, :qt, :type, :a, :b, :c, :d, :co, :exp, :limit, :img)
                 ");
                 $stmt->execute([
                     'sid'   => $sid,
                     'qt'    => $questionText,
-                    'a'     => $optionA,
-                    'b'     => $optionB,
-                    'c'     => $optionC,
-                    'd'     => $optionD,
+                    'type'  => $qType,
+                    'a'     => $qType === 'written' ? '' : $optionA,
+                    'b'     => $qType === 'written' ? '' : $optionB,
+                    'c'     => $qType === 'written' ? '' : $optionC,
+                    'd'     => $qType === 'written' ? '' : $optionD,
                     'co'    => $correct,
+                    'exp'   => $explanation,
                     'limit' => $tLimit,
                     'img'   => $imagePath
                 ]);
@@ -2402,6 +2415,22 @@ $successMsg = $successMessages[$successKey] ?? null;
                                     Rapport PDF
                                 </a>
 
+                                <!-- Imprimer Sujet (LaTeX) -->
+                                <a href="/teacher/export-live-questions-latex.php?session_id=<?= $ls['id'] ?>&mode=subject" class="px-3 py-1.5 border border-[#E5E5E7] text-[11px] font-semibold uppercase tracking-wider rounded-sm hover:bg-gray-50 bg-white text-[#111111] flex items-center gap-1.5">
+                                    <svg class="w-3.5 h-3.5 text-indigo-700" fill="none" stroke="currentColor" viewBox="0 0 24 24" stroke-width="2">
+                                        <path stroke-linecap="round" stroke-linejoin="round" d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
+                                    </svg>
+                                    Imprimer Sujet
+                                </a>
+
+                                <!-- Imprimer Corrigé (LaTeX) -->
+                                <a href="/teacher/export-live-questions-latex.php?session_id=<?= $ls['id'] ?>&mode=correction" class="px-3 py-1.5 border border-[#E5E5E7] text-[11px] font-semibold uppercase tracking-wider rounded-sm hover:bg-gray-50 bg-white text-[#111111] flex items-center gap-1.5">
+                                    <svg class="w-3.5 h-3.5 text-orange-700" fill="none" stroke="currentColor" viewBox="0 0 24 24" stroke-width="2">
+                                        <path stroke-linecap="round" stroke-linejoin="round" d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
+                                    </svg>
+                                    Imprimer Corrigé
+                                </a>
+
                                 <!-- Pause / Reprendre (Synchronized sessions only) -->
                                 <?php if (!(isset($ls['is_async']) && (int)$ls['is_async'] === 1)): ?>
                                     <form method="POST" action="/teacher/dashboard.php?course_id=<?= $selectedCourse['id'] ?>&action=toggle_live_pause" class="inline-block">
@@ -2446,50 +2475,70 @@ $successMsg = $successMessages[$successKey] ?? null;
                             <!-- Grille : Ajouter question à gauche / Importer à droite -->
                             <div class="grid grid-cols-1 lg:grid-cols-2 gap-6 bg-[#F8F9FA] p-5 border border-[#E5E5E7] rounded-sm">
                                 <!-- Formulaire Ajout Question -->
-                                <form method="POST" action="/teacher/dashboard.php?course_id=<?= $selectedCourse['id'] ?>&action=add_live_question" enctype="multipart/form-data" class="space-y-3">
+                                <form method="POST" action="/teacher/dashboard.php?course_id=<?= $selectedCourse['id'] ?>&action=add_live_question" enctype="multipart/form-data" class="space-y-4 bg-white p-5 border border-[#E5E5E7] rounded-sm shadow-sm">
                                     <input type="hidden" name="session_id" value="<?= $ls['id'] ?>">
-                                    <h6 class="text-xs font-semibold text-[#111111] uppercase tracking-wider">Ajouter une question QCM</h6>
+                                    
+                                    <div class="flex items-center justify-between border-b border-[#E5E5E7] pb-3 mb-2">
+                                        <h6 class="text-xs font-bold text-[#004B23] uppercase tracking-wider">Créer une nouvelle question</h6>
+                                        <div class="flex items-center gap-2">
+                                            <label class="text-[10px] text-gray-500 font-semibold uppercase">Type :</label>
+                                            <select name="question_type" onchange="handleQuestionTypeChange(this)" class="px-2 py-1 border border-[#E5E5E7] rounded-sm text-[10px] font-semibold bg-gray-50 text-[#111111] focus:outline-none">
+                                                <option value="mcq">QCM Standard</option>
+                                                <option value="written">Question écrite / Calcul</option>
+                                            </select>
+                                        </div>
+                                    </div>
                                     
                                     <div>
-                                        <label class="block text-[10px] text-[#555555] uppercase tracking-wider mb-1">Énoncé de la question</label>
-                                        <textarea name="question_text" required placeholder="Saisir la question..." class="w-full px-3 py-1.5 border border-[#E5E5E7] rounded-sm text-xs bg-white focus:outline-none focus:border-[#004B23] h-12"></textarea>
+                                        <label class="block text-[10px] text-[#555555] uppercase tracking-wider mb-1 font-semibold">Énoncé de la question (KaTeX supporté)</label>
+                                        <textarea name="question_text" required placeholder="Saisir la question... ex: Calculer $f'(x)$ pour $f(x) = x^2$" class="w-full px-3 py-1.5 border border-[#E5E5E7] rounded-sm text-xs bg-white focus:outline-none focus:border-[#004B23] h-14"></textarea>
                                     </div>
 
-                                    <div class="grid grid-cols-2 gap-2">
-                                        <div>
-                                            <label class="block text-[10px] text-[#555555] uppercase tracking-wider mb-1">Option A</label>
-                                            <input type="text" name="option_a" required placeholder="Option A" class="w-full px-2 py-1 border border-[#E5E5E7] rounded-sm text-xs bg-white">
+                                    <!-- Options MCQ Group -->
+                                    <div class="mcq-options-group space-y-3">
+                                        <div class="grid grid-cols-2 gap-3">
+                                            <div>
+                                                <label class="block text-[10px] text-[#555555] uppercase tracking-wider mb-1">Option A</label>
+                                                <input type="text" name="option_a" placeholder="Option A" class="w-full px-3 py-1.5 border border-[#E5E5E7] rounded-sm text-xs bg-white focus:outline-none focus:border-[#004B23]">
+                                            </div>
+                                            <div>
+                                                <label class="block text-[10px] text-[#555555] uppercase tracking-wider mb-1">Option B</label>
+                                                <input type="text" name="option_b" placeholder="Option B" class="w-full px-3 py-1.5 border border-[#E5E5E7] rounded-sm text-xs bg-white focus:outline-none focus:border-[#004B23]">
+                                            </div>
                                         </div>
-                                        <div>
-                                            <label class="block text-[10px] text-[#555555] uppercase tracking-wider mb-1">Option B</label>
-                                            <input type="text" name="option_b" required placeholder="Option B" class="w-full px-2 py-1 border border-[#E5E5E7] rounded-sm text-xs bg-white">
-                                        </div>
-                                    </div>
-                                    <div class="grid grid-cols-2 gap-2">
-                                        <div>
-                                            <label class="block text-[10px] text-[#555555] uppercase tracking-wider mb-1">Option C</label>
-                                            <input type="text" name="option_c" required placeholder="Option C" class="w-full px-2 py-1 border border-[#E5E5E7] rounded-sm text-xs bg-white">
-                                        </div>
-                                        <div>
-                                            <label class="block text-[10px] text-[#555555] uppercase tracking-wider mb-1">Option D</label>
-                                            <input type="text" name="option_d" required placeholder="Option D" class="w-full px-2 py-1 border border-[#E5E5E7] rounded-sm text-xs bg-white">
+                                        <div class="grid grid-cols-2 gap-3">
+                                            <div>
+                                                <label class="block text-[10px] text-[#555555] uppercase tracking-wider mb-1">Option C</label>
+                                                <input type="text" name="option_c" placeholder="Option C" class="w-full px-3 py-1.5 border border-[#E5E5E7] rounded-sm text-xs bg-white focus:outline-none focus:border-[#004B23]">
+                                            </div>
+                                            <div>
+                                                <label class="block text-[10px] text-[#555555] uppercase tracking-wider mb-1">Option D</label>
+                                                <input type="text" name="option_d" placeholder="Option D" class="w-full px-3 py-1.5 border border-[#E5E5E7] rounded-sm text-xs bg-white focus:outline-none focus:border-[#004B23]">
+                                            </div>
                                         </div>
                                     </div>
 
-                                    <div class="grid grid-cols-2 gap-2">
-                                        <div>
+                                    <div class="grid grid-cols-2 gap-3">
+                                        <!-- Correct Option container (dropdown vs text input) -->
+                                        <div class="correct-option-container">
                                             <label class="block text-[10px] text-[#555555] uppercase tracking-wider mb-1">Option Correcte</label>
-                                            <select name="correct_option" required class="w-full px-2 py-1 border border-[#E5E5E7] rounded-sm text-xs bg-white">
+                                            <select name="correct_option" required class="w-full px-2 py-1.5 border border-[#E5E5E7] rounded-sm text-xs bg-white focus:outline-none focus:border-[#004B23]">
                                                 <option value="A">A</option>
                                                 <option value="B">B</option>
                                                 <option value="C">C</option>
                                                 <option value="D">D</option>
                                             </select>
                                         </div>
+                                        
                                         <div>
-                                            <label class="block text-[10px] text-[#555555] uppercase tracking-wider mb-1">Durée spécifique (s)</label>
-                                            <input type="number" name="time_limit" placeholder="Vide = par défaut" class="w-full px-2 py-1 border border-[#E5E5E7] rounded-sm text-xs bg-white">
+                                            <label class="block text-[10px] text-[#555555] uppercase tracking-wider mb-1">Durée spécifique (secondes)</label>
+                                            <input type="number" name="time_limit" placeholder="Vide = par défaut" class="w-full px-2 py-1.5 border border-[#E5E5E7] rounded-sm text-xs bg-white focus:outline-none focus:border-[#004B23]">
                                         </div>
+                                    </div>
+
+                                    <div>
+                                        <label class="block text-[10px] text-[#555555] uppercase tracking-wider mb-1 font-semibold">Explication / Justification (pour correction)</label>
+                                        <textarea name="explanation" placeholder="Saisir la justification de la réponse..." class="w-full px-3 py-1.5 border border-[#E5E5E7] rounded-sm text-xs bg-white focus:outline-none focus:border-[#004B23] h-12"></textarea>
                                     </div>
 
                                     <div>
@@ -2497,21 +2546,24 @@ $successMsg = $successMessages[$successKey] ?? null;
                                         <input type="file" name="live_image" accept="image/*" class="w-full text-xs file:mr-3 file:py-1 file:px-2 file:border-0 file:bg-[#E5E5E7] file:text-[10px] file:font-semibold">
                                     </div>
 
-                                    <button type="submit" class="w-full py-2 bg-[#004B23] text-white text-[11px] font-semibold uppercase tracking-wider rounded-sm hover:bg-[#003d1c]">Ajouter la question</button>
+                                    <button type="submit" class="w-full py-2 bg-[#004B23] text-white text-[11px] font-semibold uppercase tracking-wider rounded-sm hover:bg-[#003d1c] shadow-sm transition-colors">Ajouter la question</button>
                                 </form>
 
                                 <!-- Importer des questions -->
-                                <div class="space-y-4 border-l border-gray-200 pl-6 flex flex-col justify-between">
+                                <div class="space-y-5 border-l border-gray-200 pl-6 flex flex-col justify-between bg-white p-5 border border-[#E5E5E7] rounded-sm shadow-sm">
                                     <div class="space-y-2">
-                                        <h6 class="text-xs font-semibold text-[#111111] uppercase tracking-wider">Import en masse (CSV / Excel)</h6>
+                                        <h6 class="text-xs font-bold text-[#004B23] uppercase tracking-wider border-b border-[#E5E5E7] pb-3 mb-2">Import en masse (CSV / Excel)</h6>
                                         <p class="text-[10px] text-[#888888] leading-relaxed">
                                             Téléversez un fichier CSV ou Excel pour charger les questions de la séance en bloc.
-                                            Les colonnes requises sont : <code class="bg-gray-100 px-1 py-0.5 font-mono text-[9px]">question, option_a, option_b, option_c, option_d, correct</code> (A-D).
+                                            Les colonnes requises sont : <code class="bg-gray-100 px-1 py-0.5 font-mono text-[9px]">question, type, option_a, option_b, option_c, option_d, correct, explanation</code>.
+                                        </p>
+                                        <p class="text-[9px] text-gray-500 italic">
+                                            Pour le type : saisissez <strong>mcq</strong> (pour QCM) ou <strong>written</strong> (pour calculs/questions ouvertes).
                                         </p>
                                     </div>
 
-                                    <div class="p-4 border border-dashed border-[#E5E5E7] rounded-sm bg-white text-center">
-                                        <input type="file" accept=".csv,.xlsx,.xls,.txt" onchange="importLiveQuestionsFile(this, <?= $ls['id'] ?>)" class="w-full text-xs file:mr-3 file:py-1.5 file:px-3 file:border-0 file:bg-[#F5F5F7] file:text-[10px] file:font-semibold">
+                                    <div class="p-4 border border-dashed border-[#E5E5E7] rounded-sm bg-gray-50 text-center">
+                                        <input type="file" accept=".csv,.xlsx,.xls,.txt" onchange="importLiveQuestionsFile(this, <?= $ls['id'] ?>)" class="w-full text-xs file:mr-3 file:py-1.5 file:px-3 file:border-0 file:bg-white file:border file:border-[#E5E5E7] file:text-[10px] file:font-semibold rounded-sm">
                                     </div>
                                     <p class="text-[9px] text-[#888888] italic">Note: L'importation s'effectue instantanément après le choix du fichier.</p>
                                 </div>
@@ -2530,20 +2582,35 @@ $successMsg = $successMessages[$successKey] ?? null;
                                     <p class="text-xs text-[#888888] italic">Aucune question pour le moment.</p>
                                 <?php else: ?>
                                     <div class="divide-y divide-[#E5E5E7]">
-                                        <?php foreach ($ls['questions'] as $qIdx => $q): ?>
-                                            <div class="py-3 flex justify-between items-start gap-4">
+                                        <?php foreach ($ls['questions'] as $qIdx => $q): 
+                                            $qType = $q['question_type'] ?? 'mcq';
+                                        ?>
+                                            <div class="py-4 flex justify-between items-start gap-4">
                                                 <div class="space-y-1 text-xs">
-                                                    <p class="font-medium text-[#111111]">Q<?= $qIdx + 1 ?>. <?= htmlspecialchars($q['question_text']) ?></p>
-                                                    <div class="grid grid-cols-2 sm:grid-cols-4 gap-x-4 text-[11px] text-[#555555] mt-1">
-                                                        <span>A: <?= htmlspecialchars($q['option_a']) ?></span>
-                                                        <span>B: <?= htmlspecialchars($q['option_b']) ?></span>
-                                                        <span>C: <?= htmlspecialchars($q['option_c']) ?></span>
-                                                        <span>D: <?= htmlspecialchars($q['option_d']) ?></span>
+                                                    <div class="flex flex-wrap items-center gap-2">
+                                                        <span class="font-bold text-gray-400">Q<?= $qIdx + 1 ?>.</span>
+                                                        <span class="font-medium text-[#111111]"><?= htmlspecialchars($q['question_text']) ?></span>
+                                                        <span class="text-[9px] uppercase font-bold px-1.5 py-0.5 rounded-sm <?= $qType === 'written' ? 'bg-orange-50 border border-orange-200 text-orange-700' : 'bg-blue-50 border border-blue-200 text-blue-700' ?>">
+                                                            <?= $qType === 'written' ? 'Calcul / Écrite' : 'QCM' ?>
+                                                        </span>
                                                     </div>
-                                                    <div class="text-[10px] text-[#888888] flex gap-4 pt-1">
-                                                        <span>Bonne réponse : <strong class="text-[#004B23]"><?= $q['correct_option'] ?></strong></span>
+                                                    
+                                                    <?php if ($qType === 'mcq'): ?>
+                                                        <div class="grid grid-cols-2 sm:grid-cols-4 gap-x-4 text-[11px] text-[#555555] mt-1">
+                                                            <span>A: <?= htmlspecialchars($q['option_a']) ?></span>
+                                                            <span>B: <?= htmlspecialchars($q['option_b']) ?></span>
+                                                            <span>C: <?= htmlspecialchars($q['option_c']) ?></span>
+                                                            <span>D: <?= htmlspecialchars($q['option_d']) ?></span>
+                                                        </div>
+                                                    <?php endif; ?>
+                                                    
+                                                    <div class="text-[10px] text-[#888888] flex flex-wrap gap-x-4 gap-y-1 pt-1">
+                                                        <span>Bonne réponse : <strong class="text-[#004B23]"><?= htmlspecialchars($q['correct_option']) ?></strong></span>
                                                         <?php if ($q['time_limit']): ?>
                                                             <span>Durée : <strong><?= $q['time_limit'] ?>s</strong></span>
+                                                        <?php endif; ?>
+                                                        <?php if (!empty($q['explanation'])): ?>
+                                                            <span>Justification : <em class="text-gray-600"><?= htmlspecialchars($q['explanation']) ?></em></span>
                                                         <?php endif; ?>
                                                         <?php if ($q['image_path']): ?>
                                                             <a href="/uploads/live_questions/<?= $q['image_path'] ?>" target="_blank" class="text-blue-600 hover:underline">✓ Image d'illustration</a>
@@ -2798,6 +2865,36 @@ function toggleModal(id) {
     modal.classList.toggle('hidden');
     if (!modal.classList.contains('hidden')) {
         setTimeout(renderMath, 50);
+    }
+}
+
+function handleQuestionTypeChange(selectElement) {
+    const form = selectElement.closest('form');
+    const type = selectElement.value;
+    const mcqOptionsGroup = form.querySelector('.mcq-options-group');
+    const correctOptionContainer = form.querySelector('.correct-option-container');
+    
+    if (type === 'written') {
+        if (mcqOptionsGroup) mcqOptionsGroup.classList.add('hidden');
+        if (correctOptionContainer) {
+            correctOptionContainer.innerHTML = `
+                <label class="block text-[10px] text-[#555555] uppercase tracking-wider mb-1 font-semibold">Réponse correcte (Calcul/Texte)</label>
+                <input type="text" name="correct_option" required placeholder="Ex: 24.5, 42, pi..." class="w-full px-3 py-1.5 border border-[#E5E5E7] rounded-sm text-xs bg-white focus:outline-none focus:border-[#004B23]">
+            `;
+        }
+    } else {
+        if (mcqOptionsGroup) mcqOptionsGroup.classList.remove('hidden');
+        if (correctOptionContainer) {
+            correctOptionContainer.innerHTML = `
+                <label class="block text-[10px] text-[#555555] uppercase tracking-wider mb-1 font-semibold">Option Correcte</label>
+                <select name="correct_option" required class="w-full px-2 py-1.5 border border-[#E5E5E7] rounded-sm text-xs bg-white focus:outline-none focus:border-[#004B23]">
+                    <option value="A">A</option>
+                    <option value="B">B</option>
+                    <option value="C">C</option>
+                    <option value="D">D</option>
+                </select>
+            `;
+        }
     }
 }
 
@@ -4132,20 +4229,34 @@ function openCsvPreview(questions, mathCount, type, courseId, sessionId, lessonI
         
         const escapeHtml = (str) => str.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;");
         
-        row.innerHTML = `
-            <td class="p-3 text-center text-gray-400 font-medium">${idx + 1}</td>
-            <td class="p-3 space-y-1.5 text-left">
-                <div class="font-bold text-gray-900 math-render">${escapeHtml(q.question_text)}</div>
+        const qType = q.question_type || 'mcq';
+        let optionsHtml = '';
+        if (qType === 'mcq') {
+            optionsHtml = `
                 <div class="grid grid-cols-2 gap-x-4 gap-y-1 text-gray-600 mt-1">
                     <div class="math-render"><span class="font-semibold text-gray-400">A:</span> ${escapeHtml(q.option_a)}</div>
                     <div class="math-render"><span class="font-semibold text-gray-400">B:</span> ${escapeHtml(q.option_b)}</div>
                     <div class="math-render"><span class="font-semibold text-gray-400">C:</span> ${escapeHtml(q.option_c)}</div>
                     <div class="math-render"><span class="font-semibold text-gray-400">D:</span> ${escapeHtml(q.option_d)}</div>
                 </div>
+            `;
+        } else {
+            optionsHtml = `
+                <div class="text-[10px] text-orange-700 font-semibold uppercase tracking-wider mt-1 bg-orange-50 border border-orange-200 px-2 py-0.5 rounded-sm inline-block">
+                    Question écrite / Calcul
+                </div>
+            `;
+        }
+
+        row.innerHTML = `
+            <td class="p-3 text-center text-gray-400 font-medium">${idx + 1}</td>
+            <td class="p-3 space-y-1.5 text-left">
+                <div class="font-bold text-gray-900 math-render">${escapeHtml(q.question_text)}</div>
+                ${optionsHtml}
                 ${q.explanation ? `<div class="text-[11px] text-[#004B23] font-medium mt-1 math-render"><span class="font-semibold text-[#888]">Explication :</span> ${escapeHtml(q.explanation)}</div>` : ''}
                 ${q.errors.length > 0 ? `<div class="text-[10px] text-red-600 font-medium mt-1">⚠️ ${q.errors.join(' | ')}</div>` : ''}
             </td>
-            <td class="p-3 text-center font-bold text-[#004B23]">${q.correct_option}</td>
+            <td class="p-3 text-center font-bold text-[#004B23]">${escapeHtml(q.correct_option)}</td>
             <td class="p-3 text-center">${statusBadge}</td>
         `;
         
@@ -4209,7 +4320,8 @@ document.addEventListener('DOMContentLoaded', () => {
             q.option_c,
             q.option_d,
             q.correct_option,
-            q.explanation || ""
+            q.explanation || "",
+            q.question_type || "mcq"
         ]);
         
         formData.append('rows_json', JSON.stringify(rowsJson));

@@ -57,7 +57,7 @@ if ($currentUser['role'] === 'student' && (int)$registration['student_id'] !== $
 // Charger les réponses soumises et les questions associées
 try {
     $stmt = $pdo->prepare("
-        SELECT q.id AS question_id, q.question_text, q.option_a, q.option_b, q.option_c, q.option_d, q.correct_option, q.explanation, a.selected_option
+        SELECT q.id AS question_id, q.question_text, q.option_a, q.option_b, q.option_c, q.option_d, q.correct_option, q.explanation, q.question_type, a.selected_option
         FROM live_eval_answers a
         JOIN live_eval_questions q ON a.question_id = q.id
         WHERE a.registration_id = :reg_id
@@ -73,7 +73,15 @@ try {
 $totalQuestions = count($answers);
 $correctCount = 0;
 foreach ($answers as $ans) {
-    if ($ans['selected_option'] === $ans['correct_option']) {
+    $isCorrect = false;
+    if (($ans['question_type'] ?? 'mcq') === 'written') {
+        $normalizedSelected = str_replace([',', ' '], ['.', ''], strtolower(trim($ans['selected_option'])));
+        $normalizedCorrect = str_replace([',', ' '], ['.', ''], strtolower(trim($ans['correct_option'])));
+        $isCorrect = ($normalizedSelected === $normalizedCorrect);
+    } else {
+        $isCorrect = ($ans['selected_option'] === $ans['correct_option']);
+    }
+    if ($isCorrect) {
         $correctCount++;
     }
 }
@@ -194,7 +202,16 @@ $tex .= "\n";
 
 foreach ($answers as $index => $qa) {
     $num = $index + 1;
-    $isCorrect = $qa['selected_option'] === $qa['correct_option'];
+    
+    $isCorrect = false;
+    if (($qa['question_type'] ?? 'mcq') === 'written') {
+        $normalizedSelected = str_replace([',', ' '], ['.', ''], strtolower(trim($qa['selected_option'])));
+        $normalizedCorrect = str_replace([',', ' '], ['.', ''], strtolower(trim($qa['correct_option'])));
+        $isCorrect = ($normalizedSelected === $normalizedCorrect);
+    } else {
+        $isCorrect = ($qa['selected_option'] === $qa['correct_option']);
+    }
+    
     $statusText = $isCorrect ? "Correct (+1)" : "Incorrect (0)";
     
     $escQuestionText = escapeLatex($qa['question_text']);
@@ -202,41 +219,57 @@ foreach ($answers as $index => $qa) {
     
     $tex .= "\\begin{questionbox}{{$num}}{{$statusText}}\n";
     $tex .= "{$escQuestionText}\n";
-    $tex .= "\\begin{itemize}[leftmargin=*,noitemsep,topsep=4pt]\n";
     
-    foreach (['A', 'B', 'C', 'D'] as $opt) {
-        $optVal = $qa['option_' . strtolower($opt)];
-        $escOptVal = escapeLatex($optVal);
-        $isSelected = ($qa['selected_option'] === $opt);
-        $isCorrectOpt = ($qa['correct_option'] === $opt);
+    if (($qa['question_type'] ?? 'mcq') === 'written') {
+        // No itemize for written questions
+        $tex .= "\\end{questionbox}\n";
         
-        if ($isCorrectOpt) {
-            if ($isSelected) {
-                $tex .= "    \\item[\\color{green!60!black}\\ding{51}] \\textbf{Option {$opt} (Votre r\\'{e}ponse / Correcte) :} {$escOptVal}\n";
+        $boxType = $isCorrect ? "correctbox" : "incorrectbox";
+        $selectedDisplay = !empty($qa['selected_option']) ? escapeLatex($qa['selected_option']) : 'Aucune';
+        $correctDisplay = escapeLatex($qa['correct_option']);
+        
+        $tex .= "\\begin{{$boxType}}\n";
+        $tex .= "\\textbf{Votre r\\'{e}ponse :} {$selectedDisplay} ~\\hfill~ \\textbf{R\\'{e}ponse correcte :} {$correctDisplay} \\\\\n";
+        $tex .= "\\par\\smallskip\n";
+        $tex .= "\\textbf{Justification :} {$escExplanation}\n";
+        $tex .= "\\end{{$boxType}}\n";
+        $tex .= "\\vspace{0.8em}\n\n";
+    } else {
+        $tex .= "\\begin{itemize}[leftmargin=*,noitemsep,topsep=4pt]\n";
+        
+        foreach (['A', 'B', 'C', 'D'] as $opt) {
+            $optVal = $qa['option_' . strtolower($opt)];
+            $escOptVal = escapeLatex($optVal);
+            $isSelected = ($qa['selected_option'] === $opt);
+            $isCorrectOpt = ($qa['correct_option'] === $opt);
+            
+            if ($isCorrectOpt) {
+                if ($isSelected) {
+                    $tex .= "    \\item[\\color{green!60!black}\\ding{51}] \\textbf{Option {$opt} (Votre r\\'{e}ponse / Correcte) :} {$escOptVal}\n";
+                } else {
+                    $tex .= "    \\item[\\color{green!60!black}\\ding{51}] \\textbf{Option {$opt} (R\\'{e}ponse correcte) :} {$escOptVal}\n";
+                }
+            } elseif ($isSelected) {
+                $tex .= "    \\item[\\color{red!60!black}\\ding{55}] \\textbf{Option {$opt} (Votre r\\'{e}ponse) :} {$escOptVal}\n";
             } else {
-                $tex .= "    \\item[\\color{green!60!black}\\ding{51}] \\textbf{Option {$opt} (R\\'{e}ponse correcte) :} {$escOptVal}\n";
+                $tex .= "    \\item[$\\square$] \\textbf{Option {$opt} :} {$escOptVal}\n";
             }
-        } elseif ($isSelected) {
-            $tex .= "    \\item[\\color{red!60!black}\\ding{55}] \\textbf{Option {$opt} (Votre r\\'{e}ponse) :} {$escOptVal}\n";
-        } else {
-            $tex .= "    \\item[$\\square$] \\textbf{Option {$opt} :} {$escOptVal}\n";
         }
+        
+        $tex .= "\\end{itemize}\n";
+        $tex .= "\\end{questionbox}\n";
+        
+        // Boîte de correction juste en-dessous
+        $boxType = $isCorrect ? "correctbox" : "incorrectbox";
+        $selectedDisplay = !empty($qa['selected_option']) ? $qa['selected_option'] : 'Aucune';
+        
+        $tex .= "\\begin{{$boxType}}\n";
+        $tex .= "\\textbf{Votre r\\'{e}ponse :} Option {$selectedDisplay} ~\\hfill~ \\textbf{R\\'{e}ponse correcte :} Option {$qa['correct_option']} \\\\\n";
+        $tex .= "\\par\\smallskip\n";
+        $tex .= "\\textbf{Justification :} {$escExplanation}\n";
+        $tex .= "\\end{{$boxType}}\n";
+        $tex .= "\\vspace{0.8em}\n";
     }
-    
-    $tex .= "\\end{itemize}\n";
-    $tex .= "\\end{questionbox}\n";
-    
-    // Boîte de correction juste en-dessous
-    $boxType = $isCorrect ? "correctbox" : "incorrectbox";
-    $selectedDisplay = !empty($qa['selected_option']) ? $qa['selected_option'] : 'Aucune';
-    
-    $tex .= "\\begin{{$boxType}}\n";
-    $tex .= "\\textbf{Votre r\\'{e}ponse :} Option {$selectedDisplay} ~\\hfill~ \\textbf{R\\'{e}ponse correcte :} Option {$qa['correct_option']} \\\\\n";
-    $tex .= "\\par\\smallskip\n";
-    $tex .= "\\textbf{Justification :} {$escExplanation}\n";
-    $tex .= "\\end{{$boxType}}\n";
-    $tex .= "\\vspace{0.8em}\n";
-    $tex .= "\n";
 }
 
 $tex .= "\\end{document}\n";

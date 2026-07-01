@@ -2,7 +2,7 @@
 declare(strict_types=1);
 
 /**
- * Génération d'une épreuve écrite de QCM sous format PDF (mise en page double colonne) via LaTeX.
+ * Génération d'une épreuve écrite sous format PDF (mise en page double colonne) via LaTeX.
  */
 
 require_once __DIR__ . '/../auth.php';
@@ -15,10 +15,53 @@ if (!isLoggedIn() || $_SESSION['user_role'] !== 'teacher') {
 
 $sessionId = isset($_GET['session_id']) ? (int)$_GET['session_id'] : 0;
 $teacherId = (int)$_SESSION['user_id'];
+$mode      = isset($_GET['mode']) && $_GET['mode'] === 'correction' ? 'correction' : 'subject';
 
 if ($sessionId <= 0) {
     http_response_code(400);
     exit('Identifiant de séance non valide.');
+}
+
+/**
+ * Filtre et échappe les caractères spéciaux pour LaTeX tout en préservant le code LaTeX mathématique.
+ */
+function escapeLatex(string $text): string
+{
+    // Remplacer les sauts de ligne HTML
+    $text = preg_replace('/<br\s*\/?>/i', "\n\n", $text);
+    
+    // Normaliser la syntaxe inline et block LaTeX existante
+    $text = str_replace(['\(', '\)'], '$', $text);
+    $text = str_replace(['\[', '\]'], '$$', $text);
+
+    // Découper le texte pour isoler les équations mathématiques ($...$ et $$...$$)
+    $parts = preg_split('/(\$\$.*?\$\$|\$.*?\$)/s', $text, -1, PREG_SPLIT_DELIM_CAPTURE);
+    if ($parts === false) {
+        return $text;
+    }
+
+    foreach ($parts as $idx => &$part) {
+        // Si c'est un bloc mathématique, ne pas toucher aux caractères spéciaux de LaTeX
+        if (str_starts_with($part, '$')) {
+            continue;
+        }
+
+        // Sinon, échapper les caractères spéciaux dans la partie texte standard
+        $part = strtr($part, [
+            '\\' => '\\textbackslash{}',
+            '%'  => '\\%',
+            '_'  => '\\_',
+            '&'  => '\\&',
+            '#'  => '\\#',
+            '{'  => '\\{',
+            '}'  => '\\}',
+            '~'  => '\\textasciitilde{}',
+            '^'  => '\\textasciicircum{}',
+            '<'  => '\\textless{}',
+            '>'  => '\\textgreater{}'
+        ]);
+    }
+    return implode('', $parts);
 }
 
 try {
@@ -43,106 +86,209 @@ try {
     $stmt = $pdo->prepare("
         SELECT * FROM live_eval_questions
         WHERE session_id = :sid
-        ORDER BY id ASC
+        ORDER BY sort_order ASC, id ASC
     ");
     $stmt->execute(['sid' => $sessionId]);
     $questions = $stmt->fetchAll();
     $totalQuestions = count($questions);
 
+    // Escape metadata
+    $courseTitle = escapeLatex($session['course_title']);
+    $sessionTitle = escapeLatex($session['title']);
+    $sessionCode = escapeLatex($session['session_code']);
+    $sessionDate = date('d/m/Y', strtotime($session['start_time']));
+
     // Formater les questions pour le document LaTeX
     $latexQuestions = [];
     $idx = 1;
     foreach ($questions as $q) {
-        $qText = LatexCompiler::escape($q['question_text']);
-        $optA = LatexCompiler::escape($q['option_a']);
-        $optB = LatexCompiler::escape($q['option_b']);
-        $optC = LatexCompiler::escape($q['option_c']);
-        $optD = LatexCompiler::escape($q['option_d']);
+        $qText = escapeLatex($q['question_text']);
+        $qType = $q['question_type'] ?? 'mcq';
+        $correctOpt = $q['correct_option'];
         
-        $latexQuestions[] = <<<QUESTION
-\\noindent\\textbf{Question {$idx}. } {$qText}
-\\begin{itemize}[label=\\text{\\textbf{--}}, leftmargin=1.5em]
-    \\item[\$\\square\$] A. {$optA}
-    \\item[\$\\square\$] B. {$optB}
-    \\item[\$\\square\$] C. {$optC}
-    \\item[\$\\square\$] D. {$optD}
-\\end{itemize}
-\\vspace{1em}
-QUESTION;
+        $questionContent = "";
+        
+        if ($qType === 'mcq') {
+            $optA = escapeLatex($q['option_a']);
+            $optB = escapeLatex($q['option_b']);
+            $optC = escapeLatex($q['option_c']);
+            $optD = escapeLatex($q['option_d']);
+            
+            $questionContent .= "{$qText}\n";
+            $questionContent .= "\\begin{itemize}[leftmargin=*,noitemsep,topsep=4pt]\n";
+            
+            if ($mode === 'correction') {
+                foreach (['A' => $optA, 'B' => $optB, 'C' => $optC, 'D' => $optD] as $letter => $val) {
+                    if ($letter === $correctOpt) {
+                        $questionContent .= "    \\item[\\ding{51}] \\textbf{Option {$letter} (Correcte) :} {$val}\n";
+                    } else {
+                        $questionContent .= "    \\item[$\\square$] \\textbf{Option {$letter} :} {$val}\n";
+                    }
+                }
+            } else {
+                $questionContent .= "    \\item[$\\square$] \\textbf{Option A :} {$optA}\n";
+                $questionContent .= "    \\item[$\\square$] \\textbf{Option B :} {$optB}\n";
+                $questionContent .= "    \\item[$\\square$] \\textbf{Option C :} {$optC}\n";
+                $questionContent .= "    \\item[$\\square$] \\textbf{Option D :} {$optD}\n";
+            }
+            $questionContent .= "\\end{itemize}\n";
+        } else {
+            // Written/calculation question
+            $questionContent .= "{$qText}\n";
+        }
+        
+        $texMarkup = "\\begin{questionbox}{{$idx}}\n";
+        $texMarkup .= $questionContent;
+        $texMarkup .= "\\end{questionbox}\n";
+        
+        // Answer box beneath
+        if ($mode === 'correction') {
+            $escExplanation = !empty($q['explanation']) ? escapeLatex($q['explanation']) : 'Aucune';
+            $escCorrectOpt = escapeLatex($correctOpt);
+            
+            $texMarkup .= "\\begin{correctanswerbox}\n";
+            if ($qType === 'mcq') {
+                $texMarkup .= "\\textbf{R\\'{e}ponse correcte : } Option {$escCorrectOpt} \\\\\n";
+            } else {
+                $texMarkup .= "\\textbf{R\\'{e}ponse correcte : } {$escCorrectOpt} \\\\\n";
+            }
+            $texMarkup .= "\\par\\smallskip\n";
+            $texMarkup .= "\\textbf{Justification : } {$escExplanation}\n";
+            $texMarkup .= "\\end{correctanswerbox}\n";
+        } else {
+            $texMarkup .= "\\begin{answerbox}\n";
+            if ($qType === 'mcq') {
+                $texMarkup .= "\\textbf{Votre r\\'{e}ponse : } Option \\dots\\dots ~\\hfill~ $\\square$ A ~ $\\square$ B ~ $\\square$ C ~ $\\square$ D\n";
+            } else {
+                $texMarkup .= "\\textbf{Votre r\\'{e}ponse : } \\hrulefill\n";
+                $texMarkup .= "\\vspace{1.5em}\n";
+            }
+            $texMarkup .= "\\end{answerbox}\n";
+        }
+        $texMarkup .= "\\vspace{0.8em}\n";
+        
+        $latexQuestions[] = $texMarkup;
         $idx++;
     }
 
     $questionsString = implode("\n", $latexQuestions);
 
-    // Escape metadata
-    $courseTitle = LatexCompiler::escape($session['course_title']);
-    $sessionTitle = LatexCompiler::escape($session['title']);
-    $sessionCode = LatexCompiler::escape($session['session_code']);
-    $sessionDate = date('d/m/Y', strtotime($session['start_time']));
-
     // Source LaTeX
     $latexTemplate = <<<LATEX
-\documentclass[10pt,a4paper]{article}
-\usepackage[utf8]{inputenc}
-\usepackage[T1]{fontenc}
-\usepackage[french]{babel}
-\usepackage{geometry}
-\geometry{a4paper, margin=0.6in}
-\usepackage{multicol}
-\usepackage{tcolorbox}
-\usepackage{amssymb}
-\usepackage{enumitem}
-\usepackage{fancyhdr}
-\usepackage{helvet}
-\renewcommand{\familydefault}{\sfdefault}
+\\documentclass[10pt,twocolumn,a4paper]{article}
+\\usepackage[utf8]{inputenc}
+\\usepackage[T1]{fontenc}
+\\usepackage[french]{babel}
+\\usepackage[margin=1.2cm]{geometry}
+\\usepackage{amsmath,amssymb}
+\\usepackage{tcolorbox}
+\\usepackage{pifont}
+\\usepackage{enumitem}
+\\usepackage{fancyhdr}
+\\usepackage{helvet}
+\\renewcommand{\\familydefault}{\\sfdefault}
 
-\pagestyle{fancy}
-\fancyhf{}
-\rhead{\scriptsize Code Séance : {$sessionCode}}
-\lhead{\scriptsize {$courseTitle}}
-\rfoot{\scriptsize Page \thepage}
-\lfoot{\scriptsize Épreuve imprimée — StudyVibe}
+\\tcbset{
+    boxrule=0.6pt,
+    arc=2pt,
+    boxsep=3pt,
+    top=5pt,
+    bottom=5pt,
+    left=6pt,
+    right=6pt,
+}
 
-\begin{document}
+\\newtcolorbox{questionbox}[1]{
+    colback=gray!4,
+    colframe=gray!40,
+    title={\\textbf{Question #1}},
+    coltitle=black,
+    fonttitle=\\bfseries\\sffamily\\small,
+    fontupper=\\sffamily\\small
+}
 
-% Cadre d'identification de l'apprenant
-\begin{tcolorbox}[colback=white,colframe=black,arc=2mm,boxrule=0.8pt]
-\begin{center}
-    {\large \textbf{STUDYVIBE LMS — ÉPREUVE ÉCRITE DE QCM}} \\
-    \vspace{0.3em}
-    \textbf{Cours :} {$courseTitle} \\
-    \textbf{Évaluation :} {$sessionTitle} \\
-    \textbf{Date :} {$sessionDate}
-\end{center}
-\vspace{0.5em}
-\noindent
-\begin{tabular}{p{4.2in}l}
-\textbf{Nom \& Prénom :} \hrulefill & \textbf{Note :} \\[0.5em]
-\textbf{Classe / Matricule :} \hrulefill & \textbf{/ {$totalQuestions$}} \\
-\textbf{Signature :} \hrulefill & 
-\end{tabular}
-\end{tcolorbox}
+\\newtcolorbox{answerbox}{
+    colback=white,
+    colframe=gray!40,
+    fontupper=\\sffamily\\small
+}
 
-\vspace{1em}
+\\newtcolorbox{correctanswerbox}{
+    colback=green!3,
+    colframe=green!50!black,
+    fontupper=\\sffamily\\small
+}
 
-\begin{multicols}{2}
+\\pagestyle{fancy}
+\\fancyhf{}
+\\rhead{\\scriptsize Code S\\'{e}ance : {$sessionCode}}
+\\lhead{\\scriptsize {$courseTitle}}
+\\rfoot{\\scriptsize Page \\thepage}
+\\lfoot{\\scriptsize \\'{E}preuve imprim\\'{e}e ~--~ StudyVibe}
+
+\\begin{document}
+
+LATEX;
+
+    if ($mode === 'correction') {
+        $latexTemplate .= <<<LATEX
+\\twocolumn[
+\\begin{tcolorbox}[colback=green!3,colframe=green!50!black,arc=2mm,boxrule=0.8pt]
+\\begin{center}
+    {\\large \\textbf{STUDYVIBE LMS ~--~ CLEF DE CORRECTION}} \\\\
+    \\vspace{0.3em}
+    \\textbf{Cours :} {$courseTitle} \\\\
+    \\textbf{Evaluation :} {$sessionTitle} \\\\
+    \\textbf{Date :} {$sessionDate}
+\\end{center}
+\\end{tcolorbox}
+\\vspace{1.5em}
+]
+
+LATEX;
+    } else {
+        $latexTemplate .= <<<LATEX
+\\twocolumn[
+\\begin{tcolorbox}[colback=white,colframe=black,arc=2mm,boxrule=0.8pt]
+\\begin{center}
+    {\\large \\textbf{STUDYVIBE LMS ~--~ \\'{E}PREUVE \\'{E}CRITE}} \\\\
+    \\vspace{0.3em}
+    \\textbf{Cours :} {$courseTitle} \\\\
+    \\textbf{Evaluation :} {$sessionTitle} \\\\
+    \\textbf{Date :} {$sessionDate}
+\\end{center}
+\\vspace{0.5em}
+\\noindent
+\\begin{tabular}{p{4.2in}l}
+\\textbf{Nom \\& Pr\\'{e}nom :} \\hrulefill & \\textbf{Note :} \\\\[0.5em]
+\\textbf{Classe / Matricule :} \\hrulefill & \\textbf{/ {$totalQuestions}} \\\\
+\\textbf{Signature :} \\hrulefill & 
+\\end{tabular}
+\\end{tcolorbox}
+\\vspace{1.5em}
+]
+
+LATEX;
+    }
+
+    $latexTemplate .= <<<LATEX
 {$questionsString}
-\end{multicols}
 
-\end{document}
+\\end{document}
 LATEX;
 
     $pdfData = LatexCompiler::compile($latexTemplate);
 
     if (!$pdfData) {
         http_response_code(500);
-        exit('Erreur lors de la compilation du sujet PDF via LaTeX.');
+        exit('Erreur lors de la compilation de l\'épreuve PDF via LaTeX.');
     }
 
+    $prefix = $mode === 'correction' ? 'corrigé_exam_' : 'sujet_exam_';
     $slug = preg_replace('/[^a-z0-9_-]+/i', '_', (string)$session['title']) ?: 'live_eval';
-    $filename = 'sujet_exam_' . mb_strtolower($slug) . '_' . date('Y-m-d') . '.pdf';
+    $filename = $prefix . mb_strtolower($slug) . '_' . date('Y-m-d') . '.pdf';
 
-    auditLog('export_live_questions_latex', "Session #{$sessionId}");
+    auditLog('export_live_questions_latex', "Session #{$sessionId} (Mode: {$mode})");
     
     header('Content-Type: application/pdf');
     header('Content-Disposition: attachment; filename="' . $filename . '"');
@@ -152,5 +298,5 @@ LATEX;
 
 } catch (Exception $e) {
     http_response_code(500);
-    exit('Erreur lors du traitement LaTeX.');
+    exit('Erreur lors du traitement LaTeX : ' . $e->getMessage());
 }
