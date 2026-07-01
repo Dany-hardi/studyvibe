@@ -232,14 +232,12 @@ try {
         } else {
             $texMarkup .= "\\begin{answerbox}\n";
             if ($qType === 'mcq') {
-                $texMarkup .= "\\textbf{Votre r\\'{e}ponse : } Option \\dots\\dots ~\\hfill~ $\\square$ A ~ $\\square$ B ~ $\\square$ C ~ $\\square$ D\n";
+                $texMarkup .= "\\textbf{Votre r\\'{e}ponse : } Option \\dotfill ~\\ding{113}~A ~\\ding{113}~B ~\\ding{113}~C ~\\ding{113}~D\n";
             } else {
-                $texMarkup .= "\\textbf{Votre r\\'{e}ponse : } \\hrulefill\n";
-                $texMarkup .= "\\vspace{1.5em}\n";
+                $texMarkup .= "\\textbf{Votre r\\'{e}ponse : } \\hrulefill \\par\\vspace{0.8em}\n";
             }
             $texMarkup .= "\\end{answerbox}\n";
         }
-        $texMarkup .= "\\vspace{0.8em}\n";
         
         $latexQuestions[] = $texMarkup;
         $idx++;
@@ -255,40 +253,41 @@ try {
 \\usepackage[margin=1.2cm]{geometry}
 \\usepackage{amsmath,amssymb}
 \\usepackage{tcolorbox}
+\\tcbuselibrary{skins}
 \\usepackage{pifont}
 \\usepackage{fancyhdr}
 \\usepackage{helvet}
 \\renewcommand{\\familydefault}{\\sfdefault}
 
-\\tcbset{
-    boxrule=0.6pt,
-    arc=2pt,
-    boxsep=3pt,
-    top=5pt,
-    bottom=5pt,
-    left=6pt,
-    right=6pt,
-}
-
 \\newtcolorbox{questionbox}[1]{
-    colback=gray!4,
-    colframe=gray!40,
+    blanker,
+    left=8pt,
+    top=3pt,
+    bottom=3pt,
+    borderline west={1.5pt}{0pt}{black},
     title={\\textbf{Question #1}},
     coltitle=black,
     fonttitle=\\bfseries\\sffamily\\small,
-    fontupper=\\sffamily\\small
+    fontupper=\\sffamily\\small,
+    before skip=6pt,
+    after skip=6pt
 }
 
-\\newtcolorbox{answerbox}{
-    colback=white,
-    colframe=gray!40,
-    fontupper=\\sffamily\\small
+\\newenvironment{answerbox}{
+    \\par\\smallskip\\noindent\\sffamily\\small
+}{
+    \\par
 }
 
 \\newtcolorbox{correctanswerbox}{
-    colback=green!3,
-    colframe=green!50!black,
-    fontupper=\\sffamily\\small
+    blanker,
+    left=8pt,
+    top=3pt,
+    bottom=3pt,
+    borderline west={0.8pt}{0pt}{black},
+    fontupper=\\sffamily\\small\\itshape,
+    before skip=4pt,
+    after skip=4pt
 }
 
 \\pagestyle{fancy}
