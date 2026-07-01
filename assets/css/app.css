@@ -646,7 +646,7 @@ html.dark body.sv-page {
     display: inline-flex;
     align-items: center;
     justify-content: center;
-    border-radius: 0;
+    border-radius: 30px;
     line-height: 1.2;
 }
 
@@ -733,12 +733,15 @@ html.dark body.sv-page {
 
 /* Carte auth hero */
 .sv-auth-card {
-    background: var(--sv-surface);
-    border: 1px solid var(--sv-border-strong);
+    background: rgba(250, 248, 245, 0.75);
+    backdrop-filter: blur(12px);
+    -webkit-backdrop-filter: blur(12px);
+    border: 1px solid rgba(0, 75, 35, 0.08);
     padding: 2rem 2rem 1.75rem;
-    box-shadow: 0 8px 32px rgba(0, 0, 0, 0.06);
+    box-shadow: 0 12px 36px rgba(0, 0, 0, 0.05);
     position: sticky;
     top: 100px;
+    border-radius: 16px;
 }
 
 /* Champs connexion / inscription — bloc centré, texte aligné normalement */
@@ -857,7 +860,7 @@ html.dark body.sv-page {
     outline: none;
     font-family: 'Inter', sans-serif;
     transition: border-color 0.15s, background 0.15s;
-    border-radius: 0;
+    border-radius: 8px;
     text-align: left;
 }
 
@@ -1228,12 +1231,21 @@ html.dark body.sv-page {
 /* Cartes landing — hover, shimmer discret, micro-shake au survol */
 .sv-feature-card,
 .sv-step-card {
-    background: var(--sv-surface);
+    background: rgba(250, 248, 245, 0.72);
+    backdrop-filter: blur(10px);
+    -webkit-backdrop-filter: blur(10px);
     padding: 2rem 1.75rem;
-    border: 1px solid var(--sv-border-strong);
+    border: 1px solid rgba(0, 75, 35, 0.06);
     transition: border-color 0.35s ease, box-shadow 0.35s ease, transform 0.35s ease;
     position: relative;
     overflow: hidden;
+    border-radius: 16px;
+}
+
+html.dark .sv-feature-card,
+html.dark .sv-step-card {
+    background: rgba(24, 24, 24, 0.72);
+    border: 1px solid rgba(255, 255, 255, 0.08);
 }
 
 .sv-step-card {
@@ -2346,4 +2358,80 @@ html.dark body.sv-page textarea::placeholder {
     margin-top: 1rem;
     padding-top: 1rem;
     border-top: 1px solid var(--sv-border-strong);
+}
+
+/* Glassmorphism helpers & section layouts */
+.sv-glass-card {
+    background: rgba(250, 248, 245, 0.72);
+    backdrop-filter: blur(14px);
+    -webkit-backdrop-filter: blur(14px);
+    border: 1px solid rgba(0, 75, 35, 0.08);
+    border-radius: 16px;
+    box-shadow: 0 10px 30px rgba(0, 0, 0, 0.03);
+}
+
+html.dark .sv-glass-card {
+    background: rgba(24, 24, 24, 0.72);
+    border: 1px solid rgba(255, 255, 255, 0.08);
+}
+
+.sv-preview-browser {
+    border-radius: 12px;
+    overflow: hidden;
+    border: 1px solid rgba(0, 75, 35, 0.08);
+    box-shadow: 0 20px 50px rgba(0, 0, 0, 0.06);
+    background: #ffffff;
+    transition: transform 0.4s ease, box-shadow 0.4s ease;
+}
+
+html.dark .sv-preview-browser {
+    border: 1px solid rgba(255, 255, 255, 0.08);
+    background: #121212;
+}
+
+.sv-preview-browser:hover {
+    transform: translateY(-4px);
+    box-shadow: 0 25px 60px rgba(0, 75, 35, 0.06);
+}
+
+.sv-preview-header {
+    background: rgba(0, 0, 0, 0.02);
+    padding: 0.75rem 1rem;
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+    border-bottom: 1px solid rgba(0, 0, 0, 0.06);
+}
+
+html.dark .sv-preview-header {
+    background: rgba(255, 255, 255, 0.02);
+    border-bottom: 1px solid rgba(255, 255, 255, 0.06);
+}
+
+.sv-preview-dot {
+    width: 8px;
+    height: 8px;
+    border-radius: 50%;
+    background: rgba(0, 0, 0, 0.15);
+}
+
+html.dark .sv-preview-dot {
+    background: rgba(255, 255, 255, 0.2);
+}
+
+.sv-preview-address {
+    background: rgba(0, 0, 0, 0.03);
+    border-radius: 6px;
+    height: 20px;
+    flex: 1;
+    margin: 0 1rem;
+    display: flex;
+    align-items: center;
+    padding-left: 0.75rem;
+    font-size: 0.6875rem;
+    color: var(--sv-text-muted);
+}
+
+html.dark .sv-preview-address {
+    background: rgba(255, 255, 255, 0.03);
 }

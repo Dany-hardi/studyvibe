@@ -284,6 +284,79 @@ if (isLoggedIn()) {
 
 <div class="sv-divider"></div>
 
+<!-- Aperçu de la liseuse de cours interactive (Storytelling Section A) -->
+<section class="sv-section" id="aperçu-cours" style="background:var(--sv-cream-light);">
+    <div class="sv-container">
+        <div class="sv-eyebrow">Interface de lecture</div>
+        <h2 class="sv-section-title">Étudiez sans distraction.<br>Une expérience immersive de bout en bout.</h2>
+        <p class="sv-section-sub" style="margin-bottom:3.5rem;">Découvrez notre liseuse interactive qui fusionne cours PDF, supports vidéo, prise de notes temporelle et Q&A instantané dans un unique tableau de bord.</p>
+        
+        <div class="sv-preview-browser" id="course-reader-mockup">
+            <div class="sv-preview-header">
+                <div class="sv-preview-dot" style="background:#FF5F56;"></div>
+                <div class="sv-preview-dot" style="background:#FFBD2E;"></div>
+                <div class="sv-preview-dot" style="background:#27C93F;"></div>
+                <div class="sv-preview-address">https://app.studyvibe.edu/student/lesson?id=104</div>
+            </div>
+            <div style="display:grid; grid-template-columns:260px 1fr; min-height:480px; font-family:'Inter', sans-serif;">
+                <!-- Sidebar -->
+                <div style="border-right:1px solid rgba(0,0,0,0.06); padding:1.5rem; background:rgba(0,0,0,0.015); display:flex; flex-direction:column; gap:1.25rem;">
+                    <div style="font-weight:700; font-size:0.875rem; color:var(--sv-text);">Algèbre Linéaire</div>
+                    <div style="display:flex; flex-direction:column; gap:0.5rem;">
+                        <div style="padding:0.6rem 0.75rem; background:var(--sv-text); color:#fff; font-size:0.75rem; font-weight:600; border-radius:6px;">1. Introduction aux matrices</div>
+                        <div style="padding:0.6rem 0.75rem; background:transparent; color:var(--sv-text-muted); font-size:0.75rem; font-weight:500; border-radius:6px;">2. Produit matriciel</div>
+                        <div style="padding:0.6rem 0.75rem; background:transparent; color:var(--sv-text-muted); font-size:0.75rem; font-weight:500; border-radius:6px;">3. Déterminants & inverses</div>
+                    </div>
+                    <div style="margin-top:auto; padding-top:1rem; border-top:1px solid rgba(0,0,0,0.06);">
+                        <div style="font-size:0.6875rem; color:var(--sv-text-muted); margin-bottom:0.35rem;">VOTRE SCORE : 82.4%</div>
+                        <div style="width:100%; height:4px; background:rgba(0,0,0,0.05); border-radius:2px; overflow:hidden;">
+                            <div style="width:82.4%; height:100%; background:#004B23;"></div>
+                        </div>
+                    </div>
+                </div>
+                <!-- Main Reader Mockup Area -->
+                <div style="padding:2.5rem; display:flex; flex-direction:column; gap:2rem;">
+                    <div style="display:flex; justify-content:space-between; align-items:center;">
+                        <div>
+                            <span class="sv-badge sv-badge-accent" style="font-size:0.625rem; font-weight:700; border-radius:12px;">LEÇON ACTIVE</span>
+                            <h3 style="font-family:'Plus Jakarta Sans',sans-serif; font-size:1.5rem; font-weight:500; margin-top:0.35rem; color:var(--sv-text);">Matrices et transformations géométriques</h3>
+                        </div>
+                        <span class="sv-badge" style="border-radius:12px; font-weight:600;">14:32 étudiés</span>
+                    </div>
+                    
+                    <div style="display:grid; grid-template-columns:1fr 280px; gap:2rem; flex:1;">
+                        <!-- Reading Space mockup -->
+                        <div style="border:1px dashed rgba(0,0,0,0.12); border-radius:8px; display:flex; flex-direction:column; justify-content:center; align-items:center; padding:2rem; text-align:center; background:#fafafa;">
+                            <svg fill="none" stroke="#004B23" stroke-width="1.5" viewBox="0 0 24 24" width="40" height="40" style="margin-bottom:0.75rem;"><path stroke-linecap="round" stroke-linejoin="round" d="M12 6.042A8.967 8.967 0 006 3.75c-1.052 0-2.062.18-3 .512v14.25A8.987 8.987 0 016 18c2.305 0 4.408.867 6 2.292m0-14.25a8.966 8.966 0 016-2.292c1.052 0 2.062.18 3 .512v14.25A8.987 8.987 0 0018 18a8.967 8.967 0 00-6 2.292m0-14.25v14.25"/></svg>
+                            <div style="font-size:0.8125rem; font-weight:600; color:var(--sv-text);">Liseuse PDF de cours intégrée</div>
+                            <div style="font-size:0.75rem; color:var(--sv-text-muted); max-width:240px; margin-top:0.25rem;">Les cours sont gates et déverrouillés uniquement après complétion des chapitres requis.</div>
+                        </div>
+                        
+                        <!-- Panel side interactions -->
+                        <div style="display:flex; flex-direction:column; gap:1rem;">
+                            <!-- AI Assistant chip -->
+                            <div style="border:1px solid rgba(0,75,35,0.08); background:rgba(0,75,35,0.02); padding:1rem; border-radius:8px;">
+                                <div style="font-size:0.75rem; font-weight:700; color:#004B23; display:flex; align-items:center; gap:0.35rem;">
+                                    <span style="display:inline-block; width:6px; height:6px; border-radius:50%; background:#C9A84C;"></span>
+                                    Assistant Pédagogique IA
+                                </div>
+                                <div style="font-size:0.75rem; color:var(--sv-text-muted); margin-top:0.35rem; line-height:1.4;">« Vous avez une question sur cette leçon ? Je peux synthétiser le PDF ou vous proposer un quiz d'entraînement. »</div>
+                            </div>
+                            <!-- Notes side -->
+                            <div style="border:1px solid rgba(0,0,0,0.06); padding:1rem; border-radius:8px;">
+                                <div style="font-size:0.75rem; font-weight:600; color:var(--sv-text);">Notes personnelles</div>
+                                <div style="font-size:0.6875rem; color:var(--sv-text-muted); margin-top:0.25rem;">Note prise à 04:12 : &quot;Vérifier le déterminant d'une matrice inverse&quot;</div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</section>
+
+<div class="sv-divider"></div>
+
 <!-- Rôles -->
 <section class="sv-section" id="roles">
     <div class="sv-container">
@@ -305,6 +378,34 @@ if (isLoggedIn()) {
         <div id="role-etudiant" class="role-panel" style="display:none; grid-template-columns:1fr 1fr; gap:1rem;">
             <div class="sv-feature-card"><h3 class="sv-section-title" style="font-size:1.125rem;">Espace personnel</h3><p style="font-size:0.8125rem;color:var(--sv-text-muted);margin-top:0.5rem;font-weight:300;">Catalogue, liseuse PDF, chronomètre et Q&A par leçon.</p></div>
             <div class="sv-feature-card"><h3 class="sv-section-title" style="font-size:1.125rem;">Certifications</h3><p style="font-size:0.8125rem;color:var(--sv-text-muted);margin-top:0.5rem;font-weight:300;">QCM final chronométré, certificat PDF et vérification en ligne.</p></div>
+        </div>
+    </div>
+</section>
+
+<div class="sv-divider"></div>
+
+<!-- Statistiques & Insights (Storytelling Section B) -->
+<section class="sv-section" id="statistiques-insights" style="background:#fff;">
+    <div class="sv-container">
+        <div class="sv-eyebrow">Mesure de performance</div>
+        <h2 class="sv-section-title">Des résultats quantifiables.<br>Une rigueur académique sans compromis.</h2>
+        
+        <div style="display:grid; grid-template-columns:repeat(auto-fit, minmax(240px,1fr)); gap:1.5rem; margin-top:3.5rem;">
+            <div class="sv-glass-card" style="padding:2.5rem; text-align:center;">
+                <div style="font-size:3.5rem; font-family:'Plus Jakarta Sans',sans-serif; font-weight:700; color:#004B23; line-height:1;" data-counter="98.2" data-suffix="%">0%</div>
+                <div style="font-size:0.875rem; font-weight:600; color:var(--sv-text); margin-top:1rem;">Taux de satisfaction</div>
+                <div style="font-size:0.75rem; color:var(--sv-text-muted); margin-top:0.35rem; font-weight:300;">des enseignants utilisant nos suivis de devoirs et certifications automatisées.</div>
+            </div>
+            <div class="sv-glass-card" style="padding:2.5rem; text-align:center;">
+                <div style="font-size:3.5rem; font-family:'Plus Jakarta Sans',sans-serif; font-weight:700; color:#C9A84C; line-height:1;" data-counter="1420" data-suffix="+">0</div>
+                <div style="font-size:0.875rem; font-weight:600; color:var(--sv-text); margin-top:1rem;">Certifications délivrées</div>
+                <div style="font-size:0.75rem; color:var(--sv-text-muted); margin-top:0.35rem; font-weight:300;">avec code de vérification cryptographique infalsifiable pour les universités.</div>
+            </div>
+            <div class="sv-glass-card" style="padding:2.5rem; text-align:center;">
+                <div style="font-size:3.5rem; font-family:'Plus Jakarta Sans',sans-serif; font-weight:700; color:var(--sv-text); line-height:1;" data-counter="84" data-suffix="k">0</div>
+                <div style="font-size:0.875rem; font-weight:600; color:var(--sv-text); margin-top:1rem;">Questions de QCM résolues</div>
+                <div style="font-size:0.75rem; color:var(--sv-text-muted); margin-top:0.35rem; font-weight:300;">permettant un recalibrage continu de l'évaluation sur l'intégralité du cursus.</div>
+            </div>
         </div>
     </div>
 </section>
@@ -339,6 +440,70 @@ if (isLoggedIn()) {
         </div>
     </div>
 </section>
+
+<div class="sv-divider"></div>
+
+<!-- Webinaires & Cours en Direct (Storytelling Section C) -->
+<section class="sv-section" id="webinaires-direct" style="background:#fff;">
+    <div class="sv-container sv-comment-grid" style="display:grid; grid-template-columns:1fr 1fr; gap:4rem; align-items:center;">
+        <div>
+            <div class="sv-eyebrow">Classe Virtuelle</div>
+            <h2 class="sv-section-title">Webinaires immersifs.<br>Interagissez en temps réel.</h2>
+            <p class="sv-section-sub">Regardez les leçons en direct, posez vos questions à l'enseignant via le chat et participez aux évaluations live interactives avec vos camarades.</p>
+            
+            <div style="display:flex; flex-direction:column; gap:1.25rem; margin-top:2rem;">
+                <div style="display:flex; gap:0.75rem; align-items:flex-start;">
+                    <div style="width:24px; height:24px; border-radius:50%; background:rgba(0,75,35,0.08); display:flex; align-items:center; justify-content:center; flex-shrink:0; font-size:0.75rem; color:#004B23;">✓</div>
+                    <div>
+                        <strong style="font-size:0.875rem; color:var(--sv-text);">Intégration Jitsi Meet native</strong>
+                        <p style="font-size:0.75rem; color:var(--sv-text-muted); margin-top:0.15rem; font-weight:300;">Rejoignez les visioconférences en un clic, directement depuis la leçon.</p>
+                    </div>
+                </div>
+                <div style="display:flex; gap:0.75rem; align-items:flex-start;">
+                    <div style="width:24px; height:24px; border-radius:50%; background:rgba(0,75,35,0.08); display:flex; align-items:center; justify-content:center; flex-shrink:0; font-size:0.75rem; color:#004B23;">✓</div>
+                    <div>
+                        <strong style="font-size:0.875rem; color:var(--sv-text);">Évaluations en temps réel</strong>
+                        <p style="font-size:0.75rem; color:var(--sv-text-muted); margin-top:0.15rem; font-weight:300;">Les enseignants lancent des questionnaires interactifs en direct pour vérifier l'acquisition des notions.</p>
+                    </div>
+                </div>
+            </div>
+        </div>
+        
+        <div class="sv-preview-browser" id="webinar-mockup">
+            <div class="sv-preview-header">
+                <div class="sv-preview-dot" style="background:#FF5F56;"></div>
+                <div class="sv-preview-dot" style="background:#FFBD2E;"></div>
+                <div class="sv-preview-dot" style="background:#27C93F;"></div>
+                <div class="sv-preview-address">https://app.studyvibe.edu/live-evaluation</div>
+            </div>
+            <div style="position:relative; aspect-ratio:16/9; background:#000; overflow:hidden; display:flex; align-items:center; justify-content:center;">
+                <!-- Dummy Video Background / Presentation slide -->
+                <div style="text-align:center; padding:2rem; color:#fff; font-family:'Plus Jakarta Sans',sans-serif;">
+                    <span style="background:#D32F2F; color:#fff; font-size:0.625rem; font-weight:800; padding:0.25rem 0.5rem; border-radius:4px; letter-spacing:0.05em; vertical-align:middle;">EN DIRECT</span>
+                    <h4 style="font-size:1.25rem; font-weight:500; margin-top:0.5rem;">Dr. Martin - Cours de Mathématiques Appliquées</h4>
+                    <p style="font-size:0.75rem; color:rgba(255,255,255,0.7); margin-top:0.25rem;">Sujet : Résolution géométrique par homothétie</p>
+                </div>
+                
+                <!-- Floating Teacher Camera Overlay -->
+                <div style="position:absolute; bottom:1rem; right:1rem; width:100px; height:75px; background:rgba(255,255,255,0.15); backdrop-filter:blur(4px); border:1px solid rgba(255,255,255,0.25); border-radius:6px; display:flex; align-items:center; justify-content:center;">
+                    <div style="font-size:0.55rem; color:#fff; font-weight:600;">Caméra Prof</div>
+                </div>
+                
+                <!-- Collaborative Quiz Popup Overlay -->
+                <div style="position:absolute; top:1rem; left:1rem; right:1rem; background:rgba(255,255,255,0.92); border-radius:8px; padding:0.75rem 1rem; border:1px solid rgba(0,75,35,0.12); box-shadow:0 8px 24px rgba(0,0,0,0.15); display:flex; flex-direction:column; gap:0.35rem; font-family:'Inter', sans-serif;">
+                    <div style="font-size:0.6875rem; font-weight:700; color:#004B23;">QUESTION LIVE EN COURS</div>
+                    <div style="font-size:0.75rem; font-weight:600; color:var(--sv-text);">Quelle est la matrice associée à une rotation d'angle π/2 ?</div>
+                    <div style="display:flex; gap:0.5rem; margin-top:0.25rem;">
+                        <span style="font-size:0.625rem; font-weight:600; background:#004B23; color:#fff; padding:0.2rem 0.5rem; border-radius:4px;">A: R(θ)</span>
+                        <span style="font-size:0.625rem; font-weight:600; background:rgba(0,0,0,0.05); color:var(--sv-text-muted); padding:0.2rem 0.5rem; border-radius:4px;">B: M(x, y)</span>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</section>
+
+<div class="sv-divider"></div>
 
 <footer class="sv-footer" role="contentinfo">
     <div class="sv-container" style="display:flex; justify-content:space-between; align-items:center; flex-wrap:wrap; gap:1rem;">
@@ -389,7 +554,34 @@ if (isLoggedIn()) {
             ease: "power2.out"
         });
 
-        // 3. ScrollTrigger steps timeline slide-in
+        // 3. ScrollTrigger Course Reader Mockup (Section A)
+        gsap.from("#course-reader-mockup", {
+            scrollTrigger: {
+                trigger: "#aperçu-cours",
+                start: "top 80%",
+                toggleActions: "play none none none"
+            },
+            y: 50,
+            opacity: 0,
+            duration: 1,
+            ease: "power3.out"
+        });
+
+        // 4. ScrollTrigger Stats Panel (Section B)
+        gsap.from("#statistiques-insights .sv-glass-card", {
+            scrollTrigger: {
+                trigger: "#statistiques-insights",
+                start: "top 80%",
+                toggleActions: "play none none none"
+            },
+            y: 40,
+            opacity: 0,
+            stagger: 0.15,
+            duration: 0.9,
+            ease: "power2.out"
+        });
+
+        // 5. ScrollTrigger steps timeline slide-in
         gsap.from(".sv-step-card", {
             scrollTrigger: {
                 trigger: "#comment",
@@ -401,6 +593,19 @@ if (isLoggedIn()) {
             duration: 0.85,
             stagger: 0.15,
             ease: "power2.out"
+        });
+
+        // 6. ScrollTrigger Webinars Mockup (Section C)
+        gsap.from("#webinaires-direct #webinar-mockup", {
+            scrollTrigger: {
+                trigger: "#webinaires-direct",
+                start: "top 80%",
+                toggleActions: "play none none none"
+            },
+            x: 50,
+            opacity: 0,
+            duration: 1,
+            ease: "power3.out"
         });
     });
 </script>
