@@ -85,7 +85,6 @@ try {
 \documentclass[11pt,a4paper]{article}
 \usepackage[utf8]{inputenc}
 \usepackage[T1]{fontenc}
-\usepackage[french]{babel}
 \usepackage{geometry}
 \geometry{a4paper, margin=0.8in}
 \usepackage{booktabs}

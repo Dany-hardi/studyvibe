@@ -34,6 +34,70 @@ function escapeLatex(string $text): string
     $text = str_replace(['\(', '\)'], '$', $text);
     $text = str_replace(['\[', '\]'], '$$', $text);
 
+    // Dictionnaire des caractères mathématiques Unicode vers LaTeX
+    $unicodeMath = [
+        '∂' => '\partial',
+        '₀' => '_0',
+        '₁' => '_1',
+        '₂' => '_2',
+        '₃' => '_3',
+        '₄' => '_4',
+        '₅' => '_5',
+        '₆' => '_6',
+        '₇' => '_7',
+        '₈' => '_8',
+        '₉' => '_9',
+        '₊' => '_+',
+        '₋' => '_-',
+        '₌' => '_=',
+        '⁽' => '^{(',
+        '⁾' => ')}',
+        '⁺' => '^{+}',
+        '⁻' => '^{-}',
+        '⁼' => '^{=}',
+        '⁰' => '^0',
+        '¹' => '^1',
+        '²' => '^2',
+        '³' => '^3',
+        '⁴' => '^4',
+        '⁵' => '^5',
+        '⁶' => '^6',
+        '⁷' => '^7',
+        '⁸' => '^8',
+        '⁹' => '^9',
+        'σ' => '\sigma',
+        'θ' => '\theta',
+        'Δ' => '\Delta',
+        'π' => '\pi',
+        'α' => '\alpha',
+        'β' => '\beta',
+        'γ' => '\gamma',
+        'λ' => '\lambda',
+        'μ' => '\mu',
+        'ρ' => '\rho',
+        'φ' => '\phi',
+        'ω' => '\omega',
+        'Ω' => '\Omega',
+        '≈' => '\approx',
+        '≠' => '\neq',
+        '≤' => '\leq',
+        '≥' => '\geq',
+        '±' => '\pm',
+        '×' => '\times',
+        '÷' => '\div',
+        '·' => '\cdot',
+        '→' => '\rightarrow',
+        '⇒' => '\Rightarrow',
+        '⇔' => '\Leftrightarrow',
+        '∞' => '\infty',
+        '∈' => '\in',
+        '∉' => '\notin',
+        '⊂' => '\subset',
+        '⊃' => '\supset',
+        '⊆' => '\subseteq',
+        '⊇' => '\supplement',
+    ];
+
     // Découper le texte pour isoler les équations mathématiques ($...$ et $$...$$)
     $parts = preg_split('/(\$\$.*?\$\$|\$.*?\$)/s', $text, -1, PREG_SPLIT_DELIM_CAPTURE);
     if ($parts === false) {
@@ -41,8 +105,9 @@ function escapeLatex(string $text): string
     }
 
     foreach ($parts as $idx => &$part) {
-        // Si c'est un bloc mathématique, ne pas toucher aux caractères spéciaux de LaTeX
+        // Si c'est un bloc mathématique
         if (str_starts_with($part, '$')) {
+            $part = strtr($part, $unicodeMath);
             continue;
         }
 
@@ -58,8 +123,17 @@ function escapeLatex(string $text): string
             '~'  => '\\textasciitilde{}',
             '^'  => '\\textasciicircum{}',
             '<'  => '\\textless{}',
-            '>'  => '\\textgreater{}'
+            '>'  => '\\textgreater{}',
+            '—'  => '--',
+            '’'  => "'",
         ]);
+
+        // Traduire les symboles mathématiques Unicode trouvés en dehors du bloc math
+        foreach ($unicodeMath as $uni => $lat) {
+            if (str_contains($part, $uni)) {
+                $part = str_replace($uni, '$' . $lat . '$', $part);
+            }
+        }
     }
     return implode('', $parts);
 }
@@ -115,21 +189,21 @@ try {
             $optD = escapeLatex($q['option_d']);
             
             $questionContent .= "{$qText}\n";
-            $questionContent .= "\\begin{itemize}[leftmargin=*,noitemsep,topsep=4pt]\n";
+            $questionContent .= "\\begin{itemize}\n";
             
             if ($mode === 'correction') {
                 foreach (['A' => $optA, 'B' => $optB, 'C' => $optC, 'D' => $optD] as $letter => $val) {
                     if ($letter === $correctOpt) {
-                        $questionContent .= "    \\item[\\ding{51}] \\textbf{Option {$letter} (Correcte) :} {$val}\n";
+                        $questionContent .= "    \\item[{\\ding{51}}] \\textbf{Option {$letter} (Correcte) :} {$val}\n";
                     } else {
-                        $questionContent .= "    \\item[$\\square$] \\textbf{Option {$letter} :} {$val}\n";
+                        $questionContent .= "    \\item[{\\ding{113}}] \\textbf{Option {$letter} :} {$val}\n";
                     }
                 }
             } else {
-                $questionContent .= "    \\item[$\\square$] \\textbf{Option A :} {$optA}\n";
-                $questionContent .= "    \\item[$\\square$] \\textbf{Option B :} {$optB}\n";
-                $questionContent .= "    \\item[$\\square$] \\textbf{Option C :} {$optC}\n";
-                $questionContent .= "    \\item[$\\square$] \\textbf{Option D :} {$optD}\n";
+                $questionContent .= "    \\item[{\\ding{113}}] \\textbf{Option A :} {$optA}\n";
+                $questionContent .= "    \\item[{\\ding{113}}] \\textbf{Option B :} {$optB}\n";
+                $questionContent .= "    \\item[{\\ding{113}}] \\textbf{Option C :} {$optC}\n";
+                $questionContent .= "    \\item[{\\ding{113}}] \\textbf{Option D :} {$optD}\n";
             }
             $questionContent .= "\\end{itemize}\n";
         } else {
@@ -178,12 +252,10 @@ try {
 \\documentclass[10pt,twocolumn,a4paper]{article}
 \\usepackage[utf8]{inputenc}
 \\usepackage[T1]{fontenc}
-\\usepackage[french]{babel}
 \\usepackage[margin=1.2cm]{geometry}
 \\usepackage{amsmath,amssymb}
 \\usepackage{tcolorbox}
 \\usepackage{pifont}
-\\usepackage{enumitem}
 \\usepackage{fancyhdr}
 \\usepackage{helvet}
 \\renewcommand{\\familydefault}{\\sfdefault}
@@ -233,7 +305,11 @@ LATEX;
     if ($mode === 'correction') {
         $latexTemplate .= <<<LATEX
 \\twocolumn[
-\\begin{tcolorbox}[colback=green!3,colframe=green!50!black,arc=2mm,boxrule=0.8pt]
+\\noindent
+\\setlength{\\fboxrule}{0.8pt}
+\\setlength{\\fboxsep}{8pt}
+\\fbox{%
+\\begin{minipage}{\\dimexpr\\textwidth-2\\fboxsep-2\\fboxrule\\relax}
 \\begin{center}
     {\\large \\textbf{STUDYVIBE LMS ~--~ CLEF DE CORRECTION}} \\\\
     \\vspace{0.3em}
@@ -241,7 +317,8 @@ LATEX;
     \\textbf{Evaluation :} {$sessionTitle} \\\\
     \\textbf{Date :} {$sessionDate}
 \\end{center}
-\\end{tcolorbox}
+\\end{minipage}%
+}
 \\vspace{1.5em}
 ]
 
@@ -249,7 +326,11 @@ LATEX;
     } else {
         $latexTemplate .= <<<LATEX
 \\twocolumn[
-\\begin{tcolorbox}[colback=white,colframe=black,arc=2mm,boxrule=0.8pt]
+\\noindent
+\\setlength{\\fboxrule}{0.8pt}
+\\setlength{\\fboxsep}{8pt}
+\\fbox{%
+\\begin{minipage}{\\dimexpr\\textwidth-2\\fboxsep-2\\fboxrule\\relax}
 \\begin{center}
     {\\large \\textbf{STUDYVIBE LMS ~--~ \\'{E}PREUVE \\'{E}CRITE}} \\\\
     \\vspace{0.3em}
@@ -264,7 +345,8 @@ LATEX;
 \\textbf{Classe / Matricule :} \\hrulefill & \\textbf{/ {$totalQuestions}} \\\\
 \\textbf{Signature :} \\hrulefill & 
 \\end{tabular}
-\\end{tcolorbox}
+\\end{minipage}%
+}
 \\vspace{1.5em}
 ]
 
