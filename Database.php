@@ -118,6 +118,69 @@ class Database
                     self::$instance->exec("ALTER TABLE `live_eval_answers` MODIFY COLUMN `selected_option` VARCHAR(255) NOT NULL");
                 } catch (PDOException $ex) {}
             }
+
+            // Auto-migration check for webinar tables
+            try {
+                self::$instance->query("SELECT id FROM webinars LIMIT 1");
+            } catch (PDOException $e) {
+                try {
+                    self::$instance->exec("
+                        CREATE TABLE IF NOT EXISTS webinars (
+                            id INT AUTO_INCREMENT PRIMARY KEY,
+                            course_id INT NOT NULL,
+                            teacher_id INT NOT NULL,
+                            title VARCHAR(255) NOT NULL,
+                            description TEXT,
+                            scheduled_at DATETIME NOT NULL,
+                            duration INT NOT NULL DEFAULT 60,
+                            status ENUM('scheduled', 'live', 'completed') NOT NULL DEFAULT 'scheduled',
+                            meeting_id VARCHAR(100) NOT NULL,
+                            recording_url VARCHAR(255) DEFAULT NULL,
+                            created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                            FOREIGN KEY (course_id) REFERENCES courses(id) ON DELETE CASCADE,
+                            FOREIGN KEY (teacher_id) REFERENCES users(id) ON DELETE CASCADE
+                        ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+                    ");
+                } catch (PDOException $ex) {}
+            }
+            try {
+                self::$instance->query("SELECT id FROM webinar_attendance LIMIT 1");
+            } catch (PDOException $e) {
+                try {
+                    self::$instance->exec("
+                        CREATE TABLE IF NOT EXISTS webinar_attendance (
+                            id INT AUTO_INCREMENT PRIMARY KEY,
+                            webinar_id INT NOT NULL,
+                            student_id INT NOT NULL,
+                            joined_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                            last_seen_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+                            total_minutes_present INT DEFAULT 0,
+                            UNIQUE KEY unique_webinar_student (webinar_id, student_id),
+                            FOREIGN KEY (webinar_id) REFERENCES webinars(id) ON DELETE CASCADE,
+                            FOREIGN KEY (student_id) REFERENCES users(id) ON DELETE CASCADE
+                        ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+                    ");
+                } catch (PDOException $ex) {}
+            }
+            try {
+                self::$instance->query("SELECT id FROM webinar_qa LIMIT 1");
+            } catch (PDOException $e) {
+                try {
+                    self::$instance->exec("
+                        CREATE TABLE IF NOT EXISTS webinar_qa (
+                            id INT AUTO_INCREMENT PRIMARY KEY,
+                            webinar_id INT NOT NULL,
+                            student_id INT NOT NULL,
+                            question_text TEXT NOT NULL,
+                            votes INT NOT NULL DEFAULT 0,
+                            is_answered BOOLEAN NOT NULL DEFAULT FALSE,
+                            created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                            FOREIGN KEY (webinar_id) REFERENCES webinars(id) ON DELETE CASCADE,
+                            FOREIGN KEY (student_id) REFERENCES users(id) ON DELETE CASCADE
+                        ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+                    ");
+                } catch (PDOException $ex) {}
+            }
         }
         
         return self::$instance;

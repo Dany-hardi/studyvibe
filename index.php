@@ -36,6 +36,49 @@ if (isLoggedIn()) {
         .js-enabled .sv-step-card { 
             opacity: 0; 
         }
+        /* Showdown Carousel Custom Styles */
+        .sv-showdown-viewport {
+            overflow: hidden;
+            position: relative;
+            width: 100%;
+            padding: 2rem 0;
+        }
+        .sv-showdown-viewport::before, .sv-showdown-viewport::after {
+            content: '';
+            position: absolute;
+            top: 0; bottom: 0;
+            width: 160px;
+            z-index: 10;
+            pointer-events: none;
+        }
+        .sv-showdown-viewport::before {
+            left: 0;
+            background: linear-gradient(to right, var(--sv-cream), transparent);
+        }
+        .sv-showdown-viewport::after {
+            right: 0;
+            background: linear-gradient(to left, var(--sv-cream), transparent);
+        }
+        .sv-showdown-track {
+            display: flex;
+            gap: 4rem;
+            width: max-content;
+            padding: 0 4rem;
+            will-change: transform;
+        }
+        .sv-showdown-panel {
+            width: 850px;
+            flex-shrink: 0;
+            background: #ffffff;
+            border-radius: 12px;
+            border: 1px solid rgba(0,0,0,0.06);
+            box-shadow: 0 30px 60px -15px rgba(0, 0, 0, 0.08);
+            overflow: hidden;
+            transition: transform 0.3s ease, box-shadow 0.3s ease;
+        }
+        .sv-showdown-panel:hover {
+            box-shadow: 0 40px 80px -20px rgba(0, 0, 0, 0.12);
+        }
     </style>
 </head>
 <body class="sv-landing sv-page">
@@ -256,6 +299,45 @@ if (isLoggedIn()) {
     </div>
 </div>
 
+<!-- Présentation & Philosophie de StudyVibe (Storytelling Principal) -->
+<section class="sv-section" id="presentation-story" style="background:#fff;">
+    <div class="sv-container" style="display:grid; grid-template-columns:1fr 1fr; gap:4rem; align-items:center;">
+        <div>
+            <div class="sv-eyebrow">Notre Philosophie</div>
+            <h2 class="sv-section-title">L'apprentissage académique, repensé pour la clarté et l'engagement.</h2>
+            <p class="sv-section-sub" style="margin-bottom:1.5rem;">Parce que l'éducation mérite mieux que des interfaces encombrées et des processus rigides, nous avons conçu StudyVibe pour allier concentration, interactivité et transparence.</p>
+            <p style="font-size:0.875rem; color:var(--sv-text-muted); line-height:1.7; font-weight:300;">
+                Nos modules de lecture, nos outils d'évaluation synchrone (QuizBox) et nos classes virtuelles intégrées travaillent de concert pour offrir une expérience d'étude moderne et fluide. Chaque apprenant dispose d'un espace personnel favorisant la prise de notes et le rythme individuel, tandis que les enseignants pilotent leurs promotions grâce à des statistiques de réussite détaillées et des parcours d'apprentissage automatisés.
+            </p>
+        </div>
+        <div style="display:grid; grid-template-columns:1fr; gap:1.5rem;">
+            <div class="sv-glass-card" style="padding:2rem; display:flex; gap:1.5rem; align-items:flex-start; background:var(--sv-cream-light);">
+                <div style="font-size:2rem; background:rgba(0,75,35,0.06); color:#004B23; width:50px; height:50px; border-radius:12px; display:flex; align-items:center; justify-content:center; flex-shrink:0;">🎯</div>
+                <div>
+                    <h3 style="font-family:'Plus Jakarta Sans',sans-serif; font-size:1.125rem; font-weight:600; color:var(--sv-text);">Focus & Concentration</h3>
+                    <p style="font-size:0.8125rem; color:var(--sv-text-muted); margin-top:0.35rem; line-height:1.5; font-weight:300;">Une liseuse sans distraction, conçue pour minimiser la charge cognitive et optimiser l'ancrage mémoriel.</p>
+                </div>
+            </div>
+            <div class="sv-glass-card" style="padding:2rem; display:flex; gap:1.5rem; align-items:flex-start; background:var(--sv-cream-light);">
+                <div style="font-size:2rem; background:rgba(201,168,76,0.08); color:#C9A84C; width:50px; height:50px; border-radius:12px; display:flex; align-items:center; justify-content:center; flex-shrink:0;">⚡</div>
+                <div>
+                    <h3 style="font-family:'Plus Jakarta Sans',sans-serif; font-size:1.125rem; font-weight:600; color:var(--sv-text);">Synchronisation Active</h3>
+                    <p style="font-size:0.8125rem; color:var(--sv-text-muted); margin-top:0.35rem; line-height:1.5; font-weight:300;">Des webinaires et télé-évaluations en temps réel pour dynamiser l'échange entre étudiants et enseignants.</p>
+                </div>
+            </div>
+            <div class="sv-glass-card" style="padding:2rem; display:flex; gap:1.5rem; align-items:flex-start; background:var(--sv-cream-light);">
+                <div style="font-size:2rem; background:rgba(0,0,0,0.05); color:var(--sv-text); width:50px; height:50px; border-radius:12px; display:flex; align-items:center; justify-content:center; flex-shrink:0;">🛡️</div>
+                <div>
+                    <h3 style="font-family:'Plus Jakarta Sans',sans-serif; font-size:1.125rem; font-weight:600; color:var(--sv-text);">Preuve de Compétence</h3>
+                    <p style="font-size:0.8125rem; color:var(--sv-text-muted); margin-top:0.35rem; line-height:1.5; font-weight:300;">Des attestations numériques vérifiables instantanément grâce à un identifiant unique sécurisé.</p>
+                </div>
+            </div>
+        </div>
+    </div>
+</section>
+
+<div class="sv-divider"></div>
+
 <!-- Fonctionnalités -->
 <section class="sv-section" id="fonctionnalites">
     <div class="sv-container">
@@ -284,73 +366,224 @@ if (isLoggedIn()) {
 
 <div class="sv-divider"></div>
 
-<!-- Aperçu de la liseuse de cours interactive (Storytelling Section A) -->
+<!-- Aperçu de la liseuse de cours interactive (Storytelling Section A - Showdown Carousel) -->
 <section class="sv-section" id="aperçu-cours" style="background:var(--sv-cream-light);">
     <div class="sv-container">
-        <div class="sv-eyebrow">Interface de lecture</div>
-        <h2 class="sv-section-title">Étudiez sans distraction.<br>Une expérience immersive de bout en bout.</h2>
-        <p class="sv-section-sub" style="margin-bottom:3.5rem;">Découvrez notre liseuse interactive qui fusionne cours PDF, supports vidéo, prise de notes temporelle et Q&A instantané dans un unique tableau de bord.</p>
-        
-        <div class="sv-preview-browser" id="course-reader-mockup">
-            <div class="sv-preview-header">
-                <div class="sv-preview-dot" style="background:#FF5F56;"></div>
-                <div class="sv-preview-dot" style="background:#FFBD2E;"></div>
-                <div class="sv-preview-dot" style="background:#27C93F;"></div>
-                <div class="sv-preview-address">https://app.studyvibe.edu/student/lesson?id=104</div>
-            </div>
-            <div style="display:grid; grid-template-columns:260px 1fr; min-height:480px; font-family:'Inter', sans-serif;">
-                <!-- Sidebar -->
-                <div style="border-right:1px solid rgba(0,0,0,0.06); padding:1.5rem; background:rgba(0,0,0,0.015); display:flex; flex-direction:column; gap:1.25rem;">
-                    <div style="font-weight:700; font-size:0.875rem; color:var(--sv-text);">Algèbre Linéaire</div>
-                    <div style="display:flex; flex-direction:column; gap:0.5rem;">
-                        <div style="padding:0.6rem 0.75rem; background:var(--sv-text); color:#fff; font-size:0.75rem; font-weight:600; border-radius:6px;">1. Introduction aux matrices</div>
-                        <div style="padding:0.6rem 0.75rem; background:transparent; color:var(--sv-text-muted); font-size:0.75rem; font-weight:500; border-radius:6px;">2. Produit matriciel</div>
-                        <div style="padding:0.6rem 0.75rem; background:transparent; color:var(--sv-text-muted); font-size:0.75rem; font-weight:500; border-radius:6px;">3. Déterminants & inverses</div>
-                    </div>
-                    <div style="margin-top:auto; padding-top:1rem; border-top:1px solid rgba(0,0,0,0.06);">
-                        <div style="font-size:0.6875rem; color:var(--sv-text-muted); margin-bottom:0.35rem;">VOTRE SCORE : 82.4%</div>
-                        <div style="width:100%; height:4px; background:rgba(0,0,0,0.05); border-radius:2px; overflow:hidden;">
-                            <div style="width:82.4%; height:100%; background:#004B23;"></div>
-                        </div>
-                    </div>
+        <div class="sv-eyebrow">Aperçu de la Plateforme</div>
+        <h2 class="sv-section-title">Découvrez l'Écosystème StudyVibe.<br>Une expérience intégrée en 4 dimensions.</h2>
+        <p class="sv-section-sub" style="margin-bottom:3.5rem;">Glissez ou observez le défilement automatique des différentes interfaces conçues pour optimiser chaque étape de l'apprentissage.</p>
+    </div>
+
+    <!-- Showdown Viewport Slider -->
+    <div class="sv-showdown-viewport">
+        <div class="sv-showdown-track">
+            
+            <!-- Panel 1: Liseuse de cours interactive -->
+            <div class="sv-showdown-panel">
+                <div class="sv-preview-header">
+                    <div class="sv-preview-dot" style="background:#FF5F56;"></div>
+                    <div class="sv-preview-dot" style="background:#FFBD2E;"></div>
+                    <div class="sv-preview-dot" style="background:#27C93F;"></div>
+                    <div class="sv-preview-address">https://app.studyvibe.edu/student/lesson?id=104</div>
                 </div>
-                <!-- Main Reader Mockup Area -->
-                <div style="padding:2.5rem; display:flex; flex-direction:column; gap:2rem;">
-                    <div style="display:flex; justify-content:space-between; align-items:center;">
-                        <div>
-                            <span class="sv-badge sv-badge-accent" style="font-size:0.625rem; font-weight:700; border-radius:12px;">LEÇON ACTIVE</span>
-                            <h3 style="font-family:'Plus Jakarta Sans',sans-serif; font-size:1.5rem; font-weight:500; margin-top:0.35rem; color:var(--sv-text);">Matrices et transformations géométriques</h3>
+                <div style="display:grid; grid-template-columns:260px 1fr; min-height:480px; font-family:'Inter', sans-serif;">
+                    <!-- Sidebar -->
+                    <div style="border-right:1px solid rgba(0,0,0,0.06); padding:1.5rem; background:rgba(0,0,0,0.015); display:flex; flex-direction:column; gap:1.25rem;">
+                        <div style="font-weight:700; font-size:0.875rem; color:var(--sv-text);">Algèbre Linéaire</div>
+                        <div style="display:flex; flex-direction:column; gap:0.5rem;">
+                            <div style="padding:0.6rem 0.75rem; background:var(--sv-text); color:#fff; font-size:0.75rem; font-weight:600; border-radius:6px;">1. Introduction aux matrices</div>
+                            <div style="padding:0.6rem 0.75rem; background:transparent; color:var(--sv-text-muted); font-size:0.75rem; font-weight:500; border-radius:6px;">2. Produit matriciel</div>
+                            <div style="padding:0.6rem 0.75rem; background:transparent; color:var(--sv-text-muted); font-size:0.75rem; font-weight:500; border-radius:6px;">3. Déterminants & inverses</div>
                         </div>
-                        <span class="sv-badge" style="border-radius:12px; font-weight:600;">14:32 étudiés</span>
+                        <div style="margin-top:auto; padding-top:1rem; border-top:1px solid rgba(0,0,0,0.06);">
+                            <div style="font-size:0.6875rem; color:var(--sv-text-muted); margin-bottom:0.35rem;">VOTRE SCORE : 82.4%</div>
+                            <div style="width:100%; height:4px; background:rgba(0,0,0,0.05); border-radius:2px; overflow:hidden;">
+                                <div style="width:82.4%; height:100%; background:#004B23;"></div>
+                            </div>
+                        </div>
                     </div>
-                    
-                    <div style="display:grid; grid-template-columns:1fr 280px; gap:2rem; flex:1;">
-                        <!-- Reading Space mockup -->
-                        <div style="border:1px dashed rgba(0,0,0,0.12); border-radius:8px; display:flex; flex-direction:column; justify-content:center; align-items:center; padding:2rem; text-align:center; background:#fafafa;">
-                            <svg fill="none" stroke="#004B23" stroke-width="1.5" viewBox="0 0 24 24" width="40" height="40" style="margin-bottom:0.75rem;"><path stroke-linecap="round" stroke-linejoin="round" d="M12 6.042A8.967 8.967 0 006 3.75c-1.052 0-2.062.18-3 .512v14.25A8.987 8.987 0 016 18c2.305 0 4.408.867 6 2.292m0-14.25a8.966 8.966 0 016-2.292c1.052 0 2.062.18 3 .512v14.25A8.987 8.987 0 0018 18a8.967 8.967 0 00-6 2.292m0-14.25v14.25"/></svg>
-                            <div style="font-size:0.8125rem; font-weight:600; color:var(--sv-text);">Liseuse PDF de cours intégrée</div>
-                            <div style="font-size:0.75rem; color:var(--sv-text-muted); max-width:240px; margin-top:0.25rem;">Les cours sont gates et déverrouillés uniquement après complétion des chapitres requis.</div>
+                    <!-- Main Area -->
+                    <div style="padding:2.5rem; display:flex; flex-direction:column; gap:2rem;">
+                        <div style="display:flex; justify-content:space-between; align-items:center;">
+                            <div>
+                                <span class="sv-badge sv-badge-accent" style="font-size:0.625rem; font-weight:700; border-radius:12px;">LEÇON ACTIVE</span>
+                                <h3 style="font-family:'Plus Jakarta Sans',sans-serif; font-size:1.5rem; font-weight:500; margin-top:0.35rem; color:var(--sv-text);">Matrices et transformations géométriques</h3>
+                            </div>
+                            <span class="sv-badge" style="border-radius:12px; font-weight:600;">14:32 étudiés</span>
                         </div>
-                        
-                        <!-- Panel side interactions -->
-                        <div style="display:flex; flex-direction:column; gap:1rem;">
-                            <!-- AI Assistant chip -->
-                            <div style="border:1px solid rgba(0,75,35,0.08); background:rgba(0,75,35,0.02); padding:1rem; border-radius:8px;">
-                                <div style="font-size:0.75rem; font-weight:700; color:#004B23; display:flex; align-items:center; gap:0.35rem;">
-                                    <span style="display:inline-block; width:6px; height:6px; border-radius:50%; background:#C9A84C;"></span>
-                                    Assistant Pédagogique IA
+                        <div style="display:grid; grid-template-columns:1fr 280px; gap:2rem; flex:1;">
+                            <div style="border:1px dashed rgba(0,0,0,0.12); border-radius:8px; display:flex; flex-direction:column; justify-content:center; align-items:center; padding:2rem; text-align:center; background:#fafafa;">
+                                <svg fill="none" stroke="#004B23" stroke-width="1.5" viewBox="0 0 24 24" width="40" height="40" style="margin-bottom:0.75rem;"><path stroke-linecap="round" stroke-linejoin="round" d="M12 6.042A8.967 8.967 0 006 3.75c-1.052 0-2.062.18-3 .512v14.25A8.987 8.987 0 016 18c2.305 0 4.408.867 6 2.292m0-14.25a8.966 8.966 0 016-2.292c1.052 0 2.062.18 3 .512v14.25A8.987 8.987 0 0018 18a8.967 8.967 0 00-6 2.292m0-14.25v14.25"/></svg>
+                                <div style="font-size:0.8125rem; font-weight:600; color:var(--sv-text);">Liseuse PDF de cours intégrée</div>
+                                <div style="font-size:0.75rem; color:var(--sv-text-muted); max-width:240px; margin-top:0.25rem;">Les cours sont gates et déverrouillés uniquement après complétion des chapitres requis.</div>
+                            </div>
+                            <div style="display:flex; flex-direction:column; gap:1rem;">
+                                <div style="border:1px solid rgba(0,75,35,0.08); background:rgba(0,75,35,0.02); padding:1rem; border-radius:8px;">
+                                    <div style="font-size:0.75rem; font-weight:700; color:#004B23; display:flex; align-items:center; gap:0.35rem;">
+                                        <span style="display:inline-block; width:6px; height:6px; border-radius:50%; background:#C9A84C;"></span>
+                                        Assistant Pédagogique IA
+                                    </div>
+                                    <div style="font-size:0.75rem; color:var(--sv-text-muted); margin-top:0.35rem; line-height:1.4;">« Vous avez une question sur cette leçon ? Je peux synthétiser le PDF ou vous proposer un quiz d'entraînement. »</div>
                                 </div>
-                                <div style="font-size:0.75rem; color:var(--sv-text-muted); margin-top:0.35rem; line-height:1.4;">« Vous avez une question sur cette leçon ? Je peux synthétiser le PDF ou vous proposer un quiz d'entraînement. »</div>
-                            </div>
-                            <!-- Notes side -->
-                            <div style="border:1px solid rgba(0,0,0,0.06); padding:1rem; border-radius:8px;">
-                                <div style="font-size:0.75rem; font-weight:600; color:var(--sv-text);">Notes personnelles</div>
-                                <div style="font-size:0.6875rem; color:var(--sv-text-muted); margin-top:0.25rem;">Note prise à 04:12 : &quot;Vérifier le déterminant d'une matrice inverse&quot;</div>
+                                <div style="border:1px solid rgba(0,0,0,0.06); padding:1rem; border-radius:8px;">
+                                    <div style="font-size:0.75rem; font-weight:600; color:var(--sv-text);">Notes personnelles</div>
+                                    <div style="font-size:0.6875rem; color:var(--sv-text-muted); margin-top:0.25rem;">Note prise à 04:12 : &quot;Vérifier le déterminant d'une matrice inverse&quot;</div>
+                                </div>
                             </div>
                         </div>
                     </div>
                 </div>
             </div>
+
+            <!-- Panel 2: Télé-évaluation synchrone (Live Quiz) -->
+            <div class="sv-showdown-panel">
+                <div class="sv-preview-header">
+                    <div class="sv-preview-dot" style="background:#FF5F56;"></div>
+                    <div class="sv-preview-dot" style="background:#FFBD2E;"></div>
+                    <div class="sv-preview-dot" style="background:#27C93F;"></div>
+                    <div class="sv-preview-address">https://app.studyvibe.edu/live-evaluation?code=ALG301</div>
+                </div>
+                <div style="display:grid; grid-template-columns:260px 1fr; min-height:480px; font-family:'Inter', sans-serif;">
+                    <!-- Sidebar stats and status -->
+                    <div style="border-right:1px solid rgba(0,0,0,0.06); padding:1.5rem; background:rgba(0,0,0,0.015); display:flex; flex-direction:column; gap:1.25rem;">
+                        <div style="font-weight:700; font-size:0.875rem; color:var(--sv-text);">Session : ALG301</div>
+                        <div style="font-size:0.75rem; color:var(--sv-text-muted);">
+                            <strong>Mode :</strong> Synchrone direct<br>
+                            <strong>Candidats actifs :</strong> 48<br>
+                            <strong>Question :</strong> 4 sur 10
+                        </div>
+                        <div style="margin-top:auto; padding-top:1rem; border-top:1px solid rgba(0,0,0,0.06);">
+                            <div style="font-size:0.6875rem; color:var(--sv-text-muted); margin-bottom:0.35rem;">TEMPS RESTANT</div>
+                            <div style="width:100%; height:4px; background:rgba(0,0,0,0.05); border-radius:2px; overflow:hidden;">
+                                <div style="width:45%; height:100%; background:#EF4444;"></div>
+                            </div>
+                        </div>
+                    </div>
+                    <!-- Main Area Question -->
+                    <div style="padding:2.5rem; display:flex; flex-direction:column; gap:2rem;">
+                        <div style="display:flex; justify-content:space-between; align-items:center;">
+                            <div>
+                                <span class="sv-badge" style="background:#EF4444; border-color:#EF4444; color:#fff; font-size:0.625rem; font-weight:700; border-radius:12px;">ÉVALUATION LIVE</span>
+                                <h3 style="font-family:'Plus Jakarta Sans',sans-serif; font-size:1.5rem; font-weight:500; margin-top:0.35rem; color:var(--sv-text);">Algèbre Linéaire & Géométrie</h3>
+                            </div>
+                            <span style="font-family:'Plus Jakarta Sans',sans-serif; font-size:1.5rem; font-weight:700; color:#EF4444;">18s</span>
+                        </div>
+                        <div style="display:flex; flex-direction:column; gap:1rem; flex:1;">
+                            <div style="font-size:0.95rem; font-weight:600; color:var(--sv-text); line-height:1.5;">Question 4/10 : Laquelle des propositions définit une relation d'équivalence ?</div>
+                            <div style="display:flex; flex-direction:column; gap:0.6rem; margin-top:0.5rem;">
+                                <div style="padding:0.75rem 1rem; border:1px solid #004B23; background:rgba(0,75,35,0.02); font-size:0.75rem; font-weight:600; border-radius:8px; display:flex; align-items:center; gap:0.75rem;">
+                                    <span style="width:20px; height:20px; border-radius:50%; background:#004B23; color:#fff; display:flex; align-items:center; justify-content:center; font-size:0.65rem;">A</span>
+                                    Une relation réflexive, symétrique et transitive.
+                                </div>
+                                <div style="padding:0.75rem 1rem; border:1px solid rgba(0,0,0,0.08); font-size:0.75rem; border-radius:8px; display:flex; align-items:center; gap:0.75rem;">
+                                    <span style="width:20px; height:20px; border-radius:50%; background:rgba(0,0,0,0.05); color:var(--sv-text-muted); display:flex; align-items:center; justify-content:center; font-size:0.65rem;">B</span>
+                                    Une relation transitive et réflexive uniquement.
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Panel 3: Classe Virtuelle (Webinar Classroom Jitsi) -->
+            <div class="sv-showdown-panel">
+                <div class="sv-preview-header">
+                    <div class="sv-preview-dot" style="background:#FF5F56;"></div>
+                    <div class="sv-preview-dot" style="background:#FFBD2E;"></div>
+                    <div class="sv-preview-dot" style="background:#27C93F;"></div>
+                    <div class="sv-preview-address">https://app.studyvibe.edu/webinar?id=42</div>
+                </div>
+                <div style="display:grid; grid-template-columns:1fr 260px; min-height:480px; font-family:'Inter', sans-serif;">
+                    <!-- Left: Stream Area -->
+                    <div style="background:#0b0c10; padding:1.5rem; display:flex; flex-direction:column; justify-content:space-between; position:relative;">
+                        <div style="display:flex; justify-content:space-between; align-items:center;">
+                            <span style="background:#EF4444; color:#fff; font-size:0.55rem; font-weight:800; padding:0.2rem 0.4rem; border-radius:4px;">LIVE EN COURS</span>
+                            <span style="font-size:0.625rem; color:#fff; opacity:0.8;">142 participants</span>
+                        </div>
+                        <div style="text-align:center; color:#fff; padding:3rem 1rem;">
+                            <h4 style="font-size:1.375rem; font-family:'Plus Jakarta Sans',sans-serif; font-weight:500;">Thermodynamique des systèmes complexes</h4>
+                            <p style="font-size:0.75rem; opacity:0.6; margin-top:0.25rem;">Dr. Martin · Faculté des Sciences Appliquées</p>
+                        </div>
+                        <div style="display:flex; gap:0.75rem; justify-content:center; padding-top:1rem; border-top:1px solid rgba(255,255,255,0.1);">
+                            <span style="width:28px; height:28px; border-radius:50%; background:rgba(255,255,255,0.1); display:flex; align-items:center; justify-content:center; font-size:0.75rem; color:#fff;">🎤</span>
+                            <span style="width:28px; height:28px; border-radius:50%; background:rgba(255,255,255,0.1); display:flex; align-items:center; justify-content:center; font-size:0.75rem; color:#fff;">📷</span>
+                            <span style="width:28px; height:28px; border-radius:50%; background:rgba(255,255,255,0.1); display:flex; align-items:center; justify-content:center; font-size:0.75rem; color:#fff;">🖥️</span>
+                        </div>
+                        <!-- floating teacher webcam -->
+                        <div style="position:absolute; bottom:4.5rem; right:1.5rem; width:80px; height:60px; background:rgba(255,255,255,0.15); backdrop-filter:blur(4px); border:1px solid rgba(255,255,255,0.25); border-radius:4px; display:flex; align-items:center; justify-content:center; font-size:0.5rem; color:#fff;">Prof Cam</div>
+                    </div>
+                    <!-- Right: Q&A panel -->
+                    <div style="border-left:1px solid rgba(0,0,0,0.06); padding:1.25rem; display:flex; flex-direction:column; gap:1rem;">
+                        <div style="font-weight:700; font-size:0.8125rem; color:var(--sv-text); border-bottom:1px solid rgba(0,0,0,0.06); padding-bottom:0.5rem;">Questions Q&A</div>
+                        <div style="display:flex; flex-direction:column; gap:0.6rem; flex:1; overflow:hidden;">
+                            <div style="background:rgba(0,0,0,0.015); border:1px solid rgba(0,0,0,0.04); padding:0.6rem; border-radius:6px;">
+                                <div style="display:flex; justify-content:space-between; font-size:0.55rem; color:var(--sv-text-muted);">
+                                    <strong>Sara L.</strong>
+                                    <span>il y a 2m</span>
+                                </div>
+                                <div style="font-size:0.6875rem; color:var(--sv-text); margin-top:0.2rem;">Pouvez-vous réexpliquer la loi de Carnot ?</div>
+                                <div style="text-align:right; font-size:0.55rem; color:#004B23; font-weight:700; margin-top:0.25rem;">▲ 12 votes</div>
+                            </div>
+                            <div style="background:rgba(0,75,35,0.02); border:1px solid rgba(0,75,35,0.08); border-left:3px solid #004B23; padding:0.6rem; border-radius:6px;">
+                                <div style="display:flex; justify-content:space-between; font-size:0.55rem; color:var(--sv-text-muted);">
+                                    <strong>Marc O.</strong>
+                                    <span>il y a 5m</span>
+                                </div>
+                                <div style="font-size:0.6875rem; color:var(--sv-text); margin-top:0.2rem;">Est-ce que l'évaluation finale portera sur ce chapitre ?</div>
+                                <div style="text-align:right; font-size:0.55rem; color:#004B23; font-weight:700; margin-top:0.25rem;">✓ Répondu live</div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Panel 4: Tableau de bord apprenant -->
+            <div class="sv-showdown-panel">
+                <div class="sv-preview-header">
+                    <div class="sv-preview-dot" style="background:#FF5F56;"></div>
+                    <div class="sv-preview-dot" style="background:#FFBD2E;"></div>
+                    <div class="sv-preview-dot" style="background:#27C93F;"></div>
+                    <div class="sv-preview-address">https://app.studyvibe.edu/student/dashboard</div>
+                </div>
+                <div style="display:grid; grid-template-columns:1fr 240px; min-height:480px; font-family:'Inter', sans-serif;">
+                    <!-- Left area -->
+                    <div style="padding:2.5rem; display:flex; flex-direction:column; gap:1.5rem;">
+                        <h3 style="font-family:'Plus Jakarta Sans',sans-serif; font-size:1.5rem; font-weight:500; color:var(--sv-text);">Bonjour, Arthur</h3>
+                        <div style="display:grid; grid-template-columns:1fr 1fr; gap:1rem;">
+                            <div style="border:1px solid rgba(0,0,0,0.06); padding:1rem; border-radius:8px; display:flex; flex-direction:column; gap:0.5rem; background:rgba(0,0,0,0.005);">
+                                <div style="font-size:0.75rem; font-weight:700; color:#004B23;">COURS EN COURS</div>
+                                <div style="font-size:0.875rem; font-weight:600; color:var(--sv-text);">Algorithmique & Graphes</div>
+                                <div style="display:flex; justify-content:space-between; align-items:center; font-size:0.6875rem; color:var(--sv-text-muted); margin-top:auto;">
+                                    <span>Progression: 75%</span>
+                                    <span style="color:#004B23; font-weight:700;">Continuer →</span>
+                                </div>
+                            </div>
+                            <div style="border:1px solid rgba(0,0,0,0.06); padding:1rem; border-radius:8px; display:flex; flex-direction:column; gap:0.5rem; background:rgba(0,0,0,0.005);">
+                                <div style="font-size:0.75rem; font-weight:700; color:#C9A84C;">CERTIFICATION</div>
+                                <div style="font-size:0.875rem; font-weight:600; color:var(--sv-text);">Physique Atomique</div>
+                                <div style="display:flex; align-items:center; font-size:0.6875rem; color:var(--sv-text-muted); margin-top:auto;">
+                                    <span style="background:#004B23; color:#fff; padding:0.15rem 0.4rem; border-radius:4px; font-weight:700; font-size:0.55rem;">TÉLÉCHARGER PDF</span>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                    <!-- Right area stats -->
+                    <div style="background:rgba(0,0,0,0.015); border-left:1px solid rgba(0,0,0,0.06); padding:2rem; display:flex; flex-direction:column; gap:1.5rem;">
+                        <div style="font-size:0.75rem; font-weight:700; color:var(--sv-text);">PERFORMANCES</div>
+                        <div style="display:flex; flex-direction:column; gap:1rem;">
+                            <div>
+                                <div style="font-size:1.75rem; font-family:'Plus Jakarta Sans',sans-serif; font-weight:700; color:#004B23;">14.5<span style="font-size:0.875rem;">/20</span></div>
+                                <div style="font-size:0.6875rem; color:var(--sv-text-muted);">Moyenne Générale</div>
+                            </div>
+                            <div>
+                                <div style="font-size:1.75rem; font-family:'Plus Jakarta Sans',sans-serif; font-weight:700; color:var(--sv-text);">86%</div>
+                                <div style="font-size:0.6875rem; color:var(--sv-text-muted);">Taux d'assiduité</div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
         </div>
     </div>
 </section>
@@ -554,8 +787,8 @@ if (isLoggedIn()) {
             ease: "power2.out"
         });
 
-        // 3. ScrollTrigger Course Reader Mockup (Section A)
-        gsap.from("#course-reader-mockup", {
+        // 3. ScrollTrigger Course Reader Mockup (Section A - Showdown viewports)
+        gsap.from(".sv-showdown-viewport", {
             scrollTrigger: {
                 trigger: "#aperçu-cours",
                 start: "top 80%",
@@ -565,6 +798,38 @@ if (isLoggedIn()) {
             opacity: 0,
             duration: 1,
             ease: "power3.out"
+        });
+
+        // Showdown Horizontal Scroll (Yoyo Loop)
+        const track = document.querySelector('.sv-showdown-track');
+        if (track) {
+            const duration = 24; // 24 seconds total cycle
+            const scrollTween = gsap.to(track, {
+                x: () => -(track.scrollWidth - track.parentElement.offsetWidth),
+                ease: "none",
+                duration: duration,
+                repeat: -1,
+                yoyo: true,
+                repeatDelay: 2.5
+            });
+
+            // Pause on hover so the user can interact or look closely
+            track.addEventListener('mouseenter', () => scrollTween.pause());
+            track.addEventListener('mouseleave', () => scrollTween.play());
+        }
+
+        // ScrollTrigger Presentation Story
+        gsap.from("#presentation-story .sv-glass-card", {
+            scrollTrigger: {
+                trigger: "#presentation-story",
+                start: "top 80%",
+                toggleActions: "play none none none"
+            },
+            x: 50,
+            opacity: 0,
+            stagger: 0.15,
+            duration: 0.9,
+            ease: "power2.out"
         });
 
         // 4. ScrollTrigger Stats Panel (Section B)
