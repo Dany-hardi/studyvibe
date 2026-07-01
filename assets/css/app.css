@@ -283,13 +283,94 @@ html.dark .sv-skeleton {
 
 /* ── MICRO-ANIMATIONS ──────────────────────────────────── */
 
-/* Hover lift pour les cards */
-[data-course-card] {
-    transition: transform 0.2s ease, box-shadow 0.2s ease, border-color 0.2s ease;
+/* Glassmorphic header, notification panel, and AI mentor drawer */
+.sv-header {
+    position: sticky;
+    top: 0;
+    z-index: 40;
+    backdrop-filter: blur(16px) !important;
+    -webkit-backdrop-filter: blur(16px) !important;
+    background-color: rgba(234, 230, 223, 0.82) !important;
+    border-bottom: 1px solid rgba(0, 0, 0, 0.08) !important;
+    transition: background-color 0.3s, border-color 0.3s;
 }
-[data-course-card]:hover {
-    transform: translateY(-3px);
-    box-shadow: 0 8px 24px rgba(0,0,0,0.07);
+
+html.dark .sv-header {
+    background-color: rgba(22, 22, 22, 0.82) !important;
+    border-bottom: 1px solid rgba(255, 255, 255, 0.08) !important;
+}
+
+/* Glassmorphism details */
+#notif-panel-container {
+    backdrop-filter: blur(12px);
+    -webkit-backdrop-filter: blur(12px);
+    background-color: rgba(255, 255, 255, 0.92) !important;
+    border: 1px solid rgba(0, 0, 0, 0.1) !important;
+    box-shadow: 0 12px 40px rgba(0, 0, 0, 0.06);
+}
+
+html.dark #notif-panel-container {
+    background-color: rgba(30, 30, 30, 0.92) !important;
+    border: 1px solid rgba(255, 255, 255, 0.08) !important;
+}
+
+#ai-chat-drawer {
+    backdrop-filter: blur(16px) !important;
+    -webkit-backdrop-filter: blur(16px) !important;
+    background-color: rgba(239, 234, 226, 0.92) !important;
+}
+
+html.dark #ai-chat-drawer {
+    background-color: rgba(26, 26, 26, 0.92) !important;
+}
+
+/* Global Selection Highlight */
+::selection {
+    background-color: rgba(0, 135, 63, 0.15);
+    color: #004B23;
+}
+
+/* Custom Scrollbars */
+::-webkit-scrollbar {
+    width: 8px;
+    height: 8px;
+}
+::-webkit-scrollbar-track {
+    background: rgba(0, 0, 0, 0.02);
+}
+::-webkit-scrollbar-thumb {
+    background: rgba(0, 75, 35, 0.2);
+    border-radius: 99px;
+    transition: background 0.2s;
+}
+::-webkit-scrollbar-thumb:hover {
+    background: rgba(0, 75, 35, 0.4);
+}
+
+html.dark ::-webkit-scrollbar-track {
+    background: rgba(255, 255, 255, 0.01);
+}
+html.dark ::-webkit-scrollbar-thumb {
+    background: rgba(255, 255, 255, 0.12);
+}
+html.dark ::-webkit-scrollbar-thumb:hover {
+    background: rgba(255, 255, 255, 0.25);
+}
+
+/* Premium Card hover lifts */
+[data-course-card], .sv-feature-card, .sv-step-card, .sv-kpi-item {
+    transition: transform 0.35s cubic-bezier(0.16, 1, 0.3, 1), box-shadow 0.35s cubic-bezier(0.16, 1, 0.3, 1), border-color 0.35s ease;
+}
+
+[data-course-card]:hover, .sv-feature-card:hover {
+    transform: translateY(-4px) scale(1.015);
+    box-shadow: 0 12px 30px rgba(0, 75, 35, 0.04), 0 4px 12px rgba(0, 0, 0, 0.03);
+    border-color: #004B23 !important;
+}
+
+html.dark [data-course-card]:hover, html.dark .sv-feature-card:hover {
+    border-color: #00873F !important;
+    box-shadow: 0 12px 30px rgba(0, 0, 0, 0.25);
 }
 
 /* Button press */

@@ -28,6 +28,15 @@ if (isLoggedIn()) {
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&family=Plus+Jakarta+Sans:ital,wght@0,300..800;1,300..800&display=swap" rel="stylesheet">
     <link rel="stylesheet" href="/assets/css/app.css">
     <?= csrfMetaTag(); ?>
+    <script>document.documentElement.classList.add('js-enabled');</script>
+    <style>
+        .js-enabled .sv-hero-content, 
+        .js-enabled .sv-auth-card, 
+        .js-enabled .sv-feature-card, 
+        .js-enabled .sv-step-card { 
+            opacity: 0; 
+        }
+    </style>
 </head>
 <body class="sv-landing sv-page">
 
@@ -75,7 +84,7 @@ if (isLoggedIn()) {
     <div class="sv-hero-grid">
 
         <!-- Colonne gauche -->
-        <div class="sv-hero-content sv-fade-in">
+        <div class="sv-hero-content">
             <div class="sv-eyebrow">Plateforme académique</div>
             <h1 class="sv-hero-headline">
                 Enseigner.<br>Apprendre.<br>Progresser.
@@ -95,7 +104,7 @@ if (isLoggedIn()) {
         </div>
 
         <!-- Colonne droite : formulaire dynamique -->
-        <div class="sv-auth-card sv-modal-enter" id="auth-card">
+        <div class="sv-auth-card" id="auth-card">
             <div class="sv-auth-card-header">
                 <div class="sv-auth-card-title">Accédez à StudyVibe</div>
                 <div class="sv-auth-card-sub">Connexion ou inscription en quelques secondes</div>
@@ -254,17 +263,17 @@ if (isLoggedIn()) {
         <h2 class="sv-section-title">Une seule plateforme.<br>Tous les outils pédagogiques.</h2>
         <p class="sv-section-sub">De la création de cours à la certification — chaque outil réduit la friction et maximise l'apprentissage.</p>
         <div style="display:grid; grid-template-columns:repeat(auto-fit,minmax(280px,1fr)); gap:1rem; margin-top:3rem;">
-            <div class="sv-feature-card sv-card-enter" style="animation-delay:0.05s;">
+            <div class="sv-feature-card">
                 <div class="sv-eyebrow" style="margin-bottom:0.75rem;">Gestion des cours</div>
                 <h3 class="sv-section-title" style="font-size:1.375rem; margin-bottom:0.75rem;">Créez. Publiez. Gérez.</h3>
                 <p style="font-size:0.875rem; color:var(--sv-text-muted); line-height:1.65; font-weight:300;">Structurez vos modules, publiez du contenu mixte et suivez la progression depuis un tableau de bord unique.</p>
             </div>
-            <div class="sv-feature-card sv-card-enter" style="animation-delay:0.15s;">
+            <div class="sv-feature-card">
                 <div class="sv-eyebrow" style="margin-bottom:0.75rem;">Suivi étudiant</div>
                 <h3 class="sv-section-title" style="font-size:1.375rem; margin-bottom:0.75rem;">Progression en temps réel.</h3>
                 <p style="font-size:0.875rem; color:var(--sv-text-muted); line-height:1.65; font-weight:300;">Visualisez l'avancement, identifiez les difficultés et intervenez au bon moment.</p>
             </div>
-            <div class="sv-feature-card sv-card-enter" style="animation-delay:0.25s;">
+            <div class="sv-feature-card">
                 <div class="sv-eyebrow" style="margin-bottom:0.75rem;">Administration</div>
                 <h3 class="sv-section-title" style="font-size:1.375rem; margin-bottom:0.75rem;">Pilotez votre établissement.</h3>
                 <p style="font-size:0.875rem; color:var(--sv-text-muted); line-height:1.65; font-weight:300;">Configurez les accès, supervisez les cohortes et exportez les certifications.</p>
@@ -319,7 +328,7 @@ if (isLoggedIn()) {
                 ['03', 'Validez et certifiez', 'Passez les QCM et obtenez votre certificat officiel.'],
             ];
             foreach ($steps as $i => $s): ?>
-            <div class="sv-step-card sv-card-enter" style="display:flex; gap:1rem; align-items:flex-start; animation-delay:<?= 0.1 + $i * 0.1; ?>s;">
+            <div class="sv-step-card" style="display:flex; gap:1rem; align-items:flex-start;">
                 <span class="sv-step-badge" style="font-size:0.625rem; font-weight:700; letter-spacing:0.1em; background:var(--sv-text); color:#fff; padding:0.35rem 0.6rem; flex-shrink:0;"><?= $s[0]; ?></span>
                 <div>
                     <div class="sv-step-title" style="font-size:0.875rem; font-weight:600; color:var(--sv-text);"><?= $s[1]; ?></div>
@@ -345,7 +354,56 @@ if (isLoggedIn()) {
     </div>
 </footer>
 
+<script src="https://cdn.jsdelivr.net/npm/gsap@3.12.5/dist/gsap.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/gsap@3.12.5/dist/ScrollTrigger.min.js"></script>
 <script src="/assets/js/app.js"></script>
+<script>
+    // Register GSAP plugins
+    gsap.registerPlugin(ScrollTrigger);
+
+    window.addEventListener('DOMContentLoaded', () => {
+        // Set main containers opacity immediately when script executes to avoid FOUC
+        gsap.set([".sv-hero-content", ".sv-auth-card", ".sv-feature-card", ".sv-step-card"], { opacity: 1 });
+
+        // 1. Hero Reveal Timeline
+        const tl = gsap.timeline({ defaults: { ease: "power3.out" } });
+        tl.from(".sv-navbar", { y: -45, opacity: 0, duration: 1.1 })
+          .from(".sv-hero-content .sv-eyebrow", { y: 25, opacity: 0, duration: 0.65 }, "-=0.6")
+          .from(".sv-hero-headline", { y: 35, opacity: 0, duration: 0.8 }, "-=0.45")
+          .from(".sv-hero-sub", { y: 25, opacity: 0, duration: 0.8 }, "-=0.6")
+          .from(".sv-hero-actions", { y: 25, opacity: 0, duration: 0.8 }, "-=0.6")
+          .from(".sv-hero-content .sv-badge", { y: 15, opacity: 0, stagger: 0.08, duration: 0.5 }, "-=0.6")
+          .from(".sv-auth-card", { x: 45, opacity: 0, duration: 1.1, ease: "power4.out" }, "-=1.1");
+
+        // 2. ScrollTrigger features stagger reveal
+        gsap.from(".sv-feature-card", {
+            scrollTrigger: {
+                trigger: "#fonctionnalites",
+                start: "top 85%",
+                toggleActions: "play none none none"
+            },
+            y: 45,
+            opacity: 0,
+            duration: 0.85,
+            stagger: 0.12,
+            ease: "power2.out"
+        });
+
+        // 3. ScrollTrigger steps timeline slide-in
+        gsap.from(".sv-step-card", {
+            scrollTrigger: {
+                trigger: "#comment",
+                start: "top 85%",
+                toggleActions: "play none none none"
+            },
+            x: 35,
+            opacity: 0,
+            duration: 0.85,
+            stagger: 0.15,
+            ease: "power2.out"
+        });
+    });
+</script>
 <script>
     /* ── Onglets auth ── */
     function switchAuthTab(tab) {

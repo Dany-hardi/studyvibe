@@ -100,6 +100,8 @@ try {
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&family=Plus+Jakarta+Sans:ital,wght@0,300..800;1,300..800&display=swap" rel="stylesheet">
     <link rel="stylesheet" href="/assets/css/app.css">
     <?= csrfMetaTag(); ?>
+    <script src="https://cdn.jsdelivr.net/npm/gsap@3.12.5/dist/gsap.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/gsap@3.12.5/dist/ScrollTrigger.min.js"></script>
     
     <script src="https://cdn.tailwindcss.com"></script>
     <script>
@@ -915,11 +917,74 @@ try {
 
         document.addEventListener('DOMContentLoaded', () => {
             initCourseSearch('course-search', 'course-grid');
+
+            // GSAP Number Counter Animations for Student KPIs
+            const completedEl = document.getElementById('kpi-completed');
+            const scoreEl = document.getElementById('kpi-score');
+            const timeEl = document.getElementById('kpi-time');
+            const certsEl = document.getElementById('kpi-certs');
+
+            if (completedEl && scoreEl && timeEl && certsEl) {
+                // Parse values from HTML content
+                const completedVal = parseInt(completedEl.textContent.trim()) || 0;
+                const scoreVal = parseFloat(scoreEl.textContent.replace('%', '').trim()) || 0.0;
+                
+                // Parse time (e.g. 5h32)
+                const timeText = timeEl.textContent.trim();
+                const timeParts = timeText.split('h');
+                const timeHVal = parseInt(timeParts[0]) || 0;
+                const timeMVal = parseInt(timeParts[1]) || 0;
+                
+                const certsVal = parseInt(certsEl.textContent.trim()) || 0;
+
+                const counterObj = { completed: 0, score: 0, timeH: 0, timeM: 0, certs: 0 };
+                
+                gsap.to(counterObj, {
+                    completed: completedVal,
+                    score: scoreVal,
+                    timeH: timeHVal,
+                    timeM: timeMVal,
+                    certs: certsVal,
+                    duration: 1.6,
+                    ease: "power2.out",
+                    onUpdate: () => {
+                        completedEl.textContent = Math.floor(counterObj.completed);
+                        scoreEl.textContent = counterObj.score.toFixed(1) + '%';
+                        const minsStr = String(Math.floor(counterObj.timeM)).padStart(2, '0');
+                        timeEl.textContent = Math.floor(counterObj.timeH) + 'h' + minsStr;
+                        certsEl.textContent = Math.floor(counterObj.certs);
+                    }
+                });
+            }
+
+            // Stagger load the Course grid cards
+            gsap.from("#course-grid [data-course-card]", {
+                opacity: 0,
+                y: 35,
+                stagger: 0.1,
+                duration: 0.85,
+                ease: "power2.out"
+            });
         });
 
         function switchTab(tabName) {
             switchTabAnimated(tabName, STUDENT_TABS);
             if (tabName === 'releve') loadTranscript();
+
+            // Stagger fade elements inside the active tab panel using GSAP
+            const activePanel = document.getElementById('tab-' + tabName);
+            if (activePanel) {
+                const animTargets = activePanel.querySelectorAll('.grid > div, .space-y-8 > div, .space-y-6 > div, h2, table tbody tr');
+                if (animTargets.length) {
+                    gsap.from(animTargets, {
+                        opacity: 0,
+                        y: 20,
+                        stagger: 0.05,
+                        duration: 0.55,
+                        ease: "power2.out"
+                    });
+                }
+            }
         }
 
         function loadTranscript() {
