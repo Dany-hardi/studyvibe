@@ -15,6 +15,23 @@ $user = getCurrentUser();
 try {
     $pdo = Database::getInstance();
 
+    // Handle Certificate Revocation / Removal (Form POST)
+    if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action']) && $_POST['action'] === 'remove_certificate') {
+        $certId = (int)($_POST['certificate_id'] ?? 0);
+        if ($certId > 0) {
+            $stmt = $pdo->prepare("SELECT certificate_code, student_id FROM certificates WHERE id = :id");
+            $stmt->execute(['id' => $certId]);
+            $certData = $stmt->fetch();
+            if ($certData) {
+                $stmtDel = $pdo->prepare("DELETE FROM certificates WHERE id = :id");
+                $stmtDel->execute(['id' => $certId]);
+                auditLog('certificate_removed', "Code: {$certData['certificate_code']}, Student ID: {$certData['student_id']}");
+                header("Location: /promoter/dashboard.php?success=certificate_removed");
+                exit;
+            }
+        }
+    }
+
     // Handle Module Creation (Form POST)
     if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action']) && $_POST['action'] === 'create_module') {
         $title = trim((string)$_POST['module_title']);
@@ -254,645 +271,582 @@ try {
         </div>
     </header>
 
-    <!-- Corps de Page -->
-    <main class="flex-grow px-12 py-16 max-w-7xl mx-auto w-full space-y-16">
-
-        <!-- Message de succès -->
-        <?php if (isset($_GET['success'])): ?>
-            <div class="p-4 bg-[#FFFFFF] border border-[#004B23] text-[#004B23] text-sm font-light fade-in">
-                ✓ L'opération académique a été exécutée avec succès.
-            </div>
-        <?php endif; ?>
-
-        <!-- KPI Cards -->
-        <div class="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-6 gap-4">
-            <?php
-            $kpisRaw = [
-                ['label' => 'Apprenants',      'raw' => $kpiTotalStudents,            'suffix' => '',  'decimals' => 0],
-                ['label' => 'Cours',            'raw' => $kpiTotalCourses,             'suffix' => '',  'decimals' => 0],
-                ['label' => 'Inscriptions',     'raw' => $kpiEnrollments,              'suffix' => '',  'decimals' => 0],
-                ['label' => 'Certifications',   'raw' => $kpiTotalCerts,               'suffix' => '',  'decimals' => 0],
-                ['label' => 'Progression moy.', 'raw' => round($kpiAvgProgress, 1),   'suffix' => '%', 'decimals' => 1],
-                ['label' => 'Taux de réussite', 'raw' => $kpiPassRate,                 'suffix' => '%', 'decimals' => 0],
-            ];
-            foreach ($kpisRaw as $kpi): ?>
-                <div class="bg-[#FFFFFF] border border-[#E5E5E7] p-5 space-y-2 group hover:border-[#004B23] transition-colors">
-                    <div
-                        class="font-serif text-2xl font-light text-[#111111] tabular-nums"
-                        data-counter="<?= $kpi['raw']; ?>"
-                        data-suffix="<?= $kpi['suffix']; ?>"
-                        data-decimals="<?= $kpi['decimals']; ?>"
-                    >0<?= $kpi['suffix']; ?></div>
-                    <div class="text-[10px] uppercase tracking-wider text-[#888888] font-medium"><?= $kpi['label']; ?></div>
-                </div>
-            <?php endforeach; ?>
-        </div>
-
-        <!-- Section Audit Stratégique (IA Gemini) -->
-        <div class="border border-[#E5E5E7] bg-[#FFFFFF] p-8 space-y-6">
-            <div class="flex flex-col md:flex-row md:items-end md:justify-between gap-4">
-                <div class="space-y-2">
-                    <h2 class="font-serif text-3xl font-light text-[#111111]">Audit Académique</h2>
-                    <p class="text-sm text-[#555555] font-light max-w-2xl">
-                        Générez un rapport d'analyse critique, de diagnostic pédagogique et de recommandations opérationnelles basé sur l'activité en temps réel de votre établissement.
-                    </p>
-                </div>
-                <button type="button" onclick="runStrategicAudit()" id="audit-btn"
-                   class="px-5 py-2.5 bg-[#111111] text-[#FFFFFF] text-xs font-semibold uppercase tracking-wider hover:bg-[#004B23] transition-colors rounded-sm flex-shrink-0 text-center">
-                    Générer le rapport stratégique
-                </button>
-            </div>
-
-            <!-- Loader de l'audit -->
-            <div id="audit-loading" class="hidden flex flex-col items-center justify-center py-12 space-y-3 border-t border-[#E5E5E7] border-dashed">
-                <div class="w-8 h-8 border-2 border-[#111111] border-t-transparent rounded-full animate-spin"></div>
-                <p class="text-xs font-mono uppercase tracking-widest text-[#555555]">Audit en cours de rédaction par l'IA...</p>
-            </div>
-
-            <!-- Contenu de l'audit -->
-            <div id="audit-result-container" class="hidden border-t border-[#E5E5E7] pt-6 space-y-4">
-                <div class="flex justify-between items-center">
-                    <span class="text-[10px] font-mono uppercase tracking-widest text-[#888888]">Rapport généré par l'IA Gemini</span>
-                    <button type="button" onclick="window.print()" class="text-xs uppercase tracking-wider text-[#555555] hover:underline font-semibold">
-                        Imprimer le rapport
-                    </button>
-                </div>
-                <div id="audit-text" class="p-6 bg-[var(--sv-cream-light)] border border-[#D5D0C8] text-sm text-[#111111] leading-relaxed whitespace-pre-line font-light">
-                    <!-- Rempli par JS -->
-                </div>
-            </div>
-        </div>
-
-        <!-- Section Exports -->
-        <div class="border border-[#E5E5E7] bg-[#FFFFFF] p-8 space-y-6">
-            <div class="flex flex-col md:flex-row md:items-end md:justify-between gap-4">
-                <div class="space-y-2">
-                    <h2 class="font-serif text-3xl font-light text-[#111111]">Exports Excel</h2>
-                    <p class="text-sm text-[#555555] font-light max-w-2xl">
-                        Tous les rapports et données de la plateforme sont exportables au format Excel (.xls).
-                    </p>
-                </div>
-                <a href="/promoter/export-excel.php?type=all"
-                   class="px-5 py-2.5 bg-[#004B23] text-[#FFFFFF] text-xs font-semibold uppercase tracking-wider hover:bg-[#111111] transition-colors rounded-sm flex-shrink-0 text-center">
-                    ⬇ Export Excel complet (9 feuilles)
-                </a>
-            </div>
-
-            <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-                <?php
-                $excelExports = [
-                    ['type' => 'metrics', 'label' => 'Métriques KPI'],
-                    ['type' => 'students', 'label' => 'Apprenants'],
-                    ['type' => 'teachers', 'label' => 'Enseignants'],
-                    ['type' => 'modules', 'label' => 'Modules'],
-                    ['type' => 'courses', 'label' => 'Cours'],
-                    ['type' => 'enrollments', 'label' => 'Inscriptions'],
-                    ['type' => 'certifications', 'label' => 'Certifications délivrées'],
-                    ['type' => 'certification_attempts', 'label' => 'Tentatives QCM certification'],
-                    ['type' => 'audit_logs', 'label' => 'Journal d\'audit'],
-                ];
-                foreach ($excelExports as $exp): ?>
-                    <a href="/promoter/export-excel.php?type=<?= $exp['type']; ?>"
-                       class="flex items-center justify-between px-4 py-3 border border-[#E5E5E7] hover:border-[#004B23] text-sm font-light transition-colors rounded-sm">
-                        <span><?= $exp['label']; ?></span>
-                        <span class="text-[10px] uppercase tracking-wider text-[#004B23] font-semibold">.xls</span>
-                    </a>
-                <?php endforeach; ?>
-            </div>
-        </div>
-
-        <!-- Introduction Éditoriale -->
-        <div class="border-b border-[#E5E5E7] pb-10">
-            <h1 class="font-serif text-5xl font-light tracking-tight mb-4">Gouvernance Académique</h1>
-            <p class="text-base font-light text-[#555555] max-w-2xl leading-relaxed">
-                Espace dédié à la structuration des modules de formation, à l'assignation du corps professoral aux cours créés par les enseignants, et au contrôle officiel des certifications décernées.
-            </p>
-        </div>
-
-        <!-- Section 1: Gestion des Modules -->
-        <div class="max-w-2xl">
-            <!-- Créer un Module -->
+    <!-- Workspace Dual-Column Layout -->
+    <div class="flex-grow flex flex-col lg:flex-row min-h-[calc(100vh-80px)] bg-[#FAF8F4]">
+        
+        <!-- Sidebar Navigation -->
+        <aside class="w-full lg:w-72 bg-[#092215] text-[#E0E7E3] border-r border-[#143d26] p-6 space-y-6 flex-shrink-0 flex flex-col justify-between" role="complementary">
             <div class="space-y-6">
-                <h2 class="font-serif text-2xl font-light text-[#111111]">1. Structurer un Nouveau Module</h2>
-                <p class="text-xs text-[#555555] font-light">Un module regroupe plusieurs cours thématiques pour délivrer une certification globale. Les enseignants créent les cours au sein de ces modules.</p>
-                <form action="/promoter/dashboard.php" method="POST" class="space-y-4">
-                    <input type="hidden" name="action" value="create_module">
-                    <div>
-                        <label class="block text-xs font-semibold uppercase tracking-wider text-[#555555] mb-2">Titre du Module</label>
-                        <input type="text" name="module_title" required placeholder="ex: Sciences Formelles & Logique"
-                            class="w-full px-4 py-2 bg-[#F5F5F7] border border-[#E5E5E7] text-sm focus:outline-none focus:border-[#004B23] focus:bg-[#FFFFFF] transition-all duration-300 rounded-sm">
-                    </div>
-                    <div>
-                        <label class="block text-xs font-semibold uppercase tracking-wider text-[#555555] mb-2">Description Académique</label>
-                        <textarea name="module_desc" rows="3" placeholder="Description concise du cursus..."
-                            class="w-full px-4 py-2 bg-[#F5F5F7] border border-[#E5E5E7] text-sm focus:outline-none focus:border-[#004B23] focus:bg-[#FFFFFF] transition-all duration-300 rounded-sm"></textarea>
-                    </div>
-                    <button type="submit" class="px-6 py-2.5 bg-[#111111] text-[#FFFFFF] text-xs font-semibold uppercase tracking-widest hover:bg-[#004B23] transition-all duration-300 rounded-sm">
-                        Créer le Module
+                <div class="border-b border-[#143d26] pb-4">
+                    <span class="text-[10px] uppercase tracking-widest text-[#88a394] font-semibold block">Espace Promoteur</span>
+                    <h2 class="font-serif text-lg text-white font-medium mt-1">Gouvernance Académique</h2>
+                </div>
+                
+                <!-- Tab Controls -->
+                <nav class="space-y-1.5" aria-label="Navigation principale">
+                    <button onclick="switchDashboardTab('tab-overview')" data-tab-target="tab-overview" class="sidebar-tab-btn w-full flex items-center gap-3 px-4 py-3 rounded-sm text-left text-sm transition-all duration-200 bg-[#004B23] text-white font-semibold">
+                        <svg class="w-4 h-4" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24" aria-hidden="true" style="width:16px; height:16px;"><path stroke-linecap="round" stroke-linejoin="round" d="M4 6a2 2 0 012-2h2a2 2 0 012 2v4a2 2 0 01-2 2H6a2 2 0 01-2-2V6zM14 6a2 2 0 012-2h2a2 2 0 012 2v4a2 2 0 01-2 2h-2a2 2 0 01-2-2V6zM4 16a2 2 0 012-2h2a2 2 0 012 2v4a2 2 0 01-2 2H6a2 2 0 01-2-2v-4zM14 16a2 2 0 012-2h2a2 2 0 012 2v4a2 2 0 01-2 2h-2a2 2 0 01-2-2v-4z" /></svg>
+                        <span>Vue d'ensemble</span>
                     </button>
-                </form>
+                    <button onclick="switchDashboardTab('tab-academy')" data-tab-target="tab-academy" class="sidebar-tab-btn w-full flex items-center gap-3 px-4 py-3 rounded-sm text-left text-sm transition-all duration-200 text-gray-300 hover:bg-[#143d26] hover:text-white">
+                        <svg class="w-4 h-4" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24" aria-hidden="true" style="width:16px; height:16px;"><path stroke-linecap="round" stroke-linejoin="round" d="M12 6.253v13m0-13C10.832 5.477 9.246 5 7.5 5S4.168 5.477 3 6.253v13C4.168 18.477 5.754 18 7.5 18s3.168.477 4.5 1.253m0-13C13.168 5.477 14.754 5 16.5 5c1.747 0 3.332.477 4.5 1.253v13C19.832 18.477 18.247 18 16.5 18c-1.746 0-3.332.477-4.5 1.253" /></svg>
+                        <span>Académie & Cours</span>
+                    </button>
+                    <button onclick="switchDashboardTab('tab-certificates')" data-tab-target="tab-certificates" class="sidebar-tab-btn w-full flex items-center gap-3 px-4 py-3 rounded-sm text-left text-sm transition-all duration-200 text-gray-300 hover:bg-[#143d26] hover:text-white">
+                        <svg class="w-4 h-4" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24" aria-hidden="true" style="width:16px; height:16px;"><path stroke-linecap="round" stroke-linejoin="round" d="M9 12l2 2 4-4M7.835 4.697a3.42 3.42 0 001.946-.806 3.42 3.42 0 014.438 0 3.42 3.42 0 001.946.806 3.42 3.42 0 013.138 3.138 3.42 3.42 0 00.806 1.946 3.42 3.42 0 010 4.438 3.42 3.42 0 00-.806 1.946 3.42 3.42 0 01-3.138 3.138 3.42 3.42 0 00-1.946.806 3.42 3.42 0 01-4.438 0 3.42 3.42 0 00-1.946-.806 3.42 3.42 0 01-3.138-3.138 3.42 3.42 0 00-.806-1.946 3.42 3.42 0 010-4.438 3.42 3.42 0 00.806-1.946 3.42 3.42 0 013.138-3.138z" /></svg>
+                        <span>Certifications</span>
+                    </button>
+                    <button onclick="switchDashboardTab('tab-community')" data-tab-target="tab-community" class="sidebar-tab-btn w-full flex items-center gap-3 px-4 py-3 rounded-sm text-left text-sm transition-all duration-200 text-gray-300 hover:bg-[#143d26] hover:text-white">
+                        <svg class="w-4 h-4" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24" aria-hidden="true" style="width:16px; height:16px;"><path stroke-linecap="round" stroke-linejoin="round" d="M17 20h5v-2a3 3 0 00-5.356-1.857M17 20H7m10 0v-2c0-.656-.126-1.283-.356-1.857M7 20H2v-2a3 3 0 015.356-1.857M7 20v-2c0-.656.126-1.283.356-1.857m0 0a5.002 5.002 0 019.288 0M15 7a3 3 0 11-6 0 3 3 0 016 0zm6 3a2 2 0 11-4 0 2 2 0 014 0zM7 10a2 2 0 11-4 0 2 2 0 014 0z" /></svg>
+                        <span>Communauté</span>
+                    </button>
+                    <button onclick="switchDashboardTab('tab-communications')" data-tab-target="tab-communications" class="sidebar-tab-btn w-full flex items-center gap-3 px-4 py-3 rounded-sm text-left text-sm transition-all duration-200 text-gray-300 hover:bg-[#143d26] hover:text-white">
+                        <svg class="w-4 h-4" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24" aria-hidden="true" style="width:16px; height:16px;"><path stroke-linecap="round" stroke-linejoin="round" d="M3 8l7.89 5.26a2 2 0 002.22 0L21 8M5 19h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v10a2 2 0 002 2z" /></svg>
+                        <span>Comms & Audit</span>
+                    </button>
+                </nav>
             </div>
-        </div>
-
-        <!-- Section 2: Assignation & révocation des enseignants (AJAX) -->
-        <div class="border-t border-[#E5E5E7] pt-12 space-y-6">
-            <h2 class="font-serif text-3xl font-light text-[#111111]">Catalogue des Cours et Assignations</h2>
-            <p class="text-sm text-[#555555] font-light max-w-2xl">
-                Les cours sont créés par les enseignants. Vous êtes informé automatiquement à chaque création.
-                Réassignez ou révoquez l'enseignant titulaire à tout moment — le contenu pédagogique reste intact.
-            </p>
-
-            <?php
-            $recentCourses = array_filter($courses, static function (array $c): bool {
-                if (empty($c['created_at'])) return false;
-                return strtotime((string)$c['created_at']) >= strtotime('-14 days');
-            });
-            if (!empty($recentCourses)): ?>
-            <div class="p-4 border border-[#004B23] bg-[#F5F5F7] space-y-2">
-                <p class="text-xs font-semibold uppercase tracking-wider text-[#004B23]">Nouveaux cours (14 derniers jours)</p>
-                <ul class="text-sm font-light text-[#555555] space-y-1">
-                    <?php foreach (array_slice($recentCourses, 0, 5) as $rc): ?>
-                        <li>
-                            <strong class="text-[#111111]"><?= htmlspecialchars($rc['title']); ?></strong>
-                            — module <?= htmlspecialchars($rc['module_title']); ?>
-                            <?php if (!empty($rc['creator_name'])): ?>
-                                · créé par <?= htmlspecialchars($rc['creator_name']); ?>
-                            <?php endif; ?>
-                            <?php if (!empty($rc['teacher_name'])): ?>
-                                · assigné à <?= htmlspecialchars($rc['teacher_name']); ?>
-                            <?php else: ?>
-                                · <span class="italic text-[#888888]">non assigné</span>
-                            <?php endif; ?>
-                        </li>
-                    <?php endforeach; ?>
-                </ul>
+            
+            <div class="border-t border-[#143d26] pt-4">
+                <div class="flex items-center gap-3 text-xs text-[#88a394]">
+                    <div class="w-2 h-2 rounded-full bg-green-500 animate-pulse"></div>
+                    <span>Système en production</span>
+                </div>
             </div>
+        </aside>
+
+        <!-- Main Workspace Area -->
+        <main class="flex-grow p-6 md:p-10 lg:p-12 space-y-12 max-w-7xl w-full mx-auto" role="main">
+            
+            <!-- Message de succès -->
+            <?php if (isset($_GET['success'])): ?>
+                <div class="p-4 bg-[#FFFFFF] border border-[#004B23] text-[#004B23] text-sm font-light fade-in">
+                    ✓ L'opération académique a été exécutée avec succès.
+                </div>
             <?php endif; ?>
-            
-            <div class="overflow-x-auto">
-                <table class="w-full text-left border-collapse">
-                    <thead>
-                        <tr class="border-b border-[#111111] text-xs uppercase tracking-wider text-[#555555]">
-                            <th class="pb-4 font-medium">Cours</th>
-                            <th class="pb-4 font-medium">Module</th>
-                            <th class="pb-4 font-medium">Créé par</th>
-                            <th class="pb-4 font-medium">Enseignant assigné</th>
-                            <th class="pb-4 font-medium">Clé d'accès</th>
-                            <th class="pb-4 font-medium text-right">Actions</th>
-                        </tr>
-                    </thead>
-                    <tbody class="divide-y divide-[#E5E5E7] text-sm font-light">
-                        <?php if (empty($courses)): ?>
-                            <tr><td colspan="6" class="py-8 text-center italic text-[#888888]">Aucun cours pour le moment. Les enseignants peuvent en créer depuis leur espace.</td></tr>
-                        <?php endif; ?>
-                        <?php foreach ($courses as $c): ?>
-                            <tr>
-                                <td class="py-4 font-medium text-[#111111]">
-                                    <?= htmlspecialchars($c['title']); ?>
-                                    <?php if (!empty($c['description'])): ?>
-                                        <p class="text-xs text-[#888888] font-light mt-1 max-w-xs line-clamp-2"><?= htmlspecialchars($c['description']); ?></p>
-                                    <?php endif; ?>
-                                </td>
-                                <td class="py-4 text-[#555555]">
-                                    <?= htmlspecialchars($c['module_title']); ?>
-                                </td>
-                                <td class="py-4 text-[#555555]">
-                                    <?= !empty($c['creator_name']) ? htmlspecialchars($c['creator_name']) : '<span class="italic text-[#888888]">—</span>'; ?>
-                                </td>
-                                <td class="py-4">
-                                    <select id="teacher-select-<?= $c['id']; ?>"
-                                        class="px-2 py-1 bg-[#F5F5F7] border border-[#E5E5E7] text-xs focus:outline-none focus:border-[#004B23] rounded-sm">
-                                        <option value="" <?= empty($c['teacher_id']) ? 'selected' : ''; ?>>— Non assigné —</option>
-                                        <?php foreach ($teachers as $t): ?>
-                                            <option value="<?= $t['id']; ?>" <?= (int)($c['teacher_id'] ?? 0) === (int)$t['id'] ? 'selected' : ''; ?>>
-                                                <?= htmlspecialchars($t['name']); ?>
-                                            </option>
-                                        <?php endforeach; ?>
-                                    </select>
-                                </td>
-                                <td class="py-4 font-mono text-xs">
-                                    <?= $c['enrollment_key'] ? htmlspecialchars($c['enrollment_key']) : '<span class="italic text-[#888888]">Libre</span>'; ?>
-                                </td>
-                                <td class="py-4 text-right space-x-2 whitespace-nowrap">
-                                    <button type="button" onclick="assignTeacher(<?= $c['id']; ?>)"
-                                        class="px-3 py-1 text-[10px] font-semibold uppercase tracking-wider bg-[#111111] text-white hover:bg-[#004B23] rounded-sm">
-                                        Assigner
-                                    </button>
-                                    <?php if (!empty($c['teacher_id'])): ?>
-                                    <button type="button" onclick="revokeTeacher(<?= $c['id']; ?>)"
-                                        class="px-3 py-1 text-[10px] font-semibold uppercase tracking-wider border border-[#E5E5E7] hover:border-[#D32F2F] hover:text-[#D32F2F] rounded-sm">
-                                        Révoquer
-                                    </button>
-                                    <?php endif; ?>
-                                    <span id="status-<?= $c['id']; ?>" class="text-xs text-[#004B23] font-medium hidden"></span>
-                                </td>
-                            </tr>
-                        <?php endforeach; ?>
-                    </tbody>
-                </table>
-            </div>
-        </div>
 
-        <!-- Section 3: Registre Officiel des Certifications Délivrées -->
-        <div class="border-t border-[#E5E5E7] pt-12 space-y-6">
-            <div class="flex flex-col md:flex-row justify-between md:items-end gap-4">
-                <div class="space-y-2">
-                    <h2 class="font-serif text-3xl font-light text-[#111111]">Registre des Certifications</h2>
-                    <p class="text-sm text-[#555555] font-light max-w-xl">
-                        Suivi officiel des diplômes. Délivrance automatique (≥80%) ou manuelle exceptionnelle.
-                    </p>
-                </div>
-                <a href="/promoter/export-excel.php?type=certifications"
-                   class="px-5 py-2.5 bg-[#004B23] text-[#FFFFFF] text-xs font-semibold uppercase tracking-wider hover:bg-[#111111] transition-colors rounded-sm flex-shrink-0">
-                    ⬇ Exporter Excel
-                </a>
-            </div>
-
-            <!-- Délivrance manuelle -->
-            <div class="border border-[#E5E5E7] p-6 space-y-4 max-w-2xl">
-                <h3 class="text-sm font-semibold uppercase tracking-wider text-[#555555]">Délivrance manuelle (cas exceptionnel)</h3>
-                <form id="manual-cert-form" class="grid grid-cols-1 md:grid-cols-3 gap-4 items-end">
-                    <div>
-                        <label class="block text-xs text-[#888] mb-1">Étudiant</label>
-                        <select name="student_id" required class="w-full px-3 py-2 bg-[#F5F5F7] border border-[#E5E5E7] text-sm rounded-sm">
-                            <option value="">Choisir…</option>
-                            <?php foreach ($students as $s): ?>
-                                <option value="<?= $s['id']; ?>"><?= htmlspecialchars($s['name']); ?></option>
-                            <?php endforeach; ?>
-                        </select>
-                    </div>
-                    <div>
-                        <label class="block text-xs text-[#888] mb-1">Module</label>
-                        <select name="module_id" required class="w-full px-3 py-2 bg-[#F5F5F7] border border-[#E5E5E7] text-sm rounded-sm">
-                            <option value="">Choisir…</option>
-                            <?php foreach ($modules as $m): ?>
-                                <option value="<?= $m['id']; ?>"><?= htmlspecialchars($m['title']); ?></option>
-                            <?php endforeach; ?>
-                        </select>
-                    </div>
-                    <button type="submit" class="px-4 py-2 bg-[#111111] text-white text-xs font-semibold uppercase tracking-wider hover:bg-[#004B23] rounded-sm">
-                        Délivrer
-                    </button>
-                </form>
-            </div>
-            
-            <div class="overflow-x-auto">
-                <table class="w-full text-left border-collapse">
-                    <thead>
-                        <tr class="border-b border-[#111111] text-xs uppercase tracking-wider text-[#555555]">
-                            <th class="pb-4 font-medium">Étudiant</th>
-                            <th class="pb-4 font-medium">Module Certifié</th>
-                            <th class="pb-4 font-medium">Enseignant(s)</th>
-                            <th class="pb-4 font-medium">Émis par</th>
-                            <th class="pb-4 font-medium">Code Unique</th>
-                            <th class="pb-4 font-medium">Date de Délivrance</th>
-                        </tr>
-                    </thead>
-                    <tbody class="divide-y divide-[#E5E5E7] text-sm font-light">
-                        <?php if (empty($certificates)): ?>
-                            <tr>
-                                <td colspan="6" class="py-8 text-center text-[#888888] italic">
-                                    Aucun certificat n'a été délivré pour le moment.
-                                </td>
-                            </tr>
-                        <?php else: ?>
-                            <?php foreach ($certificates as $cert): ?>
-                                <tr>
-                                    <td class="py-4">
-                                        <span class="font-medium text-[#111111]"><?= htmlspecialchars($cert['student_name']); ?></span><br>
-                                        <span class="text-xs text-[#888888]"><?= htmlspecialchars($cert['student_email']); ?></span>
-                                    </td>
-                                    <td class="py-4 text-[#555555]">
-                                        <?= htmlspecialchars($cert['module_title']); ?>
-                                    </td>
-                                    <td class="py-4 text-xs text-[#555555]">
-                                        <?= htmlspecialchars($cert['teachers_list'] ?? 'Aucun'); ?>
-                                    </td>
-                                    <td class="py-4 text-xs">
-                                        <?php if ($cert['manual_issue']): ?>
-                                            <span class="px-2 py-0.5 bg-[#FFF8E1] text-[#5D4037] border border-[#FFE082] rounded-sm font-medium">Manuel (<?= htmlspecialchars($cert['issuer_name'] ?? 'Inconnu'); ?>)</span>
-                                        <?php else: ?>
-                                            <span class="px-2 py-0.5 bg-[#E8F5E9] text-[#1B5E20] border border-[#A5D6A7] rounded-sm font-medium">Automatique</span>
-                                        <?php endif; ?>
-                                    </td>
-                                    <td class="py-4 font-mono text-xs font-semibold text-[#004B23]">
-                                        <a href="/certificate.php?code=<?= urlencode($cert['certificate_code']); ?>" target="_blank" class="hover:underline flex items-center gap-1">
-                                            <?= htmlspecialchars($cert['certificate_code']); ?>
-                                            <svg class="w-3.5 h-3.5 opacity-60" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg"><path stroke-linecap="round" stroke-linejoin="round" d="M13.5 6H5.25A2.25 2.25 0 003 8.25v10.5A2.25 2.25 0 005.25 21h10.5A2.25 2.25 0 0018 18.75V10.5m-10.5 6L21 3m0 0h-5.25M21 3v5.25" /></svg>
-                                        </a>
-                                    </td>
-                                    <td class="py-4 text-[#888888]">
-                                        <?= date('d/m/Y H:i', strtotime($cert['issued_at'])); ?>
-                                    </td>
-                                </tr>
-                            <?php endforeach; ?>
-                        <?php endif; ?>
-                    </tbody>
-                </table>
-            </div>
-        </div>
-
-        <!-- Section 4 : Gestion des Comptes Utilisateurs -->
-        <?php
-        $pendingTeachersCount = 0;
-        foreach ($teachers as $t) {
-            if (!(int)$t['is_approved']) {
-                $pendingTeachersCount++;
-            }
-        }
-        $totalTeachersCount = count($teachers);
-        $totalStudentsCount = count($students);
-        ?>
-        <div class="border-t border-[#E5E5E7] pt-12 space-y-8">
-            <div class="flex flex-col md:flex-row justify-between md:items-end gap-4">
-                <div class="space-y-2">
-                    <h2 class="font-serif text-3xl font-light text-[#111111]">Gestion de la Communauté</h2>
-                    <p class="text-sm text-[#555555] font-light max-w-xl">
-                        Supervisez le corps enseignant et la communauté apprenante. Validez les nouveaux enseignants, suspendez ou supprimez des comptes à tout moment.
-                    </p>
-                </div>
-                <div class="flex flex-wrap gap-2 flex-shrink-0">
-                    <a href="/promoter/export-excel.php?type=students"
-                       class="px-4 py-2 border border-[#E5E5E7] text-xs font-semibold uppercase tracking-wider hover:border-[#004B23] rounded-sm">
-                        Excel apprenants
-                    </a>
-                    <button onclick="toggleModal('user-modal')"
-                        class="px-5 py-2.5 bg-[#111111] text-[#FFFFFF] text-xs font-semibold uppercase tracking-wider hover:bg-[#004B23] transition-colors rounded-sm">
-                        + Créer un Compte
-                    </button>
-                </div>
-            </div>
-
-            <!-- Feedback AJAX -->
-            <div id="user-success" class="hidden p-3 border border-[#004B23] text-[#004B23] text-xs font-medium"></div>
-            <div id="user-error"   class="hidden p-3 border border-[#D32F2F] text-[#D32F2F] text-xs font-medium"></div>
-
-            <!-- Dashboard Cards pour les Modals -->
-            <div class="grid grid-cols-1 lg:grid-cols-3 gap-8">
-                <!-- Card 1: Corps Enseignant -->
-                <div class="bg-white border border-[#E5E5E7] p-8 flex flex-col justify-between hover:shadow-lg transition-all duration-300 rounded-sm relative group">
-                    <div class="space-y-4">
-                        <div class="flex justify-between items-start">
-                            <div class="w-12 h-12 bg-[#E8F5E9] text-[#004B23] flex items-center justify-center rounded-full">
-                                <svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M19 20H5a2 2 0 01-2-2V6a2 2 0 012-2h10a2 2 0 012 2v1m2 4a2 2 0 00-2-2m-2 3h4m-4 3h4m-4 3h4m-4 3h4" />
-                                </svg>
-                            </div>
-                            <?php if ($pendingTeachersCount > 0): ?>
-                                <span class="flex h-3 w-3 relative">
-                                    <span class="animate-ping absolute inline-flex h-full w-full rounded-full bg-amber-400 opacity-75"></span>
-                                    <span class="relative inline-flex rounded-full h-3 w-3 bg-amber-500"></span>
-                                </span>
-                            <?php endif; ?>
-                        </div>
-                        <div>
-                            <h3 class="font-serif text-xl text-[#111111] font-medium">Corps Enseignant</h3>
-                            <p class="text-xs text-[#888888] mt-1">Supervisez et validez les comptes professeurs du StudyVibe.</p>
-                        </div>
-                        <div class="flex gap-6 pt-2 text-xs">
-                            <div>
-                                <span class="font-bold text-lg text-[#111111]"><?= $totalTeachersCount; ?></span>
-                                <span class="text-[#888888] block text-[10px] uppercase">Enseignants</span>
-                            </div>
-                            <div>
-                                <span class="font-bold text-lg <?= $pendingTeachersCount > 0 ? 'text-amber-600 font-semibold' : 'text-[#888888]'; ?>"><?= $pendingTeachersCount; ?></span>
-                                <span class="text-[#888888] block text-[10px] uppercase">En attente</span>
-                            </div>
-                        </div>
-                    </div>
-                    <div class="pt-6">
-                        <button onclick="toggleModal('teachers-list-modal')"
-                            class="w-full py-2.5 bg-[#004B23] text-white text-xs font-semibold uppercase tracking-wider hover:bg-[#111111] transition-colors rounded-sm flex items-center justify-center gap-2">
-                            <span>Gérer les Enseignants</span>
-                            <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5l7 7-7 7" />
-                            </svg>
-                        </button>
-                    </div>
-                </div>
-
-                <!-- Card 2: Communauté Apprenante -->
-                <div class="bg-white border border-[#E5E5E7] p-8 flex flex-col justify-between hover:shadow-lg transition-all duration-300 rounded-sm group">
-                    <div class="space-y-4">
-                        <div class="flex justify-between items-start">
-                            <div class="w-12 h-12 bg-[#F5F5F7] text-[#555555] flex items-center justify-center rounded-full">
-                                <svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M12 4.354a4 4 0 110 5.292M15 21H3v-1a6 6 0 0112 0v1zm0 0h6v-1a6 6 0 00-9-5.197M13 7a4 4 0 11-8 0 4 4 0 018 0z" />
-                                </svg>
-                            </div>
-                        </div>
-                        <div>
-                            <h3 class="font-serif text-xl text-[#111111] font-medium">Communauté Apprenante</h3>
-                            <p class="text-xs text-[#888888] mt-1">Gérez les inscriptions et les statuts des étudiants.</p>
-                        </div>
-                        <div class="flex gap-6 pt-2 text-xs">
-                            <div>
-                                <span class="font-bold text-lg text-[#111111]"><?= $totalStudentsCount; ?></span>
-                                <span class="text-[#888888] block text-[10px] uppercase">Étudiants Inscrits</span>
-                            </div>
-                        </div>
-                    </div>
-                    <div class="pt-6">
-                        <button onclick="toggleModal('students-list-modal')"
-                            class="w-full py-2.5 bg-[#111111] text-white text-xs font-semibold uppercase tracking-wider hover:bg-[#004B23] transition-colors rounded-sm flex items-center justify-center gap-2">
-                            <span>Gérer les Apprenants</span>
-                            <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5l7 7-7 7" />
-                            </svg>
-                        </button>
-                    </div>
-                </div>
-
-                <!-- Card 3: Téléévaluations -->
-                <div class="bg-white border border-[#E5E5E7] p-8 flex flex-col justify-between hover:shadow-lg transition-all duration-300 rounded-sm group">
-                    <div class="space-y-4">
-                        <div class="flex justify-between items-start">
-                            <div class="w-12 h-12 bg-[#E3F2FD] text-[#1E88E5] flex items-center justify-center rounded-full">
-                                <svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M9 19v-6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2a2 2 0 002-2zm0 0V9a2 2 0 012-2h2a2 2 0 012 2v10m-6 0a2 2 0 002 2h2a2 2 0 002-2m0 0V5a2 2 0 012-2h2a2 2 0 012 2v14a2 2 0 01-2 2h-2a2 2 0 01-2-2z" />
-                                </svg>
-                            </div>
-                        </div>
-                        <div>
-                            <h3 class="font-serif text-xl text-[#111111] font-medium">Téléévaluations</h3>
-                            <p class="text-xs text-[#888888] mt-1">Supervisez les sessions, modifiez les horaires ou annulez des séances.</p>
-                        </div>
-                        <div class="flex gap-6 pt-2 text-xs">
-                            <div>
-                                <span class="font-bold text-lg text-[#111111]"><?= count($liveSessions); ?></span>
-                                <span class="text-[#888888] block text-[10px] uppercase">Séances</span>
-                            </div>
-                            <div>
-                                <span class="font-bold text-lg text-[#111111]"><?= $totalEvaluatedCount; ?></span>
-                                <span class="text-[#888888] block text-[10px] uppercase">Évalués</span>
-                            </div>
-                        </div>
-                    </div>
-                    <div class="pt-6">
-                        <button onclick="toggleModal('tele-evaluations-modal')"
-                            class="w-full py-2.5 bg-[#111111] text-white text-xs font-semibold uppercase tracking-wider hover:bg-[#004B23] transition-colors rounded-sm flex items-center justify-center gap-2">
-                            <span>Console de Supervision</span>
-                            <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5l7 7-7 7" />
-                            </svg>
-                        </button>
-                    </div>
-                </div>
-            </div>
-        </div>
-
-        <!-- Section 5 : Newsletter -->
-        <div class="border-t border-[#E5E5E7] pt-12 space-y-8" id="newsletter">
-            <div class="flex flex-col md:flex-row justify-between md:items-end gap-4">
-                <div class="space-y-2">
-                    <h2 class="font-serif text-3xl font-light text-[#111111]">Newsletter</h2>
-                    <p class="text-sm text-[#555555] font-light max-w-xl">
-                        Composez et envoyez des communications à vos abonnés ou à l'ensemble des apprenants.
-                        <?php if ($smtpConfigured): ?>
-                            <span class="text-[#004B23]">SMTP configuré ✓</span>
-                        <?php else: ?>
-                            <span class="text-[#D32F2F]">SMTP non configuré — renseignez .env pour activer l'envoi.</span>
-                        <?php endif; ?>
-                    </p>
-                </div>
-                <div class="text-right">
-                    <div class="font-serif text-2xl text-[#111111]"><?= $kpiNewsletterSubs; ?></div>
-                    <div class="text-[10px] uppercase tracking-wider text-[#888888]">Abonnés actifs</div>
-                </div>
-            </div>
-
-            <div class="grid grid-cols-1 lg:grid-cols-2 gap-12">
-                <form id="newsletter-form" class="space-y-4 bg-[#FFFFFF] border border-[#E5E5E7] p-6">
-                    <input type="hidden" name="csrf_token" value="<?= csrfToken(); ?>">
-                    <div>
-                        <label class="block text-xs font-semibold uppercase tracking-wider text-[#555555] mb-2">Audience</label>
-                        <select name="audience" class="w-full px-4 py-2 bg-[#F5F5F7] border border-[#E5E5E7] text-sm rounded-sm">
-                            <option value="subscribers">Abonnés newsletter uniquement</option>
-                            <option value="students">Tous les apprenants inscrits</option>
-                            <option value="all">Abonnés + tous les apprenants</option>
-                        </select>
-                    </div>
-                    <div>
-                        <label class="block text-xs font-semibold uppercase tracking-wider text-[#555555] mb-2">Sujet</label>
-                        <input type="text" name="subject" required placeholder="ex: Nouveaux cours disponibles"
-                            class="w-full px-4 py-2 bg-[#F5F5F7] border border-[#E5E5E7] text-sm rounded-sm">
-                    </div>
-                    <div>
-                        <label class="block text-xs font-semibold uppercase tracking-wider text-[#555555] mb-2">Message</label>
-                        <textarea name="body_html" rows="8" required placeholder="Rédigez votre message…"
-                            class="w-full px-4 py-2 bg-[#F5F5F7] border border-[#E5E5E7] text-sm rounded-sm"></textarea>
-                    </div>
-                    <button type="submit" <?= $smtpConfigured ? '' : 'disabled'; ?>
-                        class="px-6 py-2.5 bg-[#111111] text-[#FFFFFF] text-xs font-semibold uppercase tracking-widest hover:bg-[#004B23] transition-colors rounded-sm disabled:opacity-40">
-                        Envoyer la newsletter
-                    </button>
-                    <button type="button" id="test-smtp-btn" <?= $smtpConfigured ? '' : 'disabled'; ?>
-                        class="ml-3 px-4 py-2.5 border border-[#E5E5E7] text-xs font-semibold uppercase tracking-widest rounded-sm disabled:opacity-40">
-                        Tester SMTP
-                    </button>
-                </form>
-
-                <div class="space-y-6">
-                    <h3 class="font-serif text-xl font-light">Abonnés récents</h3>
-                    <div class="overflow-x-auto max-h-48 overflow-y-auto border border-[#E5E5E7]">
-                        <table class="w-full text-left text-xs">
-                            <thead>
-                                <tr class="border-b border-[#E5E5E7] text-[#555555] uppercase tracking-wider">
-                                    <th class="p-3">Email</th>
-                                    <th class="p-3">Depuis</th>
-                                </tr>
-                            </thead>
-                            <tbody class="divide-y divide-[#E5E5E7]">
-                                <?php if (empty($newsletterSubscribers)): ?>
-                                    <tr><td colspan="2" class="p-4 text-center text-[#888] italic">Aucun abonné pour le moment.</td></tr>
-                                <?php else: ?>
-                                    <?php foreach (array_slice($newsletterSubscribers, 0, 15) as $sub): ?>
-                                        <tr>
-                                            <td class="p-3"><?= htmlspecialchars($sub['email']); ?></td>
-                                            <td class="p-3 font-mono text-[#888]"><?= date('d/m/Y', strtotime($sub['subscribed_at'])); ?></td>
-                                        </tr>
-                                    <?php endforeach; ?>
-                                <?php endif; ?>
-                            </tbody>
-                        </table>
-                    </div>
-
-                    <h3 class="font-serif text-xl font-light">Campagnes envoyées</h3>
-                    <div class="overflow-x-auto max-h-48 overflow-y-auto border border-[#E5E5E7]">
-                        <table class="w-full text-left text-xs">
-                            <thead>
-                                <tr class="border-b border-[#E5E5E7] text-[#555555] uppercase tracking-wider">
-                                    <th class="p-3">Sujet</th>
-                                    <th class="p-3">Envoyés</th>
-                                    <th class="p-3">Date</th>
-                                </tr>
-                            </thead>
-                            <tbody class="divide-y divide-[#E5E5E7]">
-                                <?php if (empty($newsletterCampaigns)): ?>
-                                    <tr><td colspan="3" class="p-4 text-center text-[#888] italic">Aucune campagne envoyée.</td></tr>
-                                <?php else: ?>
-                                    <?php foreach ($newsletterCampaigns as $camp): ?>
-                                        <tr>
-                                            <td class="p-3 font-medium"><?= htmlspecialchars($camp['subject']); ?></td>
-                                            <td class="p-3"><?= (int)$camp['recipient_count']; ?></td>
-                                            <td class="p-3 font-mono text-[#888]"><?= date('d/m/Y H:i', strtotime($camp['sent_at'])); ?></td>
-                                        </tr>
-                                    <?php endforeach; ?>
-                                <?php endif; ?>
-                            </tbody>
-                        </table>
-                    </div>
-                </div>
-            </div>
-        </div>
-
-        <!-- Section 6 : Journal d'audit -->
-        <div class="border-t border-[#E5E5E7] pt-12 space-y-6">
-            <div class="flex flex-col md:flex-row justify-between md:items-end gap-4">
+            <!-- 1. VUE D'ENSEMBLE (OVERVIEW TAB) -->
+            <div id="tab-overview" class="tab-content space-y-12">
+                <!-- Greeting -->
                 <div>
-                    <h2 class="font-serif text-3xl font-light">Journal d'Audit</h2>
-                    <p class="text-sm text-[#555555] font-light">Connexions, certifications, modifications importantes.</p>
+                    <h1 class="font-serif text-4xl font-light tracking-tight text-[#111111] mb-2">Bonjour, <?= htmlspecialchars($user['name']); ?></h1>
+                    <p class="text-sm font-light text-[#555555]">Supervisez et gouvernez les activités pédagogiques de StudyVibe.</p>
                 </div>
-                <a href="/promoter/export-excel.php?type=audit_logs"
-                   class="px-5 py-2.5 bg-[#004B23] text-white text-xs font-semibold uppercase tracking-wider hover:bg-[#111111] rounded-sm flex-shrink-0">
-                    ⬇ Export Excel complet
-                </a>
-            </div>
-            <div class="overflow-x-auto max-h-80 overflow-y-auto">
-                <table class="w-full text-left text-xs">
-                    <thead>
-                        <tr class="border-b border-[#111111] uppercase tracking-wider text-[#555555]">
-                            <th class="pb-3 pr-4">Date</th>
-                            <th class="pb-3 pr-4">Utilisateur</th>
-                            <th class="pb-3 pr-4">Action</th>
-                            <th class="pb-3">Détails</th>
-                        </tr>
-                    </thead>
-                    <tbody class="divide-y divide-[#E5E5E7]">
-                        <?php foreach ($auditLogs as $log): ?>
-                            <tr>
-                                <td class="py-2 pr-4 font-mono text-[#888]"><?= date('d/m/Y H:i', strtotime($log['created_at'])); ?></td>
-                                <td class="py-2 pr-4"><?= htmlspecialchars($log['user_name'] ?? '—'); ?></td>
-                                <td class="py-2 pr-4 font-medium"><?= htmlspecialchars($log['action']); ?></td>
-                                <td class="py-2 text-[#555]"><?= htmlspecialchars($log['details'] ?? ''); ?></td>
-                            </tr>
-                        <?php endforeach; ?>
-                    </tbody>
-                </table>
-            </div>
-        </div>
 
-        <!-- Section 7 : API REST -->
-        <div class="border-t border-[#E5E5E7] pt-12 space-y-4">
-            <h2 class="font-serif text-3xl font-light">API REST (v1)</h2>
-            <p class="text-sm text-[#555555] font-light">Générez une clé API pour connecter une application mobile future.</p>
-            <button onclick="createApiKey()" class="px-5 py-2 bg-[#111111] text-white text-xs font-semibold uppercase tracking-wider hover:bg-[#004B23] rounded-sm">
-                Générer une clé API
-            </button>
-            <div id="api-key-result" class="hidden p-4 border border-[#004B23] text-xs font-mono"></div>
-        </div>
+                <!-- KPI Cards Grid -->
+                <div class="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-6 gap-4">
+                    <?php
+                    $kpisRaw = [
+                        ['label' => 'Apprenants',      'raw' => $kpiTotalStudents,            'suffix' => '',  'decimals' => 0],
+                        ['label' => 'Cours',            'raw' => $kpiTotalCourses,             'suffix' => '',  'decimals' => 0],
+                        ['label' => 'Inscriptions',     'raw' => $kpiEnrollments,              'suffix' => '',  'decimals' => 0],
+                        ['label' => 'Certifications',   'raw' => $kpiTotalCerts,               'suffix' => '',  'decimals' => 0],
+                        ['label' => 'Progression moy.', 'raw' => round($kpiAvgProgress, 1),   'suffix' => '%', 'decimals' => 1],
+                        ['label' => 'Taux de réussite', 'raw' => $kpiPassRate,                 'suffix' => '%', 'decimals' => 0],
+                    ];
+                    foreach ($kpisRaw as $kpi): ?>
+                        <div class="bg-[#FFFFFF] border border-[#E5E5E7] p-5 space-y-2 group hover:border-[#004B23] transition-colors rounded-sm shadow-sm">
+                            <div
+                                class="font-serif text-2xl font-light text-[#111111] tabular-nums"
+                                data-counter="<?= $kpi['raw']; ?>"
+                                data-suffix="<?= $kpi['suffix']; ?>"
+                                data-decimals="<?= $kpi['decimals']; ?>"
+                            >0<?= $kpi['suffix']; ?></div>
+                            <div class="text-[10px] uppercase tracking-wider text-[#888888] font-medium"><?= $kpi['label']; ?></div>
+                        </div>
+                    <?php endforeach; ?>
+                </div>
 
-    </main>
+                <!-- Strategic Audit Section -->
+                <div class="border border-[#E5E5E7] bg-[#FFFFFF] p-8 space-y-6 rounded-sm shadow-sm">
+                    <div class="flex flex-col md:flex-row md:items-end md:justify-between gap-4">
+                        <div class="space-y-2">
+                            <div class="flex items-center gap-2">
+                                <span class="bg-[#004B23]/10 text-[#004B23] text-[10px] font-semibold uppercase tracking-wider px-2 py-0.5 rounded-sm">IA Intégrée</span>
+                                <h2 class="font-serif text-2xl font-light text-[#111111]">Audit Académique Strategique</h2>
+                            </div>
+                            <p class="text-sm text-[#555555] font-light max-w-2xl">
+                                Obtenez un rapport d'évaluation pédagogique de vos cursus rédigé en temps réel par notre intelligence artificielle.
+                            </p>
+                        </div>
+                        <button type="button" onclick="runStrategicAudit()" id="audit-btn"
+                           class="px-5 py-2.5 bg-[#111111] text-[#FFFFFF] text-xs font-semibold uppercase tracking-wider hover:bg-[#004B23] transition-colors rounded-sm flex-shrink-0 text-center">
+                            Générer le rapport
+                        </button>
+                    </div>
+
+                    <!-- Audit Loading -->
+                    <div id="audit-loading" class="hidden flex flex-col items-center justify-center py-12 space-y-3 border-t border-[#E5E5E7] border-dashed">
+                        <div class="w-8 h-8 border-2 border-[#111111] border-t-transparent rounded-full animate-spin"></div>
+                        <p class="text-xs font-mono uppercase tracking-widest text-[#555555]">Audit en cours de rédaction par l'IA...</p>
+                    </div>
+
+                    <!-- Audit Result -->
+                    <div id="audit-result-container" class="hidden border-t border-[#E5E5E7] pt-6 space-y-4">
+                        <div class="flex justify-between items-center">
+                            <span class="text-[10px] font-mono uppercase tracking-widest text-[#888888]">Rapport généré par l'IA Gemini</span>
+                            <button type="button" onclick="window.print()" class="text-xs uppercase tracking-wider text-[#555555] hover:underline font-semibold">
+                                Imprimer le rapport
+                            </button>
+                        </div>
+                        <div id="audit-text" class="p-6 bg-[var(--sv-cream-light)] border border-[#D5D0C8] text-sm text-[#111111] leading-relaxed whitespace-pre-line font-light rounded-sm">
+                            <!-- Rempli par JS -->
+                        </div>
+                    </div>
+                </div>
+
+                <!-- API Key Rest -->
+                <div class="border border-[#E5E5E7] bg-[#FFFFFF] p-8 space-y-4 rounded-sm shadow-sm">
+                    <h2 class="font-serif text-2xl font-light">Accès API REST Externe</h2>
+                    <p class="text-sm text-[#555555] font-light max-w-xl">Générez une clé d'accès sécurisée pour interfacer vos applications mobiles ou outils tiers avec StudyVibe LMS.</p>
+                    <button onclick="createApiKey()" class="px-5 py-2.5 bg-[#111111] text-white text-xs font-semibold uppercase tracking-wider hover:bg-[#004B23] transition-colors rounded-sm">
+                        Générer une clé API
+                    </button>
+                    <div id="api-key-result" class="hidden p-4 border border-[#004B23] text-xs font-mono rounded-sm"></div>
+                </div>
+
+                <!-- Global Excel Exports -->
+                <div class="border border-[#E5E5E7] bg-[#FFFFFF] p-8 space-y-6 rounded-sm shadow-sm">
+                    <div class="flex flex-col md:flex-row md:items-end md:justify-between gap-4">
+                        <div class="space-y-2">
+                            <h2 class="font-serif text-2xl font-light text-[#111111]">Exports Excel Globaux</h2>
+                            <p class="text-sm text-[#555555] font-light max-w-2xl">
+                                Téléchargez l'intégralité des tables et métriques au format Excel multi-feuilles.
+                            </p>
+                        </div>
+                        <a href="/promoter/export-excel.php?type=all"
+                           class="px-5 py-2.5 bg-[#004B23] text-[#FFFFFF] text-xs font-semibold uppercase tracking-wider hover:bg-[#111111] transition-colors rounded-sm flex-shrink-0 text-center">
+                            ⬇ Export Excel complet (9 feuilles)
+                        </a>
+                    </div>
+                </div>
+            </div>
+
+            <!-- 2. ACADÉMIE & COURS (ACADEMY TAB) -->
+            <div id="tab-academy" class="tab-content space-y-12 hidden">
+                <div>
+                    <h1 class="font-serif text-4xl font-light tracking-tight text-[#111111] mb-2">Ingénierie Pédagogique</h1>
+                    <p class="text-sm font-light text-[#555555]">Gérez la structure des modules de formation et attribuez les cours au corps enseignant.</p>
+                </div>
+
+                <!-- Structurer un Module -->
+                <div class="border border-[#E5E5E7] bg-[#FFFFFF] p-8 space-y-6 rounded-sm shadow-sm max-w-3xl">
+                    <h2 class="font-serif text-2xl font-light text-[#111111]">Créer un Nouveau Module Académique</h2>
+                    <p class="text-xs text-[#555555] font-light">Un module est un ensemble cohérent de cours ouvrant droit à une certification officielle une fois validé.</p>
+                    <form action="/promoter/dashboard.php" method="POST" class="space-y-4">
+                        <input type="hidden" name="action" value="create_module">
+                        <div>
+                            <label class="block text-xs font-semibold uppercase tracking-wider text-[#555555] mb-2">Titre du Module</label>
+                            <input type="text" name="module_title" required placeholder="ex: Algorithmique & Structures de Données"
+                                class="w-full px-4 py-2.5 bg-[#F5F5F7] border border-[#E5E5E7] text-sm focus:outline-none focus:border-[#004B23] focus:bg-[#FFFFFF] transition-all duration-300 rounded-sm">
+                        </div>
+                        <div>
+                            <label class="block text-xs font-semibold uppercase tracking-wider text-[#555555] mb-2">Description</label>
+                            <textarea name="module_desc" rows="3" placeholder="Présentation succincte des objectifs de ce module..."
+                                class="w-full px-4 py-2.5 bg-[#F5F5F7] border border-[#E5E5E7] text-sm focus:outline-none focus:border-[#004B23] focus:bg-[#FFFFFF] transition-all duration-300 rounded-sm"></textarea>
+                        </div>
+                        <button type="submit" class="px-6 py-2.5 bg-[#111111] text-[#FFFFFF] text-xs font-semibold uppercase tracking-widest hover:bg-[#004B23] transition-all duration-300 rounded-sm">
+                            Créer le Module
+                        </button>
+                    </form>
+                </div>
+
+                <!-- Course Assignment Table -->
+                <div class="border border-[#E5E5E7] bg-[#FFFFFF] p-8 space-y-6 rounded-sm shadow-sm">
+                    <h2 class="font-serif text-2xl font-light text-[#111111]">Catalogue des Cours & Assignation Enseignant</h2>
+                    <p class="text-sm text-[#555555] font-light">Attribuez un enseignant titulaire à chaque cours de la plateforme.</p>
+
+                    <div class="overflow-x-auto">
+                        <table class="w-full text-left border-collapse">
+                            <thead>
+                                <tr class="border-b border-[#111111] text-xs uppercase tracking-wider text-[#555555]">
+                                    <th class="pb-4 font-semibold">Cours</th>
+                                    <th class="pb-4 font-semibold">Module d'rattachement</th>
+                                    <th class="pb-4 font-semibold">Créateur</th>
+                                    <th class="pb-4 font-semibold">Titulaire Assigné</th>
+                                    <th class="pb-4 font-semibold">Clé d'inscription</th>
+                                    <th class="pb-4 font-semibold text-right">Actions</th>
+                                </tr>
+                            </thead>
+                            <tbody class="divide-y divide-[#E5E5E7] text-sm font-light">
+                                <?php if (empty($courses)): ?>
+                                    <tr><td colspan="6" class="py-8 text-center italic text-[#888888]">Aucun cours disponible.</td></tr>
+                                <?php endif; ?>
+                                <?php foreach ($courses as $c): ?>
+                                    <tr class="hover:bg-[#FAF8F4]/80 transition-colors">
+                                        <td class="py-4">
+                                            <span class="font-medium text-[#111111]"><?= htmlspecialchars($c['title']); ?></span>
+                                        </td>
+                                        <td class="py-4 text-[#555555]">
+                                            <?= htmlspecialchars($c['module_title']); ?>
+                                        </td>
+                                        <td class="py-4 text-[#555555]">
+                                            <?= !empty($c['creator_name']) ? htmlspecialchars($c['creator_name']) : '<span class="italic text-[#888888]">—</span>'; ?>
+                                        </td>
+                                        <td class="py-4">
+                                            <select id="teacher-select-<?= $c['id']; ?>"
+                                                class="px-2 py-1 bg-[#F5F5F7] border border-[#E5E5E7] text-xs focus:outline-none focus:border-[#004B23] rounded-sm">
+                                                <option value="" <?= empty($c['teacher_id']) ? 'selected' : ''; ?>>— Non assigné —</option>
+                                                <?php foreach ($teachers as $t): ?>
+                                                    <option value="<?= $t['id']; ?>" <?= (int)($c['teacher_id'] ?? 0) === (int)$t['id'] ? 'selected' : ''; ?>>
+                                                        <?= htmlspecialchars($t['name']); ?>
+                                                    </option>
+                                                <?php endforeach; ?>
+                                            </select>
+                                        </td>
+                                        <td class="py-4 font-mono text-xs">
+                                            <?= $c['enrollment_key'] ? htmlspecialchars($c['enrollment_key']) : '<span class="text-[#888888] italic">Libre</span>'; ?>
+                                        </td>
+                                        <td class="py-4 text-right space-x-2 whitespace-nowrap">
+                                            <button type="button" onclick="assignTeacher(<?= $c['id']; ?>)"
+                                                class="px-3 py-1.5 text-[10px] font-semibold uppercase tracking-wider bg-[#111111] text-white hover:bg-[#004B23] rounded-sm transition-colors">
+                                                Assigner
+                                            </button>
+                                            <?php if (!empty($c['teacher_id'])): ?>
+                                            <button type="button" onclick="revokeTeacher(<?= $c['id']; ?>)"
+                                                class="px-3 py-1.5 text-[10px] font-semibold uppercase tracking-wider border border-[#E5E5E7] hover:border-[#D32F2F] hover:text-[#D32F2F] rounded-sm transition-colors">
+                                                Révoquer
+                                            </button>
+                                            <?php endif; ?>
+                                            <span id="status-<?= $c['id']; ?>" class="text-xs text-[#004B23] font-medium hidden"></span>
+                                        </td>
+                                    </tr>
+                                <?php endforeach; ?>
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+            </div>
+
+            <!-- 3. CERTIFICATIONS (CERTIFICATIONS TAB) -->
+            <div id="tab-certificates" class="tab-content space-y-12 hidden">
+                <div>
+                    <h1 class="font-serif text-4xl font-light tracking-tight text-[#111111] mb-2">Registre des Certifications</h1>
+                    <p class="text-sm font-light text-[#555555]">Supervisez les diplômes octroyés automatiquement ou délivrez manuellement de nouvelles attestations.</p>
+                </div>
+
+                <!-- Manual Issuance Form -->
+                <div class="border border-[#E5E5E7] bg-[#FFFFFF] p-8 space-y-6 rounded-sm shadow-sm max-w-3xl">
+                    <h2 class="font-serif text-2xl font-light text-[#111111]">Délivrance Exceptionnelle de Certificat</h2>
+                    <p class="text-xs text-[#555555] font-light">Permet de valider manuellement un module d'enseignement pour un étudiant sans passer par le processus d'évaluation standard.</p>
+                    <form id="manual-cert-form" class="grid grid-cols-1 md:grid-cols-3 gap-4 items-end">
+                        <div>
+                            <label class="block text-xs text-[#888] mb-1.5">Étudiant bénéficiaire</label>
+                            <select name="student_id" required class="w-full px-3 py-2 bg-[#F5F5F7] border border-[#E5E5E7] text-sm rounded-sm">
+                                <option value="">Choisir…</option>
+                                <?php foreach ($students as $s): ?>
+                                    <option value="<?= $s['id']; ?>"><?= htmlspecialchars($s['name']); ?></option>
+                                <?php endforeach; ?>
+                            </select>
+                        </div>
+                        <div>
+                            <label class="block text-xs text-[#888] mb-1.5">Module validé</label>
+                            <select name="module_id" required class="w-full px-3 py-2 bg-[#F5F5F7] border border-[#E5E5E7] text-sm rounded-sm">
+                                <option value="">Choisir…</option>
+                                <?php foreach ($modules as $m): ?>
+                                    <option value="<?= $m['id']; ?>"><?= htmlspecialchars($m['title']); ?></option>
+                                <?php endforeach; ?>
+                            </select>
+                        </div>
+                        <button type="submit" class="px-5 py-2 bg-[#111111] text-white text-xs font-semibold uppercase tracking-wider hover:bg-[#004B23] rounded-sm h-[38px] transition-colors">
+                            Délivrer le certificat
+                        </button>
+                    </form>
+                </div>
+
+                <!-- Certifications Table Registry -->
+                <div class="border border-[#E5E5E7] bg-[#FFFFFF] p-8 space-y-6 rounded-sm shadow-sm">
+                    <div class="flex justify-between items-center border-b border-gray-100 pb-4">
+                        <h2 class="font-serif text-2xl font-light text-[#111111]">Registre Officiel des Certificats</h2>
+                        <a href="/promoter/export-excel.php?type=certifications" class="text-xs uppercase tracking-wider text-[#004B23] hover:underline font-semibold flex items-center gap-1">
+                            <span>Exporter au format Excel</span>
+                        </a>
+                    </div>
+
+                    <div class="overflow-x-auto">
+                        <table class="w-full text-left border-collapse">
+                            <thead>
+                                <tr class="border-b border-[#111111] text-xs uppercase tracking-wider text-[#555555]">
+                                    <th class="pb-4 font-semibold">Étudiant</th>
+                                    <th class="pb-4 font-semibold">Module Validé</th>
+                                    <th class="pb-4 font-semibold">Enseignant(s)</th>
+                                    <th class="pb-4 font-semibold">Origine</th>
+                                    <th class="pb-4 font-semibold">Code Unique</th>
+                                    <th class="pb-4 font-semibold">Date de Délivrance</th>
+                                    <th class="pb-4 font-semibold text-right">Actions</th>
+                                </tr>
+                            </thead>
+                            <tbody class="divide-y divide-[#E5E5E7] text-sm font-light">
+                                <?php if (empty($certificates)): ?>
+                                    <tr>
+                                        <td colspan="7" class="py-8 text-center text-[#888888] italic">
+                                            Aucun certificat n'a été délivré pour le moment.
+                                        </td>
+                                    </tr>
+                                <?php else: ?>
+                                    <?php foreach ($certificates as $cert): ?>
+                                        <tr class="hover:bg-[#FAF8F4]/80 transition-colors">
+                                            <td class="py-4">
+                                                <span class="font-medium text-[#111111]"><?= htmlspecialchars($cert['student_name']); ?></span><br>
+                                                <span class="text-xs text-[#888888]"><?= htmlspecialchars($cert['student_email']); ?></span>
+                                            </td>
+                                            <td class="py-4 text-[#555555]">
+                                                <?= htmlspecialchars($cert['module_title']); ?>
+                                            </td>
+                                            <td class="py-4 text-xs text-[#555555]">
+                                                <?= htmlspecialchars($cert['teachers_list'] ?? 'Aucun'); ?>
+                                            </td>
+                                            <td class="py-4 text-xs">
+                                                <?php if ($cert['manual_issue']): ?>
+                                                    <span class="px-2 py-0.5 bg-[#FFF8E1] text-[#5D4037] border border-[#FFE082] rounded-sm font-medium">Manuel (<?= htmlspecialchars($cert['issuer_name'] ?? 'Inconnu'); ?>)</span>
+                                                <?php else: ?>
+                                                    <span class="px-2 py-0.5 bg-[#E8F5E9] text-[#1B5E20] border border-[#A5D6A7] rounded-sm font-medium">Automatique</span>
+                                                <?php endif; ?>
+                                            </td>
+                                            <td class="py-4 font-mono text-xs font-semibold text-[#004B23]">
+                                                <a href="/certificate.php?code=<?= urlencode($cert['certificate_code']); ?>" target="_blank" class="hover:underline flex items-center gap-1">
+                                                    <?= htmlspecialchars($cert['certificate_code']); ?>
+                                                    <svg class="w-3.5 h-3.5 opacity-60" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg" style="width:14px; height:14px;"><path stroke-linecap="round" stroke-linejoin="round" d="M13.5 6H5.25A2.25 2.25 0 003 8.25v10.5A2.25 2.25 0 005.25 21h10.5A2.25 2.25 0 0018 18.75V10.5m-10.5 6L21 3m0 0h-5.25M21 3v5.25" /></svg>
+                                                </a>
+                                            </td>
+                                            <td class="py-4 text-[#888888]">
+                                                <?= date('d/m/Y H:i', strtotime($cert['issued_at'])); ?>
+                                            </td>
+                                            <td class="py-4 text-right">
+                                                <form action="/promoter/dashboard.php" method="POST" onsubmit="return confirm('Êtes-vous sûr de vouloir révoquer et supprimer définitivement ce certificat ?');" style="display:inline;">
+                                                    <input type="hidden" name="action" value="remove_certificate">
+                                                    <input type="hidden" name="certificate_id" value="<?= $cert['id']; ?>">
+                                                    <button type="submit" class="p-1.5 text-[#D32F2F] hover:bg-[#FFEBEE] rounded transition-colors" title="Révoquer le certificat">
+                                                        <svg class="w-4 h-4" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24" style="width:16px; height:16px;"><path stroke-linecap="round" stroke-linejoin="round" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" /></svg>
+                                                    </button>
+                                                </form>
+                                            </td>
+                                        </tr>
+                                    <?php endforeach; ?>
+                                <?php endif; ?>
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+            </div>
+
+            <!-- 4. COMMUNAUTÉ (COMMUNITY TAB) -->
+            <div id="tab-community" class="tab-content space-y-12 hidden">
+                <div class="flex flex-col md:flex-row justify-between md:items-end gap-4">
+                    <div>
+                        <h1 class="font-serif text-4xl font-light tracking-tight text-[#111111] mb-2">Gouvernance de la Communauté</h1>
+                        <p class="text-sm font-light text-[#555555]">Supervisez les enseignants, les étudiants et les sessions d'évaluation synchrone.</p>
+                    </div>
+                    <div class="flex gap-2">
+                        <button onclick="toggleModal('user-modal')"
+                            class="px-5 py-2.5 bg-[#111111] text-[#FFFFFF] text-xs font-semibold uppercase tracking-wider hover:bg-[#004B23] transition-colors rounded-sm shadow-sm">
+                            + Créer un Compte
+                        </button>
+                    </div>
+                </div>
+
+                <!-- Community Cards Grid -->
+                <div class="grid grid-cols-1 md:grid-cols-3 gap-8">
+                    <!-- Teachers Card -->
+                    <div class="bg-white border border-[#E5E5E7] p-8 flex flex-col justify-between hover:shadow-md transition-all duration-300 rounded-sm shadow-sm">
+                        <div class="space-y-4">
+                            <div class="w-12 h-12 bg-[#E8F5E9] text-[#004B23] flex items-center justify-center rounded-full">
+                                <svg class="w-6 h-6" fill="none" stroke="currentColor" stroke-width="1.5" viewBox="0 0 24 24" style="width:24px; height:24px;"><path stroke-linecap="round" stroke-linejoin="round" d="M19 20H5a2 2 0 01-2-2V6a2 2 0 012-2h10a2 2 0 012 2v1m2 4a2 2 0 00-2-2m-2 3h4m-4 3h4m-4 3h4m-4 3h4" /></svg>
+                            </div>
+                            <div>
+                                <h3 class="font-serif text-xl text-[#111111] font-medium">Corps Enseignant</h3>
+                                <p class="text-xs text-[#888888] mt-1">Gérez le statut d'approbation et l'activité des professeurs.</p>
+                            </div>
+                            <div class="flex gap-6 pt-2 text-xs">
+                                <div>
+                                    <span class="font-bold text-lg text-[#111111] block"><?= $totalTeachersCount; ?></span>
+                                    <span class="text-[#888888] block text-[10px] uppercase">Enseignants</span>
+                                </div>
+                                <div>
+                                    <span class="font-bold text-lg <?= $pendingTeachersCount > 0 ? 'text-amber-600 font-semibold' : 'text-[#888888]'; ?> block"><?= $pendingTeachersCount; ?></span>
+                                    <span class="text-[#888888] block text-[10px] uppercase">En attente</span>
+                                </div>
+                            </div>
+                        </div>
+                        <button onclick="toggleModal('teachers-list-modal')"
+                            class="w-full py-2.5 mt-6 bg-[#004B23] text-white text-xs font-semibold uppercase tracking-wider hover:bg-[#111111] transition-colors rounded-sm flex items-center justify-center gap-2">
+                            <span>Gérer les Enseignants</span>
+                        </button>
+                    </div>
+
+                    <!-- Students Card -->
+                    <div class="bg-white border border-[#E5E5E7] p-8 flex flex-col justify-between hover:shadow-md transition-all duration-300 rounded-sm shadow-sm">
+                        <div class="space-y-4">
+                            <div class="w-12 h-12 bg-[#F5F5F7] text-[#555555] flex items-center justify-center rounded-full">
+                                <svg class="w-6 h-6" fill="none" stroke="currentColor" stroke-width="1.5" viewBox="0 0 24 24" style="width:24px; height:24px;"><path stroke-linecap="round" stroke-linejoin="round" d="M12 4.354a4 4 0 110 5.292M15 21H3v-1a6 6 0 0112 0v1zm0 0h6v-1a6 6 0 00-9-5.197M13 7a4 4 0 11-8 0 4 4 0 018 0z" /></svg>
+                            </div>
+                            <div>
+                                <h3 class="font-serif text-xl text-[#111111] font-medium">Communauté Apprenante</h3>
+                                <p class="text-xs text-[#888888] mt-1">Supervisez et suspendez les comptes étudiants au besoin.</p>
+                            </div>
+                            <div class="flex gap-6 pt-2 text-xs">
+                                <div>
+                                    <span class="font-bold text-lg text-[#111111] block"><?= $totalStudentsCount; ?></span>
+                                    <span class="text-[#888888] block text-[10px] uppercase">Étudiants Inscrits</span>
+                                </div>
+                            </div>
+                        </div>
+                        <button onclick="toggleModal('students-list-modal')"
+                            class="w-full py-2.5 mt-6 bg-[#111111] text-white text-xs font-semibold uppercase tracking-wider hover:bg-[#004B23] transition-colors rounded-sm flex items-center justify-center gap-2">
+                            <span>Gérer les Apprenants</span>
+                        </button>
+                    </div>
+
+                    <!-- Tele-evaluations Card -->
+                    <div class="bg-white border border-[#E5E5E7] p-8 flex flex-col justify-between hover:shadow-md transition-all duration-300 rounded-sm shadow-sm">
+                        <div class="space-y-4">
+                            <div class="w-12 h-12 bg-[#E3F2FD] text-[#1E88E5] flex items-center justify-center rounded-full">
+                                <svg class="w-6 h-6" fill="none" stroke="currentColor" stroke-width="1.5" viewBox="0 0 24 24" style="width:24px; height:24px;"><path stroke-linecap="round" stroke-linejoin="round" d="M9 19v-6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2a2 2 0 002-2zm0 0V9a2 2 0 012-2h2a2 2 0 012 2v10m-6 0a2 2 0 002 2h2a2 2 0 002-2m0 0V5a2 2 0 012-2h2a2 2 0 012 2v14a2 2 0 01-2 2h-2a2 2 0 01-2-2z" /></svg>
+                            </div>
+                            <div>
+                                <h3 class="font-serif text-xl text-[#111111] font-medium">Téléévaluations</h3>
+                                <p class="text-xs text-[#888888] mt-1">Supervisez les sessions d'évaluations collectives synchrones.</p>
+                            </div>
+                            <div class="flex gap-6 pt-2 text-xs">
+                                <div>
+                                    <span class="font-bold text-lg text-[#111111] block"><?= count($liveSessions); ?></span>
+                                    <span class="text-[#888888] block text-[10px] uppercase">Sessions</span>
+                                </div>
+                                <div>
+                                    <span class="font-bold text-lg text-[#111111] block"><?= $totalEvaluatedCount; ?></span>
+                                    <span class="text-[#888888] block text-[10px] uppercase">Évaluations</span>
+                                </div>
+                            </div>
+                        </div>
+                        <button onclick="toggleModal('tele-evaluations-modal')"
+                            class="w-full py-2.5 mt-6 bg-[#111111] text-white text-xs font-semibold uppercase tracking-wider hover:bg-[#004B23] transition-colors rounded-sm flex items-center justify-center gap-2">
+                            <span>Console de Supervision</span>
+                        </button>
+                    </div>
+                </div>
+            </div>
+
+            <!-- 5. COMMUNICATIONS & AUDIT (COMMS & AUDIT TAB) -->
+            <div id="tab-communications" class="tab-content space-y-12 hidden">
+                <div>
+                    <h1 class="font-serif text-4xl font-light tracking-tight text-[#111111] mb-2">Communications & Journalisation</h1>
+                    <p class="text-sm font-light text-[#555555]">Envoyez des messages de groupe et suivez les actions d'audit de sécurité.</p>
+                </div>
+
+                <!-- Newsletter Campaigns Builder -->
+                <div class="border border-[#E5E5E7] bg-[#FFFFFF] p-8 space-y-8 rounded-sm shadow-sm">
+                    <div class="flex justify-between items-center border-b border-gray-100 pb-4">
+                        <div>
+                            <h2 class="font-serif text-2xl font-light text-[#111111]">Envoyer une Newsletter</h2>
+                            <p class="text-xs text-[#888888] mt-1">
+                                <?php if ($smtpConfigured): ?>
+                                    <span class="text-[#004B23] font-semibold">Service d'expédition SMTP connecté ✓</span>
+                                <?php else: ?>
+                                    <span class="text-[#D32F2F]">SMTP déconnecté — modifiez .env pour activer les envois réels.</span>
+                                <?php endif; ?>
+                            </p>
+                        </div>
+                        <div class="text-right">
+                            <span class="font-serif text-2xl text-[#111111] font-semibold block"><?= $kpiNewsletterSubs; ?></span>
+                            <span class="text-[10px] uppercase tracking-wider text-[#888888]">Abonnés actifs</span>
+                        </div>
+                    </div>
+
+                    <div class="grid grid-cols-1 lg:grid-cols-2 gap-12">
+                        <form id="newsletter-form" class="space-y-4">
+                            <input type="hidden" name="csrf_token" value="<?= csrfToken(); ?>">
+                            <div>
+                                <label class="block text-xs font-semibold uppercase tracking-wider text-[#555555] mb-2">Audience</label>
+                                <select name="audience" class="w-full px-4 py-2.5 bg-[#F5F5F7] border border-[#E5E5E7] text-sm rounded-sm focus:outline-none focus:border-[#004B23]">
+                                    <option value="subscribers">Abonnés newsletter uniquement</option>
+                                    <option value="students">Tous les apprenants inscrits</option>
+                                    <option value="all">Abonnés + tous les apprenants</option>
+                                </select>
+                            </div>
+                            <div>
+                                <label class="block text-xs font-semibold uppercase tracking-wider text-[#555555] mb-2">Objet du message</label>
+                                <input type="text" name="subject" required placeholder="ex: Ouverture des inscriptions pour la session d'été"
+                                    class="w-full px-4 py-2.5 bg-white border border-[#E5E5E7] text-sm rounded-sm focus:outline-none focus:border-[#004B23]">
+                            </div>
+                            <div>
+                                <label class="block text-xs font-semibold uppercase tracking-wider text-[#555555] mb-2">Message (Format HTML accepté)</label>
+                                <textarea name="body_html" rows="6" required placeholder="Saisissez le contenu du mail..."
+                                    class="w-full px-4 py-2.5 bg-white border border-[#E5E5E7] text-sm rounded-sm focus:outline-none focus:border-[#004B23]"></textarea>
+                            </div>
+                            <div class="flex gap-2">
+                                <button type="submit" <?= $smtpConfigured ? '' : 'disabled'; ?>
+                                    class="px-6 py-2.5 bg-[#111111] text-[#FFFFFF] text-xs font-semibold uppercase tracking-widest hover:bg-[#004B23] transition-colors rounded-sm disabled:opacity-40">
+                                    Envoyer la newsletter
+                                </button>
+                                <button type="button" id="test-smtp-btn" <?= $smtpConfigured ? '' : 'disabled'; ?>
+                                    class="px-4 py-2.5 border border-[#E5E5E7] text-xs font-semibold uppercase tracking-widest rounded-sm disabled:opacity-40 transition-colors hover:bg-gray-50">
+                                    Tester SMTP
+                                </button>
+                            </div>
+                        </form>
+
+                        <div class="space-y-6">
+                            <h3 class="font-serif text-lg font-light text-gray-800">Abonnés récents</h3>
+                            <div class="overflow-x-auto max-h-48 overflow-y-auto border border-[#E5E5E7] rounded-sm">
+                                <table class="w-full text-left text-xs border-collapse">
+                                    <thead>
+                                        <tr class="bg-[#F5F5F7] text-gray-500 uppercase tracking-wider border-b border-[#E5E5E7]">
+                                            <th class="p-3">Email</th>
+                                            <th class="p-3">Abonné le</th>
+                                        </tr>
+                                    </thead>
+                                    <tbody class="divide-y divide-[#E5E5E7]">
+                                        <?php if (empty($newsletterSubscribers)): ?>
+                                            <tr><td colspan="2" class="p-4 text-center text-[#888] italic">Aucun abonné pour le moment.</td></tr>
+                                        <?php else: ?>
+                                            <?php foreach (array_slice($newsletterSubscribers, 0, 10) as $sub): ?>
+                                                <tr class="hover:bg-gray-50">
+                                                    <td class="p-3 font-medium text-gray-900"><?= htmlspecialchars($sub['email']); ?></td>
+                                                    <td class="p-3 font-mono text-gray-500"><?= date('d/m/Y', strtotime($sub['subscribed_at'])); ?></td>
+                                                </tr>
+                                            <?php endforeach; ?>
+                                        <?php endif; ?>
+                                    </tbody>
+                                </table>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Audit Logs Registry -->
+                <div class="border border-[#E5E5E7] bg-[#FFFFFF] p-8 space-y-6 rounded-sm shadow-sm">
+                    <div class="flex justify-between items-center border-b border-gray-100 pb-4">
+                        <h2 class="font-serif text-2xl font-light text-[#111111]">Journal d'Audit Stratégique</h2>
+                        <a href="/promoter/export-excel.php?type=audit_logs" class="text-xs uppercase tracking-wider text-[#004B23] hover:underline font-semibold">
+                            <span>Exporter l'Audit</span>
+                        </a>
+                    </div>
+                    <div class="overflow-x-auto max-h-[400px] overflow-y-auto border border-[#E5E5E7] rounded-sm">
+                        <table class="w-full text-left text-xs border-collapse">
+                            <thead>
+                                <tr class="bg-[#F5F5F7] text-gray-500 uppercase tracking-wider border-b border-[#E5E5E7]">
+                                    <th class="p-3">Date</th>
+                                    <th class="p-3">Auteur</th>
+                                    <th class="p-3">Action</th>
+                                    <th class="p-3">Détails</th>
+                                </tr>
+                            </thead>
+                            <tbody class="divide-y divide-[#E5E5E7]">
+                                <?php foreach ($auditLogs as $log): ?>
+                                    <tr class="hover:bg-gray-50/50">
+                                        <td class="p-3 font-mono text-[#888]"><?= date('d/m/Y H:i', strtotime($log['created_at'])); ?></td>
+                                        <td class="p-3 font-medium text-gray-900"><?= htmlspecialchars($log['user_name'] ?? '—'); ?></td>
+                                        <td class="p-3 font-semibold text-[#004B23]"><?= htmlspecialchars($log['action']); ?></td>
+                                        <td class="p-3 text-gray-600 font-light"><?= htmlspecialchars($log['details'] ?? ''); ?></td>
+                                    </tr>
+                                <?php endforeach; ?>
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+            </div>
+        </main>
+    </div>
 
     <!-- Modal : Créer un Utilisateur -->
     <div id="user-modal" class="hidden fixed inset-0 bg-black bg-opacity-40 backdrop-blur-sm z-50 flex items-center justify-center p-6">
@@ -1368,6 +1322,33 @@ try {
 
     <!-- Scripts AJAX -->
     <script>
+        // --- Dashboard Tab Management ---
+        function switchDashboardTab(tabId) {
+            document.querySelectorAll('.tab-content').forEach(el => {
+                el.classList.add('hidden');
+            });
+            const target = document.getElementById(tabId);
+            if (target) {
+                target.classList.remove('hidden');
+            }
+            document.querySelectorAll('.sidebar-tab-btn').forEach(btn => {
+                const targetAttr = btn.getAttribute('data-tab-target');
+                if (targetAttr === tabId) {
+                    btn.className = "sidebar-tab-btn w-full flex items-center gap-3 px-4 py-3 rounded-sm text-left text-sm transition-all duration-200 bg-[#004B23] text-white font-semibold";
+                } else {
+                    btn.className = "sidebar-tab-btn w-full flex items-center gap-3 px-4 py-3 rounded-sm text-left text-sm transition-all duration-200 text-gray-300 hover:bg-[#143d26] hover:text-white";
+                }
+            });
+            window.location.hash = tabId;
+        }
+
+        window.addEventListener('DOMContentLoaded', () => {
+            const hash = window.location.hash.replace('#', '');
+            if (hash && document.getElementById(hash)) {
+                switchDashboardTab(hash);
+            }
+        });
+
         // --- Modal Helper ---
         function toggleModal(id) {
             document.getElementById(id).classList.toggle('hidden');

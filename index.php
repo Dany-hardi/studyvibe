@@ -312,21 +312,27 @@ if (isLoggedIn()) {
         </div>
         <div style="display:grid; grid-template-columns:1fr; gap:1.5rem;">
             <div class="sv-glass-card" style="padding:2rem; display:flex; gap:1.5rem; align-items:flex-start; background:var(--sv-cream-light);">
-                <div style="font-size:2rem; background:rgba(0,75,35,0.06); color:#004B23; width:50px; height:50px; border-radius:12px; display:flex; align-items:center; justify-content:center; flex-shrink:0;">🎯</div>
+                <div style="background:rgba(0,75,35,0.06); color:#004B23; width:50px; height:50px; border-radius:12px; display:flex; align-items:center; justify-content:center; flex-shrink:0;">
+                    <svg class="w-6 h-6" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24" style="width: 24px; height: 24px;"><path stroke-linecap="round" stroke-linejoin="round" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z"/><path stroke-linecap="round" stroke-linejoin="round" d="M2.458 12C3.732 7.943 7.523 5 12 5c4.478 0 8.268 2.943 9.542 7-1.274 4.057-5.064 7-9.542 7-4.477 0-8.268-2.943-9.542-7z"/></svg>
+                </div>
                 <div>
                     <h3 style="font-family:'Plus Jakarta Sans',sans-serif; font-size:1.125rem; font-weight:600; color:var(--sv-text);">Focus & Concentration</h3>
                     <p style="font-size:0.8125rem; color:var(--sv-text-muted); margin-top:0.35rem; line-height:1.5; font-weight:300;">Une liseuse sans distraction, conçue pour minimiser la charge cognitive et optimiser l'ancrage mémoriel.</p>
                 </div>
             </div>
             <div class="sv-glass-card" style="padding:2rem; display:flex; gap:1.5rem; align-items:flex-start; background:var(--sv-cream-light);">
-                <div style="font-size:2rem; background:rgba(201,168,76,0.08); color:#C9A84C; width:50px; height:50px; border-radius:12px; display:flex; align-items:center; justify-content:center; flex-shrink:0;">⚡</div>
+                <div style="background:rgba(201,168,76,0.08); color:#C9A84C; width:50px; height:50px; border-radius:12px; display:flex; align-items:center; justify-content:center; flex-shrink:0;">
+                    <svg class="w-6 h-6" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24" style="width: 24px; height: 24px;"><path stroke-linecap="round" stroke-linejoin="round" d="M13 10V3L4 14h7v7l9-11h-7z"/></svg>
+                </div>
                 <div>
                     <h3 style="font-family:'Plus Jakarta Sans',sans-serif; font-size:1.125rem; font-weight:600; color:var(--sv-text);">Synchronisation Active</h3>
                     <p style="font-size:0.8125rem; color:var(--sv-text-muted); margin-top:0.35rem; line-height:1.5; font-weight:300;">Des webinaires et télé-évaluations en temps réel pour dynamiser l'échange entre étudiants et enseignants.</p>
                 </div>
             </div>
             <div class="sv-glass-card" style="padding:2rem; display:flex; gap:1.5rem; align-items:flex-start; background:var(--sv-cream-light);">
-                <div style="font-size:2rem; background:rgba(0,0,0,0.05); color:var(--sv-text); width:50px; height:50px; border-radius:12px; display:flex; align-items:center; justify-content:center; flex-shrink:0;">🛡️</div>
+                <div style="background:rgba(0,0,0,0.05); color:var(--sv-text); width:50px; height:50px; border-radius:12px; display:flex; align-items:center; justify-content:center; flex-shrink:0;">
+                    <svg class="w-6 h-6" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24" style="width: 24px; height: 24px;"><path stroke-linecap="round" stroke-linejoin="round" d="M9 12l2 2 4-4m5.618-4.016A11.955 11.955 0 0112 2.944a11.955 11.955 0 01-8.618 3.04A12.02 12.02 0 003 9c0 5.591 3.824 10.29 9 11.622 5.176-1.332 9-6.03 9-11.622 0-1.042-.133-2.052-.382-3.016z"/></svg>
+                </div>
                 <div>
                     <h3 style="font-family:'Plus Jakarta Sans',sans-serif; font-size:1.125rem; font-weight:600; color:var(--sv-text);">Preuve de Compétence</h3>
                     <p style="font-size:0.8125rem; color:var(--sv-text-muted); margin-top:0.35rem; line-height:1.5; font-weight:300;">Des attestations numériques vérifiables instantanément grâce à un identifiant unique sécurisé.</p>
