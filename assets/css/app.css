@@ -2435,3 +2435,14 @@ html.dark .sv-preview-dot {
 html.dark .sv-preview-address {
     background: rgba(255, 255, 255, 0.03);
 }
+
+/* Global button click tactile feedback for extreme responsiveness */
+button:active,
+.sv-btn-ms:active,
+.sv-btn-ms-outline:active,
+.icon-btn:active,
+.sidebar-tab-btn:active {
+    transform: scale(0.97) !important;
+    opacity: 0.9 !important;
+    transition: transform 0.05s ease-out !important;
+}

@@ -1168,10 +1168,21 @@ $successMsg = $successMessages[$successKey] ?? null;
             display: inline-flex; align-items: center; justify-content: center;
             width: 28px; height: 28px;
             border: 1px solid #E5E5E7; background: #F5F5F7;
-            cursor: pointer; border-radius: 2px; transition: all .2s;
+            cursor: pointer; border-radius: 2px; transition: all .08s;
         }
         .icon-btn:hover { border-color: #004B23; background: #fff; }
         .icon-btn.danger:hover { border-color: #D32F2F; background: #fff2f2; }
+
+        /* Instant tactile feedback for all buttons */
+        button:active,
+        .sv-btn-ms:active,
+        .sv-btn-ms-outline:active,
+        .icon-btn:active,
+        .sidebar-tab-btn:active {
+            transform: scale(0.97) !important;
+            opacity: 0.9;
+            transition: transform 0.05s ease-out !important;
+        }
 
         /* Video URL rows */
         .video-row + .video-row { margin-top: .5rem; }
@@ -2771,6 +2782,28 @@ $successMsg = $successMessages[$successKey] ?? null;
 <!-- ══════════════════════════════════════════════════════════
      MODALS
 ══════════════════════════════════════════════════════════ -->
+
+<!-- ── Modal : Partager le cours ───────────────────────────── -->
+<div id="share-modal" class="hidden fixed inset-0 bg-black/40 backdrop-blur-sm z-50 flex items-center justify-center p-6 overflow-y-auto">
+    <div class="bg-white dark:bg-[#1E1E1E] p-8 max-w-md w-full border border-[#E5E5E7] dark:border-[#2C2C2C] space-y-6 modal-inner relative">
+        <button type="button" onclick="closeShareModal()" class="absolute top-4 right-4 text-[#888888] hover:text-[#111111] dark:hover:text-white transition-colors" aria-label="Fermer">
+            <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"/>
+            </svg>
+        </button>
+        <h3 class="font-serif text-2xl font-light text-[#111111] dark:text-white">Partager le cours</h3>
+        <p class="text-xs text-[#555555] dark:text-[#AAAAAA] font-light">Copiez le lien ci-dessous pour inviter des apprenants ou partager le cours.</p>
+        
+        <div class="flex items-center gap-2">
+            <input type="text" id="share-url-input" readonly
+                class="flex-grow px-3 py-2 bg-[#F5F5F7] dark:bg-[#2C2C2E] border border-[#E5E5E7] dark:border-[#2C2C2C] text-xs font-mono focus:outline-none rounded-md text-[#111111] dark:text-white">
+            <button id="share-copy-btn" onclick="copyShareLink()"
+                class="px-4 py-2 bg-[#004B23] dark:bg-[#34C759] text-white text-xs font-semibold uppercase tracking-wider rounded-md hover:bg-[#006630] dark:hover:bg-[#28a745] transition-colors flex-shrink-0">
+                Copier
+            </button>
+        </div>
+    </div>
+</div>
 
 <!-- ── Modal : Créer un cours ───────────────────────────── -->
 <div id="create-course-modal" class="hidden fixed inset-0 bg-black/40 backdrop-blur-sm z-50 flex items-center justify-center p-6 overflow-y-auto">
