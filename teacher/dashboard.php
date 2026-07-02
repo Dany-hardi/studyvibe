@@ -146,6 +146,24 @@ try {
     $stmt->execute(['tid' => $user['id']]);
     $myCourses = $stmt->fetchAll();
 
+    // Overall stats for teacher
+    $stmt = $pdo->prepare("
+        SELECT COUNT(DISTINCT e.student_id) 
+        FROM enrollments e 
+        JOIN courses c ON e.course_id = c.id 
+        WHERE c.teacher_id = :tid
+    ");
+    $stmt->execute(['tid' => $user['id']]);
+    $totalTeacherStudents = (int)$stmt->fetchColumn();
+
+    $stmt = $pdo->prepare("SELECT COUNT(*) FROM webinars WHERE teacher_id = :tid");
+    $stmt->execute(['tid' => $user['id']]);
+    $totalTeacherWebinars = (int)$stmt->fetchColumn();
+
+    $stmt = $pdo->prepare("SELECT COUNT(*) FROM live_eval_sessions WHERE teacher_id = :tid");
+    $stmt->execute(['tid' => $user['id']]);
+    $totalTeacherLiveSessions = (int)$stmt->fetchColumn();
+
     if ($selectedCourseId > 0) {
         $stmt = $pdo->prepare("SELECT * FROM courses WHERE id = :id AND teacher_id = :tid");
         $stmt->execute(['id' => $selectedCourseId, 'tid' => $user['id']]);
@@ -172,7 +190,7 @@ try {
 
                 $stmt = $pdo->prepare("INSERT INTO chapters (course_id,title,sort_order) VALUES (:cid,:title,:so)");
                 $stmt->execute(['cid' => $selectedCourse['id'], 'title' => $title, 'so' => $maxSort + 1]);
-                header("Location: /teacher/dashboard.php?course_id={$selectedCourse['id']}&success=chapter_added"); exit;
+                header("Location: /teacher/dashboard.php?course_id={$selectedCourse['id']}&success=chapter_added#tab-content"); exit;
             }
         }
 
@@ -184,7 +202,7 @@ try {
                 // Vérifier que le chapitre appartient bien à ce cours
                 $stmt = $pdo->prepare("UPDATE chapters SET title=:title WHERE id=:id AND course_id=:cid");
                 $stmt->execute(['title' => $title, 'id' => $chapterId, 'cid' => $selectedCourse['id']]);
-                header("Location: /teacher/dashboard.php?course_id={$selectedCourse['id']}&success=chapter_updated"); exit;
+                header("Location: /teacher/dashboard.php?course_id={$selectedCourse['id']}&success=chapter_updated#tab-content"); exit;
             }
         }
 
@@ -194,7 +212,7 @@ try {
             if ($chapterId > 0) {
                 $stmt = $pdo->prepare("DELETE FROM chapters WHERE id=:id AND course_id=:cid");
                 $stmt->execute(['id' => $chapterId, 'cid' => $selectedCourse['id']]);
-                header("Location: /teacher/dashboard.php?course_id={$selectedCourse['id']}&success=chapter_deleted"); exit;
+                header("Location: /teacher/dashboard.php?course_id={$selectedCourse['id']}&success=chapter_deleted#tab-content"); exit;
             }
         }
 
@@ -233,7 +251,7 @@ try {
                 // Ressources initiales
                 this_processNewResources($pdo, $lessonId, $_POST);
 
-                header("Location: /teacher/dashboard.php?course_id={$selectedCourse['id']}&success=lesson_added"); exit;
+                header("Location: /teacher/dashboard.php?course_id={$selectedCourse['id']}&success=lesson_added#tab-content"); exit;
             }
         }
 
@@ -292,7 +310,7 @@ try {
                     require_once __DIR__ . '/../lib/LessonProgressionHelper.php';
                     LessonProgressionHelper::handleLessonUpdate($pdo, $lessonId);
 
-                    header("Location: /teacher/dashboard.php?course_id={$selectedCourse['id']}&success=lesson_updated"); exit;
+                    header("Location: /teacher/dashboard.php?course_id={$selectedCourse['id']}&success=lesson_updated#tab-content"); exit;
                 }
             }
         }
@@ -307,7 +325,7 @@ try {
                     WHERE l.id=:lid AND ch.course_id=:cid
                 ");
                 $stmt->execute(['lid' => $lessonId, 'cid' => $selectedCourse['id']]);
-                header("Location: /teacher/dashboard.php?course_id={$selectedCourse['id']}&success=lesson_deleted"); exit;
+                header("Location: /teacher/dashboard.php?course_id={$selectedCourse['id']}&success=lesson_deleted#tab-content"); exit;
             }
         }
 
@@ -331,7 +349,7 @@ try {
                         LessonProgressionHelper::handleLessonUpdate($pdo, $lessonId);
                     }
                 }
-                header("Location: /teacher/dashboard.php?course_id={$selectedCourse['id']}&open_lesson={$lessonId}&success=video_deleted"); exit;
+                header("Location: /teacher/dashboard.php?course_id={$selectedCourse['id']}&open_lesson={$lessonId}&success=video_deleted#tab-content"); exit;
             }
         }
 
@@ -354,7 +372,7 @@ try {
                         LessonProgressionHelper::handleLessonUpdate($pdo, $lessonId);
                     }
                 }
-                header("Location: /teacher/dashboard.php?course_id={$selectedCourse['id']}&open_lesson={$lessonId}&success=resource_deleted"); exit;
+                header("Location: /teacher/dashboard.php?course_id={$selectedCourse['id']}&open_lesson={$lessonId}&success=resource_deleted#tab-content"); exit;
             }
         }
 
@@ -413,7 +431,7 @@ try {
                         'id'=>$selectedCourse['id'],'tid'=>$user['id'],
                     ]);
                 }
-                header("Location: /teacher/dashboard.php?course_id={$selectedCourse['id']}&success=course_updated"); exit;
+                header("Location: /teacher/dashboard.php?course_id={$selectedCourse['id']}&success=course_updated#tab-settings"); exit;
             }
         }
 
@@ -438,7 +456,7 @@ try {
                 require_once __DIR__ . '/../lib/LessonProgressionHelper.php';
                 LessonProgressionHelper::handleLessonUpdate($pdo, $lessonId);
 
-                header("Location: /teacher/dashboard.php?course_id={$selectedCourse['id']}&success=lesson_question_added"); exit;
+                header("Location: /teacher/dashboard.php?course_id={$selectedCourse['id']}&success=lesson_question_added#tab-content"); exit;
             }
         }
 
@@ -458,7 +476,7 @@ try {
                     VALUES (:cid,:qt,:a,:b,:c,:d,:co)
                 ");
                 $stmt->execute(['cid'=>$selectedCourse['id'],'qt'=>$questionText,'a'=>$optionA,'b'=>$optionB,'c'=>$optionC,'d'=>$optionD,'co'=>$correct]);
-                header("Location: /teacher/dashboard.php?course_id={$selectedCourse['id']}&success=course_question_added"); exit;
+                header("Location: /teacher/dashboard.php?course_id={$selectedCourse['id']}&success=course_question_added#tab-content"); exit;
             }
         }
 
@@ -468,7 +486,7 @@ try {
             if ($qid > 0) {
                 $stmt = $pdo->prepare("DELETE FROM course_questions WHERE id=:id AND course_id=:cid");
                 $stmt->execute(['id'=>$qid,'cid'=>$selectedCourse['id']]);
-                header("Location: /teacher/dashboard.php?course_id={$selectedCourse['id']}&success=course_question_deleted"); exit;
+                header("Location: /teacher/dashboard.php?course_id={$selectedCourse['id']}&success=course_question_deleted#tab-content"); exit;
             }
         }
 
@@ -495,7 +513,7 @@ try {
                     'limit' => $limit
                 ]);
                 $newSessionId = (int)$pdo->lastInsertId();
-                header("Location: /teacher/dashboard.php?course_id={$selectedCourse['id']}&success=live_session_created&open_live_modal=1&open_session={$newSessionId}"); exit;
+                header("Location: /teacher/dashboard.php?course_id={$selectedCourse['id']}&success=live_session_created&open_session={$newSessionId}#tab-live-eval"); exit;
             }
         }
 
@@ -526,7 +544,7 @@ try {
                     'id'    => $sid,
                     'tid'   => $teacherId
                 ]);
-                header("Location: /teacher/dashboard.php?course_id={$selectedCourse['id']}&success=live_session_updated&open_live_modal=1&open_session={$sid}"); exit;
+                header("Location: /teacher/dashboard.php?course_id={$selectedCourse['id']}&success=live_session_updated&open_session={$sid}#tab-live-eval"); exit;
             }
         }
 
@@ -537,7 +555,7 @@ try {
             if ($sid > 0) {
                 $stmt = $pdo->prepare("UPDATE live_eval_sessions SET status=:status WHERE id=:id AND teacher_id=:tid");
                 $stmt->execute(['status' => $status, 'id' => $sid, 'tid' => $teacherId]);
-                header("Location: /teacher/dashboard.php?course_id={$selectedCourse['id']}&success=live_session_toggled&open_live_modal=1&open_session={$sid}"); exit;
+                header("Location: /teacher/dashboard.php?course_id={$selectedCourse['id']}&success=live_session_toggled&open_session={$sid}#tab-live-eval"); exit;
             }
         }
 
@@ -547,7 +565,7 @@ try {
             if ($sid > 0) {
                 $stmt = $pdo->prepare("DELETE FROM live_eval_sessions WHERE id=:id AND teacher_id=:tid");
                 $stmt->execute(['id' => $sid, 'tid' => $teacherId]);
-                header("Location: /teacher/dashboard.php?course_id={$selectedCourse['id']}&success=live_session_deleted&open_live_modal=1"); exit;
+                header("Location: /teacher/dashboard.php?course_id={$selectedCourse['id']}&success=live_session_deleted#tab-live-eval"); exit;
             }
         }
 
@@ -561,7 +579,7 @@ try {
                 if ($stmt->fetch()) {
                     $delStmt = $pdo->prepare("DELETE FROM live_eval_registrations WHERE id = :id AND session_id = :sid");
                     $delStmt->execute(['id' => $regId, 'sid' => $sid]);
-                    header("Location: /teacher/dashboard.php?course_id={$selectedCourse['id']}&success=live_participant_deleted&open_live_modal=1&open_session={$sid}");
+                    header("Location: /teacher/dashboard.php?course_id={$selectedCourse['id']}&success=live_participant_deleted&open_session={$sid}#tab-live-eval");
                     exit;
                 }
             }
@@ -595,7 +613,7 @@ try {
                     ");
                     $stmtResetSession->execute(['sid' => $sid]);
                     
-                    header("Location: /teacher/dashboard.php?course_id={$selectedCourse['id']}&success=live_session_reset&open_live_modal=1&open_session={$sid}");
+                    header("Location: /teacher/dashboard.php?course_id={$selectedCourse['id']}&success=live_session_reset&open_session={$sid}#tab-live-eval");
                     exit;
                 }
             }
@@ -626,7 +644,7 @@ try {
                         ");
                         $update->execute(['pd' => $newPauseDuration, 'sid' => $sid]);
                         
-                        header("Location: /teacher/dashboard.php?course_id={$selectedCourse['id']}&success=live_session_resumed&open_live_modal=1&open_session={$sid}");
+                        header("Location: /teacher/dashboard.php?course_id={$selectedCourse['id']}&success=live_session_resumed&open_session={$sid}#tab-live-eval");
                         exit;
                     } else {
                         // Actuellement en cours -> on met en pause
@@ -637,7 +655,7 @@ try {
                         ");
                         $update->execute(['sid' => $sid]);
                         
-                        header("Location: /teacher/dashboard.php?course_id={$selectedCourse['id']}&success=live_session_paused&open_live_modal=1&open_session={$sid}");
+                        header("Location: /teacher/dashboard.php?course_id={$selectedCourse['id']}&success=live_session_paused&open_session={$sid}#tab-live-eval");
                         exit;
                     }
                 }
@@ -703,7 +721,7 @@ try {
                 ]);
 
                 $sidForRedirect = (int)($_POST['session_id'] ?? 0);
-                header("Location: /teacher/dashboard.php?course_id={$selectedCourse['id']}&success=live_question_added&open_live_modal=1&open_session={$sidForRedirect}"); exit;
+                header("Location: /teacher/dashboard.php?course_id={$selectedCourse['id']}&success=live_question_added&open_session={$sidForRedirect}#tab-live-eval"); exit;
             }
         }
 
@@ -725,7 +743,7 @@ try {
                     }
                     $del = $pdo->prepare("DELETE FROM live_eval_questions WHERE id = :id");
                     $del->execute(['id' => $qid]);
-                    header("Location: /teacher/dashboard.php?course_id={$selectedCourse['id']}&success=live_question_deleted&open_live_modal=1"); exit;
+                    header("Location: /teacher/dashboard.php?course_id={$selectedCourse['id']}&success=live_question_deleted#tab-live-eval"); exit;
                 }
             }
         }
@@ -753,8 +771,134 @@ try {
                     $del = $pdo->prepare("DELETE FROM live_eval_questions WHERE session_id = :sid");
                     $del->execute(['sid' => $sid]);
                     
-                    header("Location: /teacher/dashboard.php?course_id={$selectedCourse['id']}&success=live_all_questions_deleted&open_live_modal=1&open_session={$sid}"); exit;
+                    header("Location: /teacher/dashboard.php?course_id={$selectedCourse['id']}&success=live_all_questions_deleted&open_session={$sid}#tab-live-eval"); exit;
                 }
+            }
+        }
+
+        // ── W1. Ajouter un webinaire ────────────────────────────────────
+        if ($action === 'add_webinar') {
+            $title = trim((string)($_POST['title'] ?? ''));
+            $description = trim((string)($_POST['description'] ?? ''));
+            $scheduled_at = trim((string)($_POST['scheduled_at'] ?? ''));
+            $duration = (int)($_POST['duration'] ?? 60);
+            $meeting_id = trim((string)($_POST['meeting_id'] ?? ''));
+
+            if (empty($meeting_id)) {
+                $meeting_id = 'web_' . uniqid();
+            }
+
+            if (!empty($title) && !empty($scheduled_at)) {
+                $stmt = $pdo->prepare("
+                    INSERT INTO webinars (course_id, teacher_id, title, description, scheduled_at, duration, status, meeting_id)
+                    VALUES (:cid, :tid, :title, :desc, :sched, :dur, 'scheduled', :meet)
+                ");
+                $stmt->execute([
+                    'cid' => $selectedCourse['id'],
+                    'tid' => $teacherId,
+                    'title' => $title,
+                    'desc' => $description ?: null,
+                    'sched' => date('Y-m-d H:i:s', strtotime($scheduled_at)),
+                    'dur' => $duration,
+                    'meet' => $meeting_id
+                ]);
+                header("Location: /teacher/dashboard.php?course_id={$selectedCourse['id']}&success=webinar_added#tab-webinars"); exit;
+            }
+        }
+
+        // ── W2. Éditer un webinaire ─────────────────────────────────────
+        if ($action === 'edit_webinar') {
+            $wid = (int)($_POST['webinar_id'] ?? 0);
+            $title = trim((string)($_POST['title'] ?? ''));
+            $description = trim((string)($_POST['description'] ?? ''));
+            $scheduled_at = trim((string)($_POST['scheduled_at'] ?? ''));
+            $duration = (int)($_POST['duration'] ?? 60);
+            $meeting_id = trim((string)($_POST['meeting_id'] ?? ''));
+
+            if (!empty($title) && !empty($scheduled_at) && $wid > 0) {
+                $stmt = $pdo->prepare("
+                    UPDATE webinars 
+                    SET title = :title, description = :desc, scheduled_at = :sched, duration = :dur, meeting_id = :meet
+                    WHERE id = :id AND teacher_id = :tid AND course_id = :cid
+                ");
+                $stmt->execute([
+                    'id' => $wid,
+                    'tid' => $teacherId,
+                    'cid' => $selectedCourse['id'],
+                    'title' => $title,
+                    'desc' => $description ?: null,
+                    'sched' => date('Y-m-d H:i:s', strtotime($scheduled_at)),
+                    'dur' => $duration,
+                    'meet' => $meeting_id
+                ]);
+                header("Location: /teacher/dashboard.php?course_id={$selectedCourse['id']}&success=webinar_updated#tab-webinars"); exit;
+            }
+        }
+
+        // ── W3. Démarrer un webinaire (Live) ────────────────────────────
+        if ($action === 'start_webinar') {
+            $wid = (int)($_POST['webinar_id'] ?? 0);
+            if ($wid > 0) {
+                $stmt = $pdo->prepare("
+                    UPDATE webinars 
+                    SET status = 'live'
+                    WHERE id = :id AND teacher_id = :tid AND course_id = :cid
+                ");
+                $stmt->execute(['id' => $wid, 'tid' => $teacherId, 'cid' => $selectedCourse['id']]);
+                header("Location: /teacher/dashboard.php?course_id={$selectedCourse['id']}&success=webinar_started#tab-webinars"); exit;
+            }
+        }
+
+        // ── W4. Terminer un webinaire ──────────────────────────────────
+        if ($action === 'complete_webinar') {
+            $wid = (int)($_POST['webinar_id'] ?? 0);
+            $recUrl = trim((string)($_POST['recording_url'] ?? ''));
+            if ($wid > 0) {
+                $stmt = $pdo->prepare("
+                    UPDATE webinars 
+                    SET status = 'completed', recording_url = :rec
+                    WHERE id = :id AND teacher_id = :tid AND course_id = :cid
+                ");
+                $stmt->execute([
+                    'id' => $wid,
+                    'tid' => $teacherId,
+                    'cid' => $selectedCourse['id'],
+                    'rec' => $recUrl ?: null
+                ]);
+                header("Location: /teacher/dashboard.php?course_id={$selectedCourse['id']}&success=webinar_completed#tab-webinars"); exit;
+            }
+        }
+
+        // ── W5. Supprimer un webinaire ─────────────────────────────────
+        if ($action === 'delete_webinar') {
+            $wid = (int)($_POST['webinar_id'] ?? 0);
+            if ($wid > 0) {
+                $stmt = $pdo->prepare("
+                    DELETE FROM webinars 
+                    WHERE id = :id AND teacher_id = :tid AND course_id = :cid
+                ");
+                $stmt->execute(['id' => $wid, 'tid' => $teacherId, 'cid' => $selectedCourse['id']]);
+                header("Location: /teacher/dashboard.php?course_id={$selectedCourse['id']}&success=webinar_deleted#tab-webinars"); exit;
+            }
+        }
+
+        // ── W6. Enregistrer Replay ─────────────────────────────────────
+        if ($action === 'save_webinar_replay') {
+            $wid = (int)($_POST['webinar_id'] ?? 0);
+            $recUrl = trim((string)($_POST['recording_url'] ?? ''));
+            if ($wid > 0) {
+                $stmt = $pdo->prepare("
+                    UPDATE webinars 
+                    SET recording_url = :rec
+                    WHERE id = :id AND teacher_id = :tid AND course_id = :cid
+                ");
+                $stmt->execute([
+                    'id' => $wid,
+                    'tid' => $teacherId,
+                    'cid' => $selectedCourse['id'],
+                    'rec' => $recUrl ?: null
+                ]);
+                header("Location: /teacher/dashboard.php?course_id={$selectedCourse['id']}&success=webinar_replay_saved#tab-webinars"); exit;
             }
         }
     }
@@ -766,6 +910,8 @@ try {
     $finalExamQuestionCount = 0;
     $finalQuestions        = [];
     $liveSessions          = [];
+    $myWebinars            = [];
+    $courseComments        = [];
 
     if ($selectedCourse) {
         $stmt = $pdo->prepare("SELECT * FROM chapters WHERE course_id=:cid ORDER BY sort_order ASC,id ASC");
@@ -849,6 +995,30 @@ try {
             }
         }
         unset($ls);
+
+        // Charger les webinaires du cours
+        $stmt = $pdo->prepare("
+            SELECT w.*, 
+                   (SELECT COUNT(*) FROM webinar_attendance WHERE webinar_id = w.id) AS participant_count
+            FROM webinars w
+            WHERE w.course_id = :cid AND w.teacher_id = :tid
+            ORDER BY w.scheduled_at DESC
+        ");
+        $stmt->execute(['cid' => $selectedCourse['id'], 'tid' => $teacherId]);
+        $myWebinars = $stmt->fetchAll();
+
+        // Charger les commentaires globaux du cours
+        $stmt = $pdo->prepare("
+            SELECT lc.*, u.name AS author_name, u.role AS author_role, l.title AS lesson_title
+            FROM lesson_comments lc
+            JOIN users u ON u.id = lc.user_id
+            JOIN lessons l ON l.id = lc.lesson_id
+            JOIN chapters ch ON ch.id = l.chapter_id
+            WHERE ch.course_id = :cid
+            ORDER BY lc.created_at DESC
+        ");
+        $stmt->execute(['cid' => $selectedCourse['id']]);
+        $courseComments = $stmt->fetchAll();
     }
 
 } catch (PDOException $e) {
@@ -917,6 +1087,12 @@ $successMessages = [
     'course_updated'         => '✓ Informations du cours mises à jour.',
     'course_created'         => '✓ Cours créé avec succès. Le promoteur a été informé.',
     'live_all_questions_deleted' => '✓ Toutes les questions de la séance ont été supprimées.',
+    'webinar_added'          => '✓ Webinaire planifié avec succès.',
+    'webinar_updated'        => '✓ Webinaire mis à jour avec succès.',
+    'webinar_started'        => '✓ Le webinaire est maintenant en direct ! Rejoignez la classe.',
+    'webinar_completed'      => '✓ Séance terminée avec succès.',
+    'webinar_deleted'        => '✓ Webinaire supprimé.',
+    'webinar_replay_saved'   => '✓ Lien du replay enregistré avec succès.',
 ];
 $successKey = (string)($_GET['success'] ?? '');
 $successMsg = $successMessages[$successKey] ?? null;
@@ -1055,243 +1231,334 @@ $successMsg = $successMessages[$successKey] ?? null;
 <main class="flex-grow flex flex-col lg:flex-row">
 
     <!-- ── Sidebar ──────────────────────────────────────────── -->
-    <aside class="sv-sidebar w-full lg:w-80 border-r border-[#E5E5E7] p-6 md:p-8 lg:p-12 space-y-8 flex-shrink-0">
-        <div class="space-y-2">
-            <h3 class="text-xs font-semibold uppercase tracking-widest text-[#888888]">Mes Cours</h3>
-            <p class="text-[11px] font-light text-[#888888]">Créez un cours ou sélectionnez-en un pour en concevoir le contenu.</p>
-        </div>
-        <button type="button" onclick="toggleModal('create-course-modal')"
-            class="w-full px-4 py-2.5 bg-[#111111] text-white text-[10px] font-semibold uppercase tracking-wider hover:bg-[#004B23] rounded-sm">
-            + Créer un cours
-        </button>
-        <nav class="space-y-3">
-            <?php if (empty($myCourses)): ?>
-                <p class="text-xs text-[#888888] italic">Aucun cours pour le moment. Créez votre premier cours ci-dessus.</p>
-            <?php else: ?>
-                <?php foreach ($myCourses as $mc): ?>
-                    <a href="?course_id=<?= $mc['id']; ?>"
-                        class="sv-course-link <?= $selectedCourseId === (int)$mc['id'] ? 'active' : ''; ?> flex gap-3 items-start p-3 rounded-lg hover:bg-[#F5F5F7]">
-                        <div class="w-10 h-10 rounded overflow-hidden flex-shrink-0 bg-gradient-to-br from-[#004B23] to-[#006630] flex items-center justify-center text-white text-xs select-none">
-                            <?php if (!empty($mc['cover_image'])): ?>
-                                <img src="/download.php?type=cover&file=<?= urlencode($mc['cover_image']); ?>" class="w-full h-full object-cover">
-                            <?php else: ?>
-                                🎓
-                            <?php endif; ?>
-                        </div>
-                        <div class="flex-grow">
-                            <h4 class="font-serif text-sm font-medium text-[#111111] mb-1"><?= htmlspecialchars($mc['title']); ?></h4>
-                            <p class="text-xs font-light text-[#555555] line-clamp-2"><?= htmlspecialchars($mc['description']); ?></p>
-                        </div>
-                    </a>
-                <?php endforeach; ?>
-            <?php endif; ?>
-        </nav>
-    </aside>
-
-    <!-- ── Zone de travail ──────────────────────────────────── -->
-    <section class="sv-workspace flex-grow p-6 md:p-12 lg:p-16 space-y-12">
-
-        <?php if ($successMsg): ?>
-            <div class="p-4 bg-white border border-[#004B23] text-[#004B23] text-sm font-light fade-in">
-                <?= htmlspecialchars($successMsg); ?>
-            </div>
-        <?php endif; ?>
-
-        <!-- Statistiques enseignant -->
-        <div id="teacher-stats" class="sv-stats-teacher sv-fade-in">
-            <p class="text-sm font-bold text-[#555555] col-span-full p-5">Chargement des statistiques…</p>
-        </div>
-
-        <?php if (!$selectedCourse): ?>
-            <!-- État vide -->
-            <div class="h-full flex flex-col justify-center items-center text-center py-20">
-                <svg class="w-16 h-16 text-[#888888] mb-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.2"
-                        d="M12 6.253v13m0-13C10.832 5.477 9.246 5 7.5 5S4.168 5.477 3 6.253v13C4.168 18.477 5.754 18 7.5 18s3.332.477 4.5 1.253m0-13C13.168 5.477 14.754 5 16.5 5c1.747 0 3.332.477 4.5 1.253v13C19.832 18.477 18.247 18 16.5 18c-1.746 0-3.332.477-4.5 1.253"/>
-                </svg>
-                <h2 class="font-serif text-3xl font-light text-[#111111] mb-2">Créez ou sélectionnez un cours</h2>
-                <p class="text-sm font-light text-[#555555] max-w-sm">Utilisez le bouton « Créer un cours » dans la barre latérale, ou sélectionnez un cours existant pour structurer chapitres et leçons.</p>
-                <?php if (!empty($modules)): ?>
-                <button type="button" onclick="toggleModal('create-course-modal')"
-                    class="mt-6 px-6 py-2.5 bg-[#111111] text-white text-xs font-semibold uppercase tracking-wider hover:bg-[#004B23] rounded-sm">
-                    + Créer mon premier cours
-                </button>
-                <?php else: ?>
-                <p class="text-xs text-[#888888] italic mt-4">Aucun module disponible — le promoteur doit d'abord créer un module de formation.</p>
-                <?php endif; ?>
+    <aside class="w-full lg:w-80 bg-[#092215] text-[#A3B899] p-6 md:p-8 space-y-8 flex-shrink-0 flex flex-col justify-between">
+        <div class="space-y-6">
+            <div class="space-y-2">
+                <h3 class="text-xs font-semibold uppercase tracking-widest text-[#E2ECE9]/60">Espace Enseignant</h3>
+                <p class="text-[11px] font-light text-[#E2ECE9]/40">Gérez vos contenus pédagogiques et suivez vos apprenants.</p>
             </div>
 
-        <?php else: ?>
-
-            <!-- ── En-tête du cours ───────────────────────────── -->
-            <div class="border-b border-[#E5E5E7] pb-8 space-y-3">
-                <div class="flex justify-between items-start gap-4">
-                    <div class="space-y-1 flex-grow">
-                        <h2 class="font-serif text-4xl font-light text-[#111111]">
-                            <?= htmlspecialchars($selectedCourse['title']); ?>
-                        </h2>
-                        <p class="text-sm font-light text-[#555555] max-w-3xl leading-relaxed">
-                            <?= htmlspecialchars($selectedCourse['description']); ?>
-                        </p>
-                        <div class="text-xs text-[#888888] font-mono pt-1">
-                            Clé d'inscription :
-                            <span class="font-semibold text-[#111111]">
-                                <?= $selectedCourse['enrollment_key'] ? htmlspecialchars($selectedCourse['enrollment_key']) : 'Aucune (libre)'; ?>
-                            </span>
-                        </div>
-                    </div>
-                    <div class="flex gap-2 flex-shrink-0">
-                        <button onclick="openShareModal(<?= $selectedCourse['id'] ?>)"
-                            class="px-3 py-1.5 bg-[#004B23] text-white text-[11px] font-semibold uppercase tracking-wider hover:bg-[#006630] rounded-sm flex items-center gap-1.5 transition-colors">
-                            <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
-                                <circle cx="18" cy="5" r="3"/><circle cx="6" cy="12" r="3"/><circle cx="18" cy="19" r="3"/>
-                                <line x1="8.59" y1="13.51" x2="15.42" y2="17.49"/><line x1="15.41" y1="6.51" x2="8.59" y2="10.49"/>
-                            </svg>
-                            Partager
-                        </button>
-                        <button onclick="openEditCourseModal()"
-                            class="px-3 py-1.5 bg-[#F5F5F7] border border-[#E5E5E7] text-[11px] font-semibold uppercase tracking-wider hover:border-[#004B23] rounded-sm">
-                            ✎ Éditer le cours
-                        </button>
-                    </div>
-                </div>
-            </div>
-
-            <!-- Share modal -->
-            <div id="share-modal" class="hidden fixed inset-0 bg-black/40 backdrop-blur-sm z-50 flex items-center justify-center p-4" onclick="if(event.target===this)closeShareModal()">
-                <div class="bg-white rounded-2xl shadow-2xl w-full max-w-md p-6 space-y-4">
-                    <div class="flex items-start justify-between">
-                        <div>
-                            <h3 class="font-serif text-lg font-semibold text-[#111]">Partager ce cours</h3>
-                            <p class="text-xs text-[#666] mt-0.5">Envoyez ce lien a vos etudiants pour une inscription rapide.</p>
-                        </div>
-                        <button onclick="closeShareModal()" class="text-[#888] hover:text-[#111] text-xl leading-none">&times;</button>
-                    </div>
-                    <div class="space-y-1">
-                        <label class="text-[10px] font-semibold uppercase tracking-wider text-[#888]">Lien d'invitation</label>
-                        <div class="flex gap-2">
-                            <input type="text" id="share-url-input" readonly
-                                class="flex-1 px-3 py-2.5 border border-[#E5E5E7] rounded-lg text-sm font-mono bg-[#F9F9FB] text-[#111] select-all outline-none focus:border-[#004B23]">
-                            <button id="share-copy-btn" onclick="copyShareLink()"
-                                class="px-4 py-2.5 bg-[#004B23] text-white text-xs font-semibold rounded-lg hover:bg-[#006630] transition-colors whitespace-nowrap">
-                                Copier
-                            </button>
-                        </div>
-                    </div>
-                    <?php if ($selectedCourse['enrollment_key']): ?>
-                    <div class="bg-[#FFFBEB] border border-[#FDE68A] rounded-lg px-3 py-2.5 text-xs text-[#78350F]">
-                        Ce cours est protege par une cle. Les etudiants devront saisir la cle
-                        <strong class="font-mono"><?= htmlspecialchars($selectedCourse['enrollment_key']) ?></strong>
-                        apres avoir clique sur le lien.
-                    </div>
+            <!-- Liste de sélection des cours -->
+            <div class="space-y-2">
+                <label class="block text-[10px] font-bold uppercase tracking-wider text-[#E2ECE9]/50">Sélectionner un Cours</label>
+                <div class="space-y-1">
+                    <?php if (empty($myCourses)): ?>
+                        <p class="text-xs italic text-[#E2ECE9]/40">Aucun cours disponible.</p>
                     <?php else: ?>
-                    <div class="bg-[#F0FDF4] border border-[#BBF7D0] rounded-lg px-3 py-2.5 text-xs text-[#14532D]">
-                        Ce cours est en acces libre. Les etudiants pourront s'inscrire directement sans cle.
-                    </div>
+                        <?php foreach ($myCourses as $mc): 
+                            $isSel = ($selectedCourse && (int)$selectedCourse['id'] === (int)$mc['id']);
+                        ?>
+                            <a href="/teacher/dashboard.php?course_id=<?= $mc['id']; ?>"
+                               class="block px-3 py-2 rounded-sm text-xs transition-all <?= $isSel ? 'bg-[#004B23] text-white font-semibold border-l-4 border-white' : 'hover:bg-[#143d26] hover:text-white text-[#E2ECE9]/70'; ?>">
+                                <?= htmlspecialchars($mc['title']); ?>
+                            </a>
+                        <?php endforeach; ?>
                     <?php endif; ?>
                 </div>
             </div>
 
-            <!-- ── Cartes Modulaires & Métriques du Cours ───────────────────────── -->
-            <?php
-            $studentCountStmt = $pdo->prepare("SELECT COUNT(*) FROM enrollments WHERE course_id = :cid");
-            $studentCountStmt->execute(['cid' => $selectedCourse['id']]);
-            $studentCount = (int)$studentCountStmt->fetchColumn();
-
-            $lessonQuizCountStmt = $pdo->prepare("
-                SELECT COUNT(DISTINCT l.id)
-                FROM lessons l
-                JOIN chapters ch ON l.chapter_id = ch.id
-                JOIN lesson_questions lq ON lq.lesson_id = l.id
-                WHERE ch.course_id = :cid
-            ");
-            $lessonQuizCountStmt->execute(['cid' => $selectedCourse['id']]);
-            $lessonQuizCount = (int)$lessonQuizCountStmt->fetchColumn();
-
-            $certificatesCountStmt = $pdo->prepare("
-                SELECT COUNT(*) FROM certificates cert
-                JOIN courses c ON cert.module_id = c.module_id
-                WHERE c.id = :cid
-            ");
-            $certificatesCountStmt->execute(['cid' => $selectedCourse['id']]);
-            $certificatesCount = (int)$certificatesCountStmt->fetchColumn();
-            ?>
-            <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-6 my-8">
-                <!-- Card 1: Élèves Inscrits -->
-                <div class="bg-white border border-[#E5E5E7] p-6 hover:shadow-md transition-shadow cursor-pointer flex flex-col justify-between rounded-sm" onclick="openRegisteredStudentsModal()">
-                    <div>
-                        <div class="flex items-center justify-between mb-4">
-                            <span class="text-xs font-semibold uppercase tracking-wider text-[#555555]">Élèves Inscrits</span>
-                            <svg class="w-6 h-6 text-[#004B23]" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M12 4.354a4 4 0 110 5.292M15 21H3v-1a6 6 0 0112 0v1zm0 0h6v-1a6 6 0 00-9-5.197M13 7a4 4 0 11-8 0 4 4 0 018 0z" />
-                            </svg>
-                        </div>
-                        <div class="text-3xl font-semibold text-[#111111] mb-2" id="kpi-enrolled-count"><?= $studentCount; ?></div>
-                        <p class="text-xs text-[#888888] font-light">Liste des élèves inscrits au cours et progression.</p>
-                    </div>
-                    <div class="mt-4 text-xs font-semibold text-[#004B23] uppercase tracking-wider flex items-center gap-1">
-                        Consulter la liste <span>→</span>
-                    </div>
-                </div>
-
-                <!-- Card 2: Notes & Évaluations -->
-                <div class="bg-white border border-[#E5E5E7] p-6 hover:shadow-md transition-shadow cursor-pointer flex flex-col justify-between rounded-sm" onclick="openLessonGradesModal()">
-                    <div>
-                        <div class="flex items-center justify-between mb-4">
-                            <span class="text-xs font-semibold uppercase tracking-wider text-[#555555]">Notes des Leçons</span>
-                            <svg class="w-6 h-6 text-[#004B23]" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
-                            </svg>
-                        </div>
-                        <div class="text-3xl font-semibold text-[#111111] mb-2"><?= $lessonQuizCount; ?></div>
-                        <p class="text-xs text-[#888888] font-light">Quiz de leçons. Consulter les scores par élève et leçon.</p>
-                    </div>
-                    <div class="mt-4 text-xs font-semibold text-[#004B23] uppercase tracking-wider flex items-center gap-1">
-                        Consulter les notes <span>→</span>
-                    </div>
-                </div>
-
-                <!-- Card 3: Certifications -->
-                <div class="bg-white border border-[#E5E5E7] p-6 hover:shadow-md transition-shadow cursor-pointer flex flex-col justify-between rounded-sm" onclick="openCertificationsModal()">
-                    <div>
-                        <div class="flex items-center justify-between mb-4">
-                            <span class="text-xs font-semibold uppercase tracking-wider text-[#555555]">Certifications</span>
-                            <svg class="w-6 h-6 text-[#004B23]" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M9 12l2 2 4-4M7.835 4.697a3.42 3.42 0 001.946-.806 3.42 3.42 0 014.438 0 3.42 3.42 0 001.946.806 3.42 3.42 0 013.138 3.138 3.42 3.42 0 00.806 1.946 3.42 3.42 0 010 4.438 3.42 3.42 0 00-.806 1.946 3.42 3.42 0 01-3.138 3.138 3.42 3.42 0 00-1.946.806 3.42 3.42 0 01-4.438 0 3.42 3.42 0 00-1.946-.806 3.42 3.42 0 01-3.138-3.138 3.42 3.42 0 00-.806-1.946 3.42 3.42 0 010-4.438 3.42 3.42 0 00.806-1.946 3.42 3.42 0 013.138-3.138z" />
-                            </svg>
-                        </div>
-                        <div class="text-3xl font-semibold text-[#111111] mb-2"><?= $certificatesCount; ?></div>
-                        <p class="text-xs text-[#888888] font-light">Détail des tentatives du QCM final et certificats émis.</p>
-                    </div>
-                    <div class="mt-4 text-xs font-semibold text-[#004B23] uppercase tracking-wider flex items-center gap-1">
-                        Voir les résultats <span>→</span>
-                    </div>
-                </div>
-
-                <!-- Card 4: Téléévaluations -->
-                <div class="bg-white border border-[#E5E5E7] p-6 hover:shadow-md transition-shadow cursor-pointer flex flex-col justify-between rounded-sm" onclick="toggleModal('live-evaluation-modal')">
-                    <div>
-                        <div class="flex items-center justify-between mb-4">
-                            <span class="text-xs font-semibold uppercase tracking-wider text-[#555555]">Téléévaluations (Live)</span>
-                            <svg class="w-6 h-6 text-[#004B23]" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M15 10l4.553-2.276A1 1 0 0121 8.618v6.764a1 1 0 01-1.447.894L15 14M5 18h8a2 2 0 002-2V8a2 2 0 00-2-2H5a2 2 0 00-2 2v8a2 2 0 002 2z" />
-                            </svg>
-                        </div>
-                        <div class="text-3xl font-semibold text-[#111111] mb-2"><?= count($liveSessions); ?></div>
-                        <p class="text-xs text-[#888888] font-light">Séances synchrones, lobby en direct et questions.</p>
-                    </div>
-                    <div class="mt-4 text-xs font-semibold text-[#004B23] uppercase tracking-wider flex items-center gap-1">
-                        Gérer les séances <span>→</span>
-                    </div>
-                </div>
+            <!-- Boutons d'action rapides -->
+            <div class="pt-4 border-t border-[#143d26]">
+                <button type="button" onclick="toggleModal('create-course-modal')"
+                        class="w-full px-4 py-2.5 bg-white text-[#092215] text-[10px] font-semibold uppercase tracking-wider hover:bg-[#E2ECE9] rounded-sm transition-colors flex items-center justify-center gap-1.5">
+                    <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 4v16m8-8H4"/></svg>
+                    Créer un Cours
+                </button>
             </div>
-            
-            <!-- Cache global pour les notes -->
-            <div id="teacher-grades-loading" class="hidden"></div>
-            <div id="teacher-grades-content" class="hidden"></div>
 
-            <!-- ── Plan du cours ─────────────────────────────── -->
-            <div class="space-y-6">
+            <!-- Onglets de Navigation Latérale -->
+            <div class="space-y-1.5 pt-4 border-t border-[#143d26]">
+                <label class="block text-[10px] font-bold uppercase tracking-wider text-[#E2ECE9]/50 mb-2">Workspace</label>
+                
+                <!-- Vue d'ensemble (Toujours active) -->
+                <button onclick="switchDashboardTab('tab-overview')" data-tab-target="tab-overview" 
+                        class="sidebar-tab-btn w-full flex items-center gap-3 px-4 py-3 rounded-sm text-left text-sm transition-all duration-200 bg-[#004B23] text-white font-semibold">
+                    <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 6a2 2 0 012-2h2a2 2 0 012 2v4a2 2 0 01-2 2H6a2 2 0 01-2-2V6zM14 6a2 2 0 012-2h2a2 2 0 012 2v4a2 2 0 01-2 2h-2a2 2 0 01-2-2V6zM4 16a2 2 0 012-2h2a2 2 0 012 2v4a2 2 0 01-2 2H6a2 2 0 01-2-2v-4zM14 16a2 2 0 012-2h2a2 2 0 012 2v4a2 2 0 01-2 2h-2a2 2 0 01-2-2v-4z"/></svg>
+                    Vue d'ensemble
+                </button>
+
+                <!-- Plan & Contenu -->
+                <button onclick="switchDashboardTab('tab-course')" data-tab-target="tab-course" 
+                        class="sidebar-tab-btn w-full flex items-center gap-3 px-4 py-3 rounded-sm text-left text-sm transition-all duration-200 <?= $selectedCourse ? 'text-gray-300 hover:bg-[#143d26] hover:text-white' : 'opacity-40 cursor-not-allowed text-gray-500' ?>">
+                    <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 6.253v13m0-13C10.832 5.477 9.246 5 7.5 5S4.168 5.477 3 6.253v13C4.168 18.477 5.754 18 7.5 18s3.332.477 4.5 1.253m0-13C13.168 5.477 14.754 5 16.5 5c1.747 0 3.332.477 4.5 1.253v13C19.832 18.477 18.247 18 16.5 18c-1.746 0-3.332.477-4.5 1.253"/></svg>
+                    Plan &amp; Contenu
+                </button>
+
+                <!-- Téléévaluations (Live) -->
+                <button onclick="switchDashboardTab('tab-live-eval')" data-tab-target="tab-live-eval" 
+                        class="sidebar-tab-btn w-full flex items-center gap-3 px-4 py-3 rounded-sm text-left text-sm transition-all duration-200 <?= $selectedCourse ? 'text-gray-300 hover:bg-[#143d26] hover:text-white' : 'opacity-40 cursor-not-allowed text-gray-500' ?>">
+                    <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 10l4.553-2.276A1 1 0 0121 8.618v6.764a1 1 0 01-1.447.894L15 14M5 18h8a2 2 0 002-2V8a2 2 0 00-2-2H5a2 2 0 00-2 2v8a2 2 0 002 2z"/></svg>
+                    Téléévaluations (Live)
+                </button>
+
+                <!-- Webinaires & Directs -->
+                <button onclick="switchDashboardTab('tab-webinars')" data-tab-target="tab-webinars" 
+                        class="sidebar-tab-btn w-full flex items-center gap-3 px-4 py-3 rounded-sm text-left text-sm transition-all duration-200 <?= $selectedCourse ? 'text-gray-300 hover:bg-[#143d26] hover:text-white' : 'opacity-40 cursor-not-allowed text-gray-500' ?>">
+                    <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 10l4.553-2.276A1 1 0 0121 8.618v6.764a1 1 0 01-1.447.894L15 14M5 18h8a2 2 0 002-2V8a2 2 0 00-2-2H5a2 2 0 00-2 2v8a2 2 0 002 2z"/></svg>
+                    Webinaires &amp; Directs
+                </button>
+
+                <!-- Notes & Suivi -->
+                <button onclick="switchDashboardTab('tab-grades')" data-tab-target="tab-grades" 
+                        class="sidebar-tab-btn w-full flex items-center gap-3 px-4 py-3 rounded-sm text-left text-sm transition-all duration-200 <?= $selectedCourse ? 'text-gray-300 hover:bg-[#143d26] hover:text-white' : 'opacity-40 cursor-not-allowed text-gray-500' ?>">
+                    <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12l2 2 4-4M7.835 4.697a3.42 3.42 0 001.946-.806 3.42 3.42 0 014.438 0 3.42 3.42 0 001.946.806 3.42 3.42 0 013.138 3.138 3.42 3.42 0 00.806 1.946 3.42 3.42 0 010 4.438 3.42 3.42 0 00-.806 1.946 3.42 3.42 0 01-3.138 3.138 3.42 3.42 0 00-1.946.806 3.42 3.42 0 01-4.438 0 3.42 3.42 0 00-1.946-.806 3.42 3.42 0 01-3.138-3.138 3.42 3.42 0 00-.806-1.946 3.42 3.42 0 010-4.438 3.42 3.42 0 00.806-1.946 3.42 3.42 0 013.138-3.138z"/></svg>
+                    Notes &amp; Suivi
+                </button>
+
+                <!-- Communauté & Q&R -->
+                <button onclick="switchDashboardTab('tab-comments')" data-tab-target="tab-comments" 
+                        class="sidebar-tab-btn w-full flex items-center gap-3 px-4 py-3 rounded-sm text-left text-sm transition-all duration-200 <?= $selectedCourse ? 'text-gray-300 hover:bg-[#143d26] hover:text-white' : 'opacity-40 cursor-not-allowed text-gray-500' ?>">
+                    <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 12h.01M12 12h.01M16 12h.01M21 12c0 4.418-4.03 8-9 8a9.863 9.863 0 01-4.255-.949L3 20l1.395-3.72C3.512 15.042 3 13.574 3 12c0-4.418 4.03-8 9-8s9 3.582 9 8z"/></svg>
+                    Communauté &amp; Q&amp;R
+                </button>
+            </div>
+        </div>
+
+        <div class="text-[10px] text-[#E2ECE9]/30 text-center font-mono">
+            StudyVibe v2.1 Enseignant
+        </div>
+    </aside>
+
+    <!-- ── Zone de Travail (Workspace) ─────────────────────── -->
+    <section class="flex-grow p-6 md:p-12 lg:p-16 space-y-12 bg-[#FAF8F4] overflow-y-auto max-h-[90vh]">
+
+        <?php if ($successMsg): ?>
+            <div class="p-4 bg-[#EAF2EC] border border-[#004B23]/20 text-[#004B23] text-sm font-semibold rounded-sm fade-in">
+                <?= htmlspecialchars($successMsg); ?>
+            </div>
+        <?php endif; ?>
+
+        <!-- 1. VUE D'ENSEMBLE (tab-overview) -->
+        <div id="tab-overview" class="tab-content space-y-12">
+            
+            <?php if (!$selectedCourse): ?>
+                
+                <!-- Welcome/State message when no course is active -->
+                <div class="text-center py-16 px-4 bg-white border border-[#E5E5E7] rounded-sm max-w-2xl mx-auto space-y-6">
+                    <svg class="w-16 h-16 text-[#004B23] mx-auto opacity-70" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.2"
+                              d="M12 6.253v13m0-13C10.832 5.477 9.246 5 7.5 5S4.168 5.477 3 6.253v13C4.168 18.477 5.754 18 7.5 18s3.332.477 4.5 1.253m0-13C13.168 5.477 14.754 5 16.5 5c1.747 0 3.332.477 4.5 1.253v13C19.832 18.477 18.247 18 16.5 18c-1.746 0-3.332.477-4.5 1.253"/>
+                    </svg>
+                    <h2 class="font-serif text-3xl font-light text-[#111111] mb-2">Créez ou sélectionnez un cours</h2>
+                    <p class="text-sm font-light text-[#555555]">
+                        Utilisez le bouton « Créer un cours » dans la barre latérale, ou sélectionnez un cours existant pour commencer à gérer son contenu, ses séances de live, et suivre les notes de vos élèves.
+                    </p>
+                    
+                    <?php if (!empty($modules)): ?>
+                        <button type="button" onclick="toggleModal('create-course-modal')"
+                                class="px-6 py-2.5 bg-[#111111] text-white text-xs font-semibold uppercase tracking-wider hover:bg-[#004B23] rounded-sm transition-all shadow-sm">
+                            + Créer mon premier cours
+                        </button>
+                    <?php else: ?>
+                        <p class="text-xs text-[#888888] italic mt-4">Aucun module disponible — le promoteur doit d'abord créer un module de formation.</p>
+                    <?php endif; ?>
+                </div>
+
+                <!-- Global Stats Grid (for teacher overall) -->
+                <?php
+                // Fetch stats for all teacher courses combined
+                $allCoursesCount = count($myCourses);
+                
+                $totalEnrolledCount = 0;
+                if ($allCoursesCount > 0) {
+                    $cids = array_map(fn($c) => (int)$c['id'], $myCourses);
+                    $cidsStr = implode(',', $cids);
+                    $totalEnrolledCount = (int)$pdo->query("SELECT COUNT(*) FROM enrollments WHERE course_id IN ($cidsStr)")->fetchColumn();
+                }
+                
+                // Total webinars
+                $totalWebinarsStmt = $pdo->prepare("SELECT COUNT(*) FROM webinars WHERE teacher_id = :tid");
+                $totalWebinarsStmt->execute(['tid' => $teacherId]);
+                $totalWebinars = (int)$totalWebinarsStmt->fetchColumn();
+
+                // Total live sessions (QuizBox)
+                $totalQuizSessions = 0;
+                if ($allCoursesCount > 0) {
+                    $totalQuizSessions = (int)$pdo->query("SELECT COUNT(*) FROM live_eval_sessions WHERE course_id IN ($cidsStr)")->fetchColumn();
+                }
+                ?>
+                <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-6 mt-12 max-w-5xl mx-auto">
+                    <div class="bg-white border border-[#E5E5E7] p-6 rounded-sm">
+                        <div class="text-xs font-semibold uppercase tracking-wider text-[#555555] mb-2">Total Cours</div>
+                        <div class="text-3xl font-semibold text-[#111111]"><?= $allCoursesCount ?></div>
+                    </div>
+                    <div class="bg-white border border-[#E5E5E7] p-6 rounded-sm">
+                        <div class="text-xs font-semibold uppercase tracking-wider text-[#555555] mb-2">Total Apprenants</div>
+                        <div class="text-3xl font-semibold text-[#111111]"><?= $totalEnrolledCount ?></div>
+                    </div>
+                    <div class="bg-white border border-[#E5E5E7] p-6 rounded-sm">
+                        <div class="text-xs font-semibold uppercase tracking-wider text-[#555555] mb-2">Classes Webinaires</div>
+                        <div class="text-3xl font-semibold text-[#111111]"><?= $totalWebinars ?></div>
+                    </div>
+                    <div class="bg-white border border-[#E5E5E7] p-6 rounded-sm">
+                        <div class="text-xs font-semibold uppercase tracking-wider text-[#555555] mb-2">Téléévaluations QuizBox</div>
+                        <div class="text-3xl font-semibold text-[#111111]"><?= $totalQuizSessions ?></div>
+                    </div>
+                </div>
+
+            <?php else: ?>
+
+                <!-- Course Title Header -->
+                <div class="border-b border-[#E5E5E7] pb-8 space-y-3">
+                    <div class="flex justify-between items-start gap-4">
+                        <div class="space-y-1 flex-grow">
+                            <h2 class="font-serif text-4xl font-light text-[#111111]">
+                                <?= htmlspecialchars($selectedCourse['title']); ?>
+                            </h2>
+                            <p class="text-sm font-light text-[#555555] max-w-3xl leading-relaxed">
+                                <?= htmlspecialchars($selectedCourse['description']); ?>
+                            </p>
+                            <div class="text-xs text-[#888888] font-mono pt-1">
+                                Clé d'inscription :
+                                <span class="font-semibold text-[#111111]">
+                                    <?= $selectedCourse['enrollment_key'] ? htmlspecialchars($selectedCourse['enrollment_key']) : 'Aucune (libre)'; ?>
+                                </span>
+                            </div>
+                        </div>
+                        <div class="flex gap-2 flex-shrink-0">
+                            <button onclick="openShareModal(<?= $selectedCourse['id'] ?>)"
+                                class="px-3 py-1.5 bg-[#004B23] text-white text-[11px] font-semibold uppercase tracking-wider hover:bg-[#006630] rounded-sm flex items-center gap-1.5 transition-colors">
+                                <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+                                    <circle cx="18" cy="5" r="3"/><circle cx="6" cy="12" r="3"/><circle cx="18" cy="19" r="3"/>
+                                    <line x1="8.59" y1="13.51" x2="15.42" y2="17.49"/><line x1="15.41" y1="6.51" x2="8.59" y2="10.49"/>
+                                </svg>
+                                Partager
+                            </button>
+                            <button onclick="openEditCourseModal()"
+                                class="px-3 py-1.5 bg-[#F5F5F7] border border-[#E5E5E7] text-[11px] font-semibold uppercase tracking-wider hover:border-[#004B23] rounded-sm">
+                                ✎ Éditer le cours
+                            </button>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Course KPI Metrics -->
+                <?php
+                $studentCountStmt = $pdo->prepare("SELECT COUNT(*) FROM enrollments WHERE course_id = :cid");
+                $studentCountStmt->execute(['cid' => $selectedCourse['id']]);
+                $studentCount = (int)$studentCountStmt->fetchColumn();
+
+                $lessonQuizCountStmt = $pdo->prepare("
+                    SELECT COUNT(DISTINCT l.id)
+                    FROM lessons l
+                    JOIN chapters ch ON l.chapter_id = ch.id
+                    JOIN lesson_questions lq ON lq.lesson_id = l.id
+                    WHERE ch.course_id = :cid
+                ");
+                $lessonQuizCountStmt->execute(['cid' => $selectedCourse['id']]);
+                $lessonQuizCount = (int)$lessonQuizCountStmt->fetchColumn();
+
+                $certificatesCountStmt = $pdo->prepare("
+                    SELECT COUNT(*) FROM certificates cert
+                    JOIN courses c ON cert.module_id = c.module_id
+                    WHERE c.id = :cid
+                ");
+                $certificatesCountStmt->execute(['cid' => $selectedCourse['id']]);
+                $certificatesCount = (int)$certificatesCountStmt->fetchColumn();
+                ?>
+                <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-5 gap-6 my-8">
+                    <!-- KPI 1: Apprenants -->
+                    <div class="bg-white border border-[#E5E5E7] p-6 hover:shadow-md transition-shadow cursor-pointer flex flex-col justify-between rounded-sm" onclick="switchDashboardTab('tab-grades'); switchGradesSubTab('subtab-students');">
+                        <div>
+                            <div class="flex items-center justify-between mb-4">
+                                <span class="text-xs font-semibold uppercase tracking-wider text-[#555555]">Apprenants</span>
+                                <svg class="w-6 h-6 text-[#004B23]" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M12 4.354a4 4 0 110 5.292M15 21H3v-1a6 6 0 0112 0v1zm0 0h6v-1a6 6 0 00-9-5.197M13 7a4 4 0 11-8 0 4 4 0 018 0z" />
+                                </svg>
+                            </div>
+                            <div class="text-3xl font-semibold text-[#111111] mb-2"><?= $studentCount; ?></div>
+                            <p class="text-xs text-[#888888] font-light">Élèves inscrits et progression.</p>
+                        </div>
+                        <div class="mt-4 text-xs font-semibold text-[#004B23] uppercase tracking-wider flex items-center gap-1">
+                            Consulter <span>→</span>
+                        </div>
+                    </div>
+
+                    <!-- KPI 2: Quiz Leçons -->
+                    <div class="bg-white border border-[#E5E5E7] p-6 hover:shadow-md transition-shadow cursor-pointer flex flex-col justify-between rounded-sm" onclick="switchDashboardTab('tab-grades'); switchGradesSubTab('subtab-quiz');">
+                        <div>
+                            <div class="flex items-center justify-between mb-4">
+                                <span class="text-xs font-semibold uppercase tracking-wider text-[#555555]">Quiz Leçons</span>
+                                <svg class="w-6 h-6 text-[#004B23]" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
+                                </svg>
+                            </div>
+                            <div class="text-3xl font-semibold text-[#111111] mb-2"><?= $lessonQuizCount; ?></div>
+                            <p class="text-xs text-[#888888] font-light">Quiz configurés pour les leçons.</p>
+                        </div>
+                        <div class="mt-4 text-xs font-semibold text-[#004B23] uppercase tracking-wider flex items-center gap-1">
+                            Consulter <span>→</span>
+                        </div>
+                    </div>
+
+                    <!-- KPI 3: Certificats -->
+                    <div class="bg-white border border-[#E5E5E7] p-6 hover:shadow-md transition-shadow cursor-pointer flex flex-col justify-between rounded-sm" onclick="switchDashboardTab('tab-grades'); switchGradesSubTab('subtab-certs');">
+                        <div>
+                            <div class="flex items-center justify-between mb-4">
+                                <span class="text-xs font-semibold uppercase tracking-wider text-[#555555]">Certificats</span>
+                                <svg class="w-6 h-6 text-[#004B23]" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M9 12l2 2 4-4M7.835 4.697a3.42 3.42 0 001.946-.806 3.42 3.42 0 014.438 0 3.42 3.42 0 001.946.806 3.42 3.42 0 013.138 3.138 3.42 3.42 0 00.806 1.946 3.42 3.42 0 010 4.438 3.42 3.42 0 00-.806 1.946 3.42 3.42 0 01-3.138 3.138 3.42 3.42 0 00-1.946.806 3.42 3.42 0 01-4.438 0 3.42 3.42 0 00-1.946-.806 3.42 3.42 0 01-3.138-3.138 3.42 3.42 0 00-.806-1.946 3.42 3.42 0 010-4.438 3.42 3.42 0 00.806-1.946 3.42 3.42 0 013.138-3.138z" />
+                                </svg>
+                            </div>
+                            <div class="text-3xl font-semibold text-[#111111] mb-2"><?= $certificatesCount; ?></div>
+                            <p class="text-xs text-[#888888] font-light">Certificats de module délivrés.</p>
+                        </div>
+                        <div class="mt-4 text-xs font-semibold text-[#004B23] uppercase tracking-wider flex items-center gap-1">
+                            Consulter <span>→</span>
+                        </div>
+                    </div>
+
+                    <!-- KPI 4: Téléévaluations -->
+                    <div class="bg-white border border-[#E5E5E7] p-6 hover:shadow-md transition-shadow cursor-pointer flex flex-col justify-between rounded-sm" onclick="switchDashboardTab('tab-live-eval')">
+                        <div>
+                            <div class="flex items-center justify-between mb-4">
+                                <span class="text-xs font-semibold uppercase tracking-wider text-[#555555]">Téléévaluations</span>
+                                <svg class="w-6 h-6 text-[#004B23]" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M15 10l4.553-2.276A1 1 0 0121 8.618v6.764a1 1 0 01-1.447.894L15 14M5 18h8a2 2 0 002-2V8a2 2 0 00-2-2H5a2 2 0 00-2 2v8a2 2 0 002 2z" />
+                                </svg>
+                            </div>
+                            <div class="text-3xl font-semibold text-[#111111] mb-2"><?= count($liveSessions); ?></div>
+                            <p class="text-xs text-[#888888] font-light">Sessions QuizBox synchrones et devoirs libres.</p>
+                        </div>
+                        <div class="mt-4 text-xs font-semibold text-[#004B23] uppercase tracking-wider flex items-center gap-1">
+                            Gérer <span>→</span>
+                        </div>
+                    </div>
+
+                    <!-- KPI 5: Webinaires -->
+                    <div class="bg-white border border-[#E5E5E7] p-6 hover:shadow-md transition-shadow cursor-pointer flex flex-col justify-between rounded-sm" onclick="switchDashboardTab('tab-webinars')">
+                        <div>
+                            <div class="flex items-center justify-between mb-4">
+                                <span class="text-xs font-semibold uppercase tracking-wider text-[#555555]">Webinaires</span>
+                                <svg class="w-6 h-6 text-[#004B23]" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M15 10l4.553-2.276A1 1 0 0121 8.618v6.764a1 1 0 01-1.447.894L15 14M5 18h8a2 2 0 002-2V8a2 2 0 00-2-2H5a2 2 0 00-2 2v8a2 2 0 002 2z" />
+                                </svg>
+                            </div>
+                            <div class="text-3xl font-semibold text-[#111111] mb-2"><?= count($myWebinars); ?></div>
+                            <p class="text-xs text-[#888888] font-light">Cours de visioconférence programmés.</p>
+                        </div>
+                        <div class="mt-4 text-xs font-semibold text-[#004B23] uppercase tracking-wider flex items-center gap-1">
+                            Gérer <span>→</span>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Info guide box -->
+                <div class="bg-white border border-[#E5E5E7] p-8 rounded-sm space-y-4">
+                    <h4 class="font-serif text-xl font-light text-[#111111]">Bienvenue dans votre Workspace de Cours</h4>
+                    <p class="text-sm font-light text-[#555555] leading-relaxed">
+                        Sélectionnez les différents onglets de la barre latérale pour concevoir les modules du cours, planifier vos webinars en direct, lancer des sessions d'évaluation interactives (QuizBox) ou consulter les notes et les progressions détaillées de vos étudiants.
+                    </p>
+                </div>
+
+            <?php endif; ?>
+
+        </div>
+
+        <?php if ($selectedCourse): ?>
+
+            <!-- 2. PLAN & CONTENU (tab-course) -->
+            <div id="tab-course" class="tab-content hidden space-y-12">
                 <div class="flex justify-between items-center">
                     <h3 class="font-serif text-2xl font-light text-[#111111]">Plan du Cours & Chapitres</h3>
                     <button onclick="toggleModal('chapter-modal')"
@@ -1630,6 +1897,740 @@ $successMsg = $successMessages[$successKey] ?? null;
                     </div>
                     <?php endforeach; ?>
                 </div>
+                <?php endif; ?>
+            </div>
+
+            <!-- 3. TÉLÉÉVALUATIONS (tab-live-eval) -->
+            <div id="tab-live-eval" class="tab-content hidden space-y-12 animate-fade-in">
+                <div class="flex justify-between items-center mb-6">
+                    <div class="flex items-center gap-2">
+                        <span class="w-2.5 h-2.5 rounded-full bg-red-500 animate-pulse"></span>
+                        <h3 class="font-serif text-2xl font-light">Téléévaluations Synchrones (Live)</h3>
+                    </div>
+                </div>
+
+                <!-- Section 1 : Bouton / Formulaire de création de séance -->
+                <div class="mb-8 border-b border-[#E5E5E7] pb-6 bg-white p-6 border border-[#E5E5E7] rounded-sm">
+                    <button onclick="toggleAccordion('add-live-session-form')" class="px-4 py-2 bg-[#004B23] text-white text-xs font-semibold uppercase tracking-wider rounded-sm hover:bg-[#003d1c] transition-colors flex items-center gap-2">
+                        <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 4v16m8-8H4"/></svg>
+                        Créer une nouvelle séance
+                    </button>
+
+                    <form id="add-live-session-form" method="POST" action="/teacher/dashboard.php?course_id=<?= $selectedCourse['id'] ?>&action=add_live_session" class="hidden mt-4 p-5 bg-[#F5F5F7] border border-[#E5E5E7] rounded-sm space-y-4">
+                        <?= csrfInput(); ?>
+                        <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+                            <div>
+                                <label class="block text-xs font-semibold text-[#555555] uppercase tracking-wider mb-2">Titre de la Séance</label>
+                                <input type="text" name="live_title" required placeholder="Ex: Examen Intra-semestriel" class="w-full px-3 py-2 border border-[#E5E5E7] rounded-sm focus:outline-none focus:border-[#004B23] text-sm bg-white">
+                            </div>
+                            <div>
+                                <label class="block text-xs font-semibold text-[#555555] uppercase tracking-wider mb-2">Temps par question (secondes)</label>
+                                <input type="number" name="default_time_limit" required value="30" min="5" class="w-full px-3 py-2 border border-[#E5E5E7] rounded-sm focus:outline-none focus:border-[#004B23] text-sm bg-white">
+                            </div>
+                        </div>
+                        <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+                            <div>
+                                <label class="block text-xs font-semibold text-[#555555] uppercase tracking-wider mb-2">Date/Heure de Début</label>
+                                <input type="datetime-local" name="live_start_time" required class="w-full px-3 py-2 border border-[#E5E5E7] rounded-sm focus:outline-none focus:border-[#004B23] text-sm bg-white">
+                            </div>
+                            <div>
+                                <label class="block text-xs font-semibold text-[#555555] uppercase tracking-wider mb-2">Date/Heure de Fin</label>
+                                <input type="datetime-local" name="live_end_time" required class="w-full px-3 py-2 border border-[#E5E5E7] rounded-sm focus:outline-none focus:border-[#004B23] text-sm bg-white">
+                            </div>
+                        </div>
+                        <div class="flex justify-end gap-3 pt-2">
+                            <button type="button" onclick="toggleAccordion('add-live-session-form')" class="px-4 py-2 border border-[#E5E5E7] text-xs font-semibold uppercase tracking-wider rounded-sm text-[#555555] hover:bg-gray-50 bg-white">Annuler</button>
+                            <button type="submit" class="px-4 py-2 bg-[#111111] text-white text-xs font-semibold uppercase tracking-wider rounded-sm hover:bg-black">Enregistrer</button>
+                        </div>
+                    </form>
+                </div>
+
+                <!-- Section 2 : Liste des séances existantes -->
+                <h4 class="text-xs font-semibold text-[#555555] uppercase tracking-wider mb-4">Séances configurées</h4>
+                
+                <?php if (empty($liveSessions)): ?>
+                    <div class="p-8 text-center border border-[#E5E5E7] text-[#888888] text-sm bg-white rounded-sm">
+                        Aucune séance de téléévaluation configurée pour ce cours.
+                    </div>
+                <?php else: ?>
+                    <div class="space-y-6">
+                        <?php foreach ($liveSessions as $ls): 
+                            $isActive = (int)$ls['status'] === 1;
+                            $isHttps = (isset($_SERVER['HTTPS']) && $_SERVER['HTTPS'] === 'on') 
+                                    || (isset($_SERVER['HTTP_X_FORWARDED_PROTO']) && $_SERVER['HTTP_X_FORWARDED_PROTO'] === 'https');
+                            $proto = $isHttps ? 'https' : 'http';
+                            $sessionLink = $proto . "://" . $_SERVER['HTTP_HOST'] . "/live-session.php?code=" . $ls['session_code'];
+                        ?>
+                            <div class="border border-[#E5E5E7] p-6 rounded-sm bg-white space-y-4 hover:shadow-md transition-shadow">
+                                <!-- En-tête de la séance -->
+                                <div class="flex flex-wrap justify-between items-start gap-4">
+                                    <div>
+                                        <h5 class="font-semibold text-lg text-[#111111]"><?= htmlspecialchars($ls['title']) ?></h5>
+                                        <div class="text-xs text-[#555555] mt-1 space-x-4">
+                                            <span>Début : <strong><?= date('d/m/Y H:i', strtotime($ls['start_time'])) ?></strong></span>
+                                            <span>Fin : <strong><?= date('d/m/Y H:i', strtotime($ls['end_time'])) ?></strong></span>
+                                            <span>Durée par défaut : <strong><?= $ls['default_time_limit'] ?>s</strong></span>
+                                        </div>
+                                    </div>
+                                    <!-- Statut & Actions de base -->
+                                    <div class="flex items-center gap-3">
+                                        <?php if ($ls['is_finished']): ?>
+                                            <span class="px-3 py-1.5 text-xs font-semibold rounded-full border bg-red-50 border-red-200 text-[#D32F2F] flex items-center gap-1">
+                                                <span class="w-1.5 h-1.5 rounded-full bg-[#D32F2F]"></span> Terminé
+                                            </span>
+                                        <?php else: ?>
+                                            <!-- Bouton Activation -->
+                                            <form method="POST" action="/teacher/dashboard.php?course_id=<?= $selectedCourse['id'] ?>&action=toggle_live_session">
+                                                <?= csrfInput(); ?>
+                                                <input type="hidden" name="session_id" value="<?= $ls['id'] ?>">
+                                                <input type="hidden" name="status" value="<?= $isActive ? 0 : 1 ?>">
+                                                <button type="submit" class="px-3 py-1.5 text-xs font-semibold rounded-full border <?= $isActive ? 'bg-green-50 border-green-200 text-[#004B23]' : 'bg-gray-50 border-gray-200 text-[#555555]' ?>">
+                                                    <?= $isActive ? '● Activé (ON)' : '○ Désactivé (OFF)' ?>
+                                                </button>
+                                            </form>
+                                        <?php endif; ?>
+
+                                        <!-- Bouton Modifier -->
+                                        <button type="button" 
+                                                data-session="<?= htmlspecialchars(json_encode([
+                                                    "id" => $ls["id"],
+                                                    "title" => $ls["title"],
+                                                    "start_time" => date("Y-m-d\TH:i", strtotime($ls["start_time"])),
+                                                    "end_time" => date("Y-m-d\TH:i", strtotime($ls["end_time"])),
+                                                    "default_time_limit" => $ls["default_time_limit"],
+                                                    "is_async" => $ls["is_async"] ?? 0,
+                                                    "async_deadline" => isset($ls["async_deadline"]) && $ls["async_deadline"] ? date("Y-m-d\TH:i", strtotime($ls["async_deadline"])) : ""
+                                                ]), ENT_QUOTES, 'UTF-8') ?>"
+                                                onclick="openEditLiveSessionModal(this)"
+                                                class="p-1.5 border border-[#E5E5E7] text-[#111111] rounded-sm hover:bg-gray-50" 
+                                                title="Modifier la séance">
+                                            <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15.232 5.232l3.536 3.536m-2.036-5.036a2.5 2.5 0 113.536 3.536L6.5 21.036H3v-3.572L16.732 3.732z"/></svg>
+                                        </button>
+
+                                        <!-- Bouton Supprimer -->
+                                        <form method="POST" action="/teacher/dashboard.php?course_id=<?= $selectedCourse['id'] ?>&action=delete_live_session" onsubmit="return confirm('Supprimer cette séance ? Toutes les questions et réponses seront perdues.');">
+                                            <?= csrfInput(); ?>
+                                            <input type="hidden" name="session_id" value="<?= $ls['id'] ?>">
+                                            <button type="submit" class="p-1.5 border border-red-200 text-red-600 rounded-sm hover:bg-red-50" title="Supprimer la séance">
+                                                <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16"/></svg>
+                                            </button>
+                                        </form>
+                                    </div>
+                                </div>
+
+                                <!-- Lien de partage -->
+                                <div class="bg-[#F5F5F7] p-3 rounded-sm flex items-center justify-between border border-[#E5E5E7] text-xs">
+                                    <span class="font-mono text-[#555555] overflow-x-auto truncate mr-4"><?= $sessionLink ?></span>
+                                    <button onclick="copyToClipboard('<?= $sessionLink ?>')" class="px-3 py-1 bg-white border border-[#E5E5E7] text-[10px] font-semibold uppercase tracking-wider rounded-sm hover:bg-gray-50 transition-colors">Copier</button>
+                                </div>
+
+                                <!-- Statistiques & Boutons d'édition -->
+                                <div class="flex flex-wrap items-center justify-between gap-4 pt-2 border-t border-[#F0F0F2] text-xs text-[#555555]">
+                                    <div class="space-x-4 flex flex-wrap items-center gap-y-2">
+                                        <span>Questions : <strong class="questions-count-<?= $ls['id'] ?>"><?= $ls['question_count'] ?></strong></span>
+                                        <span>Inscrits : <strong class="live-inscrits-count-<?= $ls['id'] ?>"><?= $ls['participant_count'] ?></strong></span>
+                                        <span>En ligne : <strong class="live-online-count-<?= $ls['id'] ?> text-green-700 font-semibold"><?= $ls['online_count'] ?></strong></span>
+                                        <span class="live-votes-badge-<?= $ls['id'] ?> hidden bg-[#E2ECE9] text-[#004B23] text-[10px] px-2.5 py-0.5 rounded-full font-semibold">
+                                            <span class="live-votes-count-<?= $ls['id'] ?>">0</span> réponses reçues
+                                        </span>
+                                        <span class="live-status-glow-<?= $ls['id'] ?> hidden text-xs font-semibold text-green-700 flex items-center gap-1">
+                                            <span class="inline-block w-2.5 h-2.5 rounded-full bg-green-500 animate-pulse"></span> En cours
+                                        </span>
+                                    </div>
+
+                                    <div class="flex flex-wrap items-center gap-3">
+                                        <?php if ($ls['is_finished']): ?>
+                                            <button type="button" onclick="openDispatchModal(<?= $ls['id'] ?>)" class="px-3 py-1.5 bg-[#004B23] text-white text-[11px] font-semibold uppercase tracking-wider rounded-sm hover:bg-[#003d1c] flex items-center gap-1.5">
+                                                <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M3 8l7.89 5.26a2 2 0 002.22 0L21 8M5 19h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v10a2 2 0 002 2z"/></svg>
+                                                Envoyer les e-mails
+                                            </button>
+                                        <?php endif; ?>
+
+                                        <a href="/teacher/export-live-grades.php?session_id=<?= $ls['id'] ?>" class="px-3 py-1.5 border border-[#E5E5E7] text-[11px] font-semibold uppercase tracking-wider rounded-sm hover:bg-gray-50 bg-white text-[#111111] flex items-center gap-1.5">
+                                            <svg class="w-3.5 h-3.5 text-green-700" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4"/></svg>
+                                            Rapport Excel
+                                        </a>
+
+                                        <a href="/teacher/export-live-pdf.php?session_id=<?= $ls['id'] ?>" class="px-3 py-1.5 border border-[#E5E5E7] text-[11px] font-semibold uppercase tracking-wider rounded-sm hover:bg-gray-50 bg-white text-[#111111] flex items-center gap-1.5">
+                                            <svg class="w-3.5 h-3.5 text-red-700" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M7 21h10a2 2 0 002-2V9.414a1 1 0 00-.293-.707l-5.414-5.414A1 1 0 0012.586 3H7a2 2 0 00-2 2v14a2 2 0 002 2z"/></svg>
+                                            Rapport PDF
+                                        </a>
+
+                                        <a href="/teacher/export-live-questions-latex.php?session_id=<?= $ls['id'] ?>&mode=subject" class="px-3 py-1.5 border border-[#E5E5E7] text-[11px] font-semibold uppercase tracking-wider rounded-sm hover:bg-gray-50 bg-white text-[#111111] flex items-center gap-1.5">
+                                            <svg class="w-3.5 h-3.5 text-indigo-700" fill="none" stroke="currentColor" viewBox="0 0 24 24" stroke-width="2">
+                                                <path stroke-linecap="round" stroke-linejoin="round" d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
+                                            </svg>
+                                            Imprimer Sujet
+                                        </a>
+
+                                        <a href="/teacher/export-live-questions-latex.php?session_id=<?= $ls['id'] ?>&mode=correction" class="px-3 py-1.5 border border-[#E5E5E7] text-[11px] font-semibold uppercase tracking-wider rounded-sm hover:bg-gray-50 bg-white text-[#111111] flex items-center gap-1.5">
+                                            <svg class="w-3.5 h-3.5 text-orange-700" fill="none" stroke="currentColor" viewBox="0 0 24 24" stroke-width="2">
+                                                <path stroke-linecap="round" stroke-linejoin="round" d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
+                                            </svg>
+                                            Imprimer Corrigé
+                                        </a>
+
+                                        <?php if (!(isset($ls['is_async']) && (int)$ls['is_async'] === 1)): ?>
+                                            <form method="POST" action="/teacher/dashboard.php?course_id=<?= $selectedCourse['id'] ?>&action=toggle_live_pause" class="inline-block">
+                                                <?= csrfInput(); ?>
+                                                <input type="hidden" name="session_id" value="<?= $ls['id'] ?>">
+                                                <?php if ((int)$ls['is_paused'] === 1): ?>
+                                                    <button type="submit" class="px-3 py-1.5 bg-[#004B23] text-white text-[11px] font-semibold uppercase tracking-wider rounded-sm hover:bg-[#003d1c] flex items-center gap-1.5" title="Reprendre l'évaluation">
+                                                        <svg class="w-3.5 h-3.5 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M14.752 11.168l-3.197-2.132A1 1 0 0010 9.87v4.263a1 1 0 001.555.832l3.197-2.132a1 1 0 000-1.664z"/></svg>
+                                                        Reprendre
+                                                    </button>
+                                                <?php else: ?>
+                                                    <button type="submit" class="px-3 py-1.5 bg-yellow-600 text-white text-[11px] font-semibold uppercase tracking-wider rounded-sm hover:bg-yellow-700 flex items-center gap-1.5" title="Mettre en pause l'évaluation">
+                                                        <svg class="w-3.5 h-3.5 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10 9v6m4-6v6m7-3a9 9 0 11-18 0 9 9 0 0118 0z"/></svg>
+                                                        Pause
+                                                    </button>
+                                                <?php endif; ?>
+                                            </form>
+                                        <?php endif; ?>
+
+                                        <form method="POST" action="/teacher/dashboard.php?course_id=<?= $selectedCourse['id'] ?>&action=reset_live_session" onsubmit="return confirm('Réinitialiser la séance ? TOUS les étudiants inscrits et leurs notes/réponses seront définitivement supprimés.');" class="inline-block">
+                                            <?= csrfInput(); ?>
+                                            <input type="hidden" name="session_id" value="<?= $ls['id'] ?>">
+                                            <button type="submit" class="px-3 py-1.5 border border-red-200 text-red-600 text-[11px] font-semibold uppercase tracking-wider rounded-sm hover:bg-red-50 bg-white flex items-center gap-1.5" title="Réinitialiser l'examen (Reset)">
+                                                <svg class="w-3.5 h-3.5 text-red-600" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 4v5h.582m15.356 2A8.001 8.001 0 1121.21 7.89M9 11l3-3 3 3m-3-3v12"/></svg>
+                                                Réinitialiser
+                                            </button>
+                                        </form>
+
+                                        <button onclick="toggleAccordion('live-session-questions-<?= $ls['id'] ?>')" class="px-3 py-1.5 bg-[#111111] text-white text-[11px] font-semibold uppercase tracking-wider rounded-sm hover:bg-black">
+                                            Gérer les questions
+                                        </button>
+                                        <button onclick="toggleAccordion('live-session-results-<?= $ls['id'] ?>')" class="px-3 py-1.5 bg-[#004B23] text-white text-[11px] font-semibold uppercase tracking-wider rounded-sm hover:bg-[#003d1c]">
+                                            Résultats &amp; Inscrits
+                                        </button>
+                                    </div>
+                                </div>
+
+                                <!-- Accordéon : Gestion des questions de la séance -->
+                                <div id="live-session-questions-<?= $ls['id'] ?>" class="hidden border-t border-[#E5E5E7] pt-4 space-y-6">
+                                    <div class="grid grid-cols-1 lg:grid-cols-2 gap-6 bg-[#F8F9FA] p-5 border border-[#E5E5E7] rounded-sm">
+                                        <!-- Formulaire Ajout Question -->
+                                        <form method="POST" action="/teacher/dashboard.php?course_id=<?= $selectedCourse['id'] ?>&action=add_live_question" enctype="multipart/form-data" class="space-y-4 bg-white p-5 border border-[#E5E5E7] rounded-sm shadow-sm">
+                                            <?= csrfInput(); ?>
+                                            <input type="hidden" name="session_id" value="<?= $ls['id'] ?>">
+                                            <div class="flex items-center justify-between border-b border-[#E5E5E7] pb-3 mb-2">
+                                                <h6 class="text-xs font-bold text-[#004B23] uppercase tracking-wider">Créer une nouvelle question</h6>
+                                                <div class="flex items-center gap-2">
+                                                    <label class="text-[10px] text-gray-500 font-semibold uppercase">Type :</label>
+                                                    <select name="question_type" onchange="handleQuestionTypeChange(this)" class="px-2 py-1 border border-[#E5E5E7] rounded-sm text-[10px] font-semibold bg-gray-50 text-[#111111] focus:outline-none">
+                                                        <option value="mcq">QCM Standard</option>
+                                                        <option value="written">Question écrite / Calcul</option>
+                                                    </select>
+                                                </div>
+                                            </div>
+                                            <div>
+                                                <label class="block text-[10px] text-[#555555] uppercase tracking-wider mb-1 font-semibold">Énoncé de la question (KaTeX supporté)</label>
+                                                <textarea name="question_text" required placeholder="Saisir la question... ex: Calculer $f'(x)$ pour $f(x) = x^2$" class="w-full px-3 py-1.5 border border-[#E5E5E7] rounded-sm text-xs bg-white focus:outline-none focus:border-[#004B23] h-14"></textarea>
+                                            </div>
+                                            <div class="mcq-options-group space-y-3">
+                                                <div class="grid grid-cols-2 gap-3">
+                                                    <div>
+                                                        <label class="block text-[10px] text-[#555555] uppercase tracking-wider mb-1">Option A</label>
+                                                        <input type="text" name="option_a" placeholder="Option A" class="w-full px-3 py-1.5 border border-[#E5E5E7] rounded-sm text-xs bg-white focus:outline-none focus:border-[#004B23]">
+                                                    </div>
+                                                    <div>
+                                                        <label class="block text-[10px] text-[#555555] uppercase tracking-wider mb-1">Option B</label>
+                                                        <input type="text" name="option_b" placeholder="Option B" class="w-full px-3 py-1.5 border border-[#E5E5E7] rounded-sm text-xs bg-white focus:outline-none focus:border-[#004B23]">
+                                                    </div>
+                                                </div>
+                                                <div class="grid grid-cols-2 gap-3">
+                                                    <div>
+                                                        <label class="block text-[10px] text-[#555555] uppercase tracking-wider mb-1">Option C</label>
+                                                        <input type="text" name="option_c" placeholder="Option C" class="w-full px-3 py-1.5 border border-[#E5E5E7] rounded-sm text-xs bg-white focus:outline-none focus:border-[#004B23]">
+                                                    </div>
+                                                    <div>
+                                                        <label class="block text-[10px] text-[#555555] uppercase tracking-wider mb-1">Option D</label>
+                                                        <input type="text" name="option_d" placeholder="Option D" class="w-full px-3 py-1.5 border border-[#E5E5E7] rounded-sm text-xs bg-white focus:outline-none focus:border-[#004B23]">
+                                                    </div>
+                                                </div>
+                                            </div>
+                                            <div class="grid grid-cols-2 gap-3">
+                                                <div class="correct-option-container">
+                                                    <label class="block text-[10px] text-[#555555] uppercase tracking-wider mb-1">Option Correcte</label>
+                                                    <select name="correct_option" required class="w-full px-2 py-1.5 border border-[#E5E5E7] rounded-sm text-xs bg-white focus:outline-none focus:border-[#004B23]">
+                                                        <option value="A">A</option>
+                                                        <option value="B">B</option>
+                                                        <option value="C">C</option>
+                                                        <option value="D">D</option>
+                                                    </select>
+                                                </div>
+                                                <div>
+                                                    <label class="block text-[10px] text-[#555555] uppercase tracking-wider mb-1">Durée spécifique (secondes)</label>
+                                                    <input type="number" name="time_limit" placeholder="Vide = par défaut" class="w-full px-2 py-1.5 border border-[#E5E5E7] rounded-sm text-xs bg-white focus:outline-none focus:border-[#004B23]">
+                                                </div>
+                                            </div>
+                                            <div>
+                                                <label class="block text-[10px] text-[#555555] uppercase tracking-wider mb-1 font-semibold">Explication / Justification (pour correction)</label>
+                                                <textarea name="explanation" placeholder="Saisir la justification de la réponse..." class="w-full px-3 py-1.5 border border-[#E5E5E7] rounded-sm text-xs bg-white focus:outline-none focus:border-[#004B23] h-12"></textarea>
+                                            </div>
+                                            <div>
+                                                <label class="block text-[10px] text-[#555555] uppercase tracking-wider mb-1">Image d'illustration (facultative)</label>
+                                                <input type="file" name="live_image" accept="image/*" class="w-full text-xs file:mr-3 file:py-1 file:px-2 file:border-0 file:bg-[#E5E5E7] file:text-[10px] file:font-semibold">
+                                            </div>
+                                            <button type="submit" class="w-full py-2 bg-[#004B23] text-white text-[11px] font-semibold uppercase tracking-wider rounded-sm hover:bg-[#003d1c] shadow-sm transition-colors">Ajouter la question</button>
+                                        </form>
+
+                                        <!-- Importer des questions -->
+                                        <div class="space-y-5 border-l border-gray-200 pl-6 flex flex-col justify-between bg-white p-5 border border-[#E5E5E7] rounded-sm shadow-sm">
+                                            <div class="space-y-2">
+                                                <h6 class="text-xs font-bold text-[#004B23] uppercase tracking-wider border-b border-[#E5E5E7] pb-3 mb-2">Import en masse (CSV / Excel)</h6>
+                                                <p class="text-[10px] text-[#888888] leading-relaxed">
+                                                    Téléversez un fichier CSV ou Excel pour charger les questions de la séance en bloc.
+                                                    Les colonnes requises sont : <code class="bg-gray-100 px-1 py-0.5 font-mono text-[9px]">question, type, option_a, option_b, option_c, option_d, correct, explanation</code>.
+                                                </p>
+                                                <p class="text-[9px] text-gray-500 italic">
+                                                    Pour le type : saisissez <strong>mcq</strong> (pour QCM) ou <strong>written</strong> (pour calculs/questions ouvertes).
+                                                </p>
+                                            </div>
+                                            <div class="p-4 border border-dashed border-[#E5E5E7] rounded-sm bg-gray-50 text-center">
+                                                <input type="file" accept=".csv,.xlsx,.xls,.txt" onchange="importLiveQuestionsFile(this, <?= $ls['id'] ?>)" class="w-full text-xs file:mr-3 file:py-1.5 file:px-3 file:border-0 file:bg-white file:border file:border-[#E5E5E7] file:text-[10px] file:font-semibold rounded-sm">
+                                            </div>
+                                            <p class="text-[9px] text-[#888888] italic">Note: L'importation s'effectue instantanément après le choix du fichier.</p>
+                                        </div>
+                                    </div>
+
+                                    <!-- Liste des questions existantes de la séance -->
+                                    <div class="space-y-3">
+                                        <div class="flex justify-between items-center mb-2">
+                                            <h6 class="text-xs font-semibold text-[#111111] uppercase tracking-wider">Questions de la séance (<?= count($ls['questions']) ?>)</h6>
+                                            <?php if (!empty($ls['questions'])): ?>
+                                                <a href="/teacher/download-async-csv.php?type=live&id=<?= $ls['id'] ?>" class="text-[10px] text-[#004B23] font-semibold hover:underline bg-[#EAF2EC] px-2 py-1 rounded-sm">Exporter en CSV</a>
+                                            <?php endif; ?>
+                                        </div>
+                                        <?php if (empty($ls['questions'])): ?>
+                                            <p class="text-xs text-[#888888] italic">Aucune question pour le moment.</p>
+                                        <?php else: ?>
+                                            <div class="divide-y divide-[#E5E5E7]">
+                                                <?php foreach ($ls['questions'] as $qIdx => $q): 
+                                                    $qType = $q['question_type'] ?? 'mcq';
+                                                ?>
+                                                    <div class="py-4 flex justify-between items-start gap-4">
+                                                        <div class="space-y-1 text-xs">
+                                                            <div class="flex flex-wrap items-center gap-2">
+                                                                <span class="font-bold text-gray-400">Q<?= $qIdx + 1 ?>.</span>
+                                                                <span class="font-medium text-[#111111]"><?= htmlspecialchars($q['question_text']) ?></span>
+                                                                <span class="text-[9px] uppercase font-bold px-1.5 py-0.5 rounded-sm <?= $qType === 'written' ? 'bg-orange-50 border border-orange-200 text-orange-700' : 'bg-blue-50 border border-blue-200 text-blue-700' ?>">
+                                                                    <?= $qType === 'written' ? 'Calcul / Écrite' : 'QCM' ?>
+                                                                </span>
+                                                            </div>
+                                                            <?php if ($qType === 'mcq'): ?>
+                                                                <div class="grid grid-cols-2 sm:grid-cols-4 gap-x-4 text-[11px] text-[#555555] mt-1">
+                                                                    <span>A: <?= htmlspecialchars($q['option_a']) ?></span>
+                                                                    <span>B: <?= htmlspecialchars($q['option_b']) ?></span>
+                                                                    <span>C: <?= htmlspecialchars($q['option_c']) ?></span>
+                                                                    <span>D: <?= htmlspecialchars($q['option_d']) ?></span>
+                                                                </div>
+                                                            <?php endif; ?>
+                                                            <div class="text-[10px] text-[#888888] flex flex-wrap gap-x-4 gap-y-1 pt-1">
+                                                                <span>Bonne réponse : <strong class="text-[#004B23]"><?= htmlspecialchars($q['correct_option']) ?></strong></span>
+                                                                <?php if ($q['time_limit']): ?>
+                                                                    <span>Durée : <strong><?= $q['time_limit'] ?>s</strong></span>
+                                                                <?php endif; ?>
+                                                                <?php if (!empty($q['explanation'])): ?>
+                                                                    <span>Justification : <em class="text-gray-600"><?= htmlspecialchars($q['explanation']) ?></em></span>
+                                                                <?php endif; ?>
+                                                                <?php if ($q['image_path']): ?>
+                                                                    <a href="/uploads/live_questions/<?= $q['image_path'] ?>" target="_blank" class="text-blue-600 hover:underline">✓ Image d'illustration</a>
+                                                                <?php endif; ?>
+                                                            </div>
+                                                        </div>
+                                                        <form method="POST" action="/teacher/dashboard.php?course_id=<?= $selectedCourse['id'] ?>&action=delete_live_question" onsubmit="return confirm('Supprimer cette question ?');">
+                                                            <?= csrfInput(); ?>
+                                                            <input type="hidden" name="question_id" value="<?= $q['id'] ?>">
+                                                            <button type="submit" class="text-red-500 hover:text-red-700 p-1">
+                                                                <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16"/></svg>
+                                                            </button>
+                                                        </form>
+                                                    </div>
+                                                <?php endforeach; ?>
+                                            </div>
+                                            <div class="pt-4 border-t border-[#E5E5E7] flex justify-end">
+                                                <form method="POST" action="/teacher/dashboard.php?course_id=<?= $selectedCourse['id'] ?>&action=delete_all_live_questions" onsubmit="return confirm('Êtes-vous absolument sûr de vouloir supprimer TOUTES les questions de cette séance ? Cette action est irréversible.');">
+                                                    <?= csrfInput(); ?>
+                                                    <input type="hidden" name="session_id" value="<?= $ls['id'] ?>">
+                                                    <button type="submit" class="px-4 py-2 bg-red-600 hover:bg-red-700 text-white text-[11px] font-semibold uppercase tracking-wider rounded-sm transition-colors flex items-center gap-2">
+                                                        <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16"/></svg>
+                                                        Supprimer toutes les questions
+                                                    </button>
+                                                </form>
+                                            </div>
+                                        <?php endif; ?>
+                                    </div>
+                                </div>
+
+                                <!-- Accordéon : Résultats & Inscrits -->
+                                <div id="live-session-results-<?= $ls['id'] ?>" class="hidden border-t border-[#E5E5E7] pt-4 space-y-4">
+                                    <h4 class="font-serif text-sm font-semibold text-[#111111] uppercase tracking-wider">Participants inscrits &amp; Résultats</h4>
+                                    <?php
+                                    $partStmt = $pdo->prepare("
+                                        SELECT id, name, email, score, last_activity, registered_at
+                                        FROM live_eval_registrations
+                                        WHERE session_id = :sid
+                                        ORDER BY registered_at DESC
+                                    ");
+                                    $partStmt->execute(['sid' => $ls['id']]);
+                                    $participants = $partStmt->fetchAll(PDO::FETCH_ASSOC);
+                                    ?>
+                                    <?php if (empty($participants)): ?>
+                                        <p class="text-xs text-[#888888] italic p-4 text-center bg-gray-50 border border-[#E5E5E7]">Aucun participant inscrit pour le moment.</p>
+                                    <?php else: ?>
+                                        <div class="overflow-x-auto border border-[#E5E5E7] rounded-sm bg-white">
+                                            <table class="w-full text-left text-xs border-collapse">
+                                                <thead>
+                                                    <tr class="bg-gray-100 border-b border-[#E5E5E7]">
+                                                        <th class="p-3 font-semibold text-[#111111]">Nom complet</th>
+                                                        <th class="p-3 font-semibold text-[#111111]">E-mail</th>
+                                                        <th class="p-3 font-semibold text-[#111111] text-center">Score / Note</th>
+                                                        <th class="p-3 font-semibold text-[#111111] text-center">Présence</th>
+                                                        <th class="p-3 font-semibold text-[#111111] text-center">Date d'inscription</th>
+                                                        <th class="p-3 font-semibold text-[#111111] text-center">Actions</th>
+                                                    </tr>
+                                                </thead>
+                                                <tbody>
+                                                    <?php foreach ($participants as $p): 
+                                                        $isOnline = false;
+                                                        if ($p['last_activity']) {
+                                                            $isOnline = (time() - strtotime($p['last_activity']) <= 10);
+                                                        }
+                                                        $scoreVal = $p['score'] !== null ? number_format((float)$p['score'], 2) . '/20' : 'Non complété';
+                                                        $scoreClass = $p['score'] !== null ? 'text-green-700 font-semibold' : 'text-gray-500 italic';
+                                                    ?>
+                                                        <tr class="border-b border-[#E5E5E7] hover:bg-gray-50">
+                                                            <td class="p-3 font-medium text-[#111111]"><?= htmlspecialchars($p['name']) ?></td>
+                                                            <td class="p-3 text-[#555555]"><?= htmlspecialchars($p['email']) ?></td>
+                                                            <td class="p-3 text-center <?= $scoreClass ?>"><?= $scoreVal ?></td>
+                                                            <td class="p-3 text-center">
+                                                                <?php if ($isOnline): ?>
+                                                                    <span class="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-semibold bg-green-50 border border-green-200 text-green-700">
+                                                                        <span class="w-1.5 h-1.5 rounded-full bg-green-500 animate-pulse"></span> En ligne
+                                                                    </span>
+                                                                <?php else: ?>
+                                                                    <span class="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-semibold bg-gray-50 border border-gray-200 text-gray-500">
+                                                                        Hors ligne
+                                                                    </span>
+                                                                <?php endif; ?>
+                                                            </td>
+                                                            <td class="p-3 text-center text-gray-500"><?= date('d/m/Y H:i', strtotime($p['registered_at'])) ?></td>
+                                                            <td class="p-3 text-center">
+                                                                <form method="POST" action="/teacher/dashboard.php?course_id=<?= $selectedCourse['id'] ?>&action=delete_live_participant" onsubmit="return confirm('Exclure ce participant ? Ses réponses et notes pour cette séance seront définitivement perdues.');" class="inline-block">
+                                                                    <?= csrfInput(); ?>
+                                                                    <input type="hidden" name="registration_id" value="<?= $p['id'] ?>">
+                                                                    <input type="hidden" name="session_id" value="<?= $ls['id'] ?>">
+                                                                    <button type="submit" class="px-2 py-1 text-[10px] font-semibold uppercase tracking-wider text-red-600 bg-red-50 hover:bg-red-100 border border-red-200 rounded-sm">
+                                                                        Exclure
+                                                                    </button>
+                                                                </form>
+                                                            </td>
+                                                        </tr>
+                                                    <?php endforeach; ?>
+                                                </tbody>
+                                            </table>
+                                        </div>
+                                    <?php endif; ?>
+                                </div>
+                            </div>
+                        <?php endforeach; ?>
+                    </div>
+                <?php endif; ?>
+            </div>
+
+            <!-- 4. WEBINAIRES (tab-webinars) -->
+            <div id="tab-webinars" class="tab-content hidden space-y-12 animate-fade-in">
+                <div class="flex justify-between items-center mb-6">
+                    <h3 class="font-serif text-2xl font-light text-[#111111]">Webinaires &amp; Cours en Direct</h3>
+                </div>
+
+                <!-- Créer un Webinaire -->
+                <div class="border-b border-[#E5E5E7] pb-6 bg-white p-6 border border-[#E5E5E7] rounded-sm">
+                    <button onclick="toggleAccordion('add-webinar-form')" class="px-4 py-2 bg-[#004B23] text-white text-xs font-semibold uppercase tracking-wider rounded-sm hover:bg-[#003d1c] transition-colors flex items-center gap-2">
+                        <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 4v16m8-8H4"/></svg>
+                        Planifier un nouveau Webinaire
+                    </button>
+
+                    <form id="add-webinar-form" method="POST" action="/teacher/dashboard.php?course_id=<?= $selectedCourse['id'] ?>&action=add_webinar" class="hidden mt-4 p-5 bg-[#F5F5F7] border border-[#E5E5E7] rounded-sm space-y-4">
+                        <?= csrfInput(); ?>
+                        <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+                            <div>
+                                <label class="block text-xs font-semibold text-[#555555] uppercase tracking-wider mb-2">Titre du Webinaire</label>
+                                <input type="text" name="title" required placeholder="Ex: Séance de révision / TD" class="w-full px-3 py-2 border border-[#E5E5E7] rounded-sm focus:outline-none focus:border-[#004B23] text-sm bg-white">
+                            </div>
+                            <div>
+                                <label class="block text-xs font-semibold text-[#555555] uppercase tracking-wider mb-2">Salle Jitsi (Nom unique)</label>
+                                <input type="text" name="meeting_id" required value="StudyVibe_Room_<?= uniqid() ?>" class="w-full px-3 py-2 border border-[#E5E5E7] rounded-sm focus:outline-none focus:border-[#004B23] text-sm bg-white font-mono">
+                            </div>
+                        </div>
+                        <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+                            <div>
+                                <label class="block text-xs font-semibold text-[#555555] uppercase tracking-wider mb-2">Date &amp; Heure de début</label>
+                                <input type="datetime-local" name="scheduled_at" required class="w-full px-3 py-2 border border-[#E5E5E7] rounded-sm focus:outline-none focus:border-[#004B23] text-sm bg-white">
+                            </div>
+                            <div>
+                                <label class="block text-xs font-semibold text-[#555555] uppercase tracking-wider mb-2">Durée estimée (minutes)</label>
+                                <input type="number" name="duration" required value="60" min="15" class="w-full px-3 py-2 border border-[#E5E5E7] rounded-sm focus:outline-none focus:border-[#004B23] text-sm bg-white">
+                            </div>
+                        </div>
+                        <div>
+                            <label class="block text-xs font-semibold text-[#555555] uppercase tracking-wider mb-2">Description / Consignes</label>
+                            <textarea name="description" rows="3" placeholder="Description de la séance..." class="w-full px-3 py-2 border border-[#E5E5E7] rounded-sm focus:outline-none focus:border-[#004B23] text-sm bg-white"></textarea>
+                        </div>
+                        <div class="flex justify-end gap-3 pt-2">
+                            <button type="button" onclick="toggleAccordion('add-webinar-form')" class="px-4 py-2 border border-[#E5E5E7] text-xs font-semibold uppercase tracking-wider rounded-sm text-[#555555] hover:bg-gray-50 bg-white">Annuler</button>
+                            <button type="submit" class="px-4 py-2 bg-[#111111] text-white text-xs font-semibold uppercase tracking-wider rounded-sm hover:bg-black">Planifier</button>
+                        </div>
+                    </form>
+                </div>
+
+                <!-- Liste des Webinaires -->
+                <h4 class="text-xs font-semibold text-[#555555] uppercase tracking-wider mb-4">Webinaires programmés &amp; Replays</h4>
+                
+                <?php if (empty($myWebinars)): ?>
+                    <div class="p-8 text-center border border-[#E5E5E7] text-[#888888] text-sm bg-white rounded-sm">
+                        Aucun webinaire planifié pour le moment.
+                    </div>
+                <?php else: ?>
+                    <div class="space-y-6">
+                        <?php foreach ($myWebinars as $web): 
+                            $dateWeb = date('d/m/Y H:i', strtotime($web['scheduled_at']));
+                            $isFinished = (int)$web['is_finished'] === 1;
+                        ?>
+                            <div class="border border-[#E5E5E7] p-6 rounded-sm bg-white space-y-4 hover:shadow-md transition-shadow">
+                                <div class="flex flex-wrap justify-between items-start gap-4">
+                                    <div>
+                                        <h5 class="font-semibold text-lg text-[#111111]"><?= htmlspecialchars($web['title']) ?></h5>
+                                        <p class="text-xs text-[#555555] mt-1">
+                                            Planifié le : <strong><?= $dateWeb ?></strong> (<?= $web['duration'] ?> minutes)
+                                        </p>
+                                        <?php if (!empty($web['description'])): ?>
+                                            <p class="text-xs text-[#888888] font-light mt-2 max-w-2xl leading-relaxed"><?= htmlspecialchars($web['description']) ?></p>
+                                        <?php endif; ?>
+                                    </div>
+
+                                    <div class="flex items-center gap-3">
+                                        <?php if ($isFinished): ?>
+                                            <span class="px-2.5 py-1 text-[10px] font-semibold bg-gray-100 border border-gray-200 text-gray-600 rounded-full">Terminé</span>
+                                        <?php else: ?>
+                                            <a href="/webinar.php?id=<?= $web['id'] ?>" target="_blank" class="px-3 py-1.5 bg-[#004B23] text-white text-[11px] font-semibold uppercase tracking-wider rounded-sm hover:bg-[#003d1c] flex items-center gap-1.5">
+                                                Démarrer la visioconférence
+                                            </a>
+                                            <button type="button" onclick="openCompleteWebinarModal(<?= $web['id'] ?>)" class="px-3 py-1.5 border border-[#004B23] text-[#004B23] text-[11px] font-semibold uppercase tracking-wider rounded-sm hover:bg-[#EAF2EC]">
+                                                Terminer
+                                            </button>
+                                        <?php endif; ?>
+
+                                        <!-- Actions complémentaires -->
+                                        <button onclick='openEditWebinarModal(<?= json_encode($web, JSON_HEX_APOS | JSON_HEX_QUOT) ?>)' class="p-1.5 border border-[#E5E5E7] text-[#111111] rounded-sm hover:bg-gray-50" title="Éditer le webinaire">
+                                            <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15.232 5.232l3.536 3.536m-2.036-5.036a2.5 2.5 0 113.536 3.536L6.5 21.036H3v-3.572L16.732 3.732z"/></svg>
+                                        </button>
+
+                                        <form method="POST" action="/teacher/dashboard.php?course_id=<?= $selectedCourse['id'] ?>&action=delete_webinar" onsubmit="return confirm('Supprimer ce webinaire ?');">
+                                            <?= csrfInput(); ?>
+                                            <input type="hidden" name="webinar_id" value="<?= $web['id'] ?>">
+                                            <button type="submit" class="p-1.5 border border-red-200 text-red-600 rounded-sm hover:bg-red-50" title="Supprimer le webinaire">
+                                                <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16"/></svg>
+                                            </button>
+                                        </form>
+                                    </div>
+                                </div>
+
+                                <!-- Section Replay / Enregistrement -->
+                                <div class="bg-[#F5F5F7] p-4 rounded-sm border border-[#E5E5E7] flex flex-wrap justify-between items-center gap-4 text-xs">
+                                    <div>
+                                        <span class="font-semibold text-[#555555]">Lien du Replay / Enregistrement :</span>
+                                        <?php if (!empty($web['recording_url'])): ?>
+                                            <a href="<?= htmlspecialchars($web['recording_url']) ?>" target="_blank" class="font-mono text-[#004B23] hover:underline ml-2 break-all"><?= htmlspecialchars($web['recording_url']) ?></a>
+                                        <?php else: ?>
+                                            <span class="text-gray-400 italic ml-2">Aucun enregistrement spécifié</span>
+                                        <?php endif; ?>
+                                    </div>
+                                    <button onclick="openSaveReplayModal(<?= $web['id'] ?>, '<?= escHtml($web['recording_url'] ?? '') ?>')" class="px-3 py-1 bg-white border border-[#E5E5E7] text-[10px] font-semibold uppercase tracking-wider rounded-sm hover:bg-gray-50 transition-colors">
+                                        <?= !empty($web['recording_url']) ? 'Modifier le lien' : 'Ajouter un replay' ?>
+                                    </button>
+                                </div>
+                            </div>
+                        <?php endforeach; ?>
+                    </div>
+                <?php endif; ?>
+            </div>
+
+            <!-- 5. NOTES & SUIVI (tab-grades) -->
+            <div id="tab-grades" class="tab-content hidden space-y-12 animate-fade-in">
+                <div class="flex justify-between items-center mb-6">
+                    <h3 class="font-serif text-2xl font-light text-[#111111]">Notes, Inscriptions &amp; Certifications</h3>
+                </div>
+
+                <!-- Barre d'onglets secondaires (Sub-tabs) -->
+                <div class="flex border-b border-[#E5E5E7] mb-6 flex-wrap gap-1">
+                    <button onclick="switchGradesSubTab('subtab-students')" id="btn-subtab-students"
+                        class="px-4 py-2 border-b-2 font-semibold text-xs uppercase tracking-wider transition-colors border-[#004B23] text-[#004B23]">
+                        Élèves Inscrits
+                    </button>
+                    <button onclick="switchGradesSubTab('subtab-quiz')" id="btn-subtab-quiz"
+                        class="px-4 py-2 border-b-2 font-semibold text-xs uppercase tracking-wider transition-colors border-transparent text-[#888888] hover:text-[#111111]">
+                        Notes des Quiz
+                    </button>
+                    <button onclick="switchGradesSubTab('subtab-certs')" id="btn-subtab-certs"
+                        class="px-4 py-2 border-b-2 font-semibold text-xs uppercase tracking-wider transition-colors border-transparent text-[#888888] hover:text-[#111111]">
+                        Certifications &amp; Code
+                    </button>
+                </div>
+
+                <!-- Sub-tab 1 : Élèves Inscrits -->
+                <div id="subtab-students" class="grades-subtab space-y-4">
+                    <h4 class="text-xs font-semibold text-[#555555] uppercase tracking-wider">Liste des étudiants inscrits au cours</h4>
+                    <div class="overflow-x-auto border border-[#E5E5E7] rounded-sm bg-white">
+                        <table class="w-full text-left text-xs border-collapse">
+                            <thead>
+                                <tr class="bg-gray-100 border-b border-[#E5E5E7]">
+                                    <th class="p-4 font-semibold text-[#111111]">Nom complet</th>
+                                    <th class="p-4 font-semibold text-[#111111]">E-mail</th>
+                                    <th class="p-4 font-semibold text-[#111111] text-center">Progression générale</th>
+                                    <th class="p-4 font-semibold text-[#111111] text-right">Date d'inscription</th>
+                                </tr>
+                            </thead>
+                            <tbody id="registered-students-list-body" class="divide-y divide-[#E5E5E7]">
+                                <tr>
+                                    <td colspan="4" class="p-4 text-center text-[#888888] italic">Chargement des inscriptions...</td>
+                                </tr>
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+
+                <!-- Sub-tab 2 : Notes des Quiz -->
+                <div id="subtab-quiz" class="grades-subtab hidden space-y-6">
+                    <div class="flex flex-wrap items-center justify-between gap-4 bg-white p-5 border border-[#E5E5E7] rounded-sm">
+                        <div class="flex flex-wrap items-center gap-6 text-xs text-[#555555]" id="lesson-grades-summary">
+                            <!-- Rempli en JS -->
+                        </div>
+                    </div>
+                    <div class="border border-[#E5E5E7] rounded-sm divide-y divide-[#E5E5E7] overflow-hidden" id="lesson-grades-accordion-container">
+                        <!-- Rempli en JS -->
+                    </div>
+                </div>
+
+                <!-- Sub-tab 3 : Certifications & Module -->
+                <div id="subtab-certs" class="grades-subtab hidden space-y-8">
+                    <!-- Tentatives de Certification Globale -->
+                    <div class="space-y-4">
+                        <h4 class="text-xs font-semibold text-[#555555] uppercase tracking-wider">Tentatives de Certification Globale (QCM Final)</h4>
+                        <div class="overflow-x-auto border border-[#E5E5E7] rounded-sm bg-white">
+                            <table class="w-full text-left text-xs border-collapse">
+                                <thead>
+                                    <tr class="bg-gray-100 border-b border-[#E5E5E7]">
+                                        <th class="p-4 font-semibold text-[#111111]">Nom complet</th>
+                                        <th class="p-4 font-semibold text-[#111111]">E-mail</th>
+                                        <th class="p-4 font-semibold text-[#111111] text-center">Score obtenu</th>
+                                        <th class="p-4 font-semibold text-[#111111] text-center">Statut</th>
+                                        <th class="p-4 font-semibold text-[#111111] text-right">Date tentative</th>
+                                    </tr>
+                                </thead>
+                                <tbody id="certifications-course-body" class="divide-y divide-[#E5E5E7]">
+                                    <tr>
+                                        <td colspan="5" class="p-4 text-center text-[#888888] italic">Chargement des certifications globales...</td>
+                                    </tr>
+                                </tbody>
+                            </table>
+                        </div>
+                    </div>
+
+                    <!-- Certificats de Module Émis -->
+                    <div class="space-y-4">
+                        <h4 class="text-xs font-semibold text-[#555555] uppercase tracking-wider">Certificats de Module Émis (PDFs)</h4>
+                        <div class="overflow-x-auto border border-[#E5E5E7] rounded-sm bg-white">
+                            <table class="w-full text-left text-xs border-collapse">
+                                <thead>
+                                    <tr class="bg-gray-100 border-b border-[#E5E5E7]">
+                                        <th class="p-4 font-semibold text-[#111111]">Nom complet</th>
+                                        <th class="p-4 font-semibold text-[#111111]">E-mail</th>
+                                        <th class="p-4 font-semibold text-[#111111]">Code de vérification</th>
+                                        <th class="p-4 font-semibold text-[#111111]">Date d'émission</th>
+                                        <th class="p-4 font-semibold text-[#111111] text-right">Attribution Manuelle</th>
+                                    </tr>
+                                </thead>
+                                <tbody id="certifications-module-body" class="divide-y divide-[#E5E5E7]">
+                                    <tr>
+                                        <td colspan="5" class="p-4 text-center text-[#888888] italic">Chargement des certificats de module...</td>
+                                    </tr>
+                                </tbody>
+                            </table>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- 6. COMMUNAUTÉ & Q&R (tab-comments) -->
+            <div id="tab-comments" class="tab-content hidden space-y-12 animate-fade-in">
+                <div class="flex justify-between items-center mb-6">
+                    <h3 class="font-serif text-2xl font-light text-[#111111]">Questions &amp; Réponses de la Communauté</h3>
+                </div>
+
+                <?php if (empty($courseComments)): ?>
+                    <div class="p-8 text-center border border-[#E5E5E7] text-[#888888] text-sm bg-white rounded-sm">
+                        Aucune question posée pour le moment sur ce cours.
+                    </div>
+                <?php else: ?>
+                    <div class="space-y-6">
+                        <?php foreach ($courseComments as $com): 
+                            $comHidden = (int)$com['is_hidden'] === 1;
+                        ?>
+                            <div class="border border-[#E5E5E7] p-6 rounded-sm bg-white space-y-4 hover:shadow-md transition-shadow relative">
+                                <!-- Badge de statut -->
+                                <div class="flex justify-between items-start">
+                                    <div>
+                                        <span class="text-[9px] uppercase font-bold px-2 py-0.5 rounded-sm bg-gray-100 border border-gray-200 text-gray-600">
+                                            Leçon : <?= htmlspecialchars($com['lesson_title']) ?>
+                                        </span>
+                                    </div>
+                                    <div class="flex items-center gap-2">
+                                        <span class="text-[10px] text-gray-400 font-mono"><?= date('d/m/Y H:i', strtotime($com['created_at'])) ?></span>
+                                        <?php if ($comHidden): ?>
+                                            <span class="px-2 py-0.5 text-[9px] font-bold uppercase tracking-wider rounded-sm bg-red-50 border border-red-200 text-red-700">Masqué</span>
+                                        <?php endif; ?>
+                                    </div>
+                                </div>
+
+                                <!-- Corps du commentaire -->
+                                <div>
+                                    <p class="text-xs font-semibold text-[#111111] mb-1"><?= htmlspecialchars($com['author_name']) ?> <span class="text-[10px] font-normal text-gray-400 font-mono">(<?= htmlspecialchars($com['author_role'] ?? 'student') ?>)</span></p>
+                                    <p class="text-xs text-[#555555] font-light leading-relaxed whitespace-pre-line"><?= htmlspecialchars($com['comment_text']) ?></p>
+                                </div>
+
+                                <!-- Réponses existantes -->
+                                <?php if (!empty($com['teacher_reply'])): ?>
+                                    <div class="bg-[#F5F5F7] p-4 rounded-sm border-l-2 border-[#004B23] space-y-1">
+                                        <p class="text-[10px] font-bold text-[#004B23] uppercase tracking-wider">Réponse de l'Enseignant</p>
+                                        <p class="text-xs text-[#111111] font-light leading-relaxed whitespace-pre-line"><?= htmlspecialchars($com['teacher_reply']) ?></p>
+                                    </div>
+                                <?php endif; ?>
+
+                                <!-- Actions Moderation & Réponse -->
+                                <div class="pt-4 border-t border-[#F0F0F2] flex flex-wrap gap-3 items-center justify-between">
+                                    <div class="flex gap-2">
+                                        <button onclick="moderateComment(<?= $com['id'] ?>, <?= $comHidden ? 0 : 1 ?>)" class="px-3 py-1 bg-white border border-[#E5E5E7] text-[10px] font-semibold uppercase tracking-wider rounded-sm hover:bg-gray-50 transition-colors">
+                                            <?= $comHidden ? 'Afficher' : 'Masquer' ?>
+                                        </button>
+                                        <button onclick="toggleAccordion('reply-form-<?= $com['id'] ?>')" class="px-3 py-1 bg-[#111111] text-white text-[10px] font-semibold uppercase tracking-wider rounded-sm hover:bg-[#004B23] transition-colors">
+                                            Répondre / Modifier la réponse
+                                        </button>
+                                    </div>
+                                </div>
+
+                                <!-- Formulaire de réponse -->
+                                <div id="reply-form-<?= $com['id'] ?>" class="hidden pt-4 border-t border-[#E5E5E7] space-y-3">
+                                    <textarea id="reply-text-<?= $com['id'] ?>" rows="3" placeholder="Saisissez votre réponse..." class="w-full px-3 py-2 border border-[#E5E5E7] rounded-sm focus:outline-none focus:border-[#004B23] text-xs bg-white"><?= htmlspecialchars($com['teacher_reply'] ?? '') ?></textarea>
+                                    <div class="flex justify-end gap-2">
+                                        <button onclick="toggleAccordion('reply-form-<?= $com['id'] ?>')" class="px-3 py-1.5 border border-[#E5E5E7] text-[10px] font-semibold uppercase tracking-wider rounded-sm text-[#555555] bg-white hover:bg-gray-50">Annuler</button>
+                                        <button onclick="submitReply(<?= $com['id'] ?>)" class="px-3 py-1.5 bg-[#004B23] text-white text-[10px] font-semibold uppercase tracking-wider rounded-sm hover:bg-[#003d1c]">Enregistrer</button>
+                                    </div>
+                                </div>
+                            </div>
+                        <?php endforeach; ?>
+                    </div>
                 <?php endif; ?>
             </div>
 
@@ -2105,627 +3106,7 @@ $successMsg = $successMessages[$successKey] ?? null;
     </div>
 </div>
 
-<!-- ── Modal : Élèves Inscrits ────────────────────────── -->
-<div id="registered-students-modal" class="hidden fixed inset-0 bg-black/40 backdrop-blur-sm z-50 flex items-center justify-center p-6">
-    <div class="bg-white p-8 max-w-4xl w-full border border-[#E5E5E7] modal-inner max-h-[90vh] overflow-y-auto">
-        <div class="flex justify-between items-center mb-6">
-            <h3 class="font-serif text-2xl font-light">Élèves Inscrits</h3>
-            <button type="button" onclick="toggleModal('registered-students-modal')" class="text-[#888888] hover:text-[#D32F2F]">
-                <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"/>
-                </svg>
-            </button>
-        </div>
-        
-        <div class="flex justify-between items-center mb-4">
-            <p class="text-xs text-[#555555]">Liste des apprenants inscrits à ce cours et leur progression globale.</p>
-            <div class="flex gap-2">
-                <button onclick="exportTableToExcel('registered-students-table', 'Eleves_Inscrits')" class="px-4 py-2 bg-[#004B23] text-white text-xs font-semibold uppercase tracking-wider rounded-sm">
-                    ⬇ Exporter Excel
-                </button>
-            </div>
-        </div>
 
-        <div class="overflow-x-auto border border-[#E5E5E7]">
-            <table class="w-full text-xs text-left" id="registered-students-table">
-                <thead>
-                    <tr class="border-b border-[#111111] uppercase tracking-wider text-[#555555]">
-                        <th class="p-3">Nom de l'élève</th>
-                        <th class="p-3">Adresse Email</th>
-                        <th class="p-3 text-center">Progression Cours</th>
-                        <th class="p-3 text-right">Date d'Inscription</th>
-                    </tr>
-                </thead>
-                <tbody id="registered-students-list-body" class="divide-y divide-[#E5E5E7]">
-                    <!-- Chargé dynamiquement -->
-                </tbody>
-            </table>
-        </div>
-    </div>
-</div>
-
-<!-- ── Modal : Notes & Évaluations des Leçons ────────── -->
-<div id="lesson-grades-modal" class="hidden fixed inset-0 bg-black/50 backdrop-blur-sm z-50 flex items-start justify-center p-4 overflow-y-auto">
-    <div class="bg-white w-full max-w-5xl border border-[#E5E5E7] my-8 rounded-sm shadow-2xl">
-        <!-- Header du modal -->
-        <div class="flex justify-between items-center px-8 py-6 border-b border-[#E5E5E7] bg-[#F5F5F7]">
-            <div>
-                <h3 class="font-serif text-2xl font-light text-[#111111]">Notes &amp; Évaluations des Leçons</h3>
-                <p class="text-xs text-[#888888] mt-1">Seules les leçons avec quiz sont affichées — tous les apprenants inscrits sont inclus.</p>
-            </div>
-            <button type="button" onclick="toggleModal('lesson-grades-modal')" class="text-[#888888] hover:text-[#D32F2F] transition-colors p-1">
-                <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"/>
-                </svg>
-            </button>
-        </div>
-
-        <!-- Résumé global -->
-        <div id="lesson-grades-summary" class="px-8 py-4 flex gap-6 border-b border-[#E5E5E7] bg-white text-xs">
-            <!-- rempli dynamiquement -->
-        </div>
-
-        <!-- Accordéon des leçons -->
-        <div id="lesson-grades-accordion-container" class="divide-y divide-[#E5E5E7] max-h-[70vh] overflow-y-auto">
-            <!-- Chargé dynamiquement -->
-        </div>
-
-        <!-- Footer -->
-        <div class="px-8 py-4 border-t border-[#E5E5E7] bg-[#F5F5F7] flex justify-end">
-            <button onclick="toggleModal('lesson-grades-modal')" class="px-5 py-2 bg-[#111111] text-white text-xs font-semibold uppercase tracking-wider rounded-sm hover:bg-[#004B23] transition-colors">Fermer</button>
-        </div>
-    </div>
-</div>
-
-<!-- ── Modal : Certifications ────────────────────────── -->
-<div id="certifications-modal" class="hidden fixed inset-0 bg-black/40 backdrop-blur-sm z-50 flex items-center justify-center p-6">
-    <div class="bg-white p-8 max-w-4xl w-full border border-[#E5E5E7] modal-inner max-h-[90vh] overflow-y-auto">
-        <div class="flex justify-between items-center mb-6">
-            <h3 class="font-serif text-2xl font-light">Certifications & Examens</h3>
-            <button type="button" onclick="toggleModal('certifications-modal')" class="text-[#888888] hover:text-[#D32F2F]">
-                <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"/>
-                </svg>
-            </button>
-        </div>
-
-        <!-- Onglets -->
-        <div class="flex border-b border-[#E5E5E7] mb-6">
-            <button onclick="switchCertTab('cert-tab-exam')" id="btn-cert-tab-exam" class="px-4 py-2 text-xs font-semibold uppercase tracking-wider border-b-2 border-[#004B23] text-[#004B23]">
-                QCM Final du Cours
-            </button>
-            <button onclick="switchCertTab('cert-tab-module')" id="btn-cert-tab-module" class="px-4 py-2 text-xs font-semibold uppercase tracking-wider border-b-2 border-transparent text-[#888888] hover:text-[#111111]">
-                Certificats du Module
-            </button>
-        </div>
-
-        <!-- Contenu Onglet 1: QCM Final -->
-        <div id="cert-tab-exam" class="space-y-4">
-            <div class="flex justify-between items-center">
-                <span class="text-xs text-[#555555]">Résultats des tentatives de certification (QCM Final) de ce cours.</span>
-                <button onclick="exportTableToExcel('certifications-course-table', 'Resultats_QCM_Final')" class="px-4 py-2 bg-[#004B23] text-white text-xs font-semibold uppercase tracking-wider rounded-sm">
-                    ⬇ Exporter Excel
-                </button>
-            </div>
-            <div class="overflow-x-auto border border-[#E5E5E7]">
-                <table class="w-full text-xs text-left" id="certifications-course-table">
-                    <thead>
-                        <tr class="border-b border-[#111111] uppercase tracking-wider text-[#555555]">
-                            <th class="p-3">Apprenant</th>
-                            <th class="p-3">Email</th>
-                            <th class="p-3 text-center">Score</th>
-                            <th class="p-3 text-center">Résultat</th>
-                            <th class="p-3 text-right">Date tentative</th>
-                        </tr>
-                    </thead>
-                    <tbody id="certifications-course-body" class="divide-y divide-[#E5E5E7]">
-                        <!-- Dynamique -->
-                    </tbody>
-                </table>
-            </div>
-        </div>
-
-        <!-- Contenu Onglet 2: Certificats de Module -->
-        <div id="cert-tab-module" class="space-y-4 hidden">
-            <div class="flex justify-between items-center">
-                <span class="text-xs text-[#555555]">Certificats de module délivrés officiellement aux élèves de ce cours.</span>
-                <button onclick="exportTableToExcel('certifications-module-table', 'Certificats_Module')" class="px-4 py-2 bg-[#004B23] text-white text-xs font-semibold uppercase tracking-wider rounded-sm">
-                    ⬇ Exporter Excel
-                </button>
-            </div>
-            <div class="overflow-x-auto border border-[#E5E5E7]">
-                <table class="w-full text-xs text-left" id="certifications-module-table">
-                    <thead>
-                        <tr class="border-b border-[#111111] uppercase tracking-wider text-[#555555]">
-                            <th class="p-3">Apprenant</th>
-                            <th class="p-3">Email</th>
-                            <th class="p-3">Code Certificat</th>
-                            <th class="p-3">Délivré le</th>
-                            <th class="p-3 text-right">Délivrance Manuelle</th>
-                        </tr>
-                    </thead>
-                    <tbody id="certifications-module-body" class="divide-y divide-[#E5E5E7]">
-                        <!-- Dynamique -->
-                    </tbody>
-                </table>
-            </div>
-        </div>
-    </div>
-</div>
-
-<?php if ($selectedCourse): ?>
-<!-- ── Modal : Téléévaluations (QuizBox) ────────────────── -->
-<div id="live-evaluation-modal" class="hidden fixed inset-0 bg-black/40 backdrop-blur-sm z-50 flex items-center justify-center p-6">
-    <div class="bg-white p-8 max-w-4xl w-full border border-[#E5E5E7] modal-inner max-h-[90vh] overflow-y-auto">
-        <div class="flex justify-between items-center mb-6">
-            <div class="flex items-center gap-2">
-                <span class="w-2.5 h-2.5 rounded-full bg-red-500 animate-pulse"></span>
-                <h3 class="font-serif text-2xl font-light">Téléévaluations Synchrones (Live)</h3>
-            </div>
-            <button type="button" onclick="toggleModal('live-evaluation-modal')" class="text-[#888888] hover:text-[#D32F2F]">
-                <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"/>
-                </svg>
-            </button>
-        </div>
-
-        <!-- Section 1 : Bouton / Formulaire de création de séance -->
-        <div class="mb-8 border-b border-[#E5E5E7] pb-6">
-            <button onclick="toggleAccordion('add-live-session-form')" class="px-4 py-2 bg-[#004B23] text-white text-xs font-semibold uppercase tracking-wider rounded-sm hover:bg-[#003d1c] transition-colors flex items-center gap-2">
-                <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 4v16m8-8H4"/></svg>
-                Créer une nouvelle séance
-            </button>
-
-            <form id="add-live-session-form" method="POST" action="/teacher/dashboard.php?course_id=<?= $selectedCourse['id'] ?>&action=add_live_session" class="hidden mt-4 p-5 bg-[#F5F5F7] border border-[#E5E5E7] rounded-sm space-y-4">
-                <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
-                    <div>
-                        <label class="block text-xs font-semibold text-[#555555] uppercase tracking-wider mb-2">Titre de la Séance</label>
-                        <input type="text" name="live_title" required placeholder="Ex: Examen Intra-semestriel" class="w-full px-3 py-2 border border-[#E5E5E7] rounded-sm focus:outline-none focus:border-[#004B23] text-sm bg-white">
-                    </div>
-                    <div>
-                        <label class="block text-xs font-semibold text-[#555555] uppercase tracking-wider mb-2">Temps par question (secondes)</label>
-                        <input type="number" name="default_time_limit" required value="30" min="5" class="w-full px-3 py-2 border border-[#E5E5E7] rounded-sm focus:outline-none focus:border-[#004B23] text-sm bg-white">
-                    </div>
-                </div>
-                <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
-                    <div>
-                        <label class="block text-xs font-semibold text-[#555555] uppercase tracking-wider mb-2">Date/Heure de Début</label>
-                        <input type="datetime-local" name="live_start_time" required class="w-full px-3 py-2 border border-[#E5E5E7] rounded-sm focus:outline-none focus:border-[#004B23] text-sm bg-white">
-                    </div>
-                    <div>
-                        <label class="block text-xs font-semibold text-[#555555] uppercase tracking-wider mb-2">Date/Heure de Fin</label>
-                        <input type="datetime-local" name="live_end_time" required class="w-full px-3 py-2 border border-[#E5E5E7] rounded-sm focus:outline-none focus:border-[#004B23] text-sm bg-white">
-                    </div>
-                </div>
-                <div class="flex justify-end gap-3 pt-2">
-                    <button type="button" onclick="toggleAccordion('add-live-session-form')" class="px-4 py-2 border border-[#E5E5E7] text-xs font-semibold uppercase tracking-wider rounded-sm text-[#555555] hover:bg-gray-50 bg-white">Annuler</button>
-                    <button type="submit" class="px-4 py-2 bg-[#111111] text-white text-xs font-semibold uppercase tracking-wider rounded-sm hover:bg-black">Enregistrer</button>
-                </div>
-            </form>
-        </div>
-
-        <!-- Section 2 : Liste des séances existantes -->
-        <h4 class="text-xs font-semibold text-[#555555] uppercase tracking-wider mb-4">Séances configurées</h4>
-        
-        <?php if (empty($liveSessions)): ?>
-            <div class="p-8 text-center border border-[#E5E5E7] text-[#888888] text-sm">
-                Aucune séance de téléévaluation configurée pour ce cours.
-            </div>
-        <?php else: ?>
-            <div class="space-y-6">
-                <?php foreach ($liveSessions as $ls): 
-                    $isActive = (int)$ls['status'] === 1;
-                    $isHttps = (isset($_SERVER['HTTPS']) && $_SERVER['HTTPS'] === 'on') 
-                            || (isset($_SERVER['HTTP_X_FORWARDED_PROTO']) && $_SERVER['HTTP_X_FORWARDED_PROTO'] === 'https');
-                    $proto = $isHttps ? 'https' : 'http';
-                    $sessionLink = $proto . "://" . $_SERVER['HTTP_HOST'] . "/live-session.php?code=" . $ls['session_code'];
-                ?>
-                    <div class="border border-[#E5E5E7] p-5 rounded-sm bg-white space-y-4">
-                        <!-- En-tête de la séance -->
-                        <div class="flex flex-wrap justify-between items-start gap-4">
-                            <div>
-                                <h5 class="font-semibold text-lg text-[#111111]"><?= htmlspecialchars($ls['title']) ?></h5>
-                                <div class="text-xs text-[#555555] mt-1 space-x-4">
-                                    <span>Début : <strong><?= date('d/m/Y H:i', strtotime($ls['start_time'])) ?></strong></span>
-                                    <span>Fin : <strong><?= date('d/m/Y H:i', strtotime($ls['end_time'])) ?></strong></span>
-                                    <span>Durée par défaut : <strong><?= $ls['default_time_limit'] ?>s</strong></span>
-                                </div>
-                            </div>
-                            <!-- Statut & Actions de base -->
-                            <div class="flex items-center gap-3">
-                                <?php if ($ls['is_finished']): ?>
-                                    <span class="px-3 py-1.5 text-xs font-semibold rounded-full border bg-red-50 border-red-200 text-[#D32F2F] flex items-center gap-1">
-                                        <span class="w-1.5 h-1.5 rounded-full bg-[#D32F2F]"></span> Terminé
-                                    </span>
-                                <?php else: ?>
-                                    <!-- Bouton Activation -->
-                                    <form method="POST" action="/teacher/dashboard.php?course_id=<?= $selectedCourse['id'] ?>&action=toggle_live_session">
-                                        <input type="hidden" name="session_id" value="<?= $ls['id'] ?>">
-                                        <input type="hidden" name="status" value="<?= $isActive ? 0 : 1 ?>">
-                                        <button type="submit" class="px-3 py-1.5 text-xs font-semibold rounded-full border <?= $isActive ? 'bg-green-50 border-green-200 text-[#004B23]' : 'bg-gray-50 border-gray-200 text-[#555555]' ?>">
-                                            <?= $isActive ? '● Activé (ON)' : '○ Désactivé (OFF)' ?>
-                                        </button>
-                                    </form>
-                                <?php endif; ?>
-
-                                <!-- Bouton Modifier -->
-                                <button type="button" 
-                                        data-session="<?= htmlspecialchars(json_encode([
-                                            "id" => $ls["id"],
-                                            "title" => $ls["title"],
-                                            "start_time" => date("Y-m-d\TH:i", strtotime($ls["start_time"])),
-                                            "end_time" => date("Y-m-d\TH:i", strtotime($ls["end_time"])),
-                                            "default_time_limit" => $ls["default_time_limit"],
-                                            "is_async" => $ls["is_async"],
-                                            "async_deadline" => $ls["async_deadline"] ? date("Y-m-d\TH:i", strtotime($ls["async_deadline"])) : ""
-                                        ]), ENT_QUOTES, 'UTF-8') ?>"
-                                        onclick="openEditLiveSessionModal(this)"
-                                        class="p-1.5 border border-[#E5E5E7] text-[#111111] rounded-sm hover:bg-gray-50" 
-                                        title="Modifier la séance">
-                                    <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15.232 5.232l3.536 3.536m-2.036-5.036a2.5 2.5 0 113.536 3.536L6.5 21.036H3v-3.572L16.732 3.732z"/></svg>
-                                </button>
-
-                                <!-- Bouton Supprimer -->
-                                <form method="POST" action="/teacher/dashboard.php?course_id=<?= $selectedCourse['id'] ?>&action=delete_live_session" onsubmit="return confirm('Supprimer cette séance ? Toutes les questions et réponses seront perdues.');">
-                                    <input type="hidden" name="session_id" value="<?= $ls['id'] ?>">
-                                    <button type="submit" class="p-1.5 border border-red-200 text-red-600 rounded-sm hover:bg-red-50" title="Supprimer la séance">
-                                        <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16"/></svg>
-                                    </button>
-                                </form>
-                            </div>
-                        </div>
-
-                        <!-- Lien de partage -->
-                        <div class="bg-[#F5F5F7] p-3 rounded-sm flex items-center justify-between border border-[#E5E5E7] text-xs">
-                            <span class="font-mono text-[#555555] overflow-x-auto truncate mr-4"><?= $sessionLink ?></span>
-                            <button onclick="copyToClipboard('<?= $sessionLink ?>')" class="px-3 py-1 bg-white border border-[#E5E5E7] text-[10px] font-semibold uppercase tracking-wider rounded-sm hover:bg-gray-50 transition-colors">Copier</button>
-                        </div>
-
-                        <!-- Statistiques & Boutons d'édition -->
-                        <div class="flex flex-wrap items-center justify-between gap-4 pt-2 border-t border-[#F0F0F2] text-xs text-[#555555]">
-                            <div class="space-x-4 flex flex-wrap items-center gap-y-2">
-                                <span>Questions : <strong class="questions-count-<?= $ls['id'] ?>"><?= $ls['question_count'] ?></strong></span>
-                                <span>Inscrits : <strong class="live-inscrits-count-<?= $ls['id'] ?>"><?= $ls['participant_count'] ?></strong></span>
-                                <span>En ligne : <strong class="live-online-count-<?= $ls['id'] ?> text-green-700 font-semibold"><?= $ls['online_count'] ?></strong></span>
-                                <span class="live-votes-badge-<?= $ls['id'] ?> hidden bg-[#E2ECE9] text-[#004B23] text-[10px] px-2.5 py-0.5 rounded-full font-semibold">
-                                    <span class="live-votes-count-<?= $ls['id'] ?>">0</span> réponses reçues
-                                </span>
-                                <span class="live-status-glow-<?= $ls['id'] ?> hidden text-xs font-semibold text-green-700 flex items-center gap-1">
-                                    <span class="inline-block w-2.5 h-2.5 rounded-full bg-green-500 animate-pulse"></span> En cours
-                                </span>
-                            </div>
-
-                            <div class="flex flex-wrap items-center gap-3">
-                                <?php if ($ls['is_finished']): ?>
-                                    <button type="button" onclick="openDispatchModal(<?= $ls['id'] ?>)" class="px-3 py-1.5 bg-[#004B23] text-white text-[11px] font-semibold uppercase tracking-wider rounded-sm hover:bg-[#003d1c] flex items-center gap-1.5">
-                                        <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M3 8l7.89 5.26a2 2 0 002.22 0L21 8M5 19h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v10a2 2 0 002 2z"/></svg>
-                                        Envoyer les e-mails
-                                    </button>
-                                <?php endif; ?>
-
-                                <!-- Exporter XLS -->
-                                <a href="/teacher/export-live-grades.php?session_id=<?= $ls['id'] ?>" class="px-3 py-1.5 border border-[#E5E5E7] text-[11px] font-semibold uppercase tracking-wider rounded-sm hover:bg-gray-50 bg-white text-[#111111] flex items-center gap-1.5">
-                                    <svg class="w-3.5 h-3.5 text-green-700" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4"/></svg>
-                                    Rapport Excel
-                                </a>
-
-                                <!-- Exporter PDF -->
-                                <a href="/teacher/export-live-pdf.php?session_id=<?= $ls['id'] ?>" class="px-3 py-1.5 border border-[#E5E5E7] text-[11px] font-semibold uppercase tracking-wider rounded-sm hover:bg-gray-50 bg-white text-[#111111] flex items-center gap-1.5">
-                                    <svg class="w-3.5 h-3.5 text-red-700" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M7 21h10a2 2 0 002-2V9.414a1 1 0 00-.293-.707l-5.414-5.414A1 1 0 0012.586 3H7a2 2 0 00-2 2v14a2 2 0 002 2z"/></svg>
-                                    Rapport PDF
-                                </a>
-
-                                <!-- Imprimer Sujet (LaTeX) -->
-                                <a href="/teacher/export-live-questions-latex.php?session_id=<?= $ls['id'] ?>&mode=subject" class="px-3 py-1.5 border border-[#E5E5E7] text-[11px] font-semibold uppercase tracking-wider rounded-sm hover:bg-gray-50 bg-white text-[#111111] flex items-center gap-1.5">
-                                    <svg class="w-3.5 h-3.5 text-indigo-700" fill="none" stroke="currentColor" viewBox="0 0 24 24" stroke-width="2">
-                                        <path stroke-linecap="round" stroke-linejoin="round" d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
-                                    </svg>
-                                    Imprimer Sujet
-                                </a>
-
-                                <!-- Imprimer Corrigé (LaTeX) -->
-                                <a href="/teacher/export-live-questions-latex.php?session_id=<?= $ls['id'] ?>&mode=correction" class="px-3 py-1.5 border border-[#E5E5E7] text-[11px] font-semibold uppercase tracking-wider rounded-sm hover:bg-gray-50 bg-white text-[#111111] flex items-center gap-1.5">
-                                    <svg class="w-3.5 h-3.5 text-orange-700" fill="none" stroke="currentColor" viewBox="0 0 24 24" stroke-width="2">
-                                        <path stroke-linecap="round" stroke-linejoin="round" d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
-                                    </svg>
-                                    Imprimer Corrigé
-                                </a>
-
-                                <!-- Pause / Reprendre (Synchronized sessions only) -->
-                                <?php if (!(isset($ls['is_async']) && (int)$ls['is_async'] === 1)): ?>
-                                    <form method="POST" action="/teacher/dashboard.php?course_id=<?= $selectedCourse['id'] ?>&action=toggle_live_pause" class="inline-block">
-                                        <input type="hidden" name="session_id" value="<?= $ls['id'] ?>">
-                                        <?php if ((int)$ls['is_paused'] === 1): ?>
-                                            <button type="submit" class="px-3 py-1.5 bg-[#004B23] text-white text-[11px] font-semibold uppercase tracking-wider rounded-sm hover:bg-[#003d1c] flex items-center gap-1.5" title="Reprendre l'évaluation">
-                                                <svg class="w-3.5 h-3.5 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M14.752 11.168l-3.197-2.132A1 1 0 0010 9.87v4.263a1 1 0 001.555.832l3.197-2.132a1 1 0 000-1.664z"/></svg>
-                                                Reprendre
-                                            </button>
-                                        <?php else: ?>
-                                            <button type="submit" class="px-3 py-1.5 bg-yellow-600 text-white text-[11px] font-semibold uppercase tracking-wider rounded-sm hover:bg-yellow-700 flex items-center gap-1.5" title="Mettre en pause l'évaluation">
-                                                <svg class="w-3.5 h-3.5 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10 9v6m4-6v6m7-3a9 9 0 11-18 0 9 9 0 0118 0z"/></svg>
-                                                Pause
-                                            </button>
-                                        <?php endif; ?>
-                                    </form>
-                                <?php endif; ?>
-
-                                <!-- Réinitialiser (Reset exam for both Sync & Async) -->
-                                <form method="POST" action="/teacher/dashboard.php?course_id=<?= $selectedCourse['id'] ?>&action=reset_live_session" onsubmit="return confirm('Réinitialiser la séance ? TOUS les étudiants inscrits et leurs notes/réponses seront définitivement supprimés.');" class="inline-block">
-                                    <input type="hidden" name="session_id" value="<?= $ls['id'] ?>">
-                                    <button type="submit" class="px-3 py-1.5 border border-red-200 text-red-600 text-[11px] font-semibold uppercase tracking-wider rounded-sm hover:bg-red-50 bg-white flex items-center gap-1.5" title="Réinitialiser l'examen (Reset)">
-                                        <svg class="w-3.5 h-3.5 text-red-600" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 4v5h.582m15.356 2A8.001 8.001 0 1121.21 7.89M9 11l3-3 3 3m-3-3v12"/></svg>
-                                        Réinitialiser
-                                    </button>
-                                </form>
-
-                                <!-- Gérer les questions -->
-                                <button onclick="toggleAccordion('live-session-questions-<?= $ls['id'] ?>')" class="px-3 py-1.5 bg-[#111111] text-white text-[11px] font-semibold uppercase tracking-wider rounded-sm hover:bg-black">
-                                    Gérer les questions
-                                </button>
-                                <!-- Résultats & Inscrits -->
-                                <button onclick="toggleAccordion('live-session-results-<?= $ls['id'] ?>')" class="px-3 py-1.5 bg-[#004B23] text-white text-[11px] font-semibold uppercase tracking-wider rounded-sm hover:bg-[#003d1c]">
-                                    Résultats &amp; Inscrits
-                                </button>
-                            </div>
-                        </div>
-
-                        <!-- Accordéon : Gestion des questions de la séance -->
-                        <div id="live-session-questions-<?= $ls['id'] ?>" class="hidden border-t border-[#E5E5E7] pt-4 space-y-6">
-                            
-                            <!-- Grille : Ajouter question à gauche / Importer à droite -->
-                            <div class="grid grid-cols-1 lg:grid-cols-2 gap-6 bg-[#F8F9FA] p-5 border border-[#E5E5E7] rounded-sm">
-                                <!-- Formulaire Ajout Question -->
-                                <form method="POST" action="/teacher/dashboard.php?course_id=<?= $selectedCourse['id'] ?>&action=add_live_question" enctype="multipart/form-data" class="space-y-4 bg-white p-5 border border-[#E5E5E7] rounded-sm shadow-sm">
-                                    <input type="hidden" name="session_id" value="<?= $ls['id'] ?>">
-                                    
-                                    <div class="flex items-center justify-between border-b border-[#E5E5E7] pb-3 mb-2">
-                                        <h6 class="text-xs font-bold text-[#004B23] uppercase tracking-wider">Créer une nouvelle question</h6>
-                                        <div class="flex items-center gap-2">
-                                            <label class="text-[10px] text-gray-500 font-semibold uppercase">Type :</label>
-                                            <select name="question_type" onchange="handleQuestionTypeChange(this)" class="px-2 py-1 border border-[#E5E5E7] rounded-sm text-[10px] font-semibold bg-gray-50 text-[#111111] focus:outline-none">
-                                                <option value="mcq">QCM Standard</option>
-                                                <option value="written">Question écrite / Calcul</option>
-                                            </select>
-                                        </div>
-                                    </div>
-                                    
-                                    <div>
-                                        <label class="block text-[10px] text-[#555555] uppercase tracking-wider mb-1 font-semibold">Énoncé de la question (KaTeX supporté)</label>
-                                        <textarea name="question_text" required placeholder="Saisir la question... ex: Calculer $f'(x)$ pour $f(x) = x^2$" class="w-full px-3 py-1.5 border border-[#E5E5E7] rounded-sm text-xs bg-white focus:outline-none focus:border-[#004B23] h-14"></textarea>
-                                    </div>
-
-                                    <!-- Options MCQ Group -->
-                                    <div class="mcq-options-group space-y-3">
-                                        <div class="grid grid-cols-2 gap-3">
-                                            <div>
-                                                <label class="block text-[10px] text-[#555555] uppercase tracking-wider mb-1">Option A</label>
-                                                <input type="text" name="option_a" placeholder="Option A" class="w-full px-3 py-1.5 border border-[#E5E5E7] rounded-sm text-xs bg-white focus:outline-none focus:border-[#004B23]">
-                                            </div>
-                                            <div>
-                                                <label class="block text-[10px] text-[#555555] uppercase tracking-wider mb-1">Option B</label>
-                                                <input type="text" name="option_b" placeholder="Option B" class="w-full px-3 py-1.5 border border-[#E5E5E7] rounded-sm text-xs bg-white focus:outline-none focus:border-[#004B23]">
-                                            </div>
-                                        </div>
-                                        <div class="grid grid-cols-2 gap-3">
-                                            <div>
-                                                <label class="block text-[10px] text-[#555555] uppercase tracking-wider mb-1">Option C</label>
-                                                <input type="text" name="option_c" placeholder="Option C" class="w-full px-3 py-1.5 border border-[#E5E5E7] rounded-sm text-xs bg-white focus:outline-none focus:border-[#004B23]">
-                                            </div>
-                                            <div>
-                                                <label class="block text-[10px] text-[#555555] uppercase tracking-wider mb-1">Option D</label>
-                                                <input type="text" name="option_d" placeholder="Option D" class="w-full px-3 py-1.5 border border-[#E5E5E7] rounded-sm text-xs bg-white focus:outline-none focus:border-[#004B23]">
-                                            </div>
-                                        </div>
-                                    </div>
-
-                                    <div class="grid grid-cols-2 gap-3">
-                                        <!-- Correct Option container (dropdown vs text input) -->
-                                        <div class="correct-option-container">
-                                            <label class="block text-[10px] text-[#555555] uppercase tracking-wider mb-1">Option Correcte</label>
-                                            <select name="correct_option" required class="w-full px-2 py-1.5 border border-[#E5E5E7] rounded-sm text-xs bg-white focus:outline-none focus:border-[#004B23]">
-                                                <option value="A">A</option>
-                                                <option value="B">B</option>
-                                                <option value="C">C</option>
-                                                <option value="D">D</option>
-                                            </select>
-                                        </div>
-                                        
-                                        <div>
-                                            <label class="block text-[10px] text-[#555555] uppercase tracking-wider mb-1">Durée spécifique (secondes)</label>
-                                            <input type="number" name="time_limit" placeholder="Vide = par défaut" class="w-full px-2 py-1.5 border border-[#E5E5E7] rounded-sm text-xs bg-white focus:outline-none focus:border-[#004B23]">
-                                        </div>
-                                    </div>
-
-                                    <div>
-                                        <label class="block text-[10px] text-[#555555] uppercase tracking-wider mb-1 font-semibold">Explication / Justification (pour correction)</label>
-                                        <textarea name="explanation" placeholder="Saisir la justification de la réponse..." class="w-full px-3 py-1.5 border border-[#E5E5E7] rounded-sm text-xs bg-white focus:outline-none focus:border-[#004B23] h-12"></textarea>
-                                    </div>
-
-                                    <div>
-                                        <label class="block text-[10px] text-[#555555] uppercase tracking-wider mb-1">Image d'illustration (facultative)</label>
-                                        <input type="file" name="live_image" accept="image/*" class="w-full text-xs file:mr-3 file:py-1 file:px-2 file:border-0 file:bg-[#E5E5E7] file:text-[10px] file:font-semibold">
-                                    </div>
-
-                                    <button type="submit" class="w-full py-2 bg-[#004B23] text-white text-[11px] font-semibold uppercase tracking-wider rounded-sm hover:bg-[#003d1c] shadow-sm transition-colors">Ajouter la question</button>
-                                </form>
-
-                                <!-- Importer des questions -->
-                                <div class="space-y-5 border-l border-gray-200 pl-6 flex flex-col justify-between bg-white p-5 border border-[#E5E5E7] rounded-sm shadow-sm">
-                                    <div class="space-y-2">
-                                        <h6 class="text-xs font-bold text-[#004B23] uppercase tracking-wider border-b border-[#E5E5E7] pb-3 mb-2">Import en masse (CSV / Excel)</h6>
-                                        <p class="text-[10px] text-[#888888] leading-relaxed">
-                                            Téléversez un fichier CSV ou Excel pour charger les questions de la séance en bloc.
-                                            Les colonnes requises sont : <code class="bg-gray-100 px-1 py-0.5 font-mono text-[9px]">question, type, option_a, option_b, option_c, option_d, correct, explanation</code>.
-                                        </p>
-                                        <p class="text-[9px] text-gray-500 italic">
-                                            Pour le type : saisissez <strong>mcq</strong> (pour QCM) ou <strong>written</strong> (pour calculs/questions ouvertes).
-                                        </p>
-                                    </div>
-
-                                    <div class="p-4 border border-dashed border-[#E5E5E7] rounded-sm bg-gray-50 text-center">
-                                        <input type="file" accept=".csv,.xlsx,.xls,.txt" onchange="importLiveQuestionsFile(this, <?= $ls['id'] ?>)" class="w-full text-xs file:mr-3 file:py-1.5 file:px-3 file:border-0 file:bg-white file:border file:border-[#E5E5E7] file:text-[10px] file:font-semibold rounded-sm">
-                                    </div>
-                                    <p class="text-[9px] text-[#888888] italic">Note: L'importation s'effectue instantanément après le choix du fichier.</p>
-                                </div>
-                            </div>
-
-                            <!-- Liste des questions existantes de la séance -->
-                            <div class="space-y-3">
-                                <div class="flex justify-between items-center mb-2">
-                                    <h6 class="text-xs font-semibold text-[#111111] uppercase tracking-wider">Questions de la séance (<?= count($ls['questions']) ?>)</h6>
-                                    <?php if (!empty($ls['questions'])): ?>
-                                        <a href="/teacher/download-async-csv.php?type=live&id=<?= $ls['id'] ?>" class="text-[10px] text-[#004B23] font-semibold hover:underline bg-[#EAF2EC] px-2 py-1 rounded-sm">Exporter en CSV</a>
-                                    <?php endif; ?>
-                                </div>
-                                
-                                <?php if (empty($ls['questions'])): ?>
-                                    <p class="text-xs text-[#888888] italic">Aucune question pour le moment.</p>
-                                <?php else: ?>
-                                    <div class="divide-y divide-[#E5E5E7]">
-                                        <?php foreach ($ls['questions'] as $qIdx => $q): 
-                                            $qType = $q['question_type'] ?? 'mcq';
-                                        ?>
-                                            <div class="py-4 flex justify-between items-start gap-4">
-                                                <div class="space-y-1 text-xs">
-                                                    <div class="flex flex-wrap items-center gap-2">
-                                                        <span class="font-bold text-gray-400">Q<?= $qIdx + 1 ?>.</span>
-                                                        <span class="font-medium text-[#111111]"><?= htmlspecialchars($q['question_text']) ?></span>
-                                                        <span class="text-[9px] uppercase font-bold px-1.5 py-0.5 rounded-sm <?= $qType === 'written' ? 'bg-orange-50 border border-orange-200 text-orange-700' : 'bg-blue-50 border border-blue-200 text-blue-700' ?>">
-                                                            <?= $qType === 'written' ? 'Calcul / Écrite' : 'QCM' ?>
-                                                        </span>
-                                                    </div>
-                                                    
-                                                    <?php if ($qType === 'mcq'): ?>
-                                                        <div class="grid grid-cols-2 sm:grid-cols-4 gap-x-4 text-[11px] text-[#555555] mt-1">
-                                                            <span>A: <?= htmlspecialchars($q['option_a']) ?></span>
-                                                            <span>B: <?= htmlspecialchars($q['option_b']) ?></span>
-                                                            <span>C: <?= htmlspecialchars($q['option_c']) ?></span>
-                                                            <span>D: <?= htmlspecialchars($q['option_d']) ?></span>
-                                                        </div>
-                                                    <?php endif; ?>
-                                                    
-                                                    <div class="text-[10px] text-[#888888] flex flex-wrap gap-x-4 gap-y-1 pt-1">
-                                                        <span>Bonne réponse : <strong class="text-[#004B23]"><?= htmlspecialchars($q['correct_option']) ?></strong></span>
-                                                        <?php if ($q['time_limit']): ?>
-                                                            <span>Durée : <strong><?= $q['time_limit'] ?>s</strong></span>
-                                                        <?php endif; ?>
-                                                        <?php if (!empty($q['explanation'])): ?>
-                                                            <span>Justification : <em class="text-gray-600"><?= htmlspecialchars($q['explanation']) ?></em></span>
-                                                        <?php endif; ?>
-                                                        <?php if ($q['image_path']): ?>
-                                                            <a href="/uploads/live_questions/<?= $q['image_path'] ?>" target="_blank" class="text-blue-600 hover:underline">✓ Image d'illustration</a>
-                                                        <?php endif; ?>
-                                                    </div>
-                                                </div>
-                                                <!-- Action Supprimer Question -->
-                                                <form method="POST" action="/teacher/dashboard.php?course_id=<?= $selectedCourse['id'] ?>&action=delete_live_question" onsubmit="return confirm('Supprimer cette question ?');">
-                                                    <input type="hidden" name="question_id" value="<?= $q['id'] ?>">
-                                                    <button type="submit" class="text-red-500 hover:text-red-700 p-1">
-                                                        <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16"/></svg>
-                                                    </button>
-                                                </form>
-                                            </div>
-                                        <?php endforeach; ?>
-                                    </div>
-
-                                    <!-- Bouton de suppression en masse de toutes les questions -->
-                                    <div class="pt-4 border-t border-[#E5E5E7] flex justify-end">
-                                        <form method="POST" action="/teacher/dashboard.php?course_id=<?= $selectedCourse['id'] ?>&action=delete_all_live_questions" onsubmit="return confirm('Êtes-vous absolument sûr de vouloir supprimer TOUTES les questions de cette séance ? Cette action est irréversible.');">
-                                            <input type="hidden" name="session_id" value="<?= $ls['id'] ?>">
-                                            <button type="submit" class="px-4 py-2 bg-red-600 hover:bg-red-700 text-white text-[11px] font-semibold uppercase tracking-wider rounded-sm transition-colors flex items-center gap-2">
-                                                <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16"/></svg>
-                                                Supprimer toutes les questions
-                                            </button>
-                                        </form>
-                                    </div>
-                                <?php endif; ?>
-                            </div>
-
-                        </div>
-
-                        <!-- Accordéon : Résultats & Inscrits -->
-                        <div id="live-session-results-<?= $ls['id'] ?>" class="hidden border-t border-[#E5E5E7] pt-4 space-y-4">
-                            <h4 class="font-serif text-sm font-semibold text-[#111111] uppercase tracking-wider">Participants inscrits &amp; Résultats</h4>
-                            <?php
-                            // Récupérer tous les participants inscrits à cette séance
-                            $partStmt = $pdo->prepare("
-                                SELECT id, name, email, score, last_activity, registered_at
-                                FROM live_eval_registrations
-                                WHERE session_id = :sid
-                                ORDER BY registered_at DESC
-                            ");
-                            $partStmt->execute(['sid' => $ls['id']]);
-                            $participants = $partStmt->fetchAll(PDO::FETCH_ASSOC);
-                            ?>
-
-                            <?php if (empty($participants)): ?>
-                                <p class="text-xs text-[#888888] italic p-4 text-center bg-gray-50 border border-[#E5E5E7]">Aucun participant inscrit pour le moment.</p>
-                            <?php else: ?>
-                                <div class="overflow-x-auto border border-[#E5E5E7] rounded-sm bg-white">
-                                    <table class="w-full text-left text-xs border-collapse">
-                                        <thead>
-                                            <tr class="bg-gray-100 border-b border-[#E5E5E7]">
-                                                <th class="p-3 font-semibold text-[#111111]">Nom complet</th>
-                                                <th class="p-3 font-semibold text-[#111111]">E-mail</th>
-                                                <th class="p-3 font-semibold text-[#111111] text-center">Score / Note</th>
-                                                <th class="p-3 font-semibold text-[#111111] text-center">Présence</th>
-                                                <th class="p-3 font-semibold text-[#111111] text-center">Date d'inscription</th>
-                                                <th class="p-3 font-semibold text-[#111111] text-center">Actions</th>
-                                            </tr>
-                                        </thead>
-                                        <tbody>
-                                            <?php foreach ($participants as $p): 
-                                                // Un participant est en ligne s'il a poll dans les 10 dernières secondes
-                                                $isOnline = false;
-                                                if ($p['last_activity']) {
-                                                    $isOnline = (time() - strtotime($p['last_activity']) <= 10);
-                                                }
-                                                $scoreVal = $p['score'] !== null ? number_format((float)$p['score'], 2) . '/20' : 'Non complété';
-                                                $scoreClass = $p['score'] !== null ? 'text-green-700 font-semibold' : 'text-gray-500 italic';
-                                            ?>
-                                                <tr class="border-b border-[#E5E5E7] hover:bg-gray-50">
-                                                    <td class="p-3 font-medium text-[#111111]"><?= htmlspecialchars($p['name']) ?></td>
-                                                    <td class="p-3 text-[#555555]"><?= htmlspecialchars($p['email']) ?></td>
-                                                    <td class="p-3 text-center <?= $scoreClass ?>"><?= $scoreVal ?></td>
-                                                    <td class="p-3 text-center">
-                                                        <?php if ($isOnline): ?>
-                                                            <span class="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-semibold bg-green-50 border border-green-200 text-green-700">
-                                                                <span class="w-1.5 h-1.5 rounded-full bg-green-500 animate-pulse"></span> En ligne
-                                                            </span>
-                                                        <?php else: ?>
-                                                            <span class="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-semibold bg-gray-50 border border-gray-200 text-gray-500">
-                                                                Hors ligne
-                                                            </span>
-                                                        <?php endif; ?>
-                                                    </td>
-                                                    <td class="p-3 text-center text-gray-500"><?= date('d/m/Y H:i', strtotime($p['registered_at'])) ?></td>
-                                                    <td class="p-3 text-center">
-                                                        <form method="POST" action="/teacher/dashboard.php?course_id=<?= $selectedCourse['id'] ?>&action=delete_live_participant" onsubmit="return confirm('Exclure ce participant ? Ses réponses et notes pour cette séance seront définitivement perdues.');" class="inline-block">
-                                                            <input type="hidden" name="registration_id" value="<?= $p['id'] ?>">
-                                                            <input type="hidden" name="session_id" value="<?= $ls['id'] ?>">
-                                                            <button type="submit" class="px-2 py-1 text-[10px] font-semibold uppercase tracking-wider text-red-600 bg-red-50 hover:bg-red-100 border border-red-200 rounded-sm">
-                                                                Exclure
-                                                            </button>
-                                                        </form>
-                                                    </td>
-                                                </tr>
-                                            <?php endforeach; ?>
-                                        </tbody>
-                                    </table>
-                                </div>
-                            <?php endif; ?>
-                        </div>
-                    </div>
-                <?php endforeach; ?>
-            </div>
-        <?php endif; ?>
-
-        <!-- Footer -->
-        <div class="px-8 py-4 border-t border-[#E5E5E7] bg-[#F5F5F7] flex justify-end mt-8">
-            <button onclick="toggleModal('live-evaluation-modal')" class="px-5 py-2 bg-[#111111] text-white text-xs font-semibold uppercase tracking-wider rounded-sm hover:bg-[#004B23] transition-colors">Fermer</button>
-        </div>
-    </div>
-</div>
 
 <!-- ── Modal : Éditer une séance de téléévaluation ────────── -->
 <div id="edit-live-session-modal" class="hidden fixed inset-0 bg-black/40 backdrop-blur-sm z-[60] flex items-center justify-center p-6">
@@ -2859,9 +3240,42 @@ $successMsg = $successMessages[$successKey] ?? null;
      SCRIPTS
 ══════════════════════════════════════════════════════════ -->
 <script>
+// --- Dashboard Tab Management ---
+function switchDashboardTab(tabId) {
+    if (tabId !== 'tab-overview' && !<?= $selectedCourse ? 'true' : 'false' ?>) {
+        return; // Don't allow switching if no course is selected
+    }
+    document.querySelectorAll('.tab-content').forEach(el => {
+        el.classList.add('hidden');
+    });
+    const target = document.getElementById(tabId);
+    if (target) {
+        target.classList.remove('hidden');
+    }
+    document.querySelectorAll('.sidebar-tab-btn').forEach(btn => {
+        const targetAttr = btn.getAttribute('data-tab-target');
+        if (targetAttr === tabId) {
+            btn.className = "sidebar-tab-btn w-full flex items-center gap-3 px-4 py-3 rounded-sm text-left text-sm transition-all duration-200 bg-[#004B23] text-white font-semibold";
+        } else {
+            btn.className = "sidebar-tab-btn w-full flex items-center gap-3 px-4 py-3 rounded-sm text-left text-sm transition-all duration-200 text-gray-300 hover:bg-[#143d26] hover:text-white";
+        }
+    });
+    window.location.hash = tabId;
+}
+
+window.addEventListener('DOMContentLoaded', () => {
+    const hash = window.location.hash.replace('#', '');
+    if (hash && document.getElementById(hash)) {
+        switchDashboardTab(hash);
+    } else {
+        switchDashboardTab('tab-overview');
+    }
+});
+
 // ── Modal generic ─────────────────────────────────────────
 function toggleModal(id) {
     const modal = document.getElementById(id);
+    if (!modal) return;
     modal.classList.toggle('hidden');
     if (!modal.classList.contains('hidden')) {
         setTimeout(renderMath, 50);
@@ -3686,6 +4100,9 @@ function loadTeacherGrades(courseId) {
             if (data.enrolled_students && document.getElementById('kpi-enrolled-count')) {
                 document.getElementById('kpi-enrolled-count').textContent = data.enrolled_students.length;
             }
+            populateRegisteredStudents();
+            populateLessonGrades();
+            populateCertifications();
         } else {
             console.error("Erreur de chargement des notes :", data.message);
         }
@@ -3695,15 +4112,12 @@ function loadTeacherGrades(courseId) {
     });
 }
 
-function openRegisteredStudentsModal() {
-    if (!window.currentCourseGrades || !window.currentCourseGrades.enrolled_students) {
-        alert("Les données ne sont pas encore prêtes. Veuillez patienter.");
-        return;
-    }
+function populateRegisteredStudents() {
+    if (!window.currentCourseGrades || !window.currentCourseGrades.enrolled_students) return;
     const body = document.getElementById('registered-students-list-body');
     const students = window.currentCourseGrades.enrolled_students;
     if (!students.length) {
-        body.innerHTML = `<tr><td colspan="4" class="p-4 text-center text-[#888888]">Aucun élève inscrit à ce cours pour le moment.</td></tr>`;
+        body.innerHTML = `<tr><td colspan="4" class="p-4 text-center text-[#888888] italic">Aucun élève inscrit à ce cours pour le moment.</td></tr>`;
     } else {
         body.innerHTML = students.map(s => {
             const date = s.enrolled_at ? new Date(s.enrolled_at).toLocaleDateString('fr-FR', {hour: '2-digit', minute:'2-digit'}) : '—';
@@ -3723,14 +4137,10 @@ function openRegisteredStudentsModal() {
             </tr>`;
         }).join('');
     }
-    toggleModal('registered-students-modal');
 }
 
-function openLessonGradesModal() {
-    if (!window.currentCourseGrades || !window.currentCourseGrades.lesson_grades) {
-        alert("Les données ne sont pas encore prêtes. Veuillez patienter.");
-        return;
-    }
+function populateLessonGrades() {
+    if (!window.currentCourseGrades || !window.currentCourseGrades.lesson_grades) return;
     const container = document.getElementById('lesson-grades-accordion-container');
     const summary   = document.getElementById('lesson-grades-summary');
     const grades    = window.currentCourseGrades.lesson_grades;
@@ -3745,11 +4155,9 @@ function openLessonGradesModal() {
                 <p class="text-sm font-semibold text-[#555555]">Aucune leçon avec quiz trouvée</p>
                 <p class="text-xs text-[#888888] mt-1">Ajoutez des questions à vos leçons pour voir les évaluations ici.</p>
             </div>`;
-        toggleModal('lesson-grades-modal');
         return;
     }
 
-    // ── Grouper par leçon (lesson_id) ─────────────────────────────────────
     const byLesson = {};
     grades.forEach(g => {
         const lid = g.lesson_id;
@@ -3767,7 +4175,6 @@ function openLessonGradesModal() {
 
     const lessons = Object.values(byLesson);
 
-    // ── Calcul résumé global ───────────────────────────────────────────────
     const totalStudents  = (window.currentCourseGrades.enrolled_students || []).length;
     const totalLessons   = lessons.length;
     let   totalDone      = 0;
@@ -3804,7 +4211,6 @@ function openLessonGradesModal() {
             <span class="font-bold text-[#004B23] text-sm">${avgScore !== '—' ? avgScore + '%' : '—'}</span>
         </div>`;
 
-    // ── Générer l'accordéon ────────────────────────────────────────────────
     let accordionHtml = '';
     lessons.forEach((lesson, index) => {
         const panelId   = 'lgpanel-' + index;
@@ -3819,7 +4225,6 @@ function openLessonGradesModal() {
 
         accordionHtml += `
         <div class="bg-white">
-            <!-- En-tête leçon (cliquable) -->
             <button type="button"
                 class="w-full flex items-center justify-between px-8 py-5 text-left hover:bg-[#FAFAFA] transition-colors focus:outline-none"
                 onclick="toggleGradeAccordion('${panelId}', this)">
@@ -3855,7 +4260,6 @@ function openLessonGradesModal() {
                 </div>
             </button>
 
-            <!-- Panneau détail -->
             <div id="${panelId}" class="hidden border-t border-[#E5E5E7] bg-[#FAFAFA]">
                 <div class="px-8 py-4 flex justify-between items-center">
                     <p class="text-xs text-[#555555]">Résultats pour cette leçon — tous les apprenants inscrits sont listés.</p>
@@ -3876,7 +4280,7 @@ function openLessonGradesModal() {
                             </tr>
                         </thead>
                         <tbody class="divide-y divide-[#E5E5E7]">
-                            ${lesson.students.map(s => {
+                            \${lesson.students.map(s => {
                                 const done_s    = s.status === 'Terminé';
                                 const score     = parseFloat(s.score_percent) || 0;
                                 const correct   = parseInt(s.correct_count) || 0;
@@ -3885,24 +4289,24 @@ function openLessonGradesModal() {
                                 const barColor  = !done_s ? '#E5E5E7' : score >= 70 ? '#004B23' : score >= 40 ? '#F59E0B' : '#D32F2F';
                                 const barWidth  = done_s ? score : 0;
                                 return `<tr class="hover:bg-[#F9F9F9] transition-colors">
-                                    <td class="px-4 py-3 font-semibold text-[#111111] whitespace-nowrap">${escHtml(s.student_name)}</td>
-                                    <td class="px-4 py-3 text-[#555555] font-light">${escHtml(s.student_email)}</td>
+                                    <td class="px-4 py-3 font-semibold text-[#111111] whitespace-nowrap">\${escHtml(s.student_name)}</td>
+                                    <td class="px-4 py-3 text-[#555555] font-light">\${escHtml(s.student_email)}</td>
                                     <td class="px-4 py-3 text-center">
                                         <div class="flex items-center justify-center gap-2">
                                             <div class="w-16 bg-[#E5E5E7] h-2 rounded-full overflow-hidden flex-shrink-0">
-                                                <div class="h-full rounded-full transition-all" style="width:${barWidth}%;background:${barColor}"></div>
+                                                <div class="h-full rounded-full transition-all" style="width:\${barWidth}%;background:\${barColor}"></div>
                                             </div>
-                                            <span class="font-bold text-xs" style="color:${done_s ? barColor : '#888888'}">${done_s ? score.toFixed(1) + '%' : '0%'}</span>
+                                            <span class="font-bold text-xs" style="color:\${done_s ? barColor : '#888888'}">\${done_s ? score.toFixed(1) + '%' : '0%'}</span>
                                         </div>
                                     </td>
-                                    <td class="px-4 py-3 text-center font-mono text-[#555555]">${done_s ? correct + ' / ' + total_q : '—'}</td>
+                                    <td class="px-4 py-3 text-center font-mono text-[#555555]">\${done_s ? correct + ' / ' + total_q : '—'}</td>
                                     <td class="px-4 py-3 text-center">
-                                        ${done_s
+                                        \${done_s
                                             ? `<span class="inline-flex items-center gap-1 px-2.5 py-1 rounded-full text-[10px] font-semibold bg-[#DCFCE7] text-[#15803D]">✓ Terminé</span>`
                                             : `<span class="inline-flex items-center gap-1 px-2.5 py-1 rounded-full text-[10px] font-semibold bg-[#F5F5F7] text-[#888888]">○ Non terminé</span>`
                                         }
                                     </td>
-                                    <td class="px-4 py-3 text-right font-mono text-[#888888]">${date}</td>
+                                    <td class="px-4 py-3 text-right font-mono text-[#888888]">\${date}</td>
                                 </tr>`;
                             }).join('')}
                         </tbody>
@@ -3912,7 +4316,6 @@ function openLessonGradesModal() {
         </div>`;
     });
     container.innerHTML = accordionHtml;
-    toggleModal('lesson-grades-modal');
 }
 
 function toggleGradeAccordion(id, btn) {
@@ -3929,36 +4332,30 @@ function toggleAccordion(id) {
     if (el) el.classList.toggle('hidden');
 }
 
-// ── Auto-open live modal & session accordion from URL params ──────────────
-(function autoOpenLiveModal() {
+// ── Auto-open live tab & session accordion from URL params ──────────────
+(function autoOpenLiveTabAndSession() {
     const params = new URLSearchParams(window.location.search);
-    if (params.get('open_live_modal') !== '1') return;
-
-    // Open the modal
-    const modal = document.getElementById('live-evaluation-modal');
-    if (modal) modal.classList.remove('hidden');
-
-    // Open the specific session accordion if provided
     const sessionId = params.get('open_session');
     if (sessionId) {
+        // Ensure the live eval tab is active
+        switchDashboardTab('tab-live-eval');
+
+        // Open the specific session accordion if provided
         const accordion = document.getElementById('live-session-questions-' + sessionId);
         if (accordion) {
             accordion.classList.remove('hidden');
-            // Scroll into view after a brief delay so modal is rendered
+            // Scroll into view after a brief delay
             setTimeout(() => accordion.scrollIntoView({ behavior: 'smooth', block: 'start' }), 300);
         }
-    }
 
-    // Clean up URL without reloading
-    const cleanUrl = window.location.pathname + '?course_id=' + params.get('course_id');
-    window.history.replaceState({}, '', cleanUrl);
+        // Clean up URL without reloading
+        const cleanUrl = window.location.pathname + '?course_id=' + params.get('course_id') + '#tab-live-eval';
+        window.history.replaceState({}, '', cleanUrl);
+    }
 })();
 
-function openCertificationsModal() {
-    if (!window.currentCourseGrades) {
-        alert("Les données ne sont pas encore prêtes. Veuillez patienter.");
-        return;
-    }
+function populateCertifications() {
+    if (!window.currentCourseGrades) return;
     
     // Remplir tableau QCM final
     const examBody = document.getElementById('certifications-course-body');
@@ -3996,25 +4393,28 @@ function openCertificationsModal() {
             </tr>`;
         }).join('');
     }
-
-    switchCertTab('cert-tab-exam');
-    toggleModal('certifications-modal');
 }
 
-function switchCertTab(tabId) {
-    document.getElementById('cert-tab-exam').classList.toggle('hidden', tabId !== 'cert-tab-exam');
-    document.getElementById('cert-tab-module').classList.toggle('hidden', tabId !== 'cert-tab-module');
-
-    const btnExam = document.getElementById('btn-cert-tab-exam');
-    const btnModule = document.getElementById('btn-cert-tab-module');
-
-    if (tabId === 'cert-tab-exam') {
-        btnExam.className = "px-4 py-2 text-xs font-semibold uppercase tracking-wider border-b-2 border-[#004B23] text-[#004B23]";
-        btnModule.className = "px-4 py-2 text-xs font-semibold uppercase tracking-wider border-b-2 border-transparent text-[#888888] hover:text-[#111111]";
-    } else {
-        btnExam.className = "px-4 py-2 text-xs font-semibold uppercase tracking-wider border-b-2 border-transparent text-[#888888] hover:text-[#111111]";
-        btnModule.className = "px-4 py-2 text-xs font-semibold uppercase tracking-wider border-b-2 border-[#004B23] text-[#004B23]";
+function switchGradesSubTab(subTabId) {
+    document.querySelectorAll('.grades-subtab').forEach(el => {
+        el.classList.add('hidden');
+    });
+    const target = document.getElementById(subTabId);
+    if (target) {
+        target.classList.remove('hidden');
     }
+    
+    // Switch buttons
+    const btnIds = ['btn-subtab-students', 'btn-subtab-quiz', 'btn-subtab-certs'];
+    btnIds.forEach(id => {
+        const btn = document.getElementById(id);
+        if (!btn) return;
+        if (id === 'btn-' + subTabId) {
+            btn.className = "px-4 py-2 border-b-2 font-semibold text-xs uppercase tracking-wider transition-colors border-[#004B23] text-[#004B23]";
+        } else {
+            btn.className = "px-4 py-2 border-b-2 font-semibold text-xs uppercase tracking-wider transition-colors border-transparent text-[#888888] hover:text-[#111111]";
+        }
+    });
 }
 
 function copyToClipboard(text) {
@@ -4335,7 +4735,16 @@ document.addEventListener('DOMContentLoaded', () => {
             if (data.success) {
                 if (typeof Toast !== 'undefined') Toast.success(data.message);
                 else alert(data.message);
-                setTimeout(() => window.location.reload(), 1000);
+                
+                setTimeout(() => {
+                    if (currentImportSessionId) {
+                        window.location.href = window.location.pathname + '?course_id=' + currentImportCourseId + '&open_session=' + currentImportSessionId + '#tab-live-eval';
+                    } else if (currentImportLessonId) {
+                        window.location.href = window.location.pathname + '?course_id=' + currentImportCourseId + '&open_lesson=' + currentImportLessonId + '#tab-content';
+                    } else {
+                        window.location.href = window.location.pathname + '?course_id=' + currentImportCourseId + '#tab-content';
+                    }
+                }, 1000);
             } else {
                 if (typeof Toast !== 'undefined') Toast.error(data.message);
                 else alert("Erreur : " + data.message);

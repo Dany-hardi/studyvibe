@@ -183,6 +183,15 @@ try {
         FROM certification_attempts
     ")->fetchColumn();
 
+    $totalTeachersCount = count($teachers);
+    $pendingTeachersCount = 0;
+    foreach ($teachers as $t) {
+        if (!(int)$t['is_approved']) {
+            $pendingTeachersCount++;
+        }
+    }
+    $totalStudentsCount = count($students);
+
 } catch (PDOException $e) {
     dieSafe('Erreur serveur. Veuillez réessayer.', $e, 'promoter/dashboard');
 }
