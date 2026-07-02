@@ -3373,9 +3373,13 @@ $successMsg = $successMessages[$successKey] ?? null;
 <script>
 // ── Escape HTML (must be first — used by many functions below) ────────────
 function escHtml(str) {
-    return String(str || '')
-        .replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;')
-        .replace(/"/g,'&quot;').replace(/'/g,'&#39;');
+    var s = String(str == null ? '' : str);
+    s = s.split('&').join('&amp;');
+    s = s.split('<').join('&lt;');
+    s = s.split('>').join('&gt;');
+    s = s.split('"').join('&quot;');
+    s = s.split("'").join('&#39;');
+    return s;
 }
 
 // --- Dashboard Tab Management ---
@@ -3669,7 +3673,13 @@ async function confirmDispatch() {
 
 function escapeHtml(str) {
     if (!str) return '';
-    return str.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;").replace(/"/g, "&quot;").replace(/'/g, "&#039;");
+    var s = String(str);
+    s = s.split('&').join('&amp;');
+    s = s.split('<').join('&lt;');
+    s = s.split('>').join('&gt;');
+    s = s.split('"').join('&quot;');
+    s = s.split("'").join('&#039;');
+    return s;
 }
 
 // Polling temps réel des séances de téléévaluation côté enseignant
@@ -4432,7 +4442,7 @@ function populateLessonGrades() {
                             </tr>
                         </thead>
                         <tbody class="divide-y divide-[#E5E5E7]">
-                            \${lesson.students.map(s => {
+                            ${lesson.students.map(s => {
                                 const done_s    = s.status === 'Terminé';
                                 const score     = parseFloat(s.score_percent) || 0;
                                 const correct   = parseInt(s.correct_count) || 0;
@@ -4441,24 +4451,24 @@ function populateLessonGrades() {
                                 const barColor  = !done_s ? '#E5E5E7' : score >= 70 ? '#004B23' : score >= 40 ? '#F59E0B' : '#D32F2F';
                                 const barWidth  = done_s ? score : 0;
                                 return `<tr class="hover:bg-[#F9F9F9] transition-colors">
-                                    <td class="px-4 py-3 font-semibold text-[#111111] whitespace-nowrap">\${escHtml(s.student_name)}</td>
-                                    <td class="px-4 py-3 text-[#555555] font-light">\${escHtml(s.student_email)}</td>
+                                    <td class="px-4 py-3 font-semibold text-[#111111] whitespace-nowrap">${escHtml(s.student_name)}</td>
+                                    <td class="px-4 py-3 text-[#555555] font-light">${escHtml(s.student_email)}</td>
                                     <td class="px-4 py-3 text-center">
                                         <div class="flex items-center justify-center gap-2">
                                             <div class="w-16 bg-[#E5E5E7] h-2 rounded-full overflow-hidden flex-shrink-0">
-                                                <div class="h-full rounded-full transition-all" style="width:\${barWidth}%;background:\${barColor}"></div>
+                                                <div class="h-full rounded-full transition-all" style="width:${barWidth}%;background:${barColor}"></div>
                                             </div>
-                                            <span class="font-bold text-xs" style="color:\${done_s ? barColor : '#888888'}">\${done_s ? score.toFixed(1) + '%' : '0%'}</span>
+                                            <span class="font-bold text-xs" style="color:${done_s ? barColor : '#888888'}">${done_s ? score.toFixed(1) + '%' : '0%'}</span>
                                         </div>
                                     </td>
-                                    <td class="px-4 py-3 text-center font-mono text-[#555555]">\${done_s ? correct + ' / ' + total_q : '—'}</td>
+                                    <td class="px-4 py-3 text-center font-mono text-[#555555]">${done_s ? correct + ' / ' + total_q : '—'}</td>
                                     <td class="px-4 py-3 text-center">
-                                        \${done_s
+                                        ${done_s
                                             ? `<span class="inline-flex items-center gap-1 px-2.5 py-1 rounded-full text-[10px] font-semibold bg-[#DCFCE7] text-[#15803D]">✓ Terminé</span>`
                                             : `<span class="inline-flex items-center gap-1 px-2.5 py-1 rounded-full text-[10px] font-semibold bg-[#F5F5F7] text-[#888888]">○ Non terminé</span>`
                                         }
                                     </td>
-                                    <td class="px-4 py-3 text-right font-mono text-[#888888]">\${date}</td>
+                                    <td class="px-4 py-3 text-right font-mono text-[#888888]">${date}</td>
                                 </tr>`;
                             }).join('')}
                         </tbody>
@@ -4779,7 +4789,7 @@ function openCsvPreview(questions, mathCount, type, courseId, sessionId, lessonI
             statusBadge = `<span class="bg-red-100 text-red-800 px-2 py-0.5 rounded font-semibold text-[10px]" title="${q.errors.join(', ')}">Erreur</span>`;
         }
         
-        const escapeHtml = (str) => str.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;");
+        const escapeHtml = (str) => { var s = String(str||''); s=s.split('&').join('&amp;'); s=s.split('<').join('&lt;'); s=s.split('>').join('&gt;'); return s; };
         
         const qType = q.question_type || 'mcq';
         let optionsHtml = '';
