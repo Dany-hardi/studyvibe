@@ -1178,179 +1178,297 @@ $successMsg = $successMessages[$successKey] ?? null;
         .resource-row + .resource-row { margin-top: .5rem; }
     </style>
 </head>
-<body class="font-sans antialiased text-[#111111] sv-page min-h-screen flex flex-col justify-between">
+<body class="font-sans antialiased text-[#111111] dark:text-white bg-[#FAF9F6] dark:bg-[#121212] min-h-screen flex flex-col md:flex-row overflow-x-hidden">
 
-<!-- ══════════════════════════════════════════════════════════
-     EN-TÊTE
-══════════════════════════════════════════════════════════ -->
-<header class="sv-header border-b border-[#E5E5E7] py-6 px-6 md:px-12 flex justify-between items-center bg-[#FFFFFF]">
-    <div class="flex items-center gap-3">
-        <svg class="w-9 h-9" viewBox="0 0 100 100" fill="none" xmlns="http://www.w3.org/2000/svg" style="width: 36px; height: 36px;">
-            <circle cx="50" cy="50" r="46" stroke="#006630" stroke-width="3.5" />
-            <line x1="33" y1="31" x2="62" y2="25" stroke="#111111" stroke-width="2.5" stroke-linecap="round" />
-            <line x1="33" y1="31" x2="49" y2="53" stroke="#111111" stroke-width="2.5" stroke-linecap="round" />
-            <line x1="33" y1="31" x2="14" y2="13" stroke="#111111" stroke-width="2.5" stroke-linecap="round" />
-            <line x1="33" y1="31" x2="42" y2="11" stroke="#111111" stroke-width="2.5" stroke-linecap="round" />
-            <line x1="33" y1="31" x2="20" y2="53" stroke="#111111" stroke-width="2.5" stroke-linecap="round" />
-            <line x1="49" y1="53" x2="62" y2="25" stroke="#111111" stroke-width="2.5" stroke-linecap="round" />
-            <circle cx="62" cy="25" r="6" fill="#006630" />
-            <circle cx="49" cy="53" r="6" fill="#006630" />
-            <circle cx="33" cy="31" r="6" fill="#006630" />
-            <circle cx="14" cy="13" r="6" fill="#006630" />
-            <circle cx="42" cy="11" r="6" fill="#006630" />
-            <circle cx="20" cy="53" r="6" fill="#006630" />
-            <path d="M56 10 C52 14, 52 24, 52 29 C52 31, 50 33, 49 33 L45 33 L49 35 C50 37, 51 38, 50 40 C49 41, 47 42, 49 44 C51 45, 54 46, 56 46 C59 46, 65 38, 66 41 C68 46, 60 52, 56 60 C51 68, 50 78, 53 88" stroke="#111111" stroke-width="3" stroke-linecap="round" stroke-linejoin="round" />
-            <path d="M33 55 C32 52, 32 48, 33 46 C34 44, 36 44, 37 47 C37 50, 37 53, 37 55 C37 51, 38 46, 39 44 C40 42, 42 42, 43 45 C43 48, 43 51, 43 54 C43 51, 44 47, 45 45 C46 43, 48 43, 49 46 C50 49, 51 57, 51 68 C51 75, 49 81, 47 85" stroke="#111111" stroke-width="3" stroke-linecap="round" stroke-linejoin="round" />
-            <path d="M33 55 C34 61, 35 68, 37 75 C38 81, 39 84, 40 86" stroke="#111111" stroke-width="3" stroke-linecap="round" stroke-linejoin="round" />
-        </svg>
-        <span class="font-serif text-xl tracking-tight text-[#111111] font-semibold">StudyVibe</span>
-        <span class="text-xs uppercase tracking-widest bg-[#F5F5F7] text-[#555555] px-2 py-1 border border-[#E5E5E7] ml-2 font-mono">Enseignant</span>
-    </div>
-    <div class="flex items-center gap-6">
-        <div class="relative" id="notif-wrap">
-            <button type="button" id="notif-btn" class="relative text-xs uppercase tracking-wider text-[#555555] hover:text-[#111111]" aria-label="Notifications">
-                Notifications <span id="notif-count" class="hidden ml-1 bg-[#004B23] text-white text-[10px] px-1.5 py-0.5 rounded-full">0</span>
+    <!-- MOBILE TOP BAR -->
+    <div class="w-full md:hidden bg-[#004B23] text-white py-4 px-4 flex justify-between items-center sticky top-0 z-30 shadow-md">
+        <div class="flex items-center gap-3">
+            <button onclick="toggleMobileDrawer()" class="p-1 text-white hover:text-white/80 focus:outline-none">
+                <svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 6h16M4 12h16M4 18h16"></path></svg>
             </button>
-            <div id="notif-panel" class="hidden absolute right-0 top-full mt-2 w-80 max-h-64 overflow-y-auto bg-white border border-[#E5E5E7] shadow-lg z-50 text-left text-sm"></div>
+            <span class="font-serif text-lg font-bold tracking-tight">StudyVibe</span>
         </div>
-        <span class="text-sm font-light text-[#555555]"><?= htmlspecialchars($user['name']); ?></span>
-        <button class="sv-dark-toggle" data-dark-toggle title="Mode sombre"></button>
-        <div class="relative inline-block text-left">
-            <select id="lang-selector" onchange="changeLanguage(this.value)" class="bg-transparent text-xs border border-[#E5E5E7] text-[#555555] rounded-sm py-1 px-2 focus:outline-none focus:border-[#004B23]">
-                <option value="fr" <?= TranslationService::getLang() === 'fr' ? 'selected' : ''; ?>>FR</option>
-                <option value="en" <?= TranslationService::getLang() === 'en' ? 'selected' : ''; ?>>EN</option>
-            </select>
-        </div>
-        <a href="/logout.php" class="text-xs uppercase tracking-wider text-[#D32F2F] hover:underline">Déconnexion</a>
-    </div>
-</header>
-
-<!-- ══════════════════════════════════════════════════════════
-     CORPS
-══════════════════════════════════════════════════════════ -->
-<main class="flex-grow flex flex-col lg:flex-row">
-
-    <!-- ── Sidebar ──────────────────────────────────────────── -->
-    <aside class="w-full lg:w-80 bg-[#092215] text-[#A3B899] p-6 md:p-8 space-y-8 flex-shrink-0 flex flex-col justify-between">
-        <div class="space-y-6">
-            <div class="space-y-2">
-                <h3 class="text-xs font-semibold uppercase tracking-widest text-[#E2ECE9]/60">Espace Enseignant</h3>
-                <p class="text-[11px] font-light text-[#E2ECE9]/40">Gérez vos contenus pédagogiques et suivez vos apprenants.</p>
+        <div class="flex items-center gap-3">
+            <!-- Notifications (Mobile) -->
+            <div class="relative" id="mobile-notif-wrap">
+                <button type="button" onclick="toggleMobileNotifs()" class="relative p-1.5 text-white hover:text-white/80 transition-colors rounded-full" aria-label="Notifications">
+                    <svg class="w-5 h-5" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" d="M14.857 17.082a23.848 23.848 0 005.454-1.31A8.967 8.967 0 0118 9.75v-.7V9A6 6 0 006 9v.75a8.967 8.967 0 01-2.312 6.022c1.733.64 3.56 1.085 5.455 1.31m5.714 0a24.255 24.255 0 01-5.714 0m5.714 0a3 3 0 11-5.714 0" />
+                    </svg>
+                    <span id="mobile-notif-count" class="hidden absolute -top-1 -right-1 bg-[#D32F2F] text-white text-[9px] font-bold px-1 py-0.2 rounded-full min-w-[15px] text-center border border-white">0</span>
+                </button>
+                <div id="mobile-notif-panel-container" class="hidden absolute right-0 top-full mt-2 w-72 bg-white dark:bg-[#1E1E1E] border border-[#E5E5E7] dark:border-[#2C2C2C] shadow-xl z-50 text-left text-sm rounded-lg overflow-hidden flex flex-col max-h-[300px]">
+                    <div class="p-3 border-b border-[#E5E5E7] dark:border-[#2C2C2C] flex justify-between items-center bg-[#F9F7F4] dark:bg-[#252525] flex-shrink-0">
+                        <span class="font-serif font-semibold text-xs uppercase tracking-wider text-[#111111] dark:text-white">Notifications</span>
+                        <button onclick="markAllNotificationsRead(event)" class="text-[10px] text-[#004B23] dark:text-[#34C759] hover:underline font-semibold">Tout marquer comme lu</button>
+                    </div>
+                    <div id="mobile-notif-panel" class="overflow-y-auto flex-grow max-h-[250px] dark:text-white/80"></div>
+                </div>
             </div>
+            <a href="/logout.php" class="text-xs text-red-300 uppercase tracking-wider font-semibold hover:underline">Déconnexion</a>
+        </div>
+    </div>
 
-            <!-- Liste de sélection des cours -->
+    <!-- MOBILE DRAWER -->
+    <div id="mobile-drawer" class="fixed inset-0 z-50 flex hidden">
+        <div onclick="toggleMobileDrawer()" class="fixed inset-0 bg-black/50 transition-opacity"></div>
+        <div class="relative flex-1 flex flex-col max-w-xs w-full bg-[#004B23] pt-5 pb-4 transition-transform duration-300">
+            <div class="absolute top-0 right-0 -mr-12 pt-2">
+                <button onclick="toggleMobileDrawer()" class="ml-1 flex items-center justify-center h-10 w-10 rounded-full focus:outline-none focus:ring-2 focus:ring-inset focus:ring-white">
+                    <span class="sr-only">Close sidebar</span>
+                    <svg class="h-6 w-6 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12" /></svg>
+                </button>
+            </div>
+            <div class="flex-shrink-0 flex items-center px-6 gap-3 border-b border-[#003619] pb-4">
+                <span class="font-serif text-xl font-bold tracking-tight text-white">StudyVibe</span>
+                <span class="text-[10px] uppercase tracking-widest bg-[#003619] text-white px-2 py-0.5 border border-[#002610] font-mono">Enseignant</span>
+            </div>
+            <div class="mt-5 flex-1 h-0 overflow-y-auto px-4 space-y-6">
+                <!-- Quick actions -->
+                <button type="button" onclick="toggleModal('create-course-modal'); toggleMobileDrawer();"
+                        class="w-full px-4 py-2.5 bg-white text-[#092215] text-[10px] font-bold uppercase tracking-wider hover:bg-[#E2ECE9] rounded-lg transition-colors flex items-center justify-center gap-1.5">
+                    <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2.5" d="M12 4v16m8-8H4"/></svg>
+                    Créer un Cours
+                </button>
+
+                <!-- Course List -->
+                <div class="space-y-2">
+                    <label class="block text-[10px] font-bold uppercase tracking-wider text-white/50">Sélectionner un Cours</label>
+                    <div class="space-y-1">
+                        <?php if (empty($myCourses)): ?>
+                            <p class="text-xs italic text-white/40">Aucun cours disponible.</p>
+                        <?php else: ?>
+                            <?php foreach ($myCourses as $mc): 
+                                $isSel = ($selectedCourse && (int)$selectedCourse['id'] === (int)$mc['id']);
+                            ?>
+                                <a href="/teacher/dashboard.php?course_id=<?= $mc['id']; ?>"
+                                   class="block px-3 py-2 rounded-lg text-xs transition-all <?= $isSel ? 'bg-white/20 text-white font-semibold' : 'hover:bg-white/10 text-white/70'; ?>">
+                                    <?= htmlspecialchars($mc['title']); ?>
+                                </a>
+                            <?php endforeach; ?>
+                        <?php endif; ?>
+                    </div>
+                </div>
+
+                <!-- Navigation Links -->
+                <nav class="space-y-1">
+                    <button onclick="switchDashboardTab('tab-overview'); toggleMobileDrawer();" data-tab-target="tab-overview" 
+                            class="sidebar-tab-btn w-full flex items-center gap-3 px-4 py-3 rounded-lg text-left text-sm transition-all duration-200 text-white hover:bg-white/10">
+                        Vue d'ensemble
+                    </button>
+                    <button onclick="switchDashboardTab('tab-course'); toggleMobileDrawer();" data-tab-target="tab-course" 
+                            class="sidebar-tab-btn w-full flex items-center gap-3 px-4 py-3 rounded-lg text-left text-sm transition-all duration-200 <?= $selectedCourse ? 'text-white hover:bg-white/10' : 'opacity-40 cursor-not-allowed text-white/40' ?>">
+                        Plan &amp; Contenu
+                    </button>
+                    <button onclick="switchDashboardTab('tab-live-eval'); toggleMobileDrawer();" data-tab-target="tab-live-eval" 
+                            class="sidebar-tab-btn w-full flex items-center gap-3 px-4 py-3 rounded-lg text-left text-sm transition-all duration-200 <?= $selectedCourse ? 'text-white hover:bg-white/10' : 'opacity-40 cursor-not-allowed text-white/40' ?>">
+                        Téléévaluations (Live)
+                    </button>
+                    <button onclick="switchDashboardTab('tab-webinars'); toggleMobileDrawer();" data-tab-target="tab-webinars" 
+                            class="sidebar-tab-btn w-full flex items-center gap-3 px-4 py-3 rounded-lg text-left text-sm transition-all duration-200 <?= $selectedCourse ? 'text-white hover:bg-white/10' : 'opacity-40 cursor-not-allowed text-white/40' ?>">
+                        Webinaires &amp; Directs
+                    </button>
+                    <button onclick="switchDashboardTab('tab-grades'); toggleMobileDrawer();" data-tab-target="tab-grades" 
+                            class="sidebar-tab-btn w-full flex items-center gap-3 px-4 py-3 rounded-lg text-left text-sm transition-all duration-200 <?= $selectedCourse ? 'text-white hover:bg-white/10' : 'opacity-40 cursor-not-allowed text-white/40' ?>">
+                        Notes &amp; Suivi
+                    </button>
+                    <button onclick="switchDashboardTab('tab-comments'); toggleMobileDrawer();" data-tab-target="tab-comments" 
+                            class="sidebar-tab-btn w-full flex items-center gap-3 px-4 py-3 rounded-lg text-left text-sm transition-all duration-200 <?= $selectedCourse ? 'text-white hover:bg-white/10' : 'opacity-40 cursor-not-allowed text-white/40' ?>">
+                        Communauté &amp; Q&amp;R
+                    </button>
+                </nav>
+            </div>
+            <div class="flex-shrink-0 flex border-t border-[#003619] p-4 bg-[#003c1c] items-center gap-3">
+                <img src="<?= $user['avatar_path'] ? htmlspecialchars(mediaUrl('avatar', $user['avatar_path'])) : 'https://www.gravatar.com/avatar/' . md5(strtolower(trim($user['email']))) . '?d=mp'; ?>" 
+                     alt="Photo de profil" class="w-8 h-8 rounded-full object-cover border border-white/20">
+                <div class="flex-grow overflow-hidden">
+                    <div class="text-xs font-semibold text-white truncate"><?= htmlspecialchars($user['name']); ?></div>
+                    <div class="text-[10px] text-white/60 truncate"><?= htmlspecialchars($user['email']); ?></div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- LEFT SIDEBAR (Desktop) -->
+    <aside class="w-64 bg-[#004B23] text-white flex flex-col justify-between h-screen sticky top-0 border-r border-[#003619] hidden md:flex flex-shrink-0 z-40">
+        <!-- Logo / Brand Header -->
+        <div class="p-6 border-b border-[#003619] flex items-center gap-3">
+            <svg class="w-8 h-8" viewBox="0 0 100 100" fill="none" xmlns="http://www.w3.org/2000/svg">
+                <circle cx="50" cy="50" r="46" stroke="#FFFFFF" stroke-width="3.5" />
+                <line x1="33" y1="31" x2="62" y2="25" stroke="#FFFFFF" stroke-width="2.5" stroke-linecap="round" />
+                <line x1="33" y1="31" x2="49" y2="53" stroke="#FFFFFF" stroke-width="2.5" stroke-linecap="round" />
+                <line x1="33" y1="31" x2="14" y2="13" stroke="#FFFFFF" stroke-width="2.5" stroke-linecap="round" />
+                <line x1="33" y1="31" x2="42" y2="11" stroke="#FFFFFF" stroke-width="2.5" stroke-linecap="round" />
+                <line x1="33" y1="31" x2="20" y2="53" stroke="#FFFFFF" stroke-width="2.5" stroke-linecap="round" />
+                <line x1="49" y1="53" x2="62" y2="25" stroke="#FFFFFF" stroke-width="2.5" stroke-linecap="round" />
+                <circle cx="62" cy="25" r="6" fill="#34C759" />
+                <circle cx="49" cy="53" r="6" fill="#34C759" />
+                <circle cx="33" cy="31" r="6" fill="#34C759" />
+                <circle cx="14" cy="13" r="6" fill="#34C759" />
+                <circle cx="42" cy="11" r="6" fill="#34C759" />
+                <circle cx="20" cy="53" r="6" fill="#34C759" />
+                <path d="M56 10 C52 14, 52 24, 52 29 C52 31, 50 33, 49 33 L45 33 L49 35 C50 37, 51 38, 50 40 C49 41, 47 42, 49 44 C51 45, 54 46, 56 46 C59 46, 65 38, 66 41 C68 46, 60 52, 56 60 C51 68, 50 78, 53 88" stroke="#FFFFFF" stroke-width="3" stroke-linecap="round" stroke-linejoin="round" />
+                <path d="M33 55 C32 52, 32 48, 33 46 C34 44, 36 44, 37 47 C37 50, 37 53, 37 55 C37 51, 38 46, 39 44 C40 42, 42 42, 43 45 C43 48, 43 51, 43 54 C43 51, 44 47, 45 45 C46 43, 48 43, 49 46 C50 49, 51 57, 51 68 C51 75, 49 81, 47 85" stroke="#FFFFFF" stroke-width="3" stroke-linecap="round" stroke-linejoin="round" />
+                <path d="M33 55 C34 61, 35 68, 37 75 C38 81, 39 84, 40 86" stroke="#FFFFFF" stroke-width="3" stroke-linecap="round" stroke-linejoin="round" />
+            </svg>
+            <span class="font-serif text-lg font-semibold tracking-tight text-white">StudyVibe</span>
+            <span class="text-[9px] uppercase tracking-widest bg-[#003619] text-white px-2 py-0.5 border border-[#002610] ml-2 font-mono">Enseignant</span>
+        </div>
+
+        <!-- Navigation Menu -->
+        <div class="flex-grow py-6 px-4 space-y-6 overflow-y-auto">
+            <!-- Create course button -->
+            <button type="button" onclick="toggleModal('create-course-modal')"
+                    class="w-full px-4 py-2.5 bg-white text-[#004B23] hover:bg-white/95 text-[10px] font-bold uppercase tracking-wider rounded-lg transition-colors flex items-center justify-center gap-1.5 shadow-sm">
+                <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2.5" d="M12 4v16m8-8H4"/></svg>
+                Créer un Cours
+            </button>
+
+            <!-- Course Select Dropdown or Listing -->
             <div class="space-y-2">
-                <label class="block text-[10px] font-bold uppercase tracking-wider text-[#E2ECE9]/50">Sélectionner un Cours</label>
-                <div class="space-y-1">
-                    <?php if (empty($myCourses)): ?>
-                        <p class="text-xs italic text-[#E2ECE9]/40">Aucun cours disponible.</p>
-                    <?php else: ?>
-                        <?php foreach ($myCourses as $mc): 
-                            $isSel = ($selectedCourse && (int)$selectedCourse['id'] === (int)$mc['id']);
-                        ?>
-                            <a href="/teacher/dashboard.php?course_id=<?= $mc['id']; ?>"
-                               class="block px-3 py-2 rounded-sm text-xs transition-all <?= $isSel ? 'bg-[#004B23] text-white font-semibold border-l-4 border-white' : 'hover:bg-[#143d26] hover:text-white text-[#E2ECE9]/70'; ?>">
+                <label class="block text-[10px] font-bold uppercase tracking-wider text-white/50">Sélectionner un Cours</label>
+                <div class="relative">
+                    <select onchange="location.href='/teacher/dashboard.php?course_id='+this.value;" class="w-full bg-[#003619] text-white border border-[#002610] rounded-lg py-2 px-3 text-xs focus:outline-none focus:border-white/40 appearance-none cursor-pointer">
+                        <option value="0" <?= !$selectedCourse ? 'selected' : '' ?>>-- Choisir un cours --</option>
+                        <?php foreach ($myCourses as $mc): ?>
+                            <option value="<?= $mc['id']; ?>" <?= ($selectedCourse && (int)$selectedCourse['id'] === (int)$mc['id']) ? 'selected' : ''; ?>>
                                 <?= htmlspecialchars($mc['title']); ?>
-                            </a>
+                            </option>
                         <?php endforeach; ?>
-                    <?php endif; ?>
+                    </select>
+                    <div class="pointer-events-none absolute inset-y-0 right-0 flex items-center px-2 text-white/60">
+                        <svg class="fill-current h-4 w-4" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20"><path d="M9.293 12.95l.707.707L15.657 8l-1.414-1.414L10 10.828 5.757 6.586 4.343 8z"/></svg>
+                    </div>
                 </div>
             </div>
 
-            <!-- Boutons d'action rapides -->
-            <div class="pt-4 border-t border-[#143d26]">
-                <button type="button" onclick="toggleModal('create-course-modal')"
-                        class="w-full px-4 py-2.5 bg-white text-[#092215] text-[10px] font-semibold uppercase tracking-wider hover:bg-[#E2ECE9] rounded-sm transition-colors flex items-center justify-center gap-1.5">
-                    <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 4v16m8-8H4"/></svg>
-                    Créer un Cours
-                </button>
-            </div>
-
-            <!-- Onglets de Navigation Latérale -->
-            <div class="space-y-1.5 pt-4 border-t border-[#143d26]">
-                <label class="block text-[10px] font-bold uppercase tracking-wider text-[#E2ECE9]/50 mb-2">Workspace</label>
+            <!-- Workspace Tabs -->
+            <div class="space-y-1.5">
+                <label class="block text-[10px] font-bold uppercase tracking-wider text-white/50 mb-2">Workspace</label>
                 
-                <!-- Vue d'ensemble (Toujours active) -->
                 <button onclick="switchDashboardTab('tab-overview')" data-tab-target="tab-overview" 
-                        class="sidebar-tab-btn w-full flex items-center gap-3 px-4 py-3 rounded-sm text-left text-sm transition-all duration-200 bg-[#004B23] text-white font-semibold">
+                        class="sidebar-tab-btn w-full flex items-center gap-3 px-4 py-3 rounded-lg text-left text-sm transition-all duration-200 text-white font-semibold">
                     <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 6a2 2 0 012-2h2a2 2 0 012 2v4a2 2 0 01-2 2H6a2 2 0 01-2-2V6zM14 6a2 2 0 012-2h2a2 2 0 012 2v4a2 2 0 01-2 2h-2a2 2 0 01-2-2V6zM4 16a2 2 0 012-2h2a2 2 0 012 2v4a2 2 0 01-2 2H6a2 2 0 01-2-2v-4zM14 16a2 2 0 012-2h2a2 2 0 012 2v4a2 2 0 01-2 2h-2a2 2 0 01-2-2v-4z"/></svg>
                     Vue d'ensemble
                 </button>
 
-                <!-- Plan & Contenu -->
                 <button onclick="switchDashboardTab('tab-course')" data-tab-target="tab-course" 
-                        class="sidebar-tab-btn w-full flex items-center gap-3 px-4 py-3 rounded-sm text-left text-sm transition-all duration-200 <?= $selectedCourse ? 'text-gray-300 hover:bg-[#143d26] hover:text-white' : 'opacity-40 cursor-not-allowed text-gray-500' ?>">
+                        class="sidebar-tab-btn w-full flex items-center gap-3 px-4 py-3 rounded-lg text-left text-sm transition-all duration-200 <?= $selectedCourse ? 'text-white/70 hover:text-white hover:bg-white/10' : 'opacity-40 cursor-not-allowed text-white/40' ?>">
                     <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 6.253v13m0-13C10.832 5.477 9.246 5 7.5 5S4.168 5.477 3 6.253v13C4.168 18.477 5.754 18 7.5 18s3.332.477 4.5 1.253m0-13C13.168 5.477 14.754 5 16.5 5c1.747 0 3.332.477 4.5 1.253v13C19.832 18.477 18.247 18 16.5 18c-1.746 0-3.332.477-4.5 1.253"/></svg>
                     Plan &amp; Contenu
                 </button>
 
-                <!-- Téléévaluations (Live) -->
                 <button onclick="switchDashboardTab('tab-live-eval')" data-tab-target="tab-live-eval" 
-                        class="sidebar-tab-btn w-full flex items-center gap-3 px-4 py-3 rounded-sm text-left text-sm transition-all duration-200 <?= $selectedCourse ? 'text-gray-300 hover:bg-[#143d26] hover:text-white' : 'opacity-40 cursor-not-allowed text-gray-500' ?>">
+                        class="sidebar-tab-btn w-full flex items-center gap-3 px-4 py-3 rounded-lg text-left text-sm transition-all duration-200 <?= $selectedCourse ? 'text-white/70 hover:text-white hover:bg-white/10' : 'opacity-40 cursor-not-allowed text-white/40' ?>">
                     <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 10l4.553-2.276A1 1 0 0121 8.618v6.764a1 1 0 01-1.447.894L15 14M5 18h8a2 2 0 002-2V8a2 2 0 00-2-2H5a2 2 0 00-2 2v8a2 2 0 002 2z"/></svg>
                     Téléévaluations (Live)
                 </button>
 
-                <!-- Webinaires & Directs -->
                 <button onclick="switchDashboardTab('tab-webinars')" data-tab-target="tab-webinars" 
-                        class="sidebar-tab-btn w-full flex items-center gap-3 px-4 py-3 rounded-sm text-left text-sm transition-all duration-200 <?= $selectedCourse ? 'text-gray-300 hover:bg-[#143d26] hover:text-white' : 'opacity-40 cursor-not-allowed text-gray-500' ?>">
+                        class="sidebar-tab-btn w-full flex items-center gap-3 px-4 py-3 rounded-lg text-left text-sm transition-all duration-200 <?= $selectedCourse ? 'text-white/70 hover:text-white hover:bg-white/10' : 'opacity-40 cursor-not-allowed text-white/40' ?>">
                     <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 10l4.553-2.276A1 1 0 0121 8.618v6.764a1 1 0 01-1.447.894L15 14M5 18h8a2 2 0 002-2V8a2 2 0 00-2-2H5a2 2 0 00-2 2v8a2 2 0 002 2z"/></svg>
                     Webinaires &amp; Directs
                 </button>
 
-                <!-- Notes & Suivi -->
                 <button onclick="switchDashboardTab('tab-grades')" data-tab-target="tab-grades" 
-                        class="sidebar-tab-btn w-full flex items-center gap-3 px-4 py-3 rounded-sm text-left text-sm transition-all duration-200 <?= $selectedCourse ? 'text-gray-300 hover:bg-[#143d26] hover:text-white' : 'opacity-40 cursor-not-allowed text-gray-500' ?>">
+                        class="sidebar-tab-btn w-full flex items-center gap-3 px-4 py-3 rounded-lg text-left text-sm transition-all duration-200 <?= $selectedCourse ? 'text-white/70 hover:text-white hover:bg-white/10' : 'opacity-40 cursor-not-allowed text-white/40' ?>">
                     <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12l2 2 4-4M7.835 4.697a3.42 3.42 0 001.946-.806 3.42 3.42 0 014.438 0 3.42 3.42 0 001.946.806 3.42 3.42 0 013.138 3.138 3.42 3.42 0 00.806 1.946 3.42 3.42 0 010 4.438 3.42 3.42 0 00-.806 1.946 3.42 3.42 0 01-3.138 3.138 3.42 3.42 0 00-1.946.806 3.42 3.42 0 01-4.438 0 3.42 3.42 0 00-1.946-.806 3.42 3.42 0 01-3.138-3.138 3.42 3.42 0 00-.806-1.946 3.42 3.42 0 010-4.438 3.42 3.42 0 00.806-1.946 3.42 3.42 0 013.138-3.138z"/></svg>
                     Notes &amp; Suivi
                 </button>
 
-                <!-- Communauté & Q&R -->
                 <button onclick="switchDashboardTab('tab-comments')" data-tab-target="tab-comments" 
-                        class="sidebar-tab-btn w-full flex items-center gap-3 px-4 py-3 rounded-sm text-left text-sm transition-all duration-200 <?= $selectedCourse ? 'text-gray-300 hover:bg-[#143d26] hover:text-white' : 'opacity-40 cursor-not-allowed text-gray-500' ?>">
+                        class="sidebar-tab-btn w-full flex items-center gap-3 px-4 py-3 rounded-lg text-left text-sm transition-all duration-200 <?= $selectedCourse ? 'text-white/70 hover:text-white hover:bg-white/10' : 'opacity-40 cursor-not-allowed text-white/40' ?>">
                     <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 12h.01M12 12h.01M16 12h.01M21 12c0 4.418-4.03 8-9 8a9.863 9.863 0 01-4.255-.949L3 20l1.395-3.72C3.512 15.042 3 13.574 3 12c0-4.418 4.03-8 9-8s9 3.582 9 8z"/></svg>
                     Communauté &amp; Q&amp;R
                 </button>
             </div>
         </div>
 
-        <div class="text-[10px] text-[#E2ECE9]/30 text-center font-mono">
-            StudyVibe v2.1 Enseignant
+        <!-- Profile / Sidebar Footer -->
+        <div class="p-4 border-t border-[#003619] bg-[#003c1c] flex items-center justify-between gap-3">
+            <div class="flex items-center gap-3 overflow-hidden">
+                <img src="<?= $user['avatar_path'] ? htmlspecialchars(mediaUrl('avatar', $user['avatar_path'])) : 'https://www.gravatar.com/avatar/' . md5(strtolower(trim($user['email']))) . '?d=mp'; ?>" 
+                     alt="Photo de profil" class="w-9 h-9 rounded-full object-cover border border-white/20">
+                <div class="flex-grow overflow-hidden">
+                    <div class="text-xs font-semibold text-white truncate"><?= htmlspecialchars($user['name']); ?></div>
+                    <div class="text-[10px] text-white/60 truncate"><?= htmlspecialchars($user['email']); ?></div>
+                </div>
+            </div>
+            <a href="/logout.php" title="Déconnexion" class="text-white/60 hover:text-red-400 transition-colors flex-shrink-0">
+                <svg class="w-4 h-4" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M17 16l4-4m0 0l-4-4m4 4H7m6 4v1a3 3 0 01-3 3H6a3 3 0 01-3-3V7a3 3 0 013-3h4a3 3 0 013 3v1" /></svg>
+            </a>
         </div>
     </aside>
 
-    <!-- ── Zone de Travail (Workspace) ─────────────────────── -->
-    <section class="flex-grow p-6 md:p-12 lg:p-16 space-y-12 bg-[#FAF8F4] overflow-y-auto max-h-[90vh]">
+    <!-- MAIN CONTAINER -->
+    <div class="flex-grow flex flex-col min-h-screen overflow-x-hidden">
 
-        <?php if ($successMsg): ?>
-            <div class="p-4 bg-[#EAF2EC] border border-[#004B23]/20 text-[#004B23] text-sm font-semibold rounded-sm fade-in">
-                <?= htmlspecialchars($successMsg); ?>
+        <!-- Top Header Controls (Desktop) -->
+        <header class="hidden md:flex justify-between items-center py-4 px-8 border-b border-[#E5E5E7] dark:border-[#2C2C2C] bg-white dark:bg-[#1A1A1A] sticky top-0 z-30">
+            <div class="flex items-center gap-2">
+                <span class="text-xs text-[#888888] dark:text-[#AAAAAA] uppercase tracking-wider font-semibold">Console Enseignant</span>
             </div>
-        <?php endif; ?>
+            <div class="flex items-center gap-4">
+                <!-- Notifications -->
+                <div class="relative" id="notif-wrap">
+                    <button type="button" id="notif-btn" class="relative p-1.5 text-[#555555] dark:text-[#AAAAAA] hover:text-[#004B23] dark:hover:text-[#34C759] transition-colors rounded-full hover:bg-[#F5F5F7] dark:hover:bg-[#252525]" aria-label="Notifications">
+                        <svg class="w-5 h-5" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
+                            <path stroke-linecap="round" stroke-linejoin="round" d="M14.857 17.082a23.848 23.848 0 005.454-1.31A8.967 8.967 0 0118 9.75v-.7V9A6 6 0 006 9v.75a8.967 8.967 0 01-2.312 6.022c1.733.64 3.56 1.085 5.455 1.31m5.714 0a24.255 24.255 0 01-5.714 0m5.714 0a3 3 0 11-5.714 0" />
+                        </svg>
+                        <span id="notif-count" class="hidden absolute -top-1 -right-1 bg-[#D32F2F] text-white text-[9px] font-bold px-1 py-0.2 rounded-full min-w-[15px] text-center border border-white">0</span>
+                    </button>
+                    <div id="notif-panel-container" class="hidden absolute right-0 top-full mt-2 w-80 bg-white dark:bg-[#1E1E1E] border border-[#E5E5E7] dark:border-[#2C2C2C] shadow-xl z-50 text-left text-sm rounded-lg overflow-hidden flex flex-col max-h-[360px]">
+                        <div class="p-3 border-b border-[#E5E5E7] dark:border-[#2C2C2C] flex justify-between items-center bg-[#F9F7F4] dark:bg-[#252525] flex-shrink-0">
+                            <span class="font-serif font-semibold text-xs uppercase tracking-wider text-[#111111] dark:text-white">Notifications</span>
+                            <button onclick="markAllNotificationsRead(event)" class="text-[10px] text-[#004B23] dark:text-[#34C759] hover:underline font-semibold">Tout marquer comme lu</button>
+                        </div>
+                        <div id="notif-panel" class="overflow-y-auto flex-grow max-h-[300px] dark:text-white/80"></div>
+                    </div>
+                </div>
 
-        <!-- 1. VUE D'ENSEMBLE (tab-overview) -->
-        <div id="tab-overview" class="tab-content space-y-12">
+                <button class="sv-dark-toggle" data-dark-toggle title="Mode sombre"></button>
+                
+                <div class="relative inline-block text-left">
+                    <select id="lang-selector" onchange="changeLanguage(this.value)" class="bg-transparent text-xs border border-[#E5E5E7] dark:border-[#2C2C2C] text-[#555555] dark:text-[#AAAAAA] rounded-sm py-1 px-2 focus:outline-none focus:border-[#004B23] dark:focus:border-[#34C759]">
+                        <option value="fr" <?= TranslationService::getLang() === 'fr' ? 'selected' : ''; ?>>FR</option>
+                        <option value="en" <?= TranslationService::getLang() === 'en' ? 'selected' : ''; ?>>EN</option>
+                    </select>
+                </div>
+            </div>
+        </header>
+
+        <!-- Main Workspace Area -->
+        <main class="flex-grow p-6 md:p-10 lg:p-12 space-y-10 w-full mx-auto bg-[#FAF9F6] dark:bg-[#121212] transition-colors duration-200">
+
+            <?php if ($successMsg): ?>
+                <div class="p-4 bg-[#EAF2EC] border border-[#004B23]/20 dark:bg-[#1D3D25] dark:border-[#34C759]/20 text-[#004B23] dark:text-[#34C759] text-sm font-semibold rounded-lg fade-in">
+                    <?= htmlspecialchars($successMsg); ?>
+                </div>
+            <?php endif; ?>
+
+            <!-- 1. VUE D'ENSEMBLE (tab-overview) -->
+            <div id="tab-overview" class="tab-content space-y-12">
             
             <?php if (!$selectedCourse): ?>
                 
                 <!-- Welcome/State message when no course is active -->
-                <div class="text-center py-16 px-4 bg-white border border-[#E5E5E7] rounded-sm max-w-2xl mx-auto space-y-6">
-                    <svg class="w-16 h-16 text-[#004B23] mx-auto opacity-70" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <div class="text-center py-16 px-4 bg-white/80 dark:bg-[#1E1E1E]/80 backdrop-blur-md border border-[#E5E5E7] dark:border-[#2C2C2C] rounded-2xl max-w-2xl mx-auto space-y-6">
+                    <svg class="w-16 h-16 text-[#004B23] dark:text-[#34C759] mx-auto opacity-70" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                         <path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.2"
                               d="M12 6.253v13m0-13C10.832 5.477 9.246 5 7.5 5S4.168 5.477 3 6.253v13C4.168 18.477 5.754 18 7.5 18s3.332.477 4.5 1.253m0-13C13.168 5.477 14.754 5 16.5 5c1.747 0 3.332.477 4.5 1.253v13C19.832 18.477 18.247 18 16.5 18c-1.746 0-3.332.477-4.5 1.253"/>
                     </svg>
-                    <h2 class="font-serif text-3xl font-light text-[#111111] mb-2">Créez ou sélectionnez un cours</h2>
-                    <p class="text-sm font-light text-[#555555]">
+                    <h2 class="font-serif text-3xl font-light text-[#111111] dark:text-white mb-2">Créez ou sélectionnez un cours</h2>
+                    <p class="text-sm font-light text-[#555555] dark:text-[#AAAAAA]">
                         Utilisez le bouton « Créer un cours » dans la barre latérale, ou sélectionnez un cours existant pour commencer à gérer son contenu, ses séances de live, et suivre les notes de vos élèves.
                     </p>
                     
                     <?php if (!empty($modules)): ?>
                         <button type="button" onclick="toggleModal('create-course-modal')"
-                                class="px-6 py-2.5 bg-[#111111] text-white text-xs font-semibold uppercase tracking-wider hover:bg-[#004B23] rounded-sm transition-all shadow-sm">
+                                class="px-6 py-2.5 bg-[#111111] dark:bg-[#FFFFFF] text-white dark:text-[#111111] text-xs font-semibold uppercase tracking-wider hover:bg-[#004B23] dark:hover:bg-[#34C759] dark:hover:text-white rounded-lg transition-all shadow-sm">
                             + Créer mon premier cours
                         </button>
                     <?php else: ?>
-                        <p class="text-xs text-[#888888] italic mt-4">Aucun module disponible — le promoteur doit d'abord créer un module de formation.</p>
+                        <p class="text-xs text-[#888888] dark:text-[#AAAAAA] italic mt-4">Aucun module disponible — le promoteur doit d'abord créer un module de formation.</p>
                     <?php endif; ?>
                 </div>
 
@@ -1378,46 +1496,58 @@ $successMsg = $successMessages[$successKey] ?? null;
                 }
                 ?>
                 <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-6 mt-12 max-w-5xl mx-auto">
-                    <div class="bg-white border border-[#E5E5E7] p-6 rounded-sm">
-                        <div class="text-xs font-semibold uppercase tracking-wider text-[#555555] mb-2">Total Cours</div>
-                        <div class="text-3xl font-semibold text-[#111111]"><?= $allCoursesCount ?></div>
+                    <div class="bg-white/80 dark:bg-[#1E1E1E]/80 backdrop-blur-md border border-[#E5E5E7] dark:border-[#2C2C2C] p-6 rounded-xl shadow-sm flex items-center justify-between">
+                        <div>
+                            <div class="text-xs font-semibold uppercase tracking-wider text-[#555555] dark:text-[#AAAAAA] mb-1">Total Cours</div>
+                            <div class="text-3xl font-semibold text-[#111111] dark:text-white"><?= $allCoursesCount ?></div>
+                        </div>
+                        <svg class="w-8 h-8 text-[#004B23] dark:text-[#34C759]" fill="none" stroke="currentColor" stroke-width="1.5" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M12 6.253v13m0-13C10.832 5.477 9.246 5 7.5 5S4.168 5.477 3 6.253v13C4.168 18.477 5.754 18 7.5 18s3.332.477 4.5 1.253m0-13C13.168 5.477 14.754 5 16.5 5c1.747 0 3.332.477 4.5 1.253v13C19.832 18.477 18.247 18 16.5 18c-1.746 0-3.332.477-4.5 1.253" /></svg>
                     </div>
-                    <div class="bg-white border border-[#E5E5E7] p-6 rounded-sm">
-                        <div class="text-xs font-semibold uppercase tracking-wider text-[#555555] mb-2">Total Apprenants</div>
-                        <div class="text-3xl font-semibold text-[#111111]"><?= $totalEnrolledCount ?></div>
+                    <div class="bg-white/80 dark:bg-[#1E1E1E]/80 backdrop-blur-md border border-[#E5E5E7] dark:border-[#2C2C2C] p-6 rounded-xl shadow-sm flex items-center justify-between">
+                        <div>
+                            <div class="text-xs font-semibold uppercase tracking-wider text-[#555555] dark:text-[#AAAAAA] mb-1">Total Apprenants</div>
+                            <div class="text-3xl font-semibold text-[#111111] dark:text-white"><?= $totalEnrolledCount ?></div>
+                        </div>
+                        <svg class="w-8 h-8 text-[#004B23] dark:text-[#34C759]" fill="none" stroke="currentColor" stroke-width="1.5" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M15 19.128a9.38 9.38 0 002.625.372 9.337 9.337 0 004.121-.952 4.125 4.125 0 00-7.533-2.493M15 19.128v-.003c0-1.113-.285-2.16-.786-3.07M15 19.128v.109A11.386 11.386 0 0110.089 20.5a11.378 11.378 0 01-4.94-1.27v-.1c0-2.22 3.584-3.496 5.894-3.496 2.31 0 5.894 1.27 5.894 3.496m-4.121-6.953A4.125 4.125 0 1111 8a4.125 4.125 0 012.879 4.175m4.746-1.125a3.375 3.375 0 11-3.375-3.375 3.375 3.375 0 013.375 3.375z" /></svg>
                     </div>
-                    <div class="bg-white border border-[#E5E5E7] p-6 rounded-sm">
-                        <div class="text-xs font-semibold uppercase tracking-wider text-[#555555] mb-2">Classes Webinaires</div>
-                        <div class="text-3xl font-semibold text-[#111111]"><?= $totalWebinars ?></div>
+                    <div class="bg-white/80 dark:bg-[#1E1E1E]/80 backdrop-blur-md border border-[#E5E5E7] dark:border-[#2C2C2C] p-6 rounded-xl shadow-sm flex items-center justify-between">
+                        <div>
+                            <div class="text-xs font-semibold uppercase tracking-wider text-[#555555] dark:text-[#AAAAAA] mb-1">Classes Webinaires</div>
+                            <div class="text-3xl font-semibold text-[#111111] dark:text-white"><?= $totalWebinars ?></div>
+                        </div>
+                        <svg class="w-8 h-8 text-[#004B23] dark:text-[#34C759]" fill="none" stroke="currentColor" stroke-width="1.5" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M15 10l4.553-2.276A1 1 0 0121 8.618v6.764a1 1 0 01-1.447.894L15 14M5 18h8a2 2 0 002-2V8a2 2 0 00-2-2H5a2 2 0 00-2 2v8a2 2 0 002 2z" /></svg>
                     </div>
-                    <div class="bg-white border border-[#E5E5E7] p-6 rounded-sm">
-                        <div class="text-xs font-semibold uppercase tracking-wider text-[#555555] mb-2">Téléévaluations QuizBox</div>
-                        <div class="text-3xl font-semibold text-[#111111]"><?= $totalQuizSessions ?></div>
+                    <div class="bg-white/80 dark:bg-[#1E1E1E]/80 backdrop-blur-md border border-[#E5E5E7] dark:border-[#2C2C2C] p-6 rounded-xl shadow-sm flex items-center justify-between">
+                        <div>
+                            <div class="text-xs font-semibold uppercase tracking-wider text-[#555555] dark:text-[#AAAAAA] mb-1">Téléévaluations</div>
+                            <div class="text-3xl font-semibold text-[#111111] dark:text-white"><?= $totalQuizSessions ?></div>
+                        </div>
+                        <svg class="w-8 h-8 text-[#004B23] dark:text-[#34C759]" fill="none" stroke="currentColor" stroke-width="1.5" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" /></svg>
                     </div>
                 </div>
 
             <?php else: ?>
 
                 <!-- Course Title Header -->
-                <div class="border-b border-[#E5E5E7] pb-8 space-y-3">
-                    <div class="flex justify-between items-start gap-4">
+                <div class="border-b border-[#E5E5E7] dark:border-[#2C2C2C] pb-8 space-y-3">
+                    <div class="flex flex-col md:flex-row justify-between items-start gap-4">
                         <div class="space-y-1 flex-grow">
-                            <h2 class="font-serif text-4xl font-light text-[#111111]">
+                            <h2 class="font-serif text-4xl font-light text-[#111111] dark:text-white">
                                 <?= htmlspecialchars($selectedCourse['title']); ?>
                             </h2>
-                            <p class="text-sm font-light text-[#555555] max-w-3xl leading-relaxed">
+                            <p class="text-sm font-light text-[#555555] dark:text-[#AAAAAA] max-w-3xl leading-relaxed">
                                 <?= htmlspecialchars($selectedCourse['description']); ?>
                             </p>
-                            <div class="text-xs text-[#888888] font-mono pt-1">
+                            <div class="text-xs text-[#888888] dark:text-[#AAAAAA] font-mono pt-1">
                                 Clé d'inscription :
-                                <span class="font-semibold text-[#111111]">
+                                <span class="font-semibold text-[#111111] dark:text-white">
                                     <?= $selectedCourse['enrollment_key'] ? htmlspecialchars($selectedCourse['enrollment_key']) : 'Aucune (libre)'; ?>
                                 </span>
                             </div>
                         </div>
                         <div class="flex gap-2 flex-shrink-0">
                             <button onclick="openShareModal(<?= $selectedCourse['id'] ?>)"
-                                class="px-3 py-1.5 bg-[#004B23] text-white text-[11px] font-semibold uppercase tracking-wider hover:bg-[#006630] rounded-sm flex items-center gap-1.5 transition-colors">
+                                class="px-3 py-1.5 bg-[#004B23] dark:bg-[#34C759] text-white text-[11px] font-semibold uppercase tracking-wider hover:bg-[#006630] dark:hover:bg-[#28a745] rounded-lg flex items-center gap-1.5 transition-colors">
                                 <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
                                     <circle cx="18" cy="5" r="3"/><circle cx="6" cy="12" r="3"/><circle cx="18" cy="19" r="3"/>
                                     <line x1="8.59" y1="13.51" x2="15.42" y2="17.49"/><line x1="15.41" y1="6.51" x2="8.59" y2="10.49"/>
@@ -1425,7 +1555,7 @@ $successMsg = $successMessages[$successKey] ?? null;
                                 Partager
                             </button>
                             <button onclick="openEditCourseModal()"
-                                class="px-3 py-1.5 bg-[#F5F5F7] border border-[#E5E5E7] text-[11px] font-semibold uppercase tracking-wider hover:border-[#004B23] rounded-sm">
+                                class="px-3 py-1.5 bg-[#F5F5F7] dark:bg-[#2C2C2E] border border-[#E5E5E7] dark:border-[#2C2C2C] text-[#555555] dark:text-[#AAAAAA] text-[11px] font-semibold uppercase tracking-wider hover:border-[#004B23] dark:hover:border-[#34C759] rounded-lg transition-colors">
                                 ✎ Éditer le cours
                             </button>
                         </div>
@@ -1439,121 +1569,121 @@ $successMsg = $successMessages[$successKey] ?? null;
                 $studentCount = (int)$studentCountStmt->fetchColumn();
 
                 $lessonQuizCountStmt = $pdo->prepare("
-                    SELECT COUNT(DISTINCT l.id)
-                    FROM lessons l
-                    JOIN chapters ch ON l.chapter_id = ch.id
-                    JOIN lesson_questions lq ON lq.lesson_id = l.id
-                    WHERE ch.course_id = :cid
+                     SELECT COUNT(DISTINCT l.id)
+                     FROM lessons l
+                     JOIN chapters ch ON l.chapter_id = ch.id
+                     JOIN lesson_questions lq ON lq.lesson_id = l.id
+                     WHERE ch.course_id = :cid
                 ");
                 $lessonQuizCountStmt->execute(['cid' => $selectedCourse['id']]);
                 $lessonQuizCount = (int)$lessonQuizCountStmt->fetchColumn();
 
                 $certificatesCountStmt = $pdo->prepare("
-                    SELECT COUNT(*) FROM certificates cert
-                    JOIN courses c ON cert.module_id = c.module_id
-                    WHERE c.id = :cid
+                     SELECT COUNT(*) FROM certificates cert
+                     JOIN courses c ON cert.module_id = c.module_id
+                     WHERE c.id = :cid
                 ");
                 $certificatesCountStmt->execute(['cid' => $selectedCourse['id']]);
                 $certificatesCount = (int)$certificatesCountStmt->fetchColumn();
                 ?>
                 <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-5 gap-6 my-8">
                     <!-- KPI 1: Apprenants -->
-                    <div class="bg-white border border-[#E5E5E7] p-6 hover:shadow-md transition-shadow cursor-pointer flex flex-col justify-between rounded-sm" onclick="switchDashboardTab('tab-grades'); switchGradesSubTab('subtab-students');">
+                    <div class="bg-white/80 dark:bg-[#1E1E1E]/80 backdrop-blur-md border border-[#E5E5E7] dark:border-[#2C2C2C] p-6 hover:shadow-md transition-all cursor-pointer flex flex-col justify-between rounded-xl shadow-sm" onclick="switchDashboardTab('tab-grades'); switchGradesSubTab('subtab-students');">
                         <div>
                             <div class="flex items-center justify-between mb-4">
-                                <span class="text-xs font-semibold uppercase tracking-wider text-[#555555]">Apprenants</span>
-                                <svg class="w-6 h-6 text-[#004B23]" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                <span class="text-xs font-semibold uppercase tracking-wider text-[#555555] dark:text-[#AAAAAA]">Apprenants</span>
+                                <svg class="w-6 h-6 text-[#004B23] dark:text-[#34C759]" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                                     <path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M12 4.354a4 4 0 110 5.292M15 21H3v-1a6 6 0 0112 0v1zm0 0h6v-1a6 6 0 00-9-5.197M13 7a4 4 0 11-8 0 4 4 0 018 0z" />
                                 </svg>
                             </div>
-                            <div class="text-3xl font-semibold text-[#111111] mb-2"><?= $studentCount; ?></div>
-                            <p class="text-xs text-[#888888] font-light">Élèves inscrits et progression.</p>
+                            <div class="text-3xl font-semibold text-[#111111] dark:text-white mb-2"><?= $studentCount; ?></div>
+                            <p class="text-xs text-[#888888] dark:text-[#AAAAAA] font-light">Élèves inscrits et progression.</p>
                         </div>
-                        <div class="mt-4 text-xs font-semibold text-[#004B23] uppercase tracking-wider flex items-center gap-1">
+                        <div class="mt-4 text-xs font-semibold text-[#004B23] dark:text-[#34C759] uppercase tracking-wider flex items-center gap-1">
                             Consulter <span>→</span>
                         </div>
                     </div>
 
                     <!-- KPI 2: Quiz Leçons -->
-                    <div class="bg-white border border-[#E5E5E7] p-6 hover:shadow-md transition-shadow cursor-pointer flex flex-col justify-between rounded-sm" onclick="switchDashboardTab('tab-grades'); switchGradesSubTab('subtab-quiz');">
+                    <div class="bg-white/80 dark:bg-[#1E1E1E]/80 backdrop-blur-md border border-[#E5E5E7] dark:border-[#2C2C2C] p-6 hover:shadow-md transition-all cursor-pointer flex flex-col justify-between rounded-xl shadow-sm" onclick="switchDashboardTab('tab-grades'); switchGradesSubTab('subtab-quiz');">
                         <div>
                             <div class="flex items-center justify-between mb-4">
-                                <span class="text-xs font-semibold uppercase tracking-wider text-[#555555]">Quiz Leçons</span>
-                                <svg class="w-6 h-6 text-[#004B23]" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                <span class="text-xs font-semibold uppercase tracking-wider text-[#555555] dark:text-[#AAAAAA]">Quiz Leçons</span>
+                                <svg class="w-6 h-6 text-[#004B23] dark:text-[#34C759]" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                                     <path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
                                 </svg>
                             </div>
-                            <div class="text-3xl font-semibold text-[#111111] mb-2"><?= $lessonQuizCount; ?></div>
-                            <p class="text-xs text-[#888888] font-light">Quiz configurés pour les leçons.</p>
+                            <div class="text-3xl font-semibold text-[#111111] dark:text-white mb-2"><?= $lessonQuizCount; ?></div>
+                            <p class="text-xs text-[#888888] dark:text-[#AAAAAA] font-light">Quiz configurés pour les leçons.</p>
                         </div>
-                        <div class="mt-4 text-xs font-semibold text-[#004B23] uppercase tracking-wider flex items-center gap-1">
+                        <div class="mt-4 text-xs font-semibold text-[#004B23] dark:text-[#34C759] uppercase tracking-wider flex items-center gap-1">
                             Consulter <span>→</span>
                         </div>
                     </div>
 
                     <!-- KPI 3: Certificats -->
-                    <div class="bg-white border border-[#E5E5E7] p-6 hover:shadow-md transition-shadow cursor-pointer flex flex-col justify-between rounded-sm" onclick="switchDashboardTab('tab-grades'); switchGradesSubTab('subtab-certs');">
+                    <div class="bg-white/80 dark:bg-[#1E1E1E]/80 backdrop-blur-md border border-[#E5E5E7] dark:border-[#2C2C2C] p-6 hover:shadow-md transition-all cursor-pointer flex flex-col justify-between rounded-xl shadow-sm" onclick="switchDashboardTab('tab-grades'); switchGradesSubTab('subtab-certs');">
                         <div>
                             <div class="flex items-center justify-between mb-4">
-                                <span class="text-xs font-semibold uppercase tracking-wider text-[#555555]">Certificats</span>
-                                <svg class="w-6 h-6 text-[#004B23]" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                <span class="text-xs font-semibold uppercase tracking-wider text-[#555555] dark:text-[#AAAAAA]">Certificats</span>
+                                <svg class="w-6 h-6 text-[#004B23] dark:text-[#34C759]" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                                     <path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M9 12l2 2 4-4M7.835 4.697a3.42 3.42 0 001.946-.806 3.42 3.42 0 014.438 0 3.42 3.42 0 001.946.806 3.42 3.42 0 013.138 3.138 3.42 3.42 0 00.806 1.946 3.42 3.42 0 010 4.438 3.42 3.42 0 00-.806 1.946 3.42 3.42 0 01-3.138 3.138 3.42 3.42 0 00-1.946.806 3.42 3.42 0 01-4.438 0 3.42 3.42 0 00-1.946-.806 3.42 3.42 0 01-3.138-3.138 3.42 3.42 0 00-.806-1.946 3.42 3.42 0 010-4.438 3.42 3.42 0 00.806-1.946 3.42 3.42 0 013.138-3.138z" />
                                 </svg>
                             </div>
-                            <div class="text-3xl font-semibold text-[#111111] mb-2"><?= $certificatesCount; ?></div>
-                            <p class="text-xs text-[#888888] font-light">Certificats de module délivrés.</p>
+                            <div class="text-3xl font-semibold text-[#111111] dark:text-white mb-2"><?= $certificatesCount; ?></div>
+                            <p class="text-xs text-[#888888] dark:text-[#AAAAAA] font-light">Certificats de module délivrés.</p>
                         </div>
-                        <div class="mt-4 text-xs font-semibold text-[#004B23] uppercase tracking-wider flex items-center gap-1">
+                        <div class="mt-4 text-xs font-semibold text-[#004B23] dark:text-[#34C759] uppercase tracking-wider flex items-center gap-1">
                             Consulter <span>→</span>
                         </div>
                     </div>
 
                     <!-- KPI 4: Téléévaluations -->
-                    <div class="bg-white border border-[#E5E5E7] p-6 hover:shadow-md transition-shadow cursor-pointer flex flex-col justify-between rounded-sm" onclick="switchDashboardTab('tab-live-eval')">
+                    <div class="bg-white/80 dark:bg-[#1E1E1E]/80 backdrop-blur-md border border-[#E5E5E7] dark:border-[#2C2C2C] p-6 hover:shadow-md transition-all cursor-pointer flex flex-col justify-between rounded-xl shadow-sm" onclick="switchDashboardTab('tab-live-eval')">
                         <div>
                             <div class="flex items-center justify-between mb-4">
-                                <span class="text-xs font-semibold uppercase tracking-wider text-[#555555]">Téléévaluations</span>
-                                <svg class="w-6 h-6 text-[#004B23]" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                <span class="text-xs font-semibold uppercase tracking-wider text-[#555555] dark:text-[#AAAAAA]">Téléévaluations</span>
+                                <svg class="w-6 h-6 text-[#004B23] dark:text-[#34C759]" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                                     <path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M15 10l4.553-2.276A1 1 0 0121 8.618v6.764a1 1 0 01-1.447.894L15 14M5 18h8a2 2 0 002-2V8a2 2 0 00-2-2H5a2 2 0 00-2 2v8a2 2 0 002 2z" />
                                 </svg>
                             </div>
-                            <div class="text-3xl font-semibold text-[#111111] mb-2"><?= count($liveSessions); ?></div>
-                            <p class="text-xs text-[#888888] font-light">Sessions QuizBox synchrones et devoirs libres.</p>
+                            <div class="text-3xl font-semibold text-[#111111] dark:text-white mb-2"><?= count($liveSessions); ?></div>
+                            <p class="text-xs text-[#888888] dark:text-[#AAAAAA] font-light">Sessions QuizBox synchrones et devoirs libres.</p>
                         </div>
-                        <div class="mt-4 text-xs font-semibold text-[#004B23] uppercase tracking-wider flex items-center gap-1">
+                        <div class="mt-4 text-xs font-semibold text-[#004B23] dark:text-[#34C759] uppercase tracking-wider flex items-center gap-1">
                             Gérer <span>→</span>
                         </div>
                     </div>
 
                     <!-- KPI 5: Webinaires -->
-                    <div class="bg-white border border-[#E5E5E7] p-6 hover:shadow-md transition-shadow cursor-pointer flex flex-col justify-between rounded-sm" onclick="switchDashboardTab('tab-webinars')">
+                    <div class="bg-white/80 dark:bg-[#1E1E1E]/80 backdrop-blur-md border border-[#E5E5E7] dark:border-[#2C2C2C] p-6 hover:shadow-md transition-all cursor-pointer flex flex-col justify-between rounded-xl shadow-sm" onclick="switchDashboardTab('tab-webinars')">
                         <div>
                             <div class="flex items-center justify-between mb-4">
-                                <span class="text-xs font-semibold uppercase tracking-wider text-[#555555]">Webinaires</span>
-                                <svg class="w-6 h-6 text-[#004B23]" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                <span class="text-xs font-semibold uppercase tracking-wider text-[#555555] dark:text-[#AAAAAA]">Webinaires</span>
+                                <svg class="w-6 h-6 text-[#004B23] dark:text-[#34C759]" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                                     <path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M15 10l4.553-2.276A1 1 0 0121 8.618v6.764a1 1 0 01-1.447.894L15 14M5 18h8a2 2 0 002-2V8a2 2 0 00-2-2H5a2 2 0 00-2 2v8a2 2 0 002 2z" />
                                 </svg>
                             </div>
-                            <div class="text-3xl font-semibold text-[#111111] mb-2"><?= count($myWebinars); ?></div>
-                            <p class="text-xs text-[#888888] font-light">Cours de visioconférence programmés.</p>
+                            <div class="text-3xl font-semibold text-[#111111] dark:text-white mb-2"><?= count($myWebinars); ?></div>
+                            <p class="text-xs text-[#888888] dark:text-[#AAAAAA] font-light">Cours de visioconférence programmés.</p>
                         </div>
-                        <div class="mt-4 text-xs font-semibold text-[#004B23] uppercase tracking-wider flex items-center gap-1">
+                        <div class="mt-4 text-xs font-semibold text-[#004B23] dark:text-[#34C759] uppercase tracking-wider flex items-center gap-1">
                             Gérer <span>→</span>
                         </div>
                     </div>
                 </div>
 
                 <!-- Info guide box -->
-                <div class="bg-white border border-[#E5E5E7] p-8 rounded-sm space-y-4">
-                    <h4 class="font-serif text-xl font-light text-[#111111]">Bienvenue dans votre Workspace de Cours</h4>
-                    <p class="text-sm font-light text-[#555555] leading-relaxed">
+                <div class="bg-white/85 dark:bg-[#1E1E1E]/85 border border-[#E5E5E7] dark:border-[#2C2C2C] p-8 rounded-xl space-y-4">
+                    <h4 class="font-serif text-xl font-light text-[#111111] dark:text-white">Bienvenue dans votre Workspace de Cours</h4>
+                    <p class="text-sm font-light text-[#555555] dark:text-[#AAAAAA] leading-relaxed">
                         Sélectionnez les différents onglets de la barre latérale pour concevoir les modules du cours, planifier vos webinars en direct, lancer des sessions d'évaluation interactives (QuizBox) ou consulter les notes et les progressions détaillées de vos étudiants.
                     </p>
                 </div>
 
             <?php endif; ?>
 
-        </div>
+            </div>
 
         <?php if ($selectedCourse): ?>
 
@@ -1849,9 +1979,9 @@ $successMsg = $successMessages[$successKey] ?? null;
                                 <?= $finalExamQuestionCount; ?> / 30 minimum
                             </span>
                             <?php if ($finalExamQuestionCount < 30): ?>
-                                <span class="text-[#D32F2F] italic block mt-1">⚠️ Au moins 30 questions requises pour validation.</span>
+                                <span class="text-[#D32F2F] italic block mt-1">Au moins 30 questions requises pour validation.</span>
                             <?php else: ?>
-                                <span class="text-[#004B23] block mt-1">✓ L'évaluation finale est prête.</span>
+                                <span class="text-[#004B23] block mt-1">L'évaluation finale est prête.</span>
                             <?php endif; ?>
                         </div>
                     </div>
@@ -2711,6 +2841,7 @@ $successMsg = $successMessages[$successKey] ?? null;
 </div>
 
 <!-- ── Modal : Éditer le cours ──────────────────────────── -->
+<?php if ($selectedCourse): ?>
 <div id="edit-course-modal" class="hidden fixed inset-0 bg-black/40 backdrop-blur-sm z-50 flex items-center justify-center p-6 overflow-y-auto">
     <div class="bg-white p-8 max-w-lg w-full border border-[#E5E5E7] space-y-6 modal-inner my-8">
         <h3 class="font-serif text-2xl font-light">Éditer le cours</h3>
@@ -2901,7 +3032,7 @@ $successMsg = $successMessages[$successKey] ?? null;
                     </div>
                     <!-- Alerte de confirmation suppression -->
                     <div id="pdf-delete-confirm" class="hidden mt-2 px-4 py-3 bg-[#fff2f2] border border-[#D32F2F] rounded-sm">
-                        <p class="text-xs text-[#D32F2F] font-semibold mb-2">⚠ Ce PDF sera supprimé définitivement à la sauvegarde.</p>
+                        <p class="text-xs text-[#D32F2F] font-semibold mb-2">Attention : Ce PDF sera supprimé définitivement à la sauvegarde.</p>
                         <input type="hidden" name="delete_pdf" id="delete-pdf-flag" value="0">
                         <button type="button" onclick="cancelPdfDelete()" class="text-[10px] font-semibold text-[#555555] hover:underline">Annuler</button>
                     </div>
@@ -4654,7 +4785,7 @@ function openCsvPreview(questions, mathCount, type, courseId, sessionId, lessonI
                 <div class="font-bold text-gray-900 math-render">${escapeHtml(q.question_text)}</div>
                 ${optionsHtml}
                 ${q.explanation ? `<div class="text-[11px] text-[#004B23] font-medium mt-1 math-render"><span class="font-semibold text-[#888]">Explication :</span> ${escapeHtml(q.explanation)}</div>` : ''}
-                ${q.errors.length > 0 ? `<div class="text-[10px] text-red-600 font-medium mt-1">⚠️ ${q.errors.join(' | ')}</div>` : ''}
+                ${q.errors.length > 0 ? `<div class="text-[10px] text-red-600 font-medium mt-1">[Alerte] ${q.errors.join(' | ')}</div>` : ''}
             </td>
             <td class="p-3 text-center font-bold text-[#004B23]">${escapeHtml(q.correct_option)}</td>
             <td class="p-3 text-center">${statusBadge}</td>
@@ -4883,7 +5014,7 @@ function downloadCurrentQuestions(type) {
         <!-- Header -->
         <div class="px-6 py-4 border-b border-gray-200 flex justify-between items-center bg-gray-50 rounded-t-lg">
             <div class="flex items-center gap-3">
-                <span class="text-xl">🔍</span>
+                <svg class="w-6 h-6 text-gray-500" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z"/></svg>
                 <div>
                     <h3 class="text-base font-bold text-gray-900">Validation et Aperçu du QCM</h3>
                     <p class="text-xs text-gray-500 font-medium">Vérifiez la lisibilité et le rendu de vos formules mathématiques LaTeX avant de valider l'importation.</p>
@@ -4899,7 +5030,7 @@ function downloadCurrentQuestions(type) {
                 <span>Formules LaTeX validées : <strong id="csv-stat-math" class="text-green-700">0</strong></span>
             </div>
             <div id="csv-warning-badge" class="hidden text-xs bg-amber-100 text-amber-800 px-2.5 py-1 rounded font-medium">
-                ⚠️ Avertissements de formatage détectés
+                Avertissements de formatage détectés
             </div>
         </div>
 

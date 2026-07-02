@@ -178,152 +178,281 @@ try {
         }
     </style>
 </head>
-<body class="font-sans antialiased text-[#111111] sv-page min-h-screen flex flex-col justify-between">
+<body class="font-sans antialiased text-[#111111] dark:text-white bg-[#FAF9F6] dark:bg-[#121212] min-h-screen flex flex-col md:flex-row overflow-x-hidden">
 
-    <!-- En-tête Principal -->
-    <header class="sv-header border-b border-[#E5E5E7] py-6 px-6 md:px-12 flex justify-between items-center bg-[var(--sv-cream)]">
+    <!-- MOBILE TOP BAR -->
+    <div class="w-full md:hidden bg-[#004B23] text-white py-4 px-4 flex justify-between items-center sticky top-0 z-30 shadow-md">
         <div class="flex items-center gap-3">
-            <svg class="w-9 h-9" viewBox="0 0 100 100" fill="none" xmlns="http://www.w3.org/2000/svg" style="width: 36px; height: 36px;">
-                <circle cx="50" cy="50" r="46" stroke="#006630" stroke-width="3.5" />
-                <line x1="33" y1="31" x2="62" y2="25" stroke="#111111" stroke-width="2.5" stroke-linecap="round" />
-                <line x1="33" y1="31" x2="49" y2="53" stroke="#111111" stroke-width="2.5" stroke-linecap="round" />
-                <line x1="33" y1="31" x2="14" y2="13" stroke="#111111" stroke-width="2.5" stroke-linecap="round" />
-                <line x1="33" y1="31" x2="42" y2="11" stroke="#111111" stroke-width="2.5" stroke-linecap="round" />
-                <line x1="33" y1="31" x2="20" y2="53" stroke="#111111" stroke-width="2.5" stroke-linecap="round" />
-                <line x1="49" y1="53" x2="62" y2="25" stroke="#111111" stroke-width="2.5" stroke-linecap="round" />
-                <circle cx="62" cy="25" r="6" fill="#006630" />
-                <circle cx="49" cy="53" r="6" fill="#006630" />
-                <circle cx="33" cy="31" r="6" fill="#006630" />
-                <circle cx="14" cy="13" r="6" fill="#006630" />
-                <circle cx="42" cy="11" r="6" fill="#006630" />
-                <circle cx="20" cy="53" r="6" fill="#006630" />
-                <path d="M56 10 C52 14, 52 24, 52 29 C52 31, 50 33, 49 33 L45 33 L49 35 C50 37, 51 38, 50 40 C49 41, 47 42, 49 44 C51 45, 54 46, 56 46 C59 46, 65 38, 66 41 C68 46, 60 52, 56 60 C51 68, 50 78, 53 88" stroke="#111111" stroke-width="3" stroke-linecap="round" stroke-linejoin="round" />
-                <path d="M33 55 C32 52, 32 48, 33 46 C34 44, 36 44, 37 47 C37 50, 37 53, 37 55 C37 51, 38 46, 39 44 C40 42, 42 42, 43 45 C43 48, 43 51, 43 54 C43 51, 44 47, 45 45 C46 43, 48 43, 49 46 C50 49, 51 57, 51 68 C51 75, 49 81, 47 85" stroke="#111111" stroke-width="3" stroke-linecap="round" stroke-linejoin="round" />
-                <path d="M33 55 C34 61, 35 68, 37 75 C38 81, 39 84, 40 86" stroke="#111111" stroke-width="3" stroke-linecap="round" stroke-linejoin="round" />
-            </svg>
-            <span class="font-serif text-xl tracking-tight text-[#111111] font-semibold">StudyVibe</span>
-            <span class="text-xs uppercase tracking-widest bg-[#F5F5F7] text-[#555555] px-2 py-1 border border-[#E5E5E7] ml-2 font-mono">Apprenant</span>
+            <button onclick="toggleMobileDrawer()" class="p-1 text-white hover:text-white/80 focus:outline-none">
+                <svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 6h16M4 12h16M4 18h16"></path></svg>
+            </button>
+            <span class="font-serif text-lg font-bold tracking-tight">StudyVibe</span>
         </div>
-        <div class="flex items-center gap-4">
-            <div class="relative" id="notif-wrap">
-                <button type="button" id="notif-btn" class="relative p-1.5 text-[#555555] hover:text-[#004B23] transition-colors rounded-full hover:bg-[#F5F5F7]" aria-label="Notifications">
-                    <!-- Bell Icon SVG -->
-                    <svg class="w-5 h-5" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
+        <div class="flex items-center gap-3">
+            <!-- Notifications (Mobile) -->
+            <div class="relative" id="mobile-notif-wrap">
+                <button type="button" onclick="toggleMobileNotifs()" class="relative p-1.5 text-white hover:text-white/80 transition-colors rounded-full" aria-label="Notifications">
+                    <svg class="w-5 h-5" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24">
                         <path stroke-linecap="round" stroke-linejoin="round" d="M14.857 17.082a23.848 23.848 0 005.454-1.31A8.967 8.967 0 0118 9.75v-.7V9A6 6 0 006 9v.75a8.967 8.967 0 01-2.312 6.022c1.733.64 3.56 1.085 5.455 1.31m5.714 0a24.255 24.255 0 01-5.714 0m5.714 0a3 3 0 11-5.714 0" />
                     </svg>
-                    <span id="notif-count" class="hidden absolute -top-1 -right-1 bg-[#D32F2F] text-white text-[9px] font-bold px-1 py-0.2 rounded-full min-w-[15px] text-center border border-white">0</span>
+                    <span id="mobile-notif-count" class="hidden absolute -top-1 -right-1 bg-[#D32F2F] text-white text-[9px] font-bold px-1 py-0.2 rounded-full min-w-[15px] text-center border border-white">0</span>
                 </button>
-                <div id="notif-panel-container" class="hidden absolute right-0 top-full mt-2 w-80 bg-white border border-[#E5E5E7] shadow-xl z-50 text-left text-sm rounded-lg overflow-hidden flex flex-col max-h-[360px]">
-                    <div class="p-3 border-b border-[#E5E5E7] flex justify-between items-center bg-[#F9F7F4] flex-shrink-0">
-                        <span class="font-serif font-semibold text-xs uppercase tracking-wider text-[#111111]">Notifications</span>
-                        <button onclick="markAllNotificationsRead(event)" class="text-[10px] text-[#004B23] hover:underline font-semibold">Tout marquer comme lu</button>
+                <div id="mobile-notif-panel-container" class="hidden absolute right-0 top-full mt-2 w-72 bg-white dark:bg-[#1E1E1E] border border-[#E5E5E7] dark:border-[#2C2C2C] shadow-xl z-50 text-left text-sm rounded-lg overflow-hidden flex flex-col max-h-[300px]">
+                    <div class="p-3 border-b border-[#E5E5E7] dark:border-[#2C2C2C] flex justify-between items-center bg-[#F9F7F4] dark:bg-[#252525] flex-shrink-0">
+                        <span class="font-serif font-semibold text-xs uppercase tracking-wider text-[#111111] dark:text-white">Notifications</span>
+                        <button onclick="markAllNotificationsRead(event)" class="text-[10px] text-[#004B23] dark:text-[#34C759] hover:underline font-semibold">Tout marquer comme lu</button>
                     </div>
-                    <div id="notif-panel" class="overflow-y-auto flex-grow max-h-[300px]"></div>
+                    <div id="mobile-notif-panel" class="overflow-y-auto flex-grow max-h-[250px] dark:text-white/80"></div>
                 </div>
             </div>
-            <div class="flex items-center gap-3">
-                <img id="header-avatar" 
-                    src="<?= $user['avatar_path'] ? htmlspecialchars(mediaUrl('avatar', $user['avatar_path'])) : 'https://www.gravatar.com/avatar/' . md5(strtolower(trim($user['email']))) . '?d=mp'; ?>" 
-                    alt="Photo de profil" class="w-8 h-8 rounded-full object-cover border border-[#E5E5E7]">
-                <span class="text-sm font-light text-[#555555] id-student-name"><?= htmlspecialchars($user['name']); ?></span>
+            <a href="/logout.php" class="text-xs text-red-300 uppercase tracking-wider font-semibold hover:underline">Déconnexion</a>
+        </div>
+    </div>
+
+    <!-- MOBILE DRAWER -->
+    <div id="mobile-drawer" class="fixed inset-0 z-50 flex hidden">
+        <div onclick="toggleMobileDrawer()" class="fixed inset-0 bg-black/50 transition-opacity"></div>
+        <div class="relative flex-1 flex flex-col max-w-xs w-full bg-[#004B23] pt-5 pb-4 transition-transform duration-300">
+            <div class="absolute top-0 right-0 -mr-12 pt-2">
+                <button onclick="toggleMobileDrawer()" class="ml-1 flex items-center justify-center h-10 w-10 rounded-full focus:outline-none focus:ring-2 focus:ring-inset focus:ring-white">
+                    <span class="sr-only">Close sidebar</span>
+                    <svg class="h-6 w-6 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12" /></svg>
+                </button>
             </div>
-            <a href="/logout.php" class="text-xs uppercase tracking-wider text-[#D32F2F] hover:underline">Déconnexion</a>
-            <button class="sv-dark-toggle" data-dark-toggle title="Mode sombre"></button>
-            <div class="relative inline-block text-left">
-                <select id="lang-selector" onchange="changeLanguage(this.value)" class="bg-transparent text-xs border border-[#E5E5E7] text-[#555555] rounded-sm py-1 px-2 focus:outline-none focus:border-[#004B23]">
-                    <option value="fr" <?= TranslationService::getLang() === 'fr' ? 'selected' : ''; ?>>FR</option>
-                    <option value="en" <?= TranslationService::getLang() === 'en' ? 'selected' : ''; ?>>EN</option>
-                </select>
+            <div class="flex-shrink-0 flex items-center px-6 gap-3 border-b border-[#003619] pb-4">
+                <span class="font-serif text-xl font-bold tracking-tight text-white">StudyVibe</span>
+                <span class="text-[10px] uppercase tracking-widest bg-[#003619] text-white px-2 py-0.5 border border-[#002610] font-mono">Apprenant</span>
+            </div>
+            <div class="mt-5 flex-1 h-0 overflow-y-auto">
+                <nav class="px-3 space-y-1">
+                    <button onclick="switchTab('catalogue'); toggleMobileDrawer();" id="mobile-tab-btn-catalogue" class="w-full flex items-center gap-3 px-4 py-3 rounded-lg text-sm font-medium transition-all text-white/70 hover:text-white hover:bg-white/10 text-left">
+                        Catalogue
+                    </button>
+                    <button onclick="switchTab('mes-cours'); toggleMobileDrawer();" id="mobile-tab-btn-mes-cours" class="w-full flex items-center gap-3 px-4 py-3 rounded-lg text-sm font-medium transition-all text-white/70 hover:text-white hover:bg-white/10 text-left">
+                        Mes Études
+                    </button>
+                    <button onclick="switchTab('releve'); toggleMobileDrawer();" id="mobile-tab-btn-releve" class="w-full flex items-center gap-3 px-4 py-3 rounded-lg text-sm font-medium transition-all text-white/70 hover:text-white hover:bg-white/10 text-left">
+                        Relevé de Notes
+                    </button>
+                    <button onclick="switchTab('certifications'); toggleMobileDrawer();" id="mobile-tab-btn-certifications" class="w-full flex items-center gap-3 px-4 py-3 rounded-lg text-sm font-medium transition-all text-white/70 hover:text-white hover:bg-white/10 text-left">
+                        Certifications
+                    </button>
+                    <button onclick="switchTab('tele-evaluations'); toggleMobileDrawer();" id="mobile-tab-btn-tele-evaluations" class="w-full flex items-center gap-3 px-4 py-3 rounded-lg text-sm font-medium transition-all text-white/70 hover:text-white hover:bg-white/10 text-left">
+                        Téléévaluations
+                    </button>
+                    <button onclick="switchTab('webinaires'); toggleMobileDrawer();" id="mobile-tab-btn-webinaires" class="w-full flex items-center gap-3 px-4 py-3 rounded-lg text-sm font-medium transition-all text-white/70 hover:text-white hover:bg-white/10 text-left">
+                        Webinaires
+                    </button>
+                    <button onclick="switchTab('profil'); toggleMobileDrawer();" id="mobile-tab-btn-profil" class="w-full flex items-center gap-3 px-4 py-3 rounded-lg text-sm font-medium transition-all text-white/70 hover:text-white hover:bg-white/10 text-left">
+                        Mon Profil
+                    </button>
+                    <a href="/evaluations.php" class="w-full flex items-center gap-3 px-4 py-3 rounded-lg text-sm font-medium transition-all text-white/70 hover:text-white hover:bg-white/10 text-left">
+                        Évaluations
+                    </a>
+                </nav>
+            </div>
+            <div class="flex-shrink-0 flex border-t border-[#003619] p-4 bg-[#003c1c] items-center gap-3">
+                <img src="<?= $user['avatar_path'] ? htmlspecialchars(mediaUrl('avatar', $user['avatar_path'])) : 'https://www.gravatar.com/avatar/' . md5(strtolower(trim($user['email']))) . '?d=mp'; ?>" 
+                     alt="Photo de profil" class="w-8 h-8 rounded-full object-cover border border-white/20">
+                <div class="flex-grow overflow-hidden">
+                    <div class="text-xs font-semibold text-white truncate id-student-name"><?= htmlspecialchars($user['name']); ?></div>
+                    <div class="text-[10px] text-white/60 truncate"><?= htmlspecialchars($user['email']); ?></div>
+                </div>
             </div>
         </div>
-    </header>
+    </div>
 
-    <!-- Corps de Page -->
-    <main class="flex-grow px-6 md:px-12 py-10 md:py-16 max-w-7xl mx-auto w-full space-y-12">
-
-        <?php if ($continueCourse): ?>
-        <div class="border border-[#004B23] bg-[#f8fcf9] p-5 flex flex-wrap items-center justify-between gap-4">
-            <div>
-                <div class="text-xs uppercase tracking-widest text-[#004B23] font-semibold mb-1">Continuer</div>
-                <div class="font-serif text-lg"><?= htmlspecialchars($continueCourse['course_title']); ?></div>
-                <div class="text-sm text-[#555555]"><?= htmlspecialchars($continueCourse['lesson_title'] ?? 'Reprendre la leçon'); ?></div>
-            </div>
-            <button type="button" class="sv-btn sv-btn-primary" style="border:none;cursor:pointer;"
-                onclick="resumeCourse(<?= (int)$continueCourse['course_id']; ?>, <?= (int)$continueCourse['last_lesson_id']; ?>)">
-                Reprendre
-            </button>
-        </div>
-        <?php endif; ?>
-
-        <?php if (!empty($deadlineAlerts)): ?>
-        <div class="border border-[#E6A817] bg-[#fffbeb] p-4 space-y-2">
-            <div class="text-xs uppercase tracking-widest text-[#E6A817] font-semibold">Échéances proches</div>
-            <?php foreach ($deadlineAlerts as $alert): ?>
-            <p class="text-sm text-[#555555]">
-                <strong><?= htmlspecialchars($alert['title']); ?></strong> —
-                évaluation avant le <?= date('d/m/Y', strtotime($alert['eval_deadline'])); ?>
-            </p>
-            <?php endforeach; ?>
-        </div>
-        <?php endif; ?>
-
-        <!-- KPI Apprenant -->
-        <div class="sv-kpi-board sv-fade-in" id="student-kpi">
-            <div class="sv-kpi-item">
-                <div class="sv-kpi-value" id="kpi-completed"><?= $statCompleted; ?></div>
-                <div class="sv-kpi-label">Cours terminés</div>
-            </div>
-            <div class="sv-kpi-item">
-                <div class="sv-kpi-value" id="kpi-score"><?= $statAvgScore; ?>%</div>
-                <div class="sv-kpi-label">Score moyen</div>
-            </div>
-            <div class="sv-kpi-item">
-                <div class="sv-kpi-value" id="kpi-time"><?= $statStudyH; ?>h<?= str_pad((string)$statStudyM, 2, '0', STR_PAD_LEFT); ?></div>
-                <div class="sv-kpi-label">Temps d'étude</div>
-            </div>
-            <div class="sv-kpi-item">
-                <div class="sv-kpi-value" id="kpi-certs"><?= count($myCertificates); ?></div>
-                <div class="sv-kpi-label">Certifications</div>
-            </div>
+    <!-- LEFT SIDEBAR (Desktop) -->
+    <aside class="w-64 bg-[#004B23] text-white flex flex-col justify-between h-screen sticky top-0 border-r border-[#003619] hidden md:flex flex-shrink-0 z-40">
+        <!-- Logo / Brand Header -->
+        <div class="p-6 border-b border-[#003619] flex items-center gap-3">
+            <svg class="w-8 h-8" viewBox="0 0 100 100" fill="none" xmlns="http://www.w3.org/2000/svg">
+                <circle cx="50" cy="50" r="46" stroke="#FFFFFF" stroke-width="3.5" />
+                <line x1="33" y1="31" x2="62" y2="25" stroke="#FFFFFF" stroke-width="2.5" stroke-linecap="round" />
+                <line x1="33" y1="31" x2="49" y2="53" stroke="#FFFFFF" stroke-width="2.5" stroke-linecap="round" />
+                <line x1="33" y1="31" x2="14" y2="13" stroke="#FFFFFF" stroke-width="2.5" stroke-linecap="round" />
+                <line x1="33" y1="31" x2="42" y2="11" stroke="#FFFFFF" stroke-width="2.5" stroke-linecap="round" />
+                <line x1="33" y1="31" x2="20" y2="53" stroke="#FFFFFF" stroke-width="2.5" stroke-linecap="round" />
+                <line x1="49" y1="53" x2="62" y2="25" stroke="#FFFFFF" stroke-width="2.5" stroke-linecap="round" />
+                <circle cx="62" cy="25" r="6" fill="#34C759" />
+                <circle cx="49" cy="53" r="6" fill="#34C759" />
+                <circle cx="33" cy="31" r="6" fill="#34C759" />
+                <circle cx="14" cy="13" r="6" fill="#34C759" />
+                <circle cx="42" cy="11" r="6" fill="#34C759" />
+                <circle cx="20" cy="53" r="6" fill="#34C759" />
+                <path d="M56 10 C52 14, 52 24, 52 29 C52 31, 50 33, 49 33 L45 33 L49 35 C50 37, 51 38, 50 40 C49 41, 47 42, 49 44 C51 45, 54 46, 56 46 C59 46, 65 38, 66 41 C68 46, 60 52, 56 60 C51 68, 50 78, 53 88" stroke="#FFFFFF" stroke-width="3" stroke-linecap="round" stroke-linejoin="round" />
+                <path d="M33 55 C32 52, 32 48, 33 46 C34 44, 36 44, 37 47 C37 50, 37 53, 37 55 C37 51, 38 46, 39 44 C40 42, 42 42, 43 45 C43 48, 43 51, 43 54 C43 51, 44 47, 45 45 C46 43, 48 43, 49 46 C50 49, 51 57, 51 68 C51 75, 49 81, 47 85" stroke="#FFFFFF" stroke-width="3" stroke-linecap="round" stroke-linejoin="round" />
+                <path d="M33 55 C34 61, 35 68, 37 75 C38 81, 39 84, 40 86" stroke="#FFFFFF" stroke-width="3" stroke-linecap="round" stroke-linejoin="round" />
+            </svg>
+            <span class="font-serif text-lg font-semibold tracking-tight text-white">StudyVibe</span>
+            <span class="text-[9px] uppercase tracking-widest bg-[#003619] text-white px-2 py-0.5 border border-[#002610] ml-2 font-mono">Apprenant</span>
         </div>
 
-        <?php if (!empty($myBadges)): ?>
-        <div class="flex flex-wrap gap-2" id="badges-row">
-            <?php
-            $badgeLabels = ['study_hour' => '⏱ 1h d\'étude', 'first_lesson' => 'Première leçon', 'certified' => 'Certifié', 'course_complete' => 'Cours terminé'];
-            foreach ($myBadges as $b): ?>
-                <span class="text-xs px-3 py-1 border border-[#004B23] text-[#004B23] rounded-full"><?= $badgeLabels[$b['badge_type']] ?? $b['badge_type']; ?></span>
-            <?php endforeach; ?>
-        </div>
-        <?php endif; ?>
-        
-        <!-- Navigation Onglets -->
-        <div class="flex border-b border-[#E5E5E7] gap-4 md:gap-8 overflow-x-auto">
-            <button onclick="switchTab('catalogue')" id="tab-btn-catalogue" class="pb-4 text-sm font-semibold border-b-2 border-[#111111] text-[#111111] uppercase tracking-wider transition-all whitespace-nowrap">
+        <!-- Navigation Menu -->
+        <nav class="flex-grow py-6 px-4 space-y-1.5 overflow-y-auto">
+            <button onclick="switchTab('catalogue')" id="tab-btn-catalogue" class="w-full flex items-center gap-3 px-4 py-3 rounded-lg text-sm font-semibold transition-all text-white bg-white/10 border-l-4 border-white text-left">
                 Catalogue
             </button>
-            <button onclick="switchTab('mes-cours')" id="tab-btn-mes-cours" class="pb-4 text-sm font-light border-b-2 border-transparent text-[#555555] uppercase tracking-wider transition-all whitespace-nowrap">
+            <button onclick="switchTab('mes-cours')" id="tab-btn-mes-cours" class="w-full flex items-center gap-3 px-4 py-3 rounded-lg text-sm font-medium transition-all text-white/70 hover:text-white hover:bg-white/10 text-left">
                 Mes Études
             </button>
-            <button onclick="switchTab('releve')" id="tab-btn-releve" class="pb-4 text-sm font-light border-b-2 border-transparent text-[#555555] uppercase tracking-wider transition-all whitespace-nowrap">
+            <button onclick="switchTab('releve')" id="tab-btn-releve" class="w-full flex items-center gap-3 px-4 py-3 rounded-lg text-sm font-medium transition-all text-white/70 hover:text-white hover:bg-white/10 text-left">
                 Relevé de Notes
             </button>
-            <button onclick="switchTab('certifications')" id="tab-btn-certifications" class="pb-4 text-sm font-light border-b-2 border-transparent text-[#555555] uppercase tracking-wider transition-all whitespace-nowrap">
+            <button onclick="switchTab('certifications')" id="tab-btn-certifications" class="w-full flex items-center gap-3 px-4 py-3 rounded-lg text-sm font-medium transition-all text-white/70 hover:text-white hover:bg-white/10 text-left">
                 Certifications
             </button>
-            <button onclick="switchTab('tele-evaluations')" id="tab-btn-tele-evaluations" class="pb-4 text-sm font-light border-b-2 border-transparent text-[#555555] uppercase tracking-wider transition-all whitespace-nowrap">
+            <button onclick="switchTab('tele-evaluations')" id="tab-btn-tele-evaluations" class="w-full flex items-center gap-3 px-4 py-3 rounded-lg text-sm font-medium transition-all text-white/70 hover:text-white hover:bg-white/10 text-left">
                 Téléévaluations
             </button>
-            <button onclick="switchTab('webinaires')" id="tab-btn-webinaires" class="pb-4 text-sm font-light border-b-2 border-transparent text-[#555555] uppercase tracking-wider transition-all whitespace-nowrap">
+            <button onclick="switchTab('webinaires')" id="tab-btn-webinaires" class="w-full flex items-center gap-3 px-4 py-3 rounded-lg text-sm font-medium transition-all text-white/70 hover:text-white hover:bg-white/10 text-left">
                 Webinaires
             </button>
-            <button onclick="switchTab('profil')" id="tab-btn-profil" class="pb-4 text-sm font-light border-b-2 border-transparent text-[#555555] uppercase tracking-wider transition-all whitespace-nowrap">
-                Profil
+            <button onclick="switchTab('profil')" id="tab-btn-profil" class="w-full flex items-center gap-3 px-4 py-3 rounded-lg text-sm font-medium transition-all text-white/70 hover:text-white hover:bg-white/10 text-left">
+                Mon Profil
             </button>
-            <a href="/evaluations.php" class="pb-4 text-sm font-light text-[#555555] hover:text-[#004B23] hover:border-b-2 hover:border-[#004B23] uppercase tracking-wider transition-all whitespace-nowrap flex items-center">
+            <a href="/evaluations.php" class="w-full flex items-center gap-3 px-4 py-3 rounded-lg text-sm font-medium transition-all text-white/70 hover:text-white hover:bg-white/10 text-left">
                 Évaluations
             </a>
+        </nav>
+
+        <!-- Profile / Sidebar Footer -->
+        <div class="p-4 border-t border-[#003619] bg-[#003c1c] flex items-center justify-between gap-3">
+            <div class="flex items-center gap-3 overflow-hidden">
+                <img id="header-avatar" 
+                     src="<?= $user['avatar_path'] ? htmlspecialchars(mediaUrl('avatar', $user['avatar_path'])) : 'https://www.gravatar.com/avatar/' . md5(strtolower(trim($user['email']))) . '?d=mp'; ?>" 
+                     alt="Photo de profil" class="w-9 h-9 rounded-full object-cover border border-white/20">
+                <div class="flex-grow overflow-hidden">
+                    <div class="text-xs font-semibold text-white truncate id-student-name"><?= htmlspecialchars($user['name']); ?></div>
+                    <div class="text-[10px] text-white/60 truncate"><?= htmlspecialchars($user['email']); ?></div>
+                </div>
+            </div>
+            <a href="/logout.php" title="Déconnexion" class="text-white/60 hover:text-red-400 transition-colors flex-shrink-0">
+                <svg class="w-4 h-4" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M17 16l4-4m0 0l-4-4m4 4H7m6 4v1a3 3 0 01-3 3H6a3 3 0 01-3-3V7a3 3 0 013-3h4a3 3 0 013 3v1" /></svg>
+            </a>
         </div>
+    </aside>
+
+    <!-- MAIN CONTAINER -->
+    <div class="flex-grow flex flex-col min-h-screen overflow-x-hidden">
+
+        <!-- Top Header Controls (Desktop) -->
+        <header class="hidden md:flex justify-between items-center py-4 px-8 border-b border-[#E5E5E7] dark:border-[#2C2C2C] bg-white dark:bg-[#1A1A1A] sticky top-0 z-30">
+            <div class="flex items-center gap-2">
+                <span class="text-xs text-[#888888] dark:text-[#AAAAAA] uppercase tracking-wider font-semibold">Tableau de Bord</span>
+            </div>
+            <div class="flex items-center gap-4">
+                <!-- Notifications -->
+                <div class="relative" id="notif-wrap">
+                    <button type="button" id="notif-btn" class="relative p-1.5 text-[#555555] dark:text-[#AAAAAA] hover:text-[#004B23] dark:hover:text-[#34C759] transition-colors rounded-full hover:bg-[#F5F5F7] dark:hover:bg-[#252525]" aria-label="Notifications">
+                        <svg class="w-5 h-5" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
+                            <path stroke-linecap="round" stroke-linejoin="round" d="M14.857 17.082a23.848 23.848 0 005.454-1.31A8.967 8.967 0 0118 9.75v-.7V9A6 6 0 006 9v.75a8.967 8.967 0 01-2.312 6.022c1.733.64 3.56 1.085 5.455 1.31m5.714 0a24.255 24.255 0 01-5.714 0m5.714 0a3 3 0 11-5.714 0" />
+                        </svg>
+                        <span id="notif-count" class="hidden absolute -top-1 -right-1 bg-[#D32F2F] text-white text-[9px] font-bold px-1 py-0.2 rounded-full min-w-[15px] text-center border border-white">0</span>
+                    </button>
+                    <div id="notif-panel-container" class="hidden absolute right-0 top-full mt-2 w-80 bg-white dark:bg-[#1A1A1A] border border-[#E5E5E7] dark:border-[#2C2C2C] shadow-xl z-50 text-left text-sm rounded-lg overflow-hidden flex flex-col max-h-[360px]">
+                        <div class="p-3 border-b border-[#E5E5E7] dark:border-[#2C2C2C] flex justify-between items-center bg-[#F9F7F4] dark:bg-[#252525] flex-shrink-0">
+                            <span class="font-serif font-semibold text-xs uppercase tracking-wider text-[#111111] dark:text-white">Notifications</span>
+                            <button onclick="markAllNotificationsRead(event)" class="text-[10px] text-[#004B23] dark:text-[#34C759] hover:underline font-semibold">Tout marquer comme lu</button>
+                        </div>
+                        <div id="notif-panel" class="overflow-y-auto flex-grow max-h-[300px] dark:text-white/80"></div>
+                    </div>
+                </div>
+
+                <button class="sv-dark-toggle" data-dark-toggle title="Mode sombre"></button>
+                
+                <div class="relative inline-block text-left">
+                    <select id="lang-selector" onchange="changeLanguage(this.value)" class="bg-transparent text-xs border border-[#E5E5E7] dark:border-[#2C2C2C] text-[#555555] dark:text-[#AAAAAA] rounded-sm py-1 px-2 focus:outline-none focus:border-[#004B23] dark:focus:border-[#34C759]">
+                        <option value="fr" <?= TranslationService::getLang() === 'fr' ? 'selected' : ''; ?>>FR</option>
+                        <option value="en" <?= TranslationService::getLang() === 'en' ? 'selected' : ''; ?>>EN</option>
+                    </select>
+                </div>
+            </div>
+        </header>
+
+        <!-- Main Workspace Area -->
+        <main class="flex-grow p-6 md:p-10 lg:p-12 space-y-10 max-w-7xl w-full mx-auto">
+
+            <?php if ($continueCourse): ?>
+            <div class="border border-[#004B23] dark:border-[#34C759] bg-[#f8fcf9] dark:bg-[#1a2e22] p-5 rounded-xl flex flex-wrap items-center justify-between gap-4 shadow-sm hover:shadow transition-shadow duration-300">
+                <div>
+                    <div class="text-[10px] uppercase tracking-widest text-[#004B23] dark:text-[#34C759] font-bold mb-1">Continuer l'apprentissage</div>
+                    <div class="font-serif text-lg text-[#111111] dark:text-white"><?= htmlspecialchars($continueCourse['course_title']); ?></div>
+                    <div class="text-xs text-[#555555] dark:text-[#AAAAAA] mt-0.5"><?= htmlspecialchars($continueCourse['lesson_title'] ?? 'Reprendre la leçon'); ?></div>
+                </div>
+                <button type="button" class="px-5 py-2.5 bg-[#004B23] dark:bg-[#34C759] text-white hover:bg-[#003619] dark:hover:bg-[#28a148] text-xs font-semibold uppercase tracking-wider transition-colors rounded-lg cursor-pointer"
+                    onclick="resumeCourse(<?= (int)$continueCourse['course_id']; ?>, <?= (int)$continueCourse['last_lesson_id']; ?>)">
+                    Reprendre
+                </button>
+            </div>
+            <?php endif; ?>
+
+            <?php if (!empty($deadlineAlerts)): ?>
+            <div class="border border-[#E6A817] bg-[#fffbeb] dark:bg-[#2b2413] p-4 rounded-xl space-y-2">
+                <div class="text-xs uppercase tracking-widest text-[#E6A817] font-semibold">Échéances de leçons proches</div>
+                <?php foreach ($deadlineAlerts as $alert): ?>
+                <p class="text-sm text-[#555555] dark:text-[#DDDDDD]">
+                    <strong><?= htmlspecialchars($alert['title']); ?></strong> —
+                    évaluation obligatoire avant le <?= date('d/m/Y', strtotime($alert['eval_deadline'])); ?>
+                </p>
+                <?php endforeach; ?>
+            </div>
+            <?php endif; ?>
+
+            <!-- KPI Apprenant Grid -->
+            <div class="grid grid-cols-2 lg:grid-cols-4 gap-4 md:gap-6" id="student-kpi">
+                <!-- Card 1 -->
+                <div class="bg-white dark:bg-[#1A1A1A] border border-[#E5E5E7] dark:border-[#2C2C2C] p-5 rounded-2xl flex items-center justify-between shadow-sm hover:shadow-md transition-all duration-300 group cursor-pointer" onclick="switchTab('mes-cours')">
+                    <div class="space-y-1">
+                        <span class="text-2xl md:text-3xl font-serif font-bold text-[#004B23] dark:text-[#34C759] transition-transform duration-300 inline-block group-hover:scale-110" id="kpi-completed"><?= $statCompleted; ?></span>
+                        <div class="text-[10px] font-medium text-[#555555] dark:text-[#AAAAAA] uppercase tracking-wider">Cours terminés</div>
+                    </div>
+                    <div class="w-11 h-11 rounded-xl bg-[#004B23]/10 dark:bg-[#34C759]/10 flex items-center justify-center">
+                        <svg class="w-5 h-5 text-[#004B23] dark:text-[#34C759]" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M12 6.253v13m0-13C10.832 5.477 9.246 5 7.5 5S4.168 5.477 3 6.253v13C4.168 18.477 5.754 18 7.5 18s3.332.477 4.5 1.253m0-13C13.168 5.477 14.754 5 16.5 5c1.747 0 3.332.477 4.5 1.253v13C19.832 18.477 18.247 18 16.5 18c-1.746 0-3.332.477-4.5 1.253" /></svg>
+                    </div>
+                </div>
+                <!-- Card 2 -->
+                <div class="bg-white dark:bg-[#1A1A1A] border border-[#E5E5E7] dark:border-[#2C2C2C] p-5 rounded-2xl flex items-center justify-between shadow-sm hover:shadow-md transition-all duration-300 group cursor-pointer" onclick="switchTab('releve')">
+                    <div class="space-y-1">
+                        <span class="text-2xl md:text-3xl font-serif font-bold text-[#004B23] dark:text-[#34C759] transition-transform duration-300 inline-block group-hover:scale-110" id="kpi-score"><?= $statAvgScore; ?>%</span>
+                        <div class="text-[10px] font-medium text-[#555555] dark:text-[#AAAAAA] uppercase tracking-wider">Score moyen</div>
+                    </div>
+                    <div class="w-11 h-11 rounded-xl bg-[#004B23]/10 dark:bg-[#34C759]/10 flex items-center justify-center">
+                        <svg class="w-5 h-5 text-[#004B23] dark:text-[#34C759]" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" /></svg>
+                    </div>
+                </div>
+                <!-- Card 3 -->
+                <div class="bg-white dark:bg-[#1A1A1A] border border-[#E5E5E7] dark:border-[#2C2C2C] p-5 rounded-2xl flex items-center justify-between shadow-sm hover:shadow-md transition-all duration-300 group">
+                    <div class="space-y-1">
+                        <span class="text-2xl md:text-3xl font-serif font-bold text-[#004B23] dark:text-[#34C759] transition-transform duration-300 inline-block group-hover:scale-110" id="kpi-time"><?= $statStudyH; ?>h<?= str_pad((string)$statStudyM, 2, '0', STR_PAD_LEFT); ?></span>
+                        <div class="text-[10px] font-medium text-[#555555] dark:text-[#AAAAAA] uppercase tracking-wider">Temps d'étude</div>
+                    </div>
+                    <div class="w-11 h-11 rounded-xl bg-[#004B23]/10 dark:bg-[#34C759]/10 flex items-center justify-center">
+                        <svg class="w-5 h-5 text-[#004B23] dark:text-[#34C759]" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" /></svg>
+                    </div>
+                </div>
+                <!-- Card 4 -->
+                <div class="bg-white dark:bg-[#1A1A1A] border border-[#E5E5E7] dark:border-[#2C2C2C] p-5 rounded-2xl flex items-center justify-between shadow-sm hover:shadow-md transition-all duration-300 group cursor-pointer" onclick="switchTab('certifications')">
+                    <div class="space-y-1">
+                        <span class="text-2xl md:text-3xl font-serif font-bold text-[#004B23] dark:text-[#34C759] transition-transform duration-300 inline-block group-hover:scale-110" id="kpi-certs"><?= count($myCertificates); ?></span>
+                        <div class="text-[10px] font-medium text-[#555555] dark:text-[#AAAAAA] uppercase tracking-wider">Certifications</div>
+                    </div>
+                    <div class="w-11 h-11 rounded-xl bg-[#004B23]/10 dark:bg-[#34C759]/10 flex items-center justify-center">
+                        <svg class="w-5 h-5 text-[#004B23] dark:text-[#34C759]" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M9 12l2 2 4-4M7.835 4.697a3.42 3.42 0 001.946-.806 3.42 3.42 0 014.438 0 3.42 3.42 0 001.946.806 3.42 3.42 0 013.138 3.138 3.42 3.42 0 00.806 1.946 3.42 3.42 0 010 4.438 3.42 3.42 0 00-.806 1.946 3.42 3.42 0 01-3.138 3.138 3.42 3.42 0 00-1.946.806 3.42 3.42 0 01-4.438 0 3.42 3.42 0 00-1.946-.806 3.42 3.42 0 01-3.138-3.138 3.42 3.42 0 00-.806-1.946 3.42 3.42 0 010-4.438 3.42 3.42 0 00.806-1.946 3.42 3.42 0 013.138-3.138z" /></svg>
+                    </div>
+                </div>
+            </div>
+
+            <?php if (!empty($myBadges)): ?>
+            <div class="flex flex-wrap gap-2 items-center" id="badges-row">
+                <span class="text-[10px] font-mono uppercase tracking-widest text-[#888888]">Badges Obtenus :</span>
+                <?php
+                $badgeLabels = ['study_hour' => '1h d\'étude', 'first_lesson' => 'Première leçon', 'certified' => 'Certifié', 'course_complete' => 'Cours terminé'];
+                foreach ($myBadges as $b): ?>
+                    <span class="text-[11px] px-3 py-1 border border-[#004B23] dark:border-[#34C759] text-[#004B23] dark:text-[#34C759] rounded-full bg-white dark:bg-[#1C2C21] font-medium shadow-sm"><?= $badgeLabels[$b['badge_type']] ?? $b['badge_type']; ?></span>
+                <?php endforeach; ?>
+            </div>
+            <?php endif; ?>
 
         <!-- 1. Onglet CATALOGUE -->
         <div id="tab-catalogue" class="tab-content space-y-12">
@@ -755,84 +884,103 @@ try {
 
     </main>
 
+    <!-- Pied de Page -->
+    <footer class="border-t border-[#E5E5E7] dark:border-[#2C2C2C] py-6 px-12 flex justify-between items-center bg-white dark:bg-[#1A1A1A] text-xs text-[#888888] dark:text-[#AAAAAA] font-light">
+        <div>StudyVibe Académique — Espace d'Étude</div>
+        <div>Console Apprenant</div>
+    </footer>
+</div>
     <!-- Modal : Liseuse / Étude de Cours (Zen, spacieux) -->
-    <div id="study-modal" class="hidden fixed inset-0 bg-[var(--sv-cream)] z-50 flex flex-col justify-between">
+    <div id="study-modal" class="hidden fixed inset-0 bg-[#FAF9F6] dark:bg-[#121212] z-50 flex flex-col justify-between">
         <!-- En-tête Liseuse -->
-        <header class="border-b border-[#E5E5E7] py-6 px-12 flex justify-between items-center bg-[var(--sv-cream-light)]">
-            <div>
-                <span id="study-course-module" class="text-[10px] font-mono uppercase tracking-widest text-[#888888]">Module</span>
-                <h2 id="study-course-title" class="font-serif text-xl font-medium text-[#111111]">Titre du Cours</h2>
+        <header class="border-b border-[#E5E5E7] dark:border-[#2C2C2C] py-4 px-6 md:px-12 flex justify-between items-center bg-white dark:bg-[#1E1E1E]">
+            <div class="flex items-center gap-4">
+                <button onclick="toggleOutline()" class="p-2 text-xs font-semibold border border-[#E5E5E7] dark:border-[#2C2C2C] hover:bg-[#F5F5F7] dark:hover:bg-[#252525] rounded transition-all" title="Afficher/Masquer le programme">
+                    Programme
+                </button>
+                <div>
+                    <span id="study-course-module" class="text-[10px] font-mono uppercase tracking-widest text-[#888888] dark:text-[#AAAAAA]">Module</span>
+                    <h2 id="study-course-title" class="font-serif text-base font-semibold text-[#111111] dark:text-white leading-tight">Titre du Cours</h2>
+                </div>
             </div>
-            <button onclick="closeStudyModal()" class="text-xs uppercase tracking-wider text-[#111111] hover:underline font-semibold">
-                Quitter la Liseuse ✕
-            </button>
-            <div class="flex items-center gap-4 text-xs text-[#555555]">
-                <span>Temps sur cette leçon :</span>
-                <span id="lesson-session-timer" class="sv-timer font-mono font-semibold text-[#004B23]">00:00</span>
+            
+            <div class="flex items-center gap-6">
+                <div class="flex items-center gap-2 text-xs text-[#555555] dark:text-[#AAAAAA]">
+                    <span class="w-2 h-2 rounded-full bg-[#004B23] dark:bg-[#34C759] animate-pulse"></span>
+                    <span>Temps d'étude :</span>
+                    <span id="lesson-session-timer" class="sv-timer font-mono font-semibold text-[#004B23] dark:text-[#34C759]">00:00</span>
+                </div>
+                <button onclick="toggleCompanion()" class="p-2 text-xs font-semibold border border-[#E5E5E7] dark:border-[#2C2C2C] hover:bg-[#F5F5F7] dark:hover:bg-[#252525] rounded transition-all" title="Ouvrir le compagnon d'étude">
+                    Compagnon d'étude
+                </button>
+                <button onclick="closeStudyModal()" class="px-3 py-1.5 bg-[#D32F2F] text-white text-xs uppercase tracking-wider font-semibold hover:bg-[#B71C1C] rounded transition-all">
+                    Quitter ✕
+                </button>
             </div>
         </header>
 
-        <!-- Contenu principal split : leçons à gauche, visualiseur à droite -->
-        <div class="flex-grow flex flex-col md:flex-row overflow-hidden">
+        <!-- Contenu principal split : leçons à gauche, visualiseur au centre, compagnon à droite -->
+        <div class="flex-grow flex flex-col md:flex-row overflow-hidden relative">
+            
             <!-- Sidebar : Arborescence du cours -->
-            <div class="w-full md:w-80 border-r border-[#E5E5E7] bg-[var(--sv-cream-light)] p-8 overflow-y-auto flex-shrink-0 space-y-6">
-                <h3 class="text-xs font-semibold uppercase tracking-widest text-[#888888]">Programme</h3>
+            <div class="w-full md:w-80 border-r border-[#E5E5E7] dark:border-[#2C2C2C] bg-white dark:bg-[#1C1C1E] p-6 overflow-y-auto flex-shrink-0 space-y-6">
+                <div class="flex justify-between items-center pb-2 border-b border-[#E5E5E7] dark:border-[#2C2C2C]">
+                    <h3 class="text-xs font-semibold uppercase tracking-widest text-[#888888] dark:text-[#AAAAAA]">Programme du cours</h3>
+                    <button onclick="toggleOutline()" class="text-xs text-[#888888] hover:text-[#111111] dark:hover:text-white font-bold">✕</button>
+                </div>
                 <div id="study-chapters-container" class="space-y-4">
                     <!-- Généré dynamiquement en JS -->
                 </div>
             </div>
 
-            <!-- Viewer central -->
-            <div class="flex-grow p-6 md:p-10 lg:p-12 overflow-y-auto space-y-10 bg-[#FFFFFF]">
+            <!-- Viewer central (Spacieux, Scrollable) -->
+            <div class="flex-grow p-6 md:p-10 overflow-y-auto space-y-8 bg-[#FFFFFF] dark:bg-[#121212] flex flex-col">
                 <!-- Titre leçon et type -->
-                <div id="lesson-viewer-header" class="border-b border-[#E5E5E7] pb-6 hidden flex justify-between items-start gap-4">
+                <div id="lesson-viewer-header" class="border-b border-[#E5E5E7] dark:border-[#2C2C2C] pb-4 hidden flex justify-between items-start gap-4">
                     <div>
-                        <h3 id="study-lesson-title" class="font-serif text-3xl font-light text-[#111111]">Titre de la leçon</h3>
-                        <span id="study-lesson-badge" class="text-[9px] font-mono uppercase tracking-widest bg-[#F5F5F7] border border-[#E5E5E7] px-2 py-0.5 mt-2 inline-block text-[#555555]">Badge</span>
+                        <h3 id="study-lesson-title" class="font-serif text-2xl font-light text-[#111111] dark:text-white">Titre de la leçon</h3>
+                        <span id="study-lesson-badge" class="text-[9px] font-mono uppercase tracking-widest bg-[#F5F5F7] dark:bg-[#252525] border border-[#E5E5E7] dark:border-[#2C2C2C] px-2 py-0.5 mt-2 inline-block text-[#555555] dark:text-[#AAAAAA]">Badge</span>
                     </div>
-                    <button type="button" id="open-ai-mentor-btn" onclick="toggleAiDrawer()"
-                        class="px-4 py-2 bg-[#111111] text-[#FFFFFF] text-xs font-semibold uppercase tracking-wider hover:bg-[#004B23] transition-colors rounded-sm flex-shrink-0">
-                        Assistant IA
-                    </button>
                 </div>
 
                 <!-- Zone d'affichage des médias -->
-                <div id="study-media-container" class="space-y-8">
+                <div id="study-media-container" class="space-y-6 dark:text-white/95">
                     <!-- Texte, PDF, Vidéo injectés ici -->
                 </div>
 
                 <!-- Marquer la leçon comme terminée -->
-                <div id="lesson-complete-bar" class="hidden flex flex-wrap items-center justify-between gap-4 p-6 border border-[#E5E5E7] bg-[var(--sv-cream)]">
+                <div id="lesson-complete-bar" class="hidden flex flex-wrap items-center justify-between gap-4 p-5 border border-[#E5E5E7] dark:border-[#2C2C2C] bg-[#FAF9F6] dark:bg-[#1C1C1E] rounded-xl shadow-sm">
                     <div>
-                        <p class="text-sm font-medium text-[#111111]">Progression de la leçon</p>
-                        <p id="lesson-complete-hint" class="text-xs text-[#555555] font-light mt-1">Une fois le contenu lu, marquez la leçon comme terminée pour mettre à jour votre avancement.</p>
+                        <p class="text-sm font-semibold text-[#111111] dark:text-white">Progression de la leçon</p>
+                        <p id="lesson-complete-hint" class="text-xs text-[#555555] dark:text-[#AAAAAA] mt-0.5">Une fois le contenu lu, marquez la leçon comme terminée pour mettre à jour votre avancement.</p>
                     </div>
-                    <p id="lesson-complete-status" class="hidden text-sm text-[#004B23] font-semibold">✓ Leçon terminée</p>
+                    <p id="lesson-complete-status" class="hidden text-sm text-[#004B23] dark:text-[#34C759] font-semibold flex items-center gap-1.5">✓ Leçon terminée</p>
                     <button type="button" id="mark-lesson-complete-btn"
-                        class="px-6 py-2.5 bg-[#111111] text-[#FFFFFF] text-xs font-semibold uppercase tracking-wider hover:bg-[#004B23] transition-colors rounded-sm flex-shrink-0">
+                        class="px-5 py-2.5 bg-[#111111] dark:bg-[#FFFFFF] text-[#FFFFFF] dark:text-[#111111] text-xs font-semibold uppercase tracking-wider hover:bg-[#004B23] dark:hover:bg-[#34C759] dark:hover:text-white transition-colors rounded-lg flex-shrink-0">
                         Marquer la leçon comme terminée
                     </button>
                 </div>
 
                 <!-- Zone mini-quizz de leçon (une question à la fois) -->
-                <div id="lesson-quiz-locked" class="hidden p-8 border border-[#E5E5E7] bg-[#FAFAFA] space-y-3">
-                    <h4 class="font-serif text-xl font-medium text-[#111111]">Évaluation de Leçon</h4>
-                    <p class="text-sm text-[#555555] font-light">Terminez la lecture, le document PDF ou la vidéo pour débloquer l'évaluation de cette leçon.</p>
-                    <p id="lesson-content-progress" class="text-xs text-[#888888] font-mono uppercase tracking-wider"></p>
+                <div id="lesson-quiz-locked" class="hidden p-6 border border-[#E5E5E7] dark:border-[#2C2C2C] bg-[#FAFAFA] dark:bg-[#1A1A1A] rounded-xl space-y-2">
+                    <h4 class="font-serif text-lg font-semibold text-[#111111] dark:text-white">Évaluation de Leçon</h4>
+                    <p class="text-xs text-[#555555] dark:text-[#AAAAAA] font-light">Terminez la lecture, le document PDF ou la vidéo pour débloquer l'évaluation de cette leçon.</p>
+                    <p id="lesson-content-progress" class="text-[10px] text-[#888888] dark:text-[#AAAAAA] font-mono uppercase tracking-wider"></p>
                 </div>
-                <div id="lesson-quiz-container" class="hidden p-8 border border-[#E5E5E7] bg-[var(--sv-cream-light)] space-y-6">
-                    <h4 class="font-serif text-xl font-medium text-[#111111]">Évaluation de Leçon</h4>
-                    <p id="lesson-quiz-hint" class="text-xs font-light text-[#555555]">Répondez à chaque question pour valider la leçon.</p>
-                    <p id="lesson-quiz-complete-msg" class="hidden text-sm text-[#004B23] font-medium">✓ Évaluation terminée — leçon validée.</p>
+                
+                <div id="lesson-quiz-container" class="hidden p-6 border border-[#E5E5E7] dark:border-[#2C2C2C] bg-[#FAF9F6] dark:bg-[#1C1C1E] rounded-xl space-y-4">
+                    <h4 class="font-serif text-lg font-semibold text-[#111111] dark:text-white">Évaluation de Leçon</h4>
+                    <p id="lesson-quiz-hint" class="text-xs font-light text-[#555555] dark:text-[#AAAAAA]">Répondez à chaque question pour valider la leçon.</p>
+                    <p id="lesson-quiz-complete-msg" class="hidden text-sm text-[#004B23] dark:text-[#34C759] font-medium">✓ Évaluation terminée — leçon validée.</p>
 
                     <div id="lesson-quiz-active">
-                        <form id="lesson-quiz-form" class="space-y-6">
+                        <form id="lesson-quiz-form" class="space-y-4">
                             <input type="hidden" id="quiz-lesson-id" name="lesson_id" value="">
                             <input type="hidden" id="quiz-question-id" name="question_id" value="">
-                            <div id="lesson-quiz-question-box" class="space-y-4"></div>
-                            <div class="pt-4 flex items-center gap-4">
+                            <div id="lesson-quiz-question-box" class="space-y-3"></div>
+                            <div class="pt-2 flex items-center gap-4">
                                 <button type="submit" id="lesson-quiz-submit-btn"
-                                    class="px-6 py-2 bg-[#111111] text-[#FFFFFF] text-xs font-semibold uppercase tracking-wider hover:bg-[#004B23] transition-colors rounded-sm">
+                                    class="px-5 py-2 bg-[#111111] dark:bg-[#FFFFFF] text-white dark:text-[#111111] text-xs font-semibold uppercase tracking-wider hover:bg-[#004B23] dark:hover:bg-[#34C759] dark:hover:text-white transition-colors rounded-lg">
                                     Soumettre
                                 </button>
                                 <span id="lesson-quiz-feedback" class="text-xs font-medium"></span>
@@ -840,103 +988,115 @@ try {
                         </form>
                     </div>
                 </div>
+            </div>
 
-                <!-- Q&A sous la leçon -->
-                <div id="lesson-qa-container" class="hidden p-8 border border-[#E5E5E7] space-y-6">
+            <!-- COMPAGNON SIDEBAR (Right) : Tabbed Companion Widget -->
+            <div id="study-companion-panel" class="w-full md:w-96 border-l border-[#E5E5E7] dark:border-[#2C2C2C] bg-[#FAF9F6] dark:bg-[#1C1C1E] flex flex-col flex-shrink-0 overflow-hidden relative shadow-lg">
+                <!-- Companion Tab Header -->
+                <div class="px-4 pt-3 pb-2 border-b border-[#E5E5E7] dark:border-[#2C2C2C] bg-white dark:bg-[#1E1E1E] flex justify-between items-center">
+                    <div class="flex gap-4">
+                        <button onclick="switchCompanionTab('ai')" id="companion-btn-ai" class="pb-2 text-xs font-semibold border-b-2 border-[#004B23] text-[#004B23] dark:text-[#34C759] uppercase tracking-wider transition-all">Assistant IA</button>
+                        <button onclick="switchCompanionTab('notes')" id="companion-btn-notes" class="pb-2 text-xs font-medium border-b-2 border-transparent text-[#555555] dark:text-[#AAAAAA] uppercase tracking-wider transition-all">Notes</button>
+                        <button onclick="switchCompanionTab('qa')" id="companion-btn-qa" class="pb-2 text-xs font-medium border-b-2 border-transparent text-[#555555] dark:text-[#AAAAAA] uppercase tracking-wider transition-all">Q&R</button>
+                    </div>
+                    <button onclick="toggleCompanion()" class="text-xs text-[#888888] hover:text-[#111111] dark:hover:text-white font-bold pb-2" title="Fermer">✕</button>
+                </div>
 
-                    <!-- Notes de Video sur Timestamps (Etape 7) -->
-                    <div id="video-notes-section" class="hidden pb-6 border-b border-[#E5E5E7] space-y-3">
-                        <div class="flex items-center gap-2">
-                            <h4 class="font-serif text-base font-medium text-[#111111]">Mes Notes Vidéo</h4>
-                            <span class="text-[10px] font-mono uppercase tracking-wider text-[#888888] bg-[#F5F5F7] px-2 py-0.5 rounded-sm">calées sur les timestamps</span>
-                        </div>
-                        <div id="video-notes-list" class="flex flex-wrap gap-2 min-h-[1.5rem]">
-                            <p id="no-notes-msg" class="text-xs text-[#888888] italic">Aucune note. Ajoutez-en ci-dessous pendant la vidéo.</p>
-                        </div>
-                        <form id="video-note-form" class="flex flex-wrap gap-2 items-end">
-                            <div class="flex flex-col gap-1">
-                                <label class="text-[10px] uppercase tracking-wider text-[#555555] font-semibold">Timestamp</label>
-                                <input type="text" id="note-timestamp" placeholder="04:32" maxlength="6"
-                                    class="w-20 px-2 py-1.5 bg-[#F5F5F7] border border-[#E5E5E7] text-xs focus:outline-none focus:border-[#004B23] rounded-sm font-mono">
+                <!-- COMPANION TABS CONTENT -->
+                <div class="flex-grow flex flex-col overflow-hidden relative">
+
+                    <!-- Tab 1: AI Assistant (WhatsApp style) -->
+                    <div id="companion-tab-ai" class="flex-grow flex flex-col overflow-hidden">
+                        <!-- AI chat messages area -->
+                        <div id="ai-chat-messages" class="flex-grow p-4 overflow-y-auto space-y-4 font-light text-sm leading-relaxed text-[#111111] wa-chat-bg flex flex-col dark:text-white">
+                            <div class="flex justify-start w-full my-2">
+                                <div class="px-4 py-2 bg-[#FFFFFF] dark:bg-[#2C2C2E] text-[#000000] dark:text-white text-xs rounded-[16px_16px_16px_4px] max-w-[85%] shadow-sm border border-[#E5E5E7] dark:border-[#2C2C2C] relative break-words">
+                                    Bonjour. Je suis votre assistant StudyVibe. Comment puis-je vous aider à comprendre cette leçon aujourd'hui ?
+                                </div>
                             </div>
-                            <div class="flex flex-col gap-1 flex-1 min-w-[160px]">
-                                <label class="text-[10px] uppercase tracking-wider text-[#555555] font-semibold">Note</label>
-                                <input type="text" id="note-text" placeholder="Ma remarque à ce moment…" required
-                                    class="flex-1 px-3 py-1.5 bg-[#F5F5F7] border border-[#E5E5E7] text-xs focus:outline-none focus:border-[#004B23] rounded-sm">
+                        </div>
+
+                        <!-- Quick reply pills -->
+                        <div class="px-4 py-2 bg-white/40 dark:bg-[#1E1E1E]/40 backdrop-blur-md border-t border-[#E5E5E7]/80 dark:border-[#2C2C2C] flex gap-2 overflow-x-auto scrollbar-none select-none relative z-10 flex-shrink-0">
+                            <button type="button" onclick="triggerAiAction('summarize')" class="flex-shrink-0 px-3 py-1.5 bg-[#FFFFFF]/60 hover:bg-[#FFFFFF]/90 dark:bg-[#2C2C2E]/60 dark:hover:bg-[#2C2C2E]/90 border border-[#FFFFFF]/60 dark:border-[#2C2C2C] text-[11px] font-semibold text-[#004B23] dark:text-[#34C759] transition-all rounded-full shadow-sm">
+                                Résumer le cours
+                            </button>
+                            <button type="button" onclick="triggerAiAction('explain')" class="flex-shrink-0 px-3 py-1.5 bg-[#FFFFFF]/60 hover:bg-[#FFFFFF]/90 dark:bg-[#2C2C2E]/60 dark:hover:bg-[#2C2C2E]/90 border border-[#FFFFFF]/60 dark:border-[#2C2C2C] text-[11px] font-semibold text-[#004B23] dark:text-[#34C759] transition-all rounded-full shadow-sm">
+                                Expliquer simplement
+                            </button>
+                            <button type="button" onclick="triggerAiAction('generate_quiz')" class="flex-shrink-0 px-3 py-1.5 bg-[#FFFFFF]/60 hover:bg-[#FFFFFF]/90 dark:bg-[#2C2C2E]/60 dark:hover:bg-[#2C2C2E]/90 border border-[#FFFFFF]/60 dark:border-[#2C2C2C] text-[11px] font-semibold text-[#004B23] dark:text-[#34C759] transition-all rounded-full shadow-sm">
+                                S'auto-évaluer
+                            </button>
+                        </div>
+
+                        <!-- AI message input bar -->
+                        <form id="ai-chat-form" class="p-3 border-t border-[#E5E5E7] dark:border-[#2C2C2C] bg-white dark:bg-[#1E1E1E] flex items-center gap-2" onsubmit="sendAiMessage(event)">
+                            <div class="flex-grow relative">
+                                <input type="text" id="ai-chat-input" placeholder="Posez une question sur le cours..." autocomplete="off"
+                                    class="w-full px-4 py-2 border border-[#E5E5E7] dark:border-[#2C2C2C] text-xs focus:outline-none focus:border-[#D5D0C8] rounded-full bg-[#F5F5F7] dark:bg-[#2C2C2E] text-[#111111] dark:text-white placeholder-[#888888]">
                             </div>
-                            <button type="submit" class="px-4 py-1.5 bg-[#004B23] text-white text-[10px] font-semibold uppercase tracking-wider hover:bg-[#111111] transition-colors rounded-sm flex-shrink-0">
-                                + Ajouter
+                            <button type="submit"
+                                class="w-8 h-8 flex items-center justify-center bg-[#004B23] dark:bg-[#34C759] hover:bg-[#003619] text-[#FFFFFF] rounded-full transition-colors shadow-md flex-shrink-0">
+                                <svg class="w-4 h-4 fill-current rotate-45 transform translate-x-[-1px] translate-y-[1px]" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
+                                    <path d="M2.01 21L23 12 2.01 3 2 10l15 2-15 2z"/>
+                                </svg>
                             </button>
                         </form>
                     </div>
 
-                    <h4 class="font-serif text-xl font-medium text-[#111111]">Questions &amp; Réponses</h4>
-                    <div id="lesson-comments-list" class="space-y-4 max-h-64 overflow-y-auto"></div>
-                    <form id="lesson-comment-form" class="flex gap-3">
-                        <input type="hidden" id="comment-lesson-id" value="">
-                        <input type="text" id="comment-input" placeholder="Poser une question…" required
-                            class="flex-1 px-4 py-2 bg-[#F5F5F7] border border-[#E5E5E7] text-sm focus:outline-none focus:border-[#004B23] rounded-sm">
-                        <button type="submit" class="px-4 py-2 bg-[#111111] text-[#FFFFFF] text-xs font-semibold uppercase tracking-wider hover:bg-[#004B23] rounded-sm">Envoyer</button>
-                    </form>
+                    <!-- Tab 2: Timestamp Notes -->
+                    <div id="companion-tab-notes" class="flex-grow flex flex-col overflow-y-auto p-4 space-y-4 hidden">
+                        <div id="video-notes-section" class="space-y-4 flex flex-col h-full justify-between">
+                            <div class="space-y-3">
+                                <div class="flex items-center gap-2 border-b pb-2 dark:border-[#2C2C2C]">
+                                    <span class="text-xs font-semibold uppercase tracking-wider text-[#888888] dark:text-[#AAAAAA]">Mes Notes Vidéo</span>
+                                    <span class="text-[9px] font-mono uppercase tracking-wider text-[#888888] bg-[#F5F5F7] dark:bg-[#252525] px-2 py-0.5 rounded-sm">calées sur les timestamps</span>
+                                </div>
+                                <div id="video-notes-list" class="flex flex-col gap-2 min-h-[5rem] max-h-[300px] overflow-y-auto">
+                                    <p id="no-notes-msg" class="text-xs text-[#888888] italic">Aucune note. Ajoutez-en ci-dessous pendant la vidéo.</p>
+                                </div>
+                            </div>
+                            
+                            <form id="video-note-form" class="border-t pt-4 dark:border-[#2C2C2C] flex flex-col gap-3">
+                                <div class="flex gap-2">
+                                    <div class="flex flex-col gap-1 w-24">
+                                        <label class="text-[9px] uppercase tracking-wider text-[#555555] dark:text-[#AAAAAA] font-bold">Timestamp</label>
+                                        <input type="text" id="note-timestamp" placeholder="04:32" maxlength="6"
+                                            class="w-full px-2 py-1.5 bg-white dark:bg-[#2C2C2E] border border-[#E5E5E7] dark:border-[#2C2C2C] text-xs focus:outline-none focus:border-[#004B23] rounded font-mono text-center">
+                                    </div>
+                                    <div class="flex flex-col gap-1 flex-1">
+                                        <label class="text-[9px] uppercase tracking-wider text-[#555555] dark:text-[#AAAAAA] font-bold">Votre note</label>
+                                        <input type="text" id="note-text" placeholder="Ma remarque à ce moment…" required
+                                            class="w-full px-3 py-1.5 bg-white dark:bg-[#2C2C2E] border border-[#E5E5E7] dark:border-[#2C2C2C] text-xs focus:outline-none focus:border-[#004B23] rounded">
+                                    </div>
+                                </div>
+                                <button type="submit" class="w-full py-2 bg-[#004B23] dark:bg-[#34C759] text-white text-xs font-semibold uppercase tracking-wider hover:bg-[#111111] transition-colors rounded-lg flex justify-center items-center gap-1.5 shadow-sm">
+                                    <span>+ Ajouter la note</span>
+                                </button>
+                            </form>
+                        </div>
+                    </div>
+
+                    <!-- Tab 3: Q&A Comments -->
+                    <div id="companion-tab-qa" class="flex-grow flex flex-col overflow-hidden hidden p-4">
+                        <div id="lesson-qa-container" class="flex flex-col h-full justify-between space-y-4 overflow-hidden">
+                            <div class="flex-grow flex flex-col overflow-hidden space-y-2">
+                                <h4 class="text-xs font-semibold uppercase tracking-widest text-[#888888] dark:text-[#AAAAAA] border-b pb-2 dark:border-[#2C2C2C]">Questions &amp; Réponses</h4>
+                                <div id="lesson-comments-list" class="flex-grow overflow-y-auto space-y-3 pr-1"></div>
+                            </div>
+                            
+                            <form id="lesson-comment-form" class="border-t pt-3 dark:border-[#2C2C2C] flex gap-2 flex-shrink-0">
+                                <input type="hidden" id="comment-lesson-id" value="">
+                                <input type="text" id="comment-input" placeholder="Poser une question…" required
+                                    class="flex-1 px-3 py-2 bg-white dark:bg-[#2C2C2E] border border-[#E5E5E7] dark:border-[#2C2C2C] text-xs focus:outline-none focus:border-[#004B23] rounded-lg">
+                                <button type="submit" class="px-4 py-2 bg-[#111111] dark:bg-[#FFFFFF] text-white dark:text-[#111111] text-xs font-semibold uppercase tracking-wider hover:bg-[#004B23] rounded-lg transition-all flex-shrink-0">Envoyer</button>
+                            </form>
+                        </div>
+                    </div>
+
                 </div>
             </div>
 
-            <!-- Tiroir IA de l'Assistant StudyVibe -->
-            <div id="ai-chat-drawer" class="hidden w-full md:w-96 border-l border-[#E5E5E7] bg-[#efeae2] flex flex-col flex-shrink-0 overflow-hidden relative" style="box-shadow: -2px 0 10px rgba(0,0,0,0.05);">
-                <!-- En-tete du chat style WhatsApp iOS -->
-                <div class="px-4 py-3 border-b border-[#E5E5E7] flex justify-between items-center bg-[#F6F6F6] select-none">
-                    <div class="flex items-center gap-3">
-                        <!-- Avatar Mentor -->
-                        <div class="relative w-10 h-10 rounded-full bg-[#004B23] flex items-center justify-center text-white font-serif font-semibold text-sm shadow-inner">
-                            SV
-                            <span class="absolute bottom-0 right-0 w-2.5 h-2.5 bg-[#34C759] border-2 border-[#F6F6F6] rounded-full"></span>
-                        </div>
-                        <div>
-                            <h4 class="text-sm font-semibold text-[#111111] leading-tight">Assistant StudyVibe</h4>
-                            <p class="text-[11px] text-[#34C759] font-medium leading-none">En ligne</p>
-                        </div>
-                    </div>
-                    <button type="button" onclick="toggleAiDrawer()" class="w-8 h-8 rounded-full bg-[#E5E5E7] hover:bg-[#D5D0C8] flex items-center justify-center text-xs text-[#555555] transition-all font-semibold" title="Fermer">
-                        ✕
-                    </button>
-                </div>
-
-                <!-- Zone d'affichage des messages (style WhatsApp BG) -->
-                <div id="ai-chat-messages" class="flex-grow p-4 overflow-y-auto space-y-4 font-light text-sm leading-relaxed text-[#111111] wa-chat-bg flex flex-col">
-                    <div class="flex justify-start w-full my-2">
-                        <div class="px-4 py-2 bg-[#FFFFFF] text-[#000000] text-sm rounded-[16px_16px_16px_4px] max-w-[85%] shadow-sm border border-[#E5E5E7] relative break-words">
-                            Bonjour. Je suis votre assistant StudyVibe. Comment puis-je vous aider à comprendre cette leçon aujourd'hui ?
-                        </div>
-                    </div>
-                </div>
-
-                <!-- Liquid-glass quick-reply pills container -->
-                <div class="px-4 py-2.5 bg-white/30 backdrop-blur-md border-t border-[#E5E5E7]/80 flex gap-2 overflow-x-auto scrollbar-none select-none relative z-10 flex-shrink-0">
-                    <button type="button" onclick="triggerAiAction('summarize')" class="flex-shrink-0 px-3 py-1.5 bg-[#FFFFFF]/60 hover:bg-[#FFFFFF]/90 backdrop-blur-lg border border-[#FFFFFF]/60 text-[11px] font-semibold text-[#004B23] transition-all rounded-full shadow-sm">
-                        Résumer le cours
-                    </button>
-                    <button type="button" onclick="triggerAiAction('explain')" class="flex-shrink-0 px-3 py-1.5 bg-[#FFFFFF]/60 hover:bg-[#FFFFFF]/90 backdrop-blur-lg border border-[#FFFFFF]/60 text-[11px] font-semibold text-[#004B23] transition-all rounded-full shadow-sm">
-                        Expliquer simplement
-                    </button>
-                    <button type="button" onclick="triggerAiAction('generate_quiz')" class="flex-shrink-0 px-3 py-1.5 bg-[#FFFFFF]/60 hover:bg-[#FFFFFF]/90 backdrop-blur-lg border border-[#FFFFFF]/60 text-[11px] font-semibold text-[#004B23] transition-all rounded-full shadow-sm">
-                        S'auto-évaluer
-                    </button>
-                </div>
-
-                <!-- Formulaire d'envoi style WhatsApp iOS input bar -->
-                <form id="ai-chat-form" class="p-3 border-t border-[#E5E5E7] bg-[#F6F6F6] flex items-center gap-2" onsubmit="sendAiMessage(event)">
-                    <div class="flex-grow relative">
-                        <input type="text" id="ai-chat-input" placeholder="Posez une question sur le cours..." autocomplete="off"
-                            class="w-full px-4 py-2 border border-[#E5E5E7] text-sm focus:outline-none focus:border-[#D5D0C8] rounded-full bg-[#FFFFFF] shadow-inner text-[#111111] placeholder-[#888888] pr-4">
-                    </div>
-                    <button type="submit"
-                        class="w-9 h-9 flex items-center justify-center bg-[#004B23] hover:bg-[#003619] text-[#FFFFFF] rounded-full transition-colors shadow-md flex-shrink-0">
-                        <svg class="w-4 h-4 fill-current rotate-45 transform translate-x-[-1px] translate-y-[1px]" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
-                            <path d="M2.01 21L23 12 2.01 3 2 10l15 2-15 2z"/>
-                        </svg>
-                    </button>
-                </form>
-            </div>
         </div>
     </div>
 
@@ -1006,15 +1166,60 @@ try {
         </div>
     </div>
 
-    <!-- Pied de Page -->
-    <footer class="border-t border-[#E5E5E7] py-6 px-12 flex justify-between items-center bg-[var(--sv-cream)] text-xs text-[#888888] font-light">
-        <div>StudyVibe Académique — Espace d'Étude</div>
-        <div>Console Apprenant</div>
-    </footer>
-
     <!-- Scripts Javascript Applicatifs (Vanilla JS & AJAX Fetch) -->
     <script src="/assets/js/app.js"></script>
     <script>
+        // Custom UI Helper functions for sidebar, mobile menu, and companion panels
+        function toggleOutline() {
+            const container = document.getElementById('study-chapters-container')?.parentElement;
+            if (container) {
+                container.classList.toggle('hidden');
+            }
+        }
+
+        function toggleCompanion() {
+            const companion = document.getElementById('study-companion-panel');
+            if (companion) {
+                companion.classList.toggle('hidden');
+            }
+        }
+
+        function switchCompanionTab(tabId) {
+            const tabs = ['ai', 'notes', 'qa'];
+            tabs.forEach(t => {
+                const btn = document.getElementById('companion-btn-' + t);
+                const content = document.getElementById('companion-tab-' + t);
+                if (btn) {
+                    if (t === tabId) {
+                        btn.classList.remove('border-transparent', 'text-[#555555]', 'dark:text-[#AAAAAA]', 'font-medium');
+                        btn.classList.add('border-[#004B23]', 'dark:border-[#34C759]', 'text-[#004B23]', 'dark:text-[#34C759]', 'font-semibold');
+                    } else {
+                        btn.classList.remove('border-[#004B23]', 'dark:border-[#34C759]', 'text-[#004B23]', 'dark:text-[#34C759]', 'font-semibold');
+                        btn.classList.add('border-transparent', 'text-[#555555]', 'dark:text-[#AAAAAA]', 'font-medium');
+                    }
+                }
+                if (content) {
+                    content.classList.toggle('hidden', t !== tabId);
+                }
+            });
+        }
+
+        function toggleMobileDrawer() {
+            const drawer = document.getElementById('mobile-drawer');
+            if (drawer) {
+                drawer.classList.toggle('hidden');
+            }
+        }
+
+        function toggleMobileNotifs() {
+            const panel = document.getElementById('mobile-notif-panel-container');
+            if (panel) {
+                panel.classList.toggle('hidden');
+                if (!panel.classList.contains('hidden')) {
+                    loadNotifications();
+                }
+            }
+        }
         const STUDENT_TABS = ['catalogue', 'mes-cours', 'releve', 'certifications', 'profil', 'tele-evaluations', 'webinaires'];
 
         document.addEventListener('DOMContentLoaded', () => {
@@ -1069,8 +1274,30 @@ try {
             });
         });
 
+        function updateSidebarButtons(activeTab) {
+            STUDENT_TABS.forEach(t => {
+                const btn = document.getElementById('tab-btn-' + t);
+                if (btn) {
+                    if (t === activeTab) {
+                        btn.className = "w-full flex items-center gap-3 px-4 py-3 rounded-lg text-sm font-semibold transition-all text-white bg-white/10 border-l-4 border-white text-left";
+                    } else {
+                        btn.className = "w-full flex items-center gap-3 px-4 py-3 rounded-lg text-sm font-medium transition-all text-white/70 hover:text-white hover:bg-white/10 text-left";
+                    }
+                }
+                const mBtn = document.getElementById('mobile-tab-btn-' + t);
+                if (mBtn) {
+                    if (t === activeTab) {
+                        mBtn.className = "w-full flex items-center gap-3 px-4 py-3 rounded-lg text-sm font-semibold transition-all text-white bg-white/10 border-l-4 border-white text-left";
+                    } else {
+                        mBtn.className = "w-full flex items-center gap-3 px-4 py-3 rounded-lg text-sm font-medium transition-all text-white/70 hover:text-white hover:bg-white/10 text-left";
+                    }
+                }
+            });
+        }
+
         function switchTab(tabName) {
             switchTabAnimated(tabName, STUDENT_TABS);
+            updateSidebarButtons(tabName);
             if (tabName === 'releve') loadTranscript();
 
             // Stagger fade elements inside the active tab panel using GSAP
@@ -2224,14 +2451,19 @@ try {
             .then(r => r.json())
             .then(data => {
                 if (!data.success) return;
-                const badge = document.getElementById('notif-count');
-                const panel = document.getElementById('notif-panel');
-                if (data.unread_count > 0) {
-                    badge.textContent = data.unread_count;
-                    badge.classList.remove('hidden');
-                } else {
-                    badge.classList.add('hidden');
-                }
+                
+                // Update desktop and mobile count badges
+                const badges = [document.getElementById('notif-count'), document.getElementById('mobile-notif-count')];
+                badges.forEach(badge => {
+                    if (badge) {
+                        if (data.unread_count > 0) {
+                            badge.textContent = data.unread_count;
+                            badge.classList.remove('hidden');
+                        } else {
+                            badge.classList.add('hidden');
+                        }
+                    }
+                });
 
                 const iconMap = {
                     certification: '🏆',
@@ -2241,28 +2473,35 @@ try {
                     general: '🔔'
                 };
 
-                panel.innerHTML = data.notifications.length
+                const panels = [document.getElementById('notif-panel'), document.getElementById('mobile-notif-panel')];
+                const contentHtml = data.notifications.length
                     ? data.notifications.map(n => {
                         const icon = iconMap[n.type] || iconMap.general;
                         return `
-                            <a href="${n.link || '#'}" class="flex gap-3 p-3 border-b border-[#E5E5E7] hover:bg-[#F9F9FB] transition-colors items-start ${n.is_read == 0 ? 'bg-[#004B23]/5 font-semibold' : ''}">
+                            <a href="${n.link || '#'}" class="flex gap-3 p-3 border-b border-[#E5E5E7] dark:border-[#2C2C2C] hover:bg-[#F9F9FB] dark:hover:bg-[#252525] transition-colors items-start ${n.is_read == 0 ? 'bg-[#004B23]/5 dark:bg-[#34C759]/5 font-semibold' : ''}">
                                 <div class="text-base flex-shrink-0 mt-0.5">${icon}</div>
                                 <div class="flex-grow">
-                                    <div class="text-xs text-[#111111]">${n.title}</div>
-                                    <div class="text-[11px] text-[#555555] font-light mt-0.5">${n.body || ''}</div>
-                                    <div class="text-[9px] text-[#888888] font-mono mt-1">${timeAgo(n.created_at)}</div>
+                                    <div class="text-xs text-[#111111] dark:text-white">${n.title}</div>
+                                    <div class="text-[11px] text-[#555555] dark:text-[#AAAAAA] font-light mt-0.5">${n.body || ''}</div>
+                                    <div class="text-[9px] text-[#888888] dark:text-[#AAAAAA] font-mono mt-1">${timeAgo(n.created_at)}</div>
                                 </div>
-                                ${n.is_read == 0 ? '<span class="h-2 w-2 rounded-full bg-[#004B23] flex-shrink-0 mt-2"></span>' : ''}
+                                ${n.is_read == 0 ? '<span class="h-2 w-2 rounded-full bg-[#004B23] dark:bg-[#34C759] flex-shrink-0 mt-2"></span>' : ''}
                             </a>
                         `;
                     }).join('')
                     : `
                         <div class="p-8 text-center space-y-2 select-none">
                             <div class="text-2xl opacity-40">🔔</div>
-                            <div class="text-xs font-semibold text-[#111111]">Tout est calme ici</div>
-                            <div class="text-[11px] text-[#888888] font-light">Aucune nouvelle notification pour le moment.</div>
+                            <div class="text-xs font-semibold text-[#111111] dark:text-white">Tout est calme ici</div>
+                            <div class="text-[11px] text-[#888888] dark:text-[#AAAAAA] font-light">Aucune nouvelle notification pour le moment.</div>
                         </div>
                     `;
+                
+                panels.forEach(panel => {
+                    if (panel) {
+                        panel.innerHTML = contentHtml;
+                    }
+                });
             });
         }
 
@@ -2276,6 +2515,10 @@ try {
             const container = document.getElementById('notif-panel-container');
             if (container && !container.classList.contains('hidden') && !container.contains(e.target) && !e.target.closest('#notif-btn')) {
                 container.classList.add('hidden');
+            }
+            const mobileContainer = document.getElementById('mobile-notif-panel-container');
+            if (mobileContainer && !mobileContainer.classList.contains('hidden') && !mobileContainer.contains(e.target) && !e.target.closest('#mobile-notif-wrap button')) {
+                mobileContainer.classList.add('hidden');
             }
         });
 
