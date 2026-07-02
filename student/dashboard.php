@@ -210,7 +210,7 @@ try {
     </div>
 
     <!-- MOBILE DRAWER -->
-    <div id="mobile-drawer" class="fixed inset-0 z-50 flex hidden">
+    <div id="mobile-drawer" class="fixed inset-0 z-50 md:hidden hidden">
         <div onclick="toggleMobileDrawer()" class="fixed inset-0 bg-black/50 transition-opacity"></div>
         <div class="relative flex-1 flex flex-col max-w-xs w-full bg-[#004B23] pt-5 pb-4 transition-transform duration-300">
             <div class="absolute top-0 right-0 -mr-12 pt-2">
@@ -1207,7 +1207,13 @@ try {
         function toggleMobileDrawer() {
             const drawer = document.getElementById('mobile-drawer');
             if (drawer) {
-                drawer.classList.toggle('hidden');
+                if (drawer.classList.contains('hidden')) {
+                    drawer.classList.remove('hidden');
+                    drawer.classList.add('flex');
+                } else {
+                    drawer.classList.add('hidden');
+                    drawer.classList.remove('flex');
+                }
             }
         }
 

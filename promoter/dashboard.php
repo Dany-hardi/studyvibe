@@ -1348,7 +1348,7 @@ try {
                     btn.className = "sidebar-tab-btn w-full flex items-center gap-3 px-4 py-3 rounded-sm text-left text-sm transition-all duration-200 text-gray-300 hover:bg-[#143d26] hover:text-white";
                 }
             });
-            window.location.hash = tabId;
+            history.replaceState(null, null, '#' + tabId);
         }
 
         window.addEventListener('DOMContentLoaded', () => {

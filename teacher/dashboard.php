@@ -190,7 +190,7 @@ try {
 
                 $stmt = $pdo->prepare("INSERT INTO chapters (course_id,title,sort_order) VALUES (:cid,:title,:so)");
                 $stmt->execute(['cid' => $selectedCourse['id'], 'title' => $title, 'so' => $maxSort + 1]);
-                header("Location: /teacher/dashboard.php?course_id={$selectedCourse['id']}&success=chapter_added#tab-content"); exit;
+                header("Location: /teacher/dashboard.php?course_id={$selectedCourse['id']}&success=chapter_added#tab-course"); exit;
             }
         }
 
@@ -202,7 +202,7 @@ try {
                 // Vérifier que le chapitre appartient bien à ce cours
                 $stmt = $pdo->prepare("UPDATE chapters SET title=:title WHERE id=:id AND course_id=:cid");
                 $stmt->execute(['title' => $title, 'id' => $chapterId, 'cid' => $selectedCourse['id']]);
-                header("Location: /teacher/dashboard.php?course_id={$selectedCourse['id']}&success=chapter_updated#tab-content"); exit;
+                header("Location: /teacher/dashboard.php?course_id={$selectedCourse['id']}&success=chapter_updated#tab-course"); exit;
             }
         }
 
@@ -212,7 +212,7 @@ try {
             if ($chapterId > 0) {
                 $stmt = $pdo->prepare("DELETE FROM chapters WHERE id=:id AND course_id=:cid");
                 $stmt->execute(['id' => $chapterId, 'cid' => $selectedCourse['id']]);
-                header("Location: /teacher/dashboard.php?course_id={$selectedCourse['id']}&success=chapter_deleted#tab-content"); exit;
+                header("Location: /teacher/dashboard.php?course_id={$selectedCourse['id']}&success=chapter_deleted#tab-course"); exit;
             }
         }
 
@@ -251,7 +251,7 @@ try {
                 // Ressources initiales
                 this_processNewResources($pdo, $lessonId, $_POST);
 
-                header("Location: /teacher/dashboard.php?course_id={$selectedCourse['id']}&success=lesson_added#tab-content"); exit;
+                header("Location: /teacher/dashboard.php?course_id={$selectedCourse['id']}&success=lesson_added#tab-course"); exit;
             }
         }
 
@@ -310,7 +310,7 @@ try {
                     require_once __DIR__ . '/../lib/LessonProgressionHelper.php';
                     LessonProgressionHelper::handleLessonUpdate($pdo, $lessonId);
 
-                    header("Location: /teacher/dashboard.php?course_id={$selectedCourse['id']}&success=lesson_updated#tab-content"); exit;
+                    header("Location: /teacher/dashboard.php?course_id={$selectedCourse['id']}&success=lesson_updated#tab-course"); exit;
                 }
             }
         }
@@ -325,7 +325,7 @@ try {
                     WHERE l.id=:lid AND ch.course_id=:cid
                 ");
                 $stmt->execute(['lid' => $lessonId, 'cid' => $selectedCourse['id']]);
-                header("Location: /teacher/dashboard.php?course_id={$selectedCourse['id']}&success=lesson_deleted#tab-content"); exit;
+                header("Location: /teacher/dashboard.php?course_id={$selectedCourse['id']}&success=lesson_deleted#tab-course"); exit;
             }
         }
 
@@ -349,7 +349,7 @@ try {
                         LessonProgressionHelper::handleLessonUpdate($pdo, $lessonId);
                     }
                 }
-                header("Location: /teacher/dashboard.php?course_id={$selectedCourse['id']}&open_lesson={$lessonId}&success=video_deleted#tab-content"); exit;
+                header("Location: /teacher/dashboard.php?course_id={$selectedCourse['id']}&open_lesson={$lessonId}&success=video_deleted#tab-course"); exit;
             }
         }
 
@@ -372,7 +372,7 @@ try {
                         LessonProgressionHelper::handleLessonUpdate($pdo, $lessonId);
                     }
                 }
-                header("Location: /teacher/dashboard.php?course_id={$selectedCourse['id']}&open_lesson={$lessonId}&success=resource_deleted#tab-content"); exit;
+                header("Location: /teacher/dashboard.php?course_id={$selectedCourse['id']}&open_lesson={$lessonId}&success=resource_deleted#tab-course"); exit;
             }
         }
 
@@ -456,7 +456,7 @@ try {
                 require_once __DIR__ . '/../lib/LessonProgressionHelper.php';
                 LessonProgressionHelper::handleLessonUpdate($pdo, $lessonId);
 
-                header("Location: /teacher/dashboard.php?course_id={$selectedCourse['id']}&success=lesson_question_added#tab-content"); exit;
+                header("Location: /teacher/dashboard.php?course_id={$selectedCourse['id']}&success=lesson_question_added#tab-course"); exit;
             }
         }
 
@@ -476,7 +476,7 @@ try {
                     VALUES (:cid,:qt,:a,:b,:c,:d,:co)
                 ");
                 $stmt->execute(['cid'=>$selectedCourse['id'],'qt'=>$questionText,'a'=>$optionA,'b'=>$optionB,'c'=>$optionC,'d'=>$optionD,'co'=>$correct]);
-                header("Location: /teacher/dashboard.php?course_id={$selectedCourse['id']}&success=course_question_added#tab-content"); exit;
+                header("Location: /teacher/dashboard.php?course_id={$selectedCourse['id']}&success=course_question_added#tab-course"); exit;
             }
         }
 
@@ -486,7 +486,7 @@ try {
             if ($qid > 0) {
                 $stmt = $pdo->prepare("DELETE FROM course_questions WHERE id=:id AND course_id=:cid");
                 $stmt->execute(['id'=>$qid,'cid'=>$selectedCourse['id']]);
-                header("Location: /teacher/dashboard.php?course_id={$selectedCourse['id']}&success=course_question_deleted#tab-content"); exit;
+                header("Location: /teacher/dashboard.php?course_id={$selectedCourse['id']}&success=course_question_deleted#tab-course"); exit;
             }
         }
 
@@ -1210,7 +1210,7 @@ $successMsg = $successMessages[$successKey] ?? null;
     </div>
 
     <!-- MOBILE DRAWER -->
-    <div id="mobile-drawer" class="fixed inset-0 z-50 flex hidden">
+    <div id="mobile-drawer" class="fixed inset-0 z-50 md:hidden hidden">
         <div onclick="toggleMobileDrawer()" class="fixed inset-0 bg-black/50 transition-opacity"></div>
         <div class="relative flex-1 flex flex-col max-w-xs w-full bg-[#004B23] pt-5 pb-4 transition-transform duration-300">
             <div class="absolute top-0 right-0 -mr-12 pt-2">
@@ -2526,7 +2526,7 @@ $successMsg = $successMessages[$successKey] ?? null;
                     <div class="space-y-6">
                         <?php foreach ($myWebinars as $web): 
                             $dateWeb = date('d/m/Y H:i', strtotime($web['scheduled_at']));
-                            $isFinished = (int)$web['is_finished'] === 1;
+                            $isFinished = $web['status'] === 'completed';
                         ?>
                             <div class="border border-[#E5E5E7] p-6 rounded-sm bg-white space-y-4 hover:shadow-md transition-shadow">
                                 <div class="flex flex-wrap justify-between items-start gap-4">
@@ -2577,7 +2577,7 @@ $successMsg = $successMessages[$successKey] ?? null;
                                             <span class="text-gray-400 italic ml-2">Aucun enregistrement spécifié</span>
                                         <?php endif; ?>
                                     </div>
-                                    <button onclick="openSaveReplayModal(<?= $web['id'] ?>, '<?= escHtml($web['recording_url'] ?? '') ?>')" class="px-3 py-1 bg-white border border-[#E5E5E7] text-[10px] font-semibold uppercase tracking-wider rounded-sm hover:bg-gray-50 transition-colors">
+                                    <button onclick="openSaveReplayModal(<?= $web['id'] ?>, '<?= htmlspecialchars($web['recording_url'] ?? '', ENT_QUOTES, 'UTF-8') ?>')" class="px-3 py-1 bg-white border border-[#E5E5E7] text-[10px] font-semibold uppercase tracking-wider rounded-sm hover:bg-gray-50 transition-colors">
                                         <?= !empty($web['recording_url']) ? 'Modifier le lien' : 'Ajouter un replay' ?>
                                     </button>
                                 </div>
@@ -3371,6 +3371,13 @@ $successMsg = $successMessages[$successKey] ?? null;
      SCRIPTS
 ══════════════════════════════════════════════════════════ -->
 <script>
+// ── Escape HTML (must be first — used by many functions below) ────────────
+function escHtml(str) {
+    return String(str || '')
+        .replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;')
+        .replace(/"/g,'&quot;').replace(/'/g,'&#39;');
+}
+
 // --- Dashboard Tab Management ---
 function switchDashboardTab(tabId) {
     if (tabId !== 'tab-overview' && !<?= $selectedCourse ? 'true' : 'false' ?>) {
@@ -3385,13 +3392,32 @@ function switchDashboardTab(tabId) {
     }
     document.querySelectorAll('.sidebar-tab-btn').forEach(btn => {
         const targetAttr = btn.getAttribute('data-tab-target');
+        const isCourseSelected = <?= $selectedCourse ? 'true' : 'false' ?>;
+        
         if (targetAttr === tabId) {
-            btn.className = "sidebar-tab-btn w-full flex items-center gap-3 px-4 py-3 rounded-sm text-left text-sm transition-all duration-200 bg-[#004B23] text-white font-semibold";
+            btn.className = "sidebar-tab-btn w-full flex items-center gap-3 px-4 py-3 rounded-lg text-left text-sm transition-all duration-200 bg-white/20 text-white font-semibold";
         } else {
-            btn.className = "sidebar-tab-btn w-full flex items-center gap-3 px-4 py-3 rounded-sm text-left text-sm transition-all duration-200 text-gray-300 hover:bg-[#143d26] hover:text-white";
+            if (targetAttr === 'tab-overview' || isCourseSelected) {
+                btn.className = "sidebar-tab-btn w-full flex items-center gap-3 px-4 py-3 rounded-lg text-left text-sm transition-all duration-200 text-white/70 hover:text-white hover:bg-white/10";
+            } else {
+                btn.className = "sidebar-tab-btn w-full flex items-center gap-3 px-4 py-3 rounded-lg text-left text-sm transition-all duration-200 opacity-40 cursor-not-allowed text-white/40";
+            }
         }
     });
-    window.location.hash = tabId;
+    history.replaceState(null, null, '#' + tabId);
+}
+
+function toggleMobileDrawer() {
+    const drawer = document.getElementById('mobile-drawer');
+    if (drawer) {
+        if (drawer.classList.contains('hidden')) {
+            drawer.classList.remove('hidden');
+            drawer.classList.add('flex');
+        } else {
+            drawer.classList.add('hidden');
+            drawer.classList.remove('flex');
+        }
+    }
 }
 
 window.addEventListener('DOMContentLoaded', () => {
@@ -4133,12 +4159,7 @@ function openQuestionModal(lessonId, lessonTitle) {
     toggleModal('question-modal');
 }
 
-// ── Escape HTML ───────────────────────────────────────────
-function escHtml(str) {
-    return String(str || '')
-        .replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;')
-        .replace(/"/g,'&quot;').replace(/'/g,'&#39;');
-}
+// escHtml is defined at the top of this <script> block
 
 // ── Keyboard ESC ferme les modals ─────────────────────────
 document.addEventListener('keydown', e => { if (e.key === 'Escape') closeAllModals(); });
@@ -4871,9 +4892,9 @@ document.addEventListener('DOMContentLoaded', () => {
                     if (currentImportSessionId) {
                         window.location.href = window.location.pathname + '?course_id=' + currentImportCourseId + '&open_session=' + currentImportSessionId + '#tab-live-eval';
                     } else if (currentImportLessonId) {
-                        window.location.href = window.location.pathname + '?course_id=' + currentImportCourseId + '&open_lesson=' + currentImportLessonId + '#tab-content';
+                        window.location.href = window.location.pathname + '?course_id=' + currentImportCourseId + '&open_lesson=' + currentImportLessonId + '#tab-course';
                     } else {
-                        window.location.href = window.location.pathname + '?course_id=' + currentImportCourseId + '#tab-content';
+                        window.location.href = window.location.pathname + '?course_id=' + currentImportCourseId + '#tab-course';
                     }
                 }, 1000);
             } else {
@@ -5063,6 +5084,5 @@ function downloadCurrentQuestions(type) {
         </div>
     </div>
 </div>
-
 </body>
 </html>
