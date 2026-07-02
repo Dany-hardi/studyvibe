@@ -1975,72 +1975,6 @@ $successMsg = $successMessages[$successKey] ?? null;
                 </div>
             </div>
 
-            <!-- ── QCM Final de Certification ────────────────── -->
-            <div class="border-t border-[#E5E5E7] pt-12 space-y-8">
-                <div class="flex justify-between items-start gap-4">
-                    <div class="space-y-2">
-                        <h3 class="font-serif text-3xl font-light text-[#111111]">Évaluation Finale du Cours</h3>
-                        <p class="text-sm font-light text-[#555555] max-w-xl">
-                            Ce QCM est accessible uniquement à l'étudiant ayant complété 100% du cours.
-                            Score minimum requis : <span class="font-semibold text-[#004B23]">80%</span>.
-                        </p>
-                        <div class="text-xs font-mono">
-                            Questions actuelles :
-                            <span class="<?= $finalExamQuestionCount >= 30 ? 'text-[#004B23]' : 'text-[#D32F2F]'; ?> font-semibold">
-                                <?= $finalExamQuestionCount; ?> / 30 minimum
-                            </span>
-                            <?php if ($finalExamQuestionCount < 30): ?>
-                                <span class="text-[#D32F2F] italic block mt-1">Au moins 30 questions requises pour validation.</span>
-                            <?php else: ?>
-                                <span class="text-[#004B23] block mt-1">L'évaluation finale est prête.</span>
-                            <?php endif; ?>
-                        </div>
-                    </div>
-                    <button onclick="toggleModal('course-question-modal')"
-                        class="flex-shrink-0 px-4 py-2 bg-[#111111] text-white text-xs font-semibold uppercase tracking-wider hover:bg-[#004B23] transition-colors rounded-sm">
-                        + Question Finale
-                    </button>
-                    <button type="button" onclick="openImportModal('course')"
-                        class="flex-shrink-0 px-4 py-2 border border-[#E5E5E7] text-xs font-semibold uppercase tracking-wider hover:border-[#004B23] rounded-sm">
-                        Importer CSV/Excel
-                    </button>
-                </div>
-
-                <?php if (!empty($finalQuestions)): ?>
-                <div class="space-y-3 max-h-96 overflow-y-auto border border-[#E5E5E7] divide-y divide-[#E5E5E7] bg-[#F5F5F7]">
-                    <?php foreach ($finalQuestions as $index => $fq): ?>
-                    <div class="px-4 py-3 text-sm font-light flex justify-between items-start gap-4">
-                        <div class="flex-grow min-w-0">
-                            <div class="font-medium text-[#111111] text-sm">
-                                <?= ($index + 1); ?>. <?= htmlspecialchars($fq['question_text']); ?>
-                            </div>
-                            <div class="grid grid-cols-2 gap-x-4 gap-y-0.5 mt-2 text-xs text-[#555555]">
-                                <div>A. <?= htmlspecialchars($fq['option_a']); ?></div>
-                                <div>B. <?= htmlspecialchars($fq['option_b']); ?></div>
-                                <div>C. <?= htmlspecialchars($fq['option_c']); ?></div>
-                                <div>D. <?= htmlspecialchars($fq['option_d']); ?></div>
-                            </div>
-                            <div class="mt-1.5 text-xs font-mono text-[#004B23] font-semibold">
-                                Réponse : <?= htmlspecialchars($fq['correct_option']); ?>
-                            </div>
-                        </div>
-                        <form method="POST" action="/teacher/dashboard.php?course_id=<?= $selectedCourseId; ?>" class="flex-shrink-0">
-                            <?= csrfInput(); ?>
-                            <input type="hidden" name="action" value="delete_course_question">
-                            <input type="hidden" name="question_id" value="<?= $fq['id']; ?>">
-                            <button type="submit" class="icon-btn danger" title="Supprimer la question"
-                                onclick="return confirm('Supprimer cette question de certification ?')">
-                                <svg class="w-3 h-3 text-[#D32F2F]" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"/>
-                                </svg>
-                            </button>
-                        </form>
-                    </div>
-                    <?php endforeach; ?>
-                </div>
-                <?php endif; ?>
-            </div>
-
             <!-- 3. TÉLÉÉVALUATIONS (tab-live-eval) -->
             <div id="tab-live-eval" class="tab-content hidden space-y-12 animate-fade-in">
                 <div class="flex justify-between items-center mb-6">
@@ -2700,6 +2634,74 @@ $successMsg = $successMessages[$successKey] ?? null;
                                 </tbody>
                             </table>
                         </div>
+                    </div>
+
+                    <!-- ── QCM Final de Certification ────────────────── -->
+                    <div class="border-t border-[#E5E5E7] dark:border-[#2C2C2C] pt-8 space-y-8">
+                        <div class="flex justify-between items-start gap-4">
+                            <div class="space-y-2">
+                                <h3 class="font-serif text-2xl font-light text-[#111111] dark:text-white">Évaluation Finale du Cours</h3>
+                                <p class="text-sm font-light text-[#555555] dark:text-[#AAAAAA] max-w-xl">
+                                    Ce QCM est accessible uniquement à l'étudiant ayant complété 100% du cours.
+                                    Score minimum requis : <span class="font-semibold text-[#004B23] dark:text-[#34C759]">80%</span>.
+                                </p>
+                                <div class="text-xs font-mono dark:text-[#E8E8E8]">
+                                    Questions actuelles :
+                                    <span class="<?= $finalExamQuestionCount >= 30 ? 'text-[#004B23] dark:text-[#34C759]' : 'text-[#D32F2F]'; ?> font-semibold">
+                                        <?= $finalExamQuestionCount; ?> / 30 minimum
+                                    </span>
+                                    <?php if ($finalExamQuestionCount < 30): ?>
+                                        <span class="text-[#D32F2F] italic block mt-1">Au moins 30 questions requises pour validation.</span>
+                                    <?php else: ?>
+                                        <span class="text-[#004B23] dark:text-[#34C759] block mt-1">L'évaluation finale est prête.</span>
+                                    <?php endif; ?>
+                                </div>
+                            </div>
+                            <div class="flex items-center gap-2">
+                                <button onclick="toggleModal('course-question-modal')"
+                                    class="flex-shrink-0 px-4 py-2 bg-[#111111] dark:bg-[#E8E8E8] text-white dark:text-[#111111] text-xs font-semibold uppercase tracking-wider hover:bg-[#004B23] dark:hover:bg-[#4ADE80] transition-colors rounded-sm">
+                                    + Question Finale
+                                </button>
+                                <button type="button" onclick="openImportModal('course')"
+                                    class="flex-shrink-0 px-4 py-2 border border-[#E5E5E7] dark:border-[#3A3A3A] text-xs font-semibold uppercase tracking-wider hover:border-[#004B23] dark:hover:text-[#4ADE80] rounded-sm dark:text-white">
+                                    Importer CSV/Excel
+                                </button>
+                            </div>
+                        </div>
+
+                        <?php if (!empty($finalQuestions)): ?>
+                        <div class="space-y-3 max-h-96 overflow-y-auto border border-[#E5E5E7] dark:border-[#2C2C2C] divide-y divide-[#E5E5E7] dark:divide-[#2C2C2C] bg-[#F5F5F7] dark:bg-[#1E1E1E]">
+                            <?php foreach ($finalQuestions as $index => $fq): ?>
+                            <div class="px-4 py-3 text-sm font-light flex justify-between items-start gap-4">
+                                <div class="flex-grow min-w-0">
+                                    <div class="font-medium text-[#111111] dark:text-white text-sm">
+                                        <?= ($index + 1); ?>. <?= htmlspecialchars($fq['question_text']); ?>
+                                    </div>
+                                    <div class="grid grid-cols-2 gap-x-4 gap-y-0.5 mt-2 text-xs text-[#555555] dark:text-[#AAAAAA]">
+                                        <div>A. <?= htmlspecialchars($fq['option_a']); ?></div>
+                                        <div>B. <?= htmlspecialchars($fq['option_b']); ?></div>
+                                        <div>C. <?= htmlspecialchars($fq['option_c']); ?></div>
+                                        <div>D. <?= htmlspecialchars($fq['option_d']); ?></div>
+                                    </div>
+                                    <div class="mt-1.5 text-xs font-mono text-[#004B23] dark:text-[#34C759] font-semibold">
+                                        Réponse : <?= htmlspecialchars($fq['correct_option']); ?>
+                                    </div>
+                                </div>
+                                <form method="POST" action="/teacher/dashboard.php?course_id=<?= $selectedCourseId; ?>" class="flex-shrink-0">
+                                    <?= csrfInput(); ?>
+                                    <input type="hidden" name="action" value="delete_course_question">
+                                    <input type="hidden" name="question_id" value="<?= $fq['id']; ?>">
+                                    <button type="submit" class="icon-btn danger" title="Supprimer la question"
+                                        onclick="return confirm('Supprimer cette question de certification ?')">
+                                        <svg class="w-3 h-3 text-[#D32F2F]" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"/>
+                                        </svg>
+                                    </button>
+                                </form>
+                            </div>
+                            <?php endforeach; ?>
+                        </div>
+                        <?php endif; ?>
                     </div>
                 </div>
             </div>

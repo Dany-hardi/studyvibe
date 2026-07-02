@@ -47,13 +47,48 @@ class Mailer
     public static function welcome(string $to, string $name, string $roleLabel = 'apprenant'): bool
     {
         $appUrl = APP_URL;
-        $body   = self::wrap("
-            <h2 style='font-family:Georgia,serif;font-weight:300'>Bienvenue sur StudyVibe</h2>
+        $coursesInfo = '';
+        
+        if ($roleLabel === 'apprenant') {
+            try {
+                require_once __DIR__ . '/Database.php';
+                $pdo = Database::getInstance();
+                $stmt = $pdo->query("
+                    SELECT title, enrollment_key 
+                    FROM courses 
+                    WHERE is_published = 1 AND enrollment_key IS NOT NULL AND enrollment_key != '' 
+                    ORDER BY title ASC
+                ");
+                $courses = $stmt->fetchAll(PDO::FETCH_ASSOC);
+                if (!empty($courses)) {
+                    $coursesInfo .= "<div style='background-color:#FAF9F6; border: 1px solid #E5E5E7; padding: 20px; margin: 24px 0; border-radius: 4px;'>";
+                    $coursesInfo .= "<h4 style='margin-top:0; margin-bottom:12px; color:#004B23; font-family:Georgia,serif; font-size:15px; font-weight:normal;'>🔑 Clés d'inscription de vos cours :</h4>";
+                    $coursesInfo .= "<p style='font-size:12px; color:#555; margin-bottom:12px;'>Copiez ces clés et utilisez-les sur votre tableau de bord pour déverrouiller vos cours instantanément :</p>";
+                    $coursesInfo .= "<ul style='margin:0; padding-left:20px; line-height:1.6; font-size:13px; color:#111;'>";
+                    foreach ($courses as $c) {
+                        $coursesInfo .= "<li style='margin-bottom:6px;'><strong>" . htmlspecialchars($c['title']) . "</strong> : <code style='background:#E5E5E7; padding:2px 6px; border-radius:3px; font-weight:bold; font-family:monospace;'>" . htmlspecialchars($c['enrollment_key']) . "</code></li>";
+                    }
+                    $coursesInfo .= "</ul></div>";
+                }
+            } catch (Exception $e) {
+                // Fallback silently if database is not available
+            }
+        }
+
+        $body = self::wrap("
+            <h2 style='font-family:Georgia,serif;font-weight:300;color:#004B23;margin-top:0;'>Bienvenue sur StudyVibe !</h2>
             <p>Bonjour <strong>" . htmlspecialchars($name) . "</strong>,</p>
-            <p>Votre compte {$roleLabel} a été créé avec succès. Vérifiez votre adresse email pour activer toutes les fonctionnalités.</p>
-            <p><a href='{$appUrl}' style='display:inline-block;padding:12px 24px;background:#111;color:#fff;text-decoration:none;font-size:13px'>Accéder à la plateforme</a></p>
+            <p>Nous sommes ravis de vous accueillir au sein de notre communauté d'apprentissage. Votre compte de type <strong>" . htmlspecialchars($roleLabel) . "</strong> a été créé avec succès.</p>
+            <p>Notre mission est de vous offrir une expérience d'apprentissage fluide, intuitive et enrichissante. Pour commencer dès aujourd'hui, accédez à votre espace pour découvrir tous vos cours.</p>
+            
+            {$coursesInfo}
+
+            <p style='margin-top:24px;'><a href='{$appUrl}' style='display:inline-block;padding:12px 24px;background:#004B23;color:#fff;text-decoration:none;font-size:13px;font-weight:600;border-radius:4px;'>Accéder à mon espace StudyVibe</a></p>
+            <p style='font-size:13px;color:#555;margin-top:24px;'>Si vous avez des questions ou si vous avez besoin d'aide pour vos premiers pas, notre équipe est à votre entière disposition. N'hésitez pas à répondre directement à ce message.</p>
+            <p style='font-size:13px;color:#111;margin-top:24px;'>Chaleureusement,<br><strong>L'équipe StudyVibe</strong></p>
         ");
-        return self::send($to, 'Bienvenue sur StudyVibe', $body);
+        
+        return self::send($to, 'Bienvenue sur StudyVibe !', $body);
     }
 
     public static function emailVerification(string $to, string $name, string $token): bool
