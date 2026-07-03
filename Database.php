@@ -4,16 +4,37 @@ declare(strict_types=1);
 require_once __DIR__ . '/config.php';
 
 /**
- * Classe de connexion à la base de données.
- * Singleton PDO — lit les credentials depuis config.php (.env).
+ * StudyVibe LMS - Database Connection Manager
+ * 
+ * Manages the connection lifecycle to the MySQL database. Utilizes the 
+ * Singleton Pattern to ensure only a single PDO connection is instantiated 
+ * per request lifecycle. Automatically runs safe, incremental database schema 
+ * migrations on initialization if new columns or tables are detected.
+ * 
+ * @package    StudyVibe
+ * @author     Advanced Engineering Team
  */
 class Database
 {
+    /**
+     * Singleton instance of the PDO connection.
+     * @var PDO|null
+     */
     private static ?PDO $instance = null;
 
+    /**
+     * Retrieves the active database connection instance, initializing it if necessary.
+     * Performs automatic structural migrations to keep the database schema in sync.
+     * 
+     * @return PDO Active connection object configured with exceptions and utf8mb4.
+     * @throws PDOException If database connection fails or migration queries fail.
+     */
     public static function getInstance(): PDO
     {
         if (self::$instance === null) {
+            // =========================================================================
+            // SECTION 1: CONNECTION STRING & INITIALIZATION
+            // =========================================================================
             $dsn = sprintf(
                 'mysql:host=%s;port=%s;dbname=%s;charset=utf8mb4',
                 DB_HOST,
@@ -27,7 +48,7 @@ class Database
                 PDO::ATTR_EMULATE_PREPARES   => false,
             ];
 
-            // Activer SSL si l'hôte pointe vers Aiven ou si SSL est spécifié
+            // Enable SSL encryption if database host is remote (e.g. Aiven Cloud) or explicitly enabled
             $host = DB_HOST;
             $useSsl = str_contains(strtolower($host), 'aivencloud.com') 
                       || (defined('DB_SSL') && (DB_SSL === 'true' || DB_SSL === true));
@@ -39,7 +60,11 @@ class Database
 
             self::$instance = new PDO($dsn, DB_USER, DB_PASS, $options);
 
-            // Auto-migration check for is_async and async_deadline columns
+            // =========================================================================
+            // SECTION 2: AUTOMATIC INCREMENTAL SCHEMA MIGRATIONS
+            // =========================================================================
+
+            // Migration 2.1: Add support for asynchrone / homework options in live evaluations
             try {
                 self::$instance->query("SELECT is_async, async_deadline FROM live_eval_sessions LIMIT 1");
             } catch (PDOException $e) {
@@ -47,22 +72,22 @@ class Database
                     self::$instance->exec("ALTER TABLE `live_eval_sessions` ADD COLUMN `is_async` TINYINT(1) NOT NULL DEFAULT 0");
                     self::$instance->exec("ALTER TABLE `live_eval_sessions` ADD COLUMN `async_deadline` DATETIME DEFAULT NULL");
                 } catch (PDOException $ex) {
-                    // Silently fail if columns are already being altered or added
+                    // Silently ignore if column alterations are already applied or currently locked
                 }
             }
 
-            // Auto-migration check for last_activity column in live_eval_registrations
+            // Migration 2.2: Add tracking for student last active duration in registration
             try {
                 self::$instance->query("SELECT last_activity FROM live_eval_registrations LIMIT 1");
             } catch (PDOException $e) {
                 try {
                     self::$instance->exec("ALTER TABLE `live_eval_registrations` ADD COLUMN `last_activity` DATETIME DEFAULT NULL");
                 } catch (PDOException $ex) {
-                    // Silently fail if columns are already being altered or added
+                    // Silently ignore if column alterations are already applied or currently locked
                 }
             }
 
-            // Auto-migration check for is_paused, paused_at, pause_duration columns in live_eval_sessions
+            // Migration 2.3: Support pausing live quiz rooms (teacher dashboard controls)
             try {
                 self::$instance->query("SELECT is_paused, paused_at, pause_duration FROM live_eval_sessions LIMIT 1");
             } catch (PDOException $e) {
@@ -71,11 +96,11 @@ class Database
                     self::$instance->exec("ALTER TABLE `live_eval_sessions` ADD COLUMN `paused_at` DATETIME DEFAULT NULL");
                     self::$instance->exec("ALTER TABLE `live_eval_sessions` ADD COLUMN `pause_duration` INT NOT NULL DEFAULT 0");
                 } catch (PDOException $ex) {
-                    // Silently fail if columns are already being altered or added
+                    // Silently ignore if column alterations are already applied or currently locked
                 }
             }
 
-            // Auto-migration check for explanation in lesson_questions, course_questions, live_eval_questions
+            // Migration 2.4: Introduce text explanation / correction fields for all question banks
             try {
                 self::$instance->query("SELECT explanation FROM lesson_questions LIMIT 1");
             } catch (PDOException $e) {
@@ -98,7 +123,7 @@ class Database
                 } catch (PDOException $ex) {}
             }
 
-            // Auto-migration check for student_id column in live_eval_registrations
+            // Migration 2.5: Map live registrations to student users for unified dashboard tracking
             try {
                 self::$instance->query("SELECT student_id FROM live_eval_registrations LIMIT 1");
             } catch (PDOException $e) {
@@ -108,7 +133,7 @@ class Database
                 } catch (PDOException $ex) {}
             }
 
-            // Auto-migration check for question_type in live_eval_questions and sizing adjustments for open/written answers
+            // Migration 2.6: Support open-text / written answers beside traditional MCQs
             try {
                 self::$instance->query("SELECT question_type FROM live_eval_questions LIMIT 1");
             } catch (PDOException $e) {
@@ -119,7 +144,7 @@ class Database
                 } catch (PDOException $ex) {}
             }
 
-            // Auto-migration check for webinar tables
+            // Migration 2.7: Schema initialization for webinars and live virtual classrooms
             try {
                 self::$instance->query("SELECT id FROM webinars LIMIT 1");
             } catch (PDOException $e) {
@@ -186,7 +211,18 @@ class Database
         return self::$instance;
     }
 
-    // Empêcher le clonage ou la désérialisation
+    /**
+     * Prevent object cloning of the Singleton instance to maintain connection integrity.
+     */
     private function __clone() {}
-    public function __wakeup(): void { throw new \Exception('Désérialisation non autorisée.'); }
+
+    /**
+     * Prevent deserialization of the Singleton instance.
+     * 
+     * @throws Exception Always, to avoid external initialization bypasses.
+     */
+    public function __wakeup(): void 
+    { 
+        throw new \Exception('Désérialisation non autorisée.'); 
+    }
 }
