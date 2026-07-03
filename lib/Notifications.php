@@ -1,8 +1,29 @@
 <?php
 declare(strict_types=1);
 
+/**
+ * StudyVibe LMS - Notifications Service
+ * 
+ * Handles the creation, fetching, counting, and marking of notifications 
+ * for all user roles. Provides real-time unread alert counting.
+ * 
+ * @package    StudyVibe
+ * @subpackage Lib
+ * @author     Advanced Engineering Team
+ */
 class Notifications
 {
+    /**
+     * Dispatches/stores a notification alert to a specific recipient user.
+     * 
+     * @param PDO         $pdo      Database connection instance.
+     * @param int         $userId   The target user primary key.
+     * @param string      $type     The alert category (e.g. 'exam', 'webinar', 'general').
+     * @param string      $title    Short header description of the notification.
+     * @param string      $body     Complete notification description/body.
+     * @param string|null $link     Optional redirect action path.
+     * @return void
+     */
     public static function send(PDO $pdo, int $userId, string $type, string $title, string $body = '', ?string $link = null): void
     {
         $stmt = $pdo->prepare("
@@ -18,6 +39,14 @@ class Notifications
         ]);
     }
 
+    /**
+     * Lists notifications for a given user, prioritising unread alerts.
+     * 
+     * @param PDO $pdo    Database connection instance.
+     * @param int $userId Target user primary key.
+     * @param int $limit  Max notification records to retrieve.
+     * @return array List of notification record arrays.
+     */
     public static function listUnread(PDO $pdo, int $userId, int $limit = 20): array
     {
         $stmt = $pdo->prepare("
@@ -32,6 +61,13 @@ class Notifications
         return $stmt->fetchAll();
     }
 
+    /**
+     * Counts the total number of unread alerts currently waiting for a user.
+     * 
+     * @param PDO $pdo    Database connection instance.
+     * @param int $userId Target user primary key.
+     * @return int Unread notification count.
+     */
     public static function countUnread(PDO $pdo, int $userId): int
     {
         $stmt = $pdo->prepare("SELECT COUNT(*) FROM notifications WHERE user_id = :uid AND is_read = 0");
@@ -39,12 +75,27 @@ class Notifications
         return (int)$stmt->fetchColumn();
     }
 
+    /**
+     * Marks a specific notification ID as read by the recipient.
+     * 
+     * @param PDO $pdo            Database connection instance.
+     * @param int $userId         Security verification user primary key.
+     * @param int $notificationId Notification target primary key.
+     * @return void
+     */
     public static function markRead(PDO $pdo, int $userId, int $notificationId): void
     {
         $pdo->prepare("UPDATE notifications SET is_read = 1 WHERE id = :id AND user_id = :uid")
             ->execute(['id' => $notificationId, 'uid' => $userId]);
     }
 
+    /**
+     * Marks all currently unread notifications for a user as read.
+     * 
+     * @param PDO $pdo    Database connection instance.
+     * @param int $userId Target user primary key.
+     * @return void
+     */
     public static function markAllRead(PDO $pdo, int $userId): void
     {
         $pdo->prepare("UPDATE notifications SET is_read = 1 WHERE user_id = :uid AND is_read = 0")
