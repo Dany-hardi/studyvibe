@@ -822,6 +822,61 @@ try {
                     </div>
                 </div>
 
+                <!-- Send Course Enrollment Keys manually to all students -->
+                <div class="border border-[#E5E5E7] bg-[#FFFFFF] p-8 space-y-6 rounded-sm shadow-sm">
+                    <div class="border-b border-gray-100 pb-4">
+                        <h2 class="font-serif text-2xl font-light text-[#111111]">Diffusion des Clés d'Inscription aux Étudiants</h2>
+                        <p class="text-xs text-[#888888] mt-1">
+                            Envoyez manuellement un e-mail récapitulant toutes les clés d'inscription actives à l'ensemble des étudiants inscrits sur la plateforme.
+                        </p>
+                    </div>
+
+                    <div class="grid grid-cols-1 lg:grid-cols-2 gap-12">
+                        <div class="space-y-4">
+                            <p class="text-sm text-gray-600 font-light leading-relaxed">
+                                Cette fonctionnalité permet de renvoyer à tous les étudiants de StudyVibe les codes d'accès requis pour leurs cours. Les cours sans clé d'inscription (libres) ou non publiés ne seront pas listés.
+                            </p>
+                            <div class="flex items-center gap-4">
+                                <button type="button" id="send-keys-btn" onclick="broadcastEnrollmentKeys()"
+                                    class="px-6 py-2.5 bg-[#004B23] text-white text-xs font-semibold uppercase tracking-widest hover:bg-[#111111] transition-colors rounded-sm flex items-center gap-2">
+                                    <span>🔑 Diffuser les Clés d'Inscription</span>
+                                </button>
+                                <span id="keys-broadcast-status" class="text-xs font-medium text-gray-500 hidden"></span>
+                            </div>
+                        </div>
+
+                        <div class="space-y-4">
+                            <h3 class="font-serif text-lg font-light text-gray-800">Aperçu des cours & clés concernés</h3>
+                            <div class="overflow-x-auto max-h-48 overflow-y-auto border border-[#E5E5E7] rounded-sm">
+                                <table class="w-full text-left text-xs border-collapse">
+                                    <thead>
+                                        <tr class="bg-[#F5F5F7] text-gray-500 uppercase tracking-wider border-b border-[#E5E5E7]">
+                                            <th class="p-3">Cours</th>
+                                            <th class="p-3">Clé d'inscription</th>
+                                        </tr>
+                                    </thead>
+                                    <tbody class="divide-y divide-[#E5E5E7]">
+                                        <?php 
+                                        $keyedCourses = array_filter($courses, function($c) {
+                                            return !empty($c['enrollment_key']);
+                                        });
+                                        if (empty($keyedCourses)): ?>
+                                            <tr><td colspan="2" class="p-4 text-center text-[#888] italic">Aucun cours avec clé d'inscription actuellement.</td></tr>
+                                        <?php else: ?>
+                                            <?php foreach ($keyedCourses as $c): ?>
+                                                <tr class="hover:bg-gray-50">
+                                                    <td class="p-3 font-medium text-gray-900"><?= htmlspecialchars($c['title']); ?></td>
+                                                    <td class="p-3 font-mono text-[#004B23] font-semibold bg-gray-50/50"><?= htmlspecialchars($c['enrollment_key']); ?></td>
+                                                </tr>
+                                            <?php endforeach; ?>
+                                        <?php endif; ?>
+                                    </tbody>
+                                </table>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
                 <!-- Audit Logs Registry -->
                 <div class="border border-[#E5E5E7] bg-[#FFFFFF] p-8 space-y-6 rounded-sm shadow-sm">
                     <div class="flex justify-between items-center border-b border-gray-100 pb-4">
@@ -1465,6 +1520,44 @@ try {
                 btn.textContent = 'Envoyer la newsletter';
             });
         });
+
+        window.broadcastEnrollmentKeys = function() {
+            if (!confirm('Êtes-vous sûr de vouloir diffuser les clés d\'inscription à tous les étudiants enregistrés ?')) return;
+            const btn = document.getElementById('send-keys-btn');
+            const status = document.getElementById('keys-broadcast-status');
+            
+            btn.disabled = true;
+            status.textContent = 'Diffusion en cours…';
+            status.classList.remove('hidden', 'text-red-600', 'text-green-600');
+            status.classList.add('text-gray-500');
+            
+            const fd = new FormData();
+            fd.append('csrf_token', document.querySelector('input[name="csrf_token"]')?.value ?? '');
+            
+            fetch('/promoter/send-keys-broadcast.php', { method: 'POST', body: fd })
+            .then(r => r.json())
+            .then(data => {
+                if (data.success) {
+                    Toast.success(data.message);
+                    status.textContent = '✓ ' + data.message;
+                    status.classList.remove('text-gray-500');
+                    status.classList.add('text-green-600');
+                } else {
+                    Toast.error(data.message);
+                    status.textContent = '✗ ' + data.message;
+                    status.classList.remove('text-gray-500');
+                    status.classList.add('text-red-600');
+                    btn.disabled = false;
+                }
+            })
+            .catch(err => {
+                Toast.error('Erreur réseau : ' + err.message);
+                status.textContent = '✗ Erreur réseau';
+                status.classList.remove('text-gray-500');
+                status.classList.add('text-red-600');
+                btn.disabled = false;
+            });
+        };
 
         document.getElementById('manual-cert-form')?.addEventListener('submit', function(e) {
             e.preventDefault();

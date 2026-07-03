@@ -326,6 +326,34 @@ class Mailer
         return self::send($to, $subject, $body);
     }
 
+    /** Envoie de la liste des clés d'inscription actives à un étudiant. */
+    public static function sendEnrollmentKeys(string $to, string $name, array $courses): bool
+    {
+        $appUrl = APP_URL;
+        $coursesInfo = "<div style='background-color:#FAF9F6; border: 1px solid #E5E5E7; padding: 20px; margin: 24px 0; border-radius: 4px;'>";
+        $coursesInfo .= "<h4 style='margin-top:0; margin-bottom:12px; color:#004B23; font-family:Georgia,serif; font-size:15px; font-weight:normal;'>🔑 Clés d'inscription de vos cours :</h4>";
+        $coursesInfo .= "<ul style='margin:0; padding-left:20px; line-height:1.6; font-size:13px; color:#111;'>";
+        foreach ($courses as $c) {
+            $coursesInfo .= "<li style='margin-bottom:6px;'><strong>" . htmlspecialchars($c['title']) . "</strong> : <code style='background:#E5E5E7; padding:2px 6px; border-radius:3px; font-weight:bold; font-family:monospace;'>" . htmlspecialchars($c['enrollment_key']) . "</code></li>";
+        }
+        $coursesInfo .= "</ul></div>";
+
+        $body = self::wrap("
+            <h2 style='font-family:Georgia,serif;font-weight:300;color:#004B23;margin-top:0;'>Vos clés d'inscription StudyVibe</h2>
+            <p>Bonjour <strong>" . htmlspecialchars($name) . "</strong>,</p>
+            <p>L'administration vient de vous transmettre la liste à jour de toutes les clés d'inscription actives sur StudyVibe.</p>
+            <p>Vous pouvez copier ces clés et les saisir sur votre tableau de bord étudiant pour vous inscrire instantanément aux cours correspondants :</p>
+            
+            {$coursesInfo}
+
+            <p style='margin-top:24px;'><a href='{$appUrl}' style='display:inline-block;padding:12px 24px;background:#004B23;color:#fff;text-decoration:none;font-size:13px;font-weight:600;border-radius:4px;'>Accéder à mon espace StudyVibe</a></p>
+            <p style='font-size:13px;color:#555;margin-top:24px;'>Si vous rencontrez des difficultés d'inscription, n'hésitez pas à répondre directement à ce message.</p>
+            <p style='font-size:13px;color:#111;margin-top:24px;'>Cordialement,<br><strong>L'administration StudyVibe</strong></p>
+        ");
+
+        return self::send($to, "Vos clés d'inscription aux cours - StudyVibe", $body);
+    }
+
     private static function wrap(string $content): string
     {
         return "<!DOCTYPE html><html><body style='font-family:Inter,Arial,sans-serif;color:#111;max-width:560px;margin:0 auto;padding:32px'>{$content}<hr style='border:none;border-top:1px solid #eee;margin-top:32px'><p style='font-size:11px;color:#888'>StudyVibe — Plateforme Académique</p></body></html>";
