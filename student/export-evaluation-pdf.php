@@ -90,8 +90,9 @@ $scorePercent = $totalQuestions > 0 ? ($correctCount / $totalQuestions) * 100 : 
 /**
  * Filtre et échappe les caractères spéciaux pour LaTeX tout en préservant le code LaTeX mathématique.
  */
-function escapeLatex(string $text): string
+function escapeLatex(?string $text): string
 {
+    $text = $text ?? '';
     // Remplacer les sauts de ligne HTML
     $text = preg_replace('/<br\s*\/?>/i', "\n\n", $text);
     
