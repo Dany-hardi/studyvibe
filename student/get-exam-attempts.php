@@ -1,5 +1,25 @@
 <?php
+/**
+ * StudyVibe Academic LMS - Student Certification Attempts Fetcher
+ *
+ * This controller fetches the history of certification exam attempts made by the student
+ * for a specific course, enforcing access security and determining 24-hour rate limits.
+ *
+ * PHP version 8.2
+ *
+ * @category  Controller
+ * @package   StudyVibe\Student
+ * @author    StudyVibe Team <development@studyvibe.academic>
+ * @copyright 2026 StudyVibe
+ * @license   Proprietary
+ * @link      https://studyvibe.academic
+ */
+
 declare(strict_types=1);
+
+// =========================================================================
+// SECTION 1: AUTHENTICATION & INPUT VALIDATION
+// =========================================================================
 
 require_once __DIR__ . '/../auth.php';
 
@@ -15,6 +35,10 @@ if ($courseId <= 0) {
     echo json_encode(['success' => false, 'message' => 'Cours invalide.']);
     exit;
 }
+
+// =========================================================================
+// SECTION 2: FETCH ATTEMPTS HISTORY & TIME-LIMIT LIMITATIONS
+// =========================================================================
 
 try {
     $pdo = Database::getInstance();

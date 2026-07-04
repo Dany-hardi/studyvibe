@@ -1,5 +1,26 @@
 <?php
+/**
+ * StudyVibe Academic LMS - Final Exam Submission Processor
+ *
+ * This controller processes exam responses submitted by the student, verifies gating
+ * rules and session validation, computes scores, stores attempts, and automatically
+ * issues a PDF certificate upon passing.
+ *
+ * PHP version 8.2
+ *
+ * @category  Controller
+ * @package   StudyVibe\Student
+ * @author    StudyVibe Team <development@studyvibe.academic>
+ * @copyright 2026 StudyVibe
+ * @license   Proprietary
+ * @link      https://studyvibe.academic
+ */
+
 declare(strict_types=1);
+
+// =========================================================================
+// SECTION 1: AUTHENTICATION & REQUEST ENTRY GATEKEEPER
+// =========================================================================
 
 require_once __DIR__ . '/../auth.php';
 require_once __DIR__ . '/../Mailer.php';
@@ -25,8 +46,6 @@ if ($_SERVER['REQUEST_METHOD'] !== 'POST') {
     exit;
 }
 
-
-// requireCsrf();
 $courseId = isset($_POST['course_id']) ? (int)$_POST['course_id'] : 0;
 $studentId = $_SESSION['user_id'];
 
@@ -37,6 +56,10 @@ if ($courseId <= 0) {
     ]);
     exit;
 }
+
+// =========================================================================
+// SECTION 2: ACCESS & TIME-LIMIT GATING CHECKS
+// =========================================================================
 
 try {
     $pdo = Database::getInstance();
@@ -94,6 +117,10 @@ try {
         exit;
     }
 
+    // =========================================================================
+    // SECTION 3: EXAM RESPONSE PROCESSING & SCORE COMPUTATION
+    // =========================================================================
+
     // 2. Fetch correct answers from DB
     $stmt = $pdo->prepare("SELECT id, correct_option FROM course_questions WHERE course_id = :course_id");
     $stmt->execute(['course_id' => $courseId]);
@@ -135,6 +162,10 @@ try {
     ]);
     $attemptId = (int)$pdo->lastInsertId();
     ExamSession::markSubmitted($pdo, $studentId, $courseId);
+
+    // =========================================================================
+    // SECTION 4: CERTIFICATION GENERATION & TRANSACTION HOOKS
+    // =========================================================================
 
     // 4. If passed, issue Module Certificate
     $certCode = null;

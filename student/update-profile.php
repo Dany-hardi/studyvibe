@@ -1,5 +1,25 @@
 <?php
+/**
+ * StudyVibe Academic LMS - Student Profile Update Controller
+ *
+ * This controller processes requests by students to update their display name
+ * and upload profile avatars, checking security boundaries and size constraints.
+ *
+ * PHP version 8.2
+ *
+ * @category  Controller
+ * @package   StudyVibe\Student
+ * @author    StudyVibe Team <development@studyvibe.academic>
+ * @copyright 2026 StudyVibe
+ * @license   Proprietary
+ * @link      https://studyvibe.academic
+ */
+
 declare(strict_types=1);
+
+// =========================================================================
+// SECTION 1: AUTHENTICATION & CSRF SECURITY
+// =========================================================================
 
 require_once __DIR__ . '/../auth.php';
 
@@ -14,15 +34,12 @@ if (!isLoggedIn() || $_SESSION['user_role'] !== 'student') {
 }
 
 $studentId = $_SESSION['user_id'];
-
-if ($_SERVER['REQUEST_METHOD'] === 'POST') {
-    // requireCsrf();
-}
-
 $pdo = Database::getInstance();
 
 try {
-    // 1. Handle Name Update
+    // =========================================================================
+    // SECTION 2: NAME UPDATE CONTROLLER
+    // =========================================================================
     if (isset($_POST['name'])) {
         $name = trim((string)$_POST['name']);
         
@@ -44,7 +61,9 @@ try {
         exit;
     }
 
-    // 2. Handle Avatar Upload
+    // =========================================================================
+    // SECTION 3: AVATAR IMAGE FILE UPLOAD PROCESSOR
+    // =========================================================================
     if (isset($_FILES['avatar']) && $_FILES['avatar']['error'] === UPLOAD_ERR_OK) {
         $fileTmpPath = $_FILES['avatar']['tmp_name'];
         $fileName = $_FILES['avatar']['name'];

@@ -1,5 +1,26 @@
 <?php
+/**
+ * StudyVibe Academic LMS - Student Academic Transcript Controller
+ *
+ * This controller retrieves, processes, and formats the student's complete academic
+ * transcript, including course progress, lesson quiz scores, and certification attempts.
+ * Supports printable CSS and PDF export via html2pdf.js.
+ *
+ * PHP version 8.2
+ *
+ * @category  Controller
+ * @package   StudyVibe\Student
+ * @author    StudyVibe Team <development@studyvibe.academic>
+ * @copyright 2026 StudyVibe
+ * @license   Proprietary
+ * @link      https://studyvibe.academic
+ */
+
 declare(strict_types=1);
+
+// =========================================================================
+// SECTION 1: AUTHENTICATION & GLOBAL INITIALIZATION
+// =========================================================================
 
 require_once __DIR__ . '/../auth.php';
 requireRole('student');
@@ -10,6 +31,10 @@ $pdo  = Database::getInstance();
 $courses = [];
 $lessonScores = [];
 $failedAttempts = [];
+
+// =========================================================================
+// SECTION 2: REPORT METRICS DATA RETRIEVAL
+// =========================================================================
 
 try {
     $stmt = $pdo->prepare("
@@ -62,6 +87,10 @@ try {
 }
 
 $genDate = date('d/m/Y à H:i');
+
+// =========================================================================
+// SECTION 3: HTML REPORT PAGE LAYOUT
+// =========================================================================
 ?>
 <!DOCTYPE html>
 <html lang="fr">
@@ -229,11 +258,20 @@ $genDate = date('d/m/Y à H:i');
             <p style="font-size:0.75rem;color:#8A8A8A;margin-top:0.75rem;">Les relevés détaillés par tentative sont disponibles dans votre espace apprenant.</p>
             <?php endif; ?>
 
-            <div class="footer">StudyVibe Academic LMS — Document non contractuel</div>
+            <div class="footer">StudyVibe Academic LMS — Document généré le <?= date('d/m/Y'); ?> — Non contractuel</div>
         </div>
     </div>
+
+    <!-- =========================================================================
+    // SECTION 4: CLIENT-SIDE PRINT & PDF EXPORT
+    // ========================================================================= -->
     <script src="https://cdnjs.cloudflare.com/ajax/libs/html2pdf.js/0.10.1/html2pdf.bundle.min.js"></script>
     <script>
+        /**
+         * Event listener to trigger PDF generation and download for the academic transcript.
+         * Uses html2pdf library with standard orientation.
+         * @return {void}
+         */
         document.getElementById('btn-pdf')?.addEventListener('click', () => {
             html2pdf().set({
                 margin: 8,

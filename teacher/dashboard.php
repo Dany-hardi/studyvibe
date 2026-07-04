@@ -1,10 +1,26 @@
-<?php declare(strict_types=1);
+<?php
+/**
+ * StudyVibe Academic LMS - Teacher Dashboard Controller
+ *
+ * This controller serves as the primary management panel for instructors,
+ * providing course scheduling, content curation, evaluation authoring,
+ * live tele-evaluations, webinar links, and student progress metrics.
+ *
+ * PHP version 8.2
+ *
+ * @category  Controller
+ * @package   StudyVibe\Teacher
+ * @author    StudyVibe Team <development@studyvibe.academic>
+ * @copyright 2026 StudyVibe
+ * @license   Proprietary
+ * @link      https://studyvibe.academic
+ */
 
-/*
-ini_set('display_errors', 1);
-error_reporting(E_ALL);
-*/
+declare(strict_types=1);
 
+// =========================================================================
+// SECTION 1: AUTHENTICATION & INPUT PARAMETERS SECURITY
+// =========================================================================
 
 require_once __DIR__ . '/../auth.php';
 require_once __DIR__ . '/../Mailer.php';
@@ -22,9 +38,9 @@ $defaultCourseSvg = '<svg class="w-12 h-12 text-[#004B23]" fill="none" stroke="c
 $selectedCourseId = isset($_GET['course_id']) ? (int)$_GET['course_id'] : 0;
 $selectedCourse   = null;
 
-// ─────────────────────────────────────────────────────────────────────────────
-// Helpers
-// ─────────────────────────────────────────────────────────────────────────────
+// =========================================================================
+// SECTION 2: HELPER FUNCTIONS & UTILITIES
+// =========================================================================
 function isValidYoutubeOrVimeo(string $url): bool {
     return (bool) preg_match('#^https?://(www\.)?(youtube\.com/watch|youtu\.be/|vimeo\.com/)#i', $url);
 }
@@ -55,7 +71,9 @@ function clearLiveSessionCache(): void {
         }
     }
 }
-
+// =========================================================================
+// SECTION 3: REQUEST ACTION DISPATCHERS & STATE WRITERS
+// =========================================================================
 try {
     $teacherId = (int)$user['id'];
     $modules = $pdo->query("SELECT * FROM modules ORDER BY title ASC")->fetchAll();
@@ -73,22 +91,35 @@ try {
 
         if (!empty($title) && $moduleId > 0) {
             $coverImage = null;
-            if (isset($_FILES['cover_image']) && $_FILES['cover_image']['error'] === UPLOAD_ERR_OK) {
-                $fileTmpPath = $_FILES['cover_image']['tmp_name'];
-                $fileName = $_FILES['cover_image']['name'];
-                $fileSize = $_FILES['cover_image']['size'];
-                $fileExtension = strtolower(pathinfo($fileName, PATHINFO_EXTENSION));
-                $allowedExtensions = ['jpg', 'jpeg', 'png', 'webp'];
-                
-                if (in_array($fileExtension, $allowedExtensions, true) && $fileSize <= 3 * 1024 * 1024) {
-                    $newFileName = md5(uniqid() . $fileName) . '.' . $fileExtension;
-                    $uploadFileDir = __DIR__ . '/../uploads/course-covers/';
-                    if (!is_dir($uploadFileDir)) {
-                        mkdir($uploadFileDir, 0755, true);
+            $uploadError = null;
+            if (isset($_FILES['cover_image']) && $_FILES['cover_image']['error'] !== UPLOAD_ERR_NO_FILE) {
+                if ($_FILES['cover_image']['error'] === UPLOAD_ERR_OK) {
+                    $fileTmpPath = $_FILES['cover_image']['tmp_name'];
+                    $fileName = $_FILES['cover_image']['name'];
+                    $fileSize = $_FILES['cover_image']['size'];
+                    $fileExtension = strtolower(pathinfo($fileName, PATHINFO_EXTENSION));
+                    $allowedExtensions = ['jpg', 'jpeg', 'png', 'webp'];
+                    
+                    if (in_array($fileExtension, $allowedExtensions, true)) {
+                        if ($fileSize <= 3 * 1024 * 1024) {
+                            $newFileName = md5(uniqid('', true)) . '.' . $fileExtension;
+                            $uploadFileDir = __DIR__ . '/../uploads/course-covers/';
+                            if (!is_dir($uploadFileDir)) {
+                                mkdir($uploadFileDir, 0777, true);
+                            }
+                            if (move_uploaded_file($fileTmpPath, $uploadFileDir . $newFileName)) {
+                                $coverImage = $newFileName;
+                            } else {
+                                $uploadError = 'upload_move_error';
+                            }
+                        } else {
+                            $uploadError = 'upload_size_error';
+                        }
+                    } else {
+                        $uploadError = 'upload_ext_error';
                     }
-                    if (move_uploaded_file($fileTmpPath, $uploadFileDir . $newFileName)) {
-                        $coverImage = $newFileName;
-                    }
+                } else {
+                    $uploadError = 'upload_error';
                 }
             }
 
@@ -136,7 +167,8 @@ try {
                 }
             }
 
-            header("Location: /teacher/dashboard.php?course_id={$newCourseId}&success=course_created");
+            $errParam = $uploadError ? "&error=" . urlencode($uploadError) : "";
+            header("Location: /teacher/dashboard.php?course_id={$newCourseId}&success=course_created" . $errParam);
             exit;
         }
     }
@@ -388,22 +420,35 @@ try {
 
             if (!empty($title)) {
                 $coverImage = null;
-                if (isset($_FILES['cover_image']) && $_FILES['cover_image']['error'] === UPLOAD_ERR_OK) {
-                    $fileTmpPath = $_FILES['cover_image']['tmp_name'];
-                    $fileName = $_FILES['cover_image']['name'];
-                    $fileSize = $_FILES['cover_image']['size'];
-                    $fileExtension = strtolower(pathinfo($fileName, PATHINFO_EXTENSION));
-                    $allowedExtensions = ['jpg', 'jpeg', 'png', 'webp'];
-                    
-                    if (in_array($fileExtension, $allowedExtensions, true) && $fileSize <= 3 * 1024 * 1024) {
-                        $newFileName = md5(uniqid() . $fileName) . '.' . $fileExtension;
-                        $uploadFileDir = __DIR__ . '/../uploads/course-covers/';
-                        if (!is_dir($uploadFileDir)) {
-                            mkdir($uploadFileDir, 0755, true);
+                $uploadError = null;
+                if (isset($_FILES['cover_image']) && $_FILES['cover_image']['error'] !== UPLOAD_ERR_NO_FILE) {
+                    if ($_FILES['cover_image']['error'] === UPLOAD_ERR_OK) {
+                        $fileTmpPath = $_FILES['cover_image']['tmp_name'];
+                        $fileName = $_FILES['cover_image']['name'];
+                        $fileSize = $_FILES['cover_image']['size'];
+                        $fileExtension = strtolower(pathinfo($fileName, PATHINFO_EXTENSION));
+                        $allowedExtensions = ['jpg', 'jpeg', 'png', 'webp'];
+                        
+                        if (in_array($fileExtension, $allowedExtensions, true)) {
+                            if ($fileSize <= 3 * 1024 * 1024) {
+                                $newFileName = md5(uniqid('', true)) . '.' . $fileExtension;
+                                $uploadFileDir = __DIR__ . '/../uploads/course-covers/';
+                                if (!is_dir($uploadFileDir)) {
+                                    mkdir($uploadFileDir, 0777, true);
+                                }
+                                if (move_uploaded_file($fileTmpPath, $uploadFileDir . $newFileName)) {
+                                    $coverImage = $newFileName;
+                                } else {
+                                    $uploadError = 'upload_move_error';
+                                }
+                            } else {
+                                $uploadError = 'upload_size_error';
+                            }
+                        } else {
+                            $uploadError = 'upload_ext_error';
                         }
-                        if (move_uploaded_file($fileTmpPath, $uploadFileDir . $newFileName)) {
-                            $coverImage = $newFileName;
-                        }
+                    } else {
+                        $uploadError = 'upload_error';
                     }
                 }
 
@@ -431,7 +476,8 @@ try {
                         'id'=>$selectedCourse['id'],'tid'=>$user['id'],
                     ]);
                 }
-                header("Location: /teacher/dashboard.php?course_id={$selectedCourse['id']}&success=course_updated#tab-settings"); exit;
+                $errParam = $uploadError ? "&error=" . urlencode($uploadError) : "";
+                header("Location: /teacher/dashboard.php?course_id={$selectedCourse['id']}&success=course_updated" . $errParam . "#tab-settings"); exit;
             }
         }
 
@@ -1096,6 +1142,10 @@ $successMessages = [
 ];
 $successKey = (string)($_GET['success'] ?? '');
 $successMsg = $successMessages[$successKey] ?? null;
+
+// =========================================================================
+// SECTION 4: HTML PORTAL VIEW LAYOUT & PRESENTATION
+// =========================================================================
 ?>
 <!DOCTYPE html>
 <html lang="fr" class="h-full sv-cream">
@@ -1457,6 +1507,21 @@ $successMsg = $successMessages[$successKey] ?? null;
                 </div>
             <?php endif; ?>
 
+            <?php
+            $errorKey = (string)($_GET['error'] ?? '');
+            $errorMessages = [
+                'upload_move_error' => '❌ Échec du déplacement du fichier téléchargé. Veuillez vérifier les droits d\'écriture du dossier uploads/course-covers/.',
+                'upload_size_error' => '❌ L\'image de couverture dépasse la taille maximale autorisée de 3 Mo.',
+                'upload_ext_error'  => '❌ Format d\'image non autorisé. Formats acceptés : JPG, JPEG, PNG, WEBP.',
+                'upload_error'      => '❌ Une erreur est survenue lors du chargement de l\'image de couverture.',
+            ];
+            $errorMsg = $errorMessages[$errorKey] ?? null;
+            if ($errorMsg): ?>
+                <div class="p-4 bg-red-50 border border-red-200 dark:bg-red-950/20 dark:border-red-800/30 text-red-800 dark:text-red-300 text-sm font-semibold rounded-lg fade-in">
+                    <?= htmlspecialchars($errorMsg); ?>
+                </div>
+            <?php endif; ?>
+
             <!-- 1. VUE D'ENSEMBLE (tab-overview) -->
             <div id="tab-overview" class="tab-content space-y-12">
             
@@ -1541,6 +1606,13 @@ $successMsg = $successMessages[$successKey] ?? null;
 
                 <!-- Course Title Header -->
                 <div class="border-b border-[#E5E5E7] dark:border-[#2C2C2C] pb-8 space-y-3">
+                    <?php if (!empty($selectedCourse['cover_image'])): ?>
+                        <div class="w-full h-48 rounded-xl overflow-hidden mb-6 relative bg-[#004B23]">
+                            <img src="/download.php?type=cover&file=<?= urlencode($selectedCourse['cover_image']); ?>" 
+                                 alt="Couverture du cours" 
+                                 class="w-full h-full object-cover">
+                        </div>
+                    <?php endif; ?>
                     <div class="flex flex-col md:flex-row justify-between items-start gap-4">
                         <div class="space-y-1 flex-grow">
                             <h2 class="font-serif text-4xl font-light text-[#111111] dark:text-white">
@@ -2894,8 +2966,15 @@ $successMsg = $successMessages[$successKey] ?? null;
             </div>
             <div>
                 <label class="block text-xs font-semibold uppercase tracking-wider text-[#555555] mb-2">Image de couverture (Optionnelle)</label>
+                <?php if ($selectedCourse && !empty($selectedCourse['cover_image'])): ?>
+                    <div class="mb-2 flex items-center gap-3 bg-[#F5F5F7] dark:bg-[#1E1E1E] p-2 rounded border border-[#E5E5E7] dark:border-[#2C2C2C]">
+                        <img src="/download.php?type=cover&file=<?= urlencode($selectedCourse['cover_image']); ?>" 
+                             class="w-12 h-12 object-cover rounded shadow-sm">
+                        <span class="text-xs text-[#555555] dark:text-[#AAAAAA] truncate">Image actuelle : <?= htmlspecialchars($selectedCourse['cover_image']) ?></span>
+                    </div>
+                <?php endif; ?>
                 <input type="file" name="cover_image" accept="image/*"
-                    class="w-full px-4 py-2 bg-[#F5F5F7] border border-[#E5E5E7] text-sm focus:outline-none focus:border-[#004B23] rounded-sm">
+                    class="w-full px-4 py-2 bg-[#F5F5F7] dark:bg-[#1E1E1E] border border-[#E5E5E7] dark:border-[#2C2C2C] text-sm focus:outline-none focus:border-[#004B23] rounded-sm">
             </div>
             <div>
                 <label class="block text-xs font-semibold uppercase tracking-wider text-[#555555] mb-2">Clé d'inscription (laisser vide pour accès libre)</label>
@@ -3406,6 +3485,13 @@ $successMsg = $successMessages[$successKey] ?? null;
      SCRIPTS
 ══════════════════════════════════════════════════════════ -->
 <script>
+/**
+ * SECTION 5: CLIENT-SIDE DASHBOARD BEHAVIOR & INTERACTION LOGIC
+ *
+ * This section controls user tab switching, modal operations, evaluation question rendering,
+ * and asynchronous stats polling/realtime UI updates.
+ */
+
 // ── Escape HTML (must be first — used by many functions below) ────────────
 function escHtml(str) {
     var s = String(str == null ? '' : str);

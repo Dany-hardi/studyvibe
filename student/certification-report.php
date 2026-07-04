@@ -1,5 +1,25 @@
 <?php
+/**
+ * StudyVibe Academic LMS - Certification Attempt Report Controller
+ *
+ * This controller processes and displays the detailed report page for a student's
+ * certification attempt. It supports printing and PDF export via html2pdf.js.
+ *
+ * PHP version 8.2
+ *
+ * @category  Controller
+ * @package   StudyVibe\Student
+ * @author    StudyVibe Team <development@studyvibe.academic>
+ * @copyright 2026 StudyVibe
+ * @license   Proprietary
+ * @link      https://studyvibe.academic
+ */
+
 declare(strict_types=1);
+
+// =========================================================================
+// SECTION 1: AUTHENTICATION, GATEKEEPING & INITIALIZATION
+// =========================================================================
 
 require_once __DIR__ . '/../auth.php';
 requireRole('student');
@@ -16,6 +36,10 @@ if ($attemptId <= 0) {
     include __DIR__ . '/../error.php';
     exit;
 }
+
+// =========================================================================
+// SECTION 2: DATA FETCHING & QUERY PROCESSING
+// =========================================================================
 
 try {
     $pdo  = Database::getInstance();
@@ -47,6 +71,10 @@ $score      = (float)$attempt['score'];
 $threshold  = 80;
 $dateStr    = date('d/m/Y à H:i', strtotime((string)$attempt['attempted_at']));
 $approxOk   = $totalQ > 0 ? (int)round(($score / 100) * $totalQ) : null;
+
+// =========================================================================
+// SECTION 3: HTML INTERFACE LAYOUT & TEMPLATE
+// =========================================================================
 ?>
 <!DOCTYPE html>
 <html lang="fr">
@@ -121,23 +149,23 @@ $approxOk   = $totalQ > 0 ? (int)round(($score / 100) * $totalQ) : null;
                 <line x1="43" y1="41" x2="52" y2="21" stroke="#111111" stroke-width="0.6" />
                 <line x1="43" y1="41" x2="30" y2="63" stroke="#111111" stroke-width="0.6" />
                 <line x1="59" y1="63" x2="72" y2="35" stroke="#111111" stroke-width="0.6" />
-
+ 
                 <circle cx="72" cy="35" r="2" fill="#111111" />
                 <circle cx="59" cy="63" r="2" fill="#111111" />
                 <circle cx="43" cy="41" r="2" fill="#111111" />
                 <circle cx="24" cy="23" r="2" fill="#111111" />
                 <circle cx="52" cy="21" r="2" fill="#111111" />
                 <circle cx="30" cy="63" r="2" fill="#111111" />
-
+ 
                 <!-- Profil du visage -->
                 <path d="M66 20 C62 24, 62 34, 62 39 C62 41, 60 43, 59 43 L55 43 L59 45 C60 47, 61 48, 60 50 C59 51, 57 52, 59 54 C61 55, 64 56, 66 56 C69 56, 75 48, 76 51 C78 56, 70 62, 66 70 C61 78, 60 88, 63 98" stroke="#111111" stroke-width="0.8" stroke-linecap="round" stroke-linejoin="round" />
-
+ 
                 <!-- Main du penseur -->
-                <path d="M43 65 C42 62, 42 58, 43 56 C44 54, 46 54, 47 57 C47 60, 47 63, 47 65 C47 61, 48 56, 49 54 C50 52, 52 52, 53 55 C53 58, 53 61, 53 64 C53 61, 54 57, 55 55 C56 53, 58 53, 59 56 C60 59, 61 67, 61 78 C61 85, 59 91, 57 95" stroke="#111111" stroke-width="0.8" stroke-linecap="round" stroke-linejoin="round" />
+                <path d="M43 65 C42 62, 42 58, 43 56 C44 54, 46 54, 47 57 C47 60, 47 63, 47 65 C47 61, 48 56, 49 54 C50 52, 52 52, 53 55 C53 58, 53 61, 53 64 C53 61, 54 57, 55 55 C56 53, 58 53, 59 56 C60 59, 61 67, 61 78 C61 85, 59 91, 57 95" stroke="#111111" stroke-width="0.8" stroke-linecap="round" stroke-linejoin="round" stroke-linejoin="round" />
                 <path d="M43 65 C44 71, 45 78, 47 85 C48 91, 49 94, 50 96" stroke="#111111" stroke-width="0.8" stroke-linecap="round" stroke-linejoin="round" />
             </svg>
-
-
+ 
+ 
             <div class="brand">
                 <svg class="w-6 h-6" viewBox="0 0 100 100" fill="none" xmlns="http://www.w3.org/2000/svg" style="width: 24px; height: 24px;">
                     <circle cx="50" cy="50" r="46" stroke="#111111" stroke-width="3.5" />
@@ -197,8 +225,17 @@ $approxOk   = $totalQ > 0 ? (int)round(($score / 100) * $totalQ) : null;
             <div class="footer">StudyVibe Academic LMS — Document généré le <?= date('d/m/Y'); ?></div>
         </div>
     </div>
+
+    <!-- =========================================================================
+    // SECTION 4: CLIENT-SIDE INTERACTION SCRIPTS
+    // ========================================================================= -->
     <script src="https://cdnjs.cloudflare.com/ajax/libs/html2pdf.js/0.10.1/html2pdf.bundle.min.js"></script>
     <script>
+        /**
+         * Event listener to trigger PDF generation and download for the certification report.
+         * Uses html2pdf library with high-resolution rendering settings.
+         * @return {void}
+         */
         document.getElementById('btn-pdf')?.addEventListener('click', () => {
             html2pdf().set({
                 margin: 10,

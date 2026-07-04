@@ -1,5 +1,25 @@
 <?php
+/**
+ * StudyVibe Academic LMS - Student Study Session Tracker
+ *
+ * This controller logs active time spent by a student on a specific lesson,
+ * aggregates cumulative seconds, and triggers progress-related badges.
+ *
+ * PHP version 8.2
+ *
+ * @category  Controller
+ * @package   StudyVibe\Student
+ * @author    StudyVibe Team <development@studyvibe.academic>
+ * @copyright 2026 StudyVibe
+ * @license   Proprietary
+ * @link      https://studyvibe.academic
+ */
+
 declare(strict_types=1);
+
+// =========================================================================
+// SECTION 1: AUTHENTICATION & INPUT PARAMETERS SECURITY
+// =========================================================================
 
 require_once __DIR__ . '/../auth.php';
 
@@ -15,8 +35,6 @@ if ($_SERVER['REQUEST_METHOD'] !== 'POST') {
     exit;
 }
 
-
-// requireCsrf();
 $lessonId = (int)($_POST['lesson_id'] ?? 0);
 $seconds  = (int)($_POST['seconds'] ?? 0);
 $studentId = (int)$_SESSION['user_id'];
@@ -25,6 +43,10 @@ if ($lessonId <= 0 || $seconds <= 0) {
     echo json_encode(['success' => false]);
     exit;
 }
+
+// =========================================================================
+// SECTION 2: TRACKING SESSION RECORD TRANSACTION & BADGES DISPATCH
+// =========================================================================
 
 try {
     $pdo  = Database::getInstance();

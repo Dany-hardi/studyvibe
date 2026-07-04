@@ -1,6 +1,22 @@
 <?php
 declare(strict_types=1);
 
+/**
+ * StudyVibe LMS - Student Dashboard Portal View
+ * 
+ * Serves as the primary client-facing portal for registered students. Handles 
+ * data queries for courses, certifications, badges, study statistics, webinars, 
+ * live assessments, and initializes the modal system structures.
+ * 
+ * @package    StudyVibe
+ * @subpackage Student
+ * @author     Advanced Engineering Team
+ */
+
+// =========================================================================
+// SECTION 1: AUTHENTICATION, ACCESS GATES & DATA QUERY CONTROLLER
+// =========================================================================
+
 require_once __DIR__ . '/../auth.php';
 require_once __DIR__ . '/../lib/CourseSchedule.php';
 requireRole('student');
@@ -98,6 +114,9 @@ try {
     dieSafe('Erreur serveur. Veuillez réessayer.', $e, 'student/dashboard');
 }
 ?>
+<!-- =========================================================================
+     SECTION 2: HTML HEAD, META ASSETS & TAILWIND CONFIGURATION
+     ========================================================================= -->
 <!DOCTYPE html>
 <html lang="fr" class="h-full sv-cream">
 <head>
@@ -179,6 +198,10 @@ try {
     </style>
 </head>
 <body class="font-sans antialiased text-[#111111] dark:text-white bg-[#FAF9F6] dark:bg-[#121212] min-h-screen flex flex-col md:flex-row overflow-x-hidden">
+
+    <!-- =========================================================================
+         SECTION 3: HTML LAYOUT STRUCTURE (BODY, SIDEBAR & MAIN PORTAL VIEWS)
+         ========================================================================= -->
 
     <!-- MOBILE TOP BAR -->
     <div class="w-full md:hidden bg-[#004B23] text-white py-4 px-4 flex justify-between items-center sticky top-0 z-30 shadow-md">
@@ -1166,10 +1189,15 @@ try {
         </div>
     </div>
 
-    <!-- Scripts Javascript Applicatifs (Vanilla JS & AJAX Fetch) -->
+    <!-- =========================================================================
+         SECTION 4: CLIENT-SIDE JAVASCRIPT CONTROLLERS (STATE & INTERACTION LOGIC)
+         ========================================================================= -->
     <script src="/assets/js/app.js"></script>
     <script>
-        // Custom UI Helper functions for sidebar, mobile menu, and companion panels
+        /**
+         * Toggles the visibility of the course outline sidebar in the learning liseuse.
+         * @return {void}
+         */
         function toggleOutline() {
             const container = document.getElementById('study-chapters-container')?.parentElement;
             if (container) {
@@ -1177,6 +1205,10 @@ try {
             }
         }
 
+        /**
+         * Toggles the visibility of the study companion sidebar panel.
+         * @return {void}
+         */
         function toggleCompanion() {
             const companion = document.getElementById('study-companion-panel');
             if (companion) {
@@ -1184,6 +1216,11 @@ try {
             }
         }
 
+        /**
+         * Switches the active tab in the study companion panel.
+         * @param {string} tabId - Target tab identifier ('ai' | 'notes' | 'qa').
+         * @return {void}
+         */
         function switchCompanionTab(tabId) {
             const tabs = ['ai', 'notes', 'qa'];
             tabs.forEach(t => {
@@ -1204,6 +1241,10 @@ try {
             });
         }
 
+        /**
+         * Opens or closes the mobile navigation drawer menu.
+         * @return {void}
+         */
         function toggleMobileDrawer() {
             const drawer = document.getElementById('mobile-drawer');
             if (drawer) {
@@ -1217,6 +1258,10 @@ try {
             }
         }
 
+        /**
+         * Opens or closes the mobile notification panel drawer.
+         * @return {void}
+         */
         function toggleMobileNotifs() {
             const panel = document.getElementById('mobile-notif-panel-container');
             if (panel) {
@@ -1280,6 +1325,11 @@ try {
             });
         });
 
+        /**
+         * Updates visual states of side navigation buttons to reflect active tab.
+         * @param {string} activeTab - The newly active tab key.
+         * @return {void}
+         */
         function updateSidebarButtons(activeTab) {
             STUDENT_TABS.forEach(t => {
                 const btn = document.getElementById('tab-btn-' + t);
@@ -1301,6 +1351,11 @@ try {
             });
         }
 
+        /**
+         * Orchestrates tab transitions with custom GSAP fade-in micro-animations.
+         * @param {string} tabName - Target tab key.
+         * @return {void}
+         */
         function switchTab(tabName) {
             switchTabAnimated(tabName, STUDENT_TABS);
             updateSidebarButtons(tabName);
@@ -1322,6 +1377,10 @@ try {
             }
         }
 
+        /**
+         * Asynchronously loads student academic transcript, including lesson grades and exam failures.
+         * @return {void}
+         */
         function loadTranscript() {
             const container = document.getElementById('transcript-container');
             fetch('/student/get-transcript.php')
@@ -1360,17 +1419,21 @@ try {
             });
         }
 
+        /**
+         * Fetches and refreshes global KPIs displayed on the student dashboard main panel.
+         * @return {void}
+         */
         function refreshDashboard() {
             fetch('/student/get-stats.php').then(r => r.json()).then(data => {
                 if (!data.success) return;
                 document.getElementById('kpi-completed').textContent = data.completed_courses;
                 document.getElementById('kpi-score').textContent = data.avg_score + '%';
-                document.getElementById('kpi-time').textContent = data.study_time.hours + 'h' + String(data.study_time.minutes).padStart(2,'0');
-                document.getElementById('kpi-certs').textContent = data.certificates;
-            });
-        }
-
-        // --- 2. Inscription aux Cours (AJAX) ---
+                    /**
+         * Initiates enrollment action for a course, checking if access key is needed.
+         * @param {number} courseId - The unique course database ID.
+         * @param {boolean} needsKey - Indication if course is locked by key.
+         * @return {void}
+         */
         function attemptEnroll(courseId, needsKey) {
             if (needsKey) {
                 document.getElementById('enroll-course-id').value = courseId;
@@ -1389,12 +1452,17 @@ try {
             submitEnrollment(courseId, key);
         });
 
+        /**
+         * Dispatches secure AJAX request to enroll in target course.
+         * @param {number} courseId - Target course unique key.
+         * @param {string|null} key - Password enrollment key.
+         * @return {void}
+         */
         function submitEnrollment(courseId, key) {
             const formData = new FormData();
             formData.append('course_id', courseId);
-            formData.append('csrf_token', document.querySelector('meta[name="csrf-token"]').content); // ← ajouter
+            formData.append('csrf_token', document.querySelector('meta[name="csrf-token"]').content);
             if (key) formData.append('enrollment_key', key);
-        
 
             fetch('/student/enroll.php', { method: 'POST', body: formData })
             .then(res => res.json())
@@ -1417,7 +1485,10 @@ try {
             .catch(err => Toast.error('Erreur réseau: ' + err.message));
         }
 
-        // --- 3. Profil & Upload asynchrone (AJAX) ---
+        /**
+         * Asynchronously updates student's public profile name.
+         * @return {void}
+         */
         function updateProfileName() {
             const newName = document.getElementById('profile-name').value.trim();
             const statusLabel = document.getElementById('profile-status');
@@ -1449,6 +1520,10 @@ try {
             .catch(err => Toast.error('Erreur réseau: ' + err.message));
         }
 
+        /**
+         * Submits selected avatar image file to profile upload controller.
+         * @return {void}
+         */
         function uploadAvatar() {
             const avatarInput = document.getElementById('avatar-input');
             const file = avatarInput.files[0];
@@ -1476,10 +1551,17 @@ try {
             .catch(err => Toast.error('Erreur réseau: ' + err.message));
         }
 
-        // --- 4. Modale d'Étude des Leçons (Liseuse) ---
+        // =========================================================================
+        // SECTION 5: STUDY MODAL, LESSON CONSOLE & AI COMPANION CONTROLLERS
+        // =========================================================================
         let currentLessonId = 0;
         let studyCourseIdGlobal = 0;
 
+        /**
+         * Loads and presents the study course modal layout with chapter hierarchy.
+         * @param {number} courseId - The course identifier to read.
+         * @return {void}
+         */
         function studyCourse(courseId) {
             studyCourseIdGlobal = courseId;
             fetch(`/student/get-course-details.php?course_id=${courseId}`)
@@ -1579,6 +1661,10 @@ try {
             .catch(err => Toast.error('Erreur réseau: ' + err.message));
         }
 
+        /**
+         * Helper returning local current time formatted as HH:MM.
+         * @return {string} Formatted time string.
+         */
         function getCurrentTime() {
             const now = new Date();
             const hours = String(now.getHours()).padStart(2, '0');
@@ -1586,6 +1672,10 @@ try {
             return `${hours}:${minutes}`;
         }
 
+        /**
+         * Toggles the study companion's AI chat drawer panel.
+         * @return {void}
+         */
         function toggleAiDrawer() {
             const drawer = document.getElementById('ai-chat-drawer');
             if (drawer.classList.contains('hidden')) {
@@ -1598,6 +1688,11 @@ try {
             }
         }
 
+        /**
+         * Dispatches pre-defined actions to the AI Student Assistant (e.g., summarize, explain, generate quiz).
+         * @param {string} action - Action key ('summarize' | 'explain' | 'generate_quiz').
+         * @return {void}
+         */
         function triggerAiAction(action) {
             if (!currentLessonId) {
                 Toast.error("Veuillez d'abord charger une lecon.");
@@ -1655,6 +1750,11 @@ try {
             });
         }
 
+        /**
+         * Dynamically builds and inserts an interactive AI-generated MCQ inside the chat flow.
+         * @param {Array<Object>} questions - List of questions generated by AI Client.
+         * @return {void}
+         */
         function renderAiQuiz(questions) {
             const msgs = document.getElementById('ai-chat-messages');
             const container = document.createElement('div');
@@ -1710,6 +1810,13 @@ try {
             msgs.scrollTop = msgs.scrollHeight;
         }
 
+        /**
+         * Appends a chat bubble inside the student assistant drawer.
+         * @param {string} sender - Bubble owner label ('Moi' | 'Assistant' | 'Systeme').
+         * @param {string} text - Message content text.
+         * @param {boolean} [isSystem=false] - If true, style as alert warning.
+         * @return {void}
+         */
         function appendAiMessage(sender, text, isSystem = false) {
             const msgs = document.getElementById('ai-chat-messages');
             const div = document.createElement('div');
@@ -1737,12 +1844,22 @@ try {
             msgs.scrollTop = msgs.scrollHeight;
         }
 
+        /**
+         * Escapes special characters to prevent HTML injections inside the chat drawer.
+         * @param {string} str - Unescaped raw string.
+         * @return {string} Secure HTML escaped string.
+         */
         function escapeHTML(str) {
             return str.replace(/[&<>'"]/g, 
                 tag => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', "'": '&#39;', '"': '&quot;' }[tag] || tag)
             );
         }
 
+        /**
+         * Dispatches custom student free-text queries to the API assistant.
+         * @param {Event} [e] - Form submission event context.
+         * @return {void}
+         */
         function sendAiMessage(e) {
             if (e) e.preventDefault();
             
@@ -1799,6 +1916,10 @@ try {
             });
         }
 
+        /**
+         * Closes the study modal, terminates study timers, and triggers layout KPI updates.
+         * @return {void}
+         */
         function closeStudyModal() {
             SessionTimer.stop();
             LessonContentGate.reset();
@@ -1812,6 +1933,11 @@ try {
         let lessonContentConsumed = false;
         let currentLessonContentType = '';
 
+        /**
+         * Submits AJAX request to flag a lesson's learning materials as viewed/consumed.
+         * @param {number} lessonId - Target lesson database key.
+         * @return {Promise<Object>} Promise resolving to response confirmation.
+         */
         function markContentConsumedOnServer(lessonId) {
             const fd = new FormData();
             fd.append('lesson_id', lessonId);
@@ -1820,6 +1946,12 @@ try {
                 .catch(() => ({ success: false }));
         }
 
+        /**
+         * Inspects lesson schemas to compute visual requirements for complete content consumption.
+         * @param {Object} lesson - Lesson database record object.
+         * @param {Array<Object>|null} videos - Companion videos associated with the lesson.
+         * @return {Array<string>} List of localized requirements ('texte', 'PDF', 'vidéo').
+         */
         function getContentRequirements(lesson, videos) {
             const reqs = [];
             if ((lesson.content_type === 'text' || lesson.content_type === 'mixed') && lesson.text_content) reqs.push('texte');
@@ -1829,6 +1961,13 @@ try {
             return reqs;
         }
 
+        /**
+         * Updates content progression hints text above the lesson assessments box.
+         * @param {Object} lesson - Current lesson data object.
+         * @param {Array<Object>|null} videos - Lesson videos.
+         * @param {boolean} consumed - If learning contents have been successfully completed.
+         * @return {void}
+         */
         function updateContentProgressHint(lesson, videos, consumed) {
             const el = document.getElementById('lesson-content-progress');
             if (!el) return;
@@ -1839,7 +1978,14 @@ try {
                 : 'À terminer : ' + reqs.join(', ');
         }
 
-        // fonction pour déverrouiller les évaluation de la leçon
+        /**
+         * Triggers unlocking state of lesson quizzes/assessments once content is completed.
+         * @param {number} lessonId - Unique lesson database key.
+         * @param {Object} lesson - Lesson metadata structure.
+         * @param {boolean} autoLaunchQuiz - If true, immediately triggers the quiz interface.
+         * @param {Array<Object>|null} videos - Videos list.
+         * @return {void}
+         */
         function unlockLessonEvaluations(lessonId, lesson, autoLaunchQuiz, videos) {
             lessonContentConsumed = true;
             updateContentProgressHint(lesson, videos, true);
@@ -1867,7 +2013,12 @@ try {
             }
         }
 
-        // fonction pour afficher les évaluation de la leçon
+        /**
+         * Renders the locked blocker overlay for lesson evaluations.
+         * @param {Object} lesson - Target lesson context.
+         * @param {Array<Object>|null} videos - Companion videos array.
+         * @return {void}
+         */
         function showLockedLessonEvaluations(lesson, videos) {
             lessonContentConsumed = false;
             document.getElementById('lesson-quiz-container').classList.add('hidden');
@@ -1881,7 +2032,12 @@ try {
             }
         }
 
-        // fonction pour charger une leçon
+        /**
+         * Loads all lesson details, sets up integrated PDF/video players, starts
+         * session timer, and initializes content gates.
+         * @param {number} lessonId - Target lesson database key.
+         * @return {void}
+         */
         function loadLesson(lessonId) {
             currentLessonId = lessonId;
             currentLessonContentType = '';
@@ -1949,12 +2105,23 @@ try {
                     
                     // Réunir toutes les vidéos associées à la leçon
                     const videos = [];
+                    const seenUrls = new Set();
                     if (l.video_url) {
-                        videos.push({ url: l.video_url, label: 'Vidéo principale' });
+                        const cleanUrl = l.video_url.trim();
+                        if (cleanUrl) {
+                            videos.push({ url: cleanUrl, label: 'Vidéo principale' });
+                            seenUrls.add(cleanUrl);
+                        }
                     }
                     if (data.videos && Array.isArray(data.videos)) {
                         data.videos.forEach((v, index) => {
-                            videos.push({ url: v.url, label: v.label || ('Vidéo ' + (index + 1)) });
+                            if (v.url) {
+                                const cleanUrl = v.url.trim();
+                                if (cleanUrl && !seenUrls.has(cleanUrl)) {
+                                    videos.push({ url: cleanUrl, label: v.label || ('Vidéo ' + (index + 1)) });
+                                    seenUrls.add(cleanUrl);
+                                }
+                            }
                         });
                     }
 
@@ -2056,6 +2223,11 @@ try {
             .catch(err => Toast.error('Erreur réseau: ' + err.message));
         }
 
+        /**
+         * Asynchronously loads collaborative comments and Q&A questions/answers for a specific lesson.
+         * @param {number} lessonId - Unique lesson database key.
+         * @return {void}
+         */
         function loadLessonComments(lessonId) {
             const qaBox = document.getElementById('lesson-qa-container');
             const list  = document.getElementById('lesson-comments-list');
@@ -2097,7 +2269,12 @@ try {
             });
         });
 
-        /** Affiche une seule question du quiz de leçon. */
+        /**
+         * Renders a single lesson evaluation MCQ inside the liseuse sidebar.
+         * @param {Object} q - Question structure.
+         * @param {number} remainingTotal - Remaining questions in queue.
+         * @return {void}
+         */
         function renderLessonQuestion(q, remainingTotal) {
             const questionBox = document.getElementById('lesson-quiz-question-box');
             const hint = document.getElementById('lesson-quiz-hint');
@@ -2139,7 +2316,10 @@ try {
             document.getElementById('lesson-quiz-submit-btn').disabled = false;
         }
 
-        /** Masque le quiz une fois la leçon validée. */
+        /**
+         * Closes and hides the lesson evaluation card with a smooth fade interface.
+         * @return {void}
+         */
         function hideLessonQuizComplete() {
             document.getElementById('lesson-quiz-active').classList.add('hidden');
             document.getElementById('lesson-quiz-hint').classList.add('hidden');
@@ -2147,7 +2327,12 @@ try {
             setTimeout(() => document.getElementById('lesson-quiz-container').classList.add('hidden'), 1800);
         }
 
-        /** Met en évidence les bonnes / mauvaises réponses après soumission. */
+        /**
+         * Highlights MCQ options based on user answer validity.
+         * @param {string} selectedOpt - Student selected option ('A'|'B'|'C'|'D').
+         * @param {string} correctOpt - Absolute correct option key.
+         * @return {void}
+         */
         function highlightQuizAnswer(selectedOpt, correctOpt) {
             document.querySelectorAll('.sv-quiz-option').forEach(label => {
                 const opt = label.dataset.option;
@@ -2157,7 +2342,13 @@ try {
             });
         }
 
-        /** Affiche ou masque le bouton / statut de complétion de leçon. */
+        /**
+         * Refreshes completion action bars/hints for lesson read status.
+         * @param {boolean} isCompleted - If lesson is marked complete.
+         * @param {boolean} contentConsumed - If media requirements are satisfied.
+         * @param {boolean} hasQuiz - If lesson requires passing an MCQ.
+         * @return {void}
+         */
         function updateLessonCompleteBar(isCompleted, contentConsumed, hasQuiz) {
             const bar    = document.getElementById('lesson-complete-bar');
             const btn    = document.getElementById('mark-lesson-complete-btn');
@@ -2179,7 +2370,6 @@ try {
                 btn.classList.remove('hidden');
                 status.classList.add('hidden');
                 if (hint) {
-                    hint.classList.remove('hidden');
                     hint.textContent = contentConsumed
                         ? 'Contenu terminé — vous pouvez marquer la leçon comme terminée.'
                         : 'Terminez la lecture, le PDF ou la vidéo pour débloquer la validation.';
@@ -2193,7 +2383,11 @@ try {
             }
         }
 
-        // fonction pour marquer une leçon comme terminée
+        /**
+         * Dispatches secure AJAX request to mark a lesson as completed.
+         * @param {number} lessonId - Unique lesson database key.
+         * @return {void}
+         */
         function markLessonComplete(lessonId) {
             const btn = document.getElementById('mark-lesson-complete-btn');
             if (btn) {
@@ -2329,9 +2523,17 @@ try {
             });
         });
 
-        // --- 5. QCM Final de Certification (AJAX + Timer) ---
+        // =========================================================================
+        // SECTION 6: FINAL CERTIFICATION EXAMS & GLOBAL HUD UTILITIES
+        // =========================================================================
         let examExpired = false;
 
+        /**
+         * Loads evaluation questions and launches the timed certification exam session.
+         * @param {number} courseId - Course unique identifier database key.
+         * @param {string} courseTitle - Name of the course for display.
+         * @return {void}
+         */
         function startFinalExam(courseId, courseTitle) {
             document.getElementById('exam-course-id').value = courseId;
             document.getElementById('exam-course-title').textContent = courseTitle;
@@ -2418,16 +2620,31 @@ try {
             .catch(err => Toast.error('Erreur réseau: ' + err.message));
         });
 
-        // Toggle helpers
+        /**
+         * Opens or closes a specific modal overlay view using Tailwind hidden helper.
+         * @param {string} modalId - Target HTML element container identifier.
+         * @return {void}
+         */
         function toggleModal(modalId) {
             document.getElementById(modalId).classList.toggle('hidden');
         }
 
+        /**
+         * Resumes a course by loading the outline and auto-loading a specified lesson.
+         * @param {number} courseId - Course database ID.
+         * @param {number} lessonId - Lesson database ID.
+         * @return {void}
+         */
         function resumeCourse(courseId, lessonId) {
             studyCourse(courseId);
             setTimeout(() => loadLesson(lessonId), 700);
         }
 
+        /**
+         * Converts database timestamp string into localized elapsed time ago display.
+         * @param {string} dateString - Source date string formatted as YYYY-MM-DD HH:MM:SS.
+         * @return {string} Localized elapsed string.
+         */
         function timeAgo(dateString) {
             const now = new Date();
             const date = new Date(dateString.replace(' ', 'T'));
@@ -2443,6 +2660,11 @@ try {
             return `Le ${date.toLocaleDateString('fr-FR')}`;
         }
 
+        /**
+         * Invokes AJAX controller to mark all unread student notifications as read.
+         * @param {Event} [e] - Click event context.
+         * @return {Promise<void>}
+         */
         async function markAllNotificationsRead(e) {
             if (e) { e.preventDefault(); e.stopPropagation(); }
             const r = await fetch('/student/mark-all-read.php', { method: 'POST' });
@@ -2452,6 +2674,10 @@ try {
             }
         }
 
+        /**
+         * Loads and populates current student notification list into layouts.
+         * @return {void}
+         */
         function loadNotifications() {
             fetch('/student/get-notifications.php')
             .then(r => r.json())
@@ -2530,11 +2756,9 @@ try {
 
         loadNotifications();
 
-        // ═══════════════════════════════════════════════════
-        // ÉTAPE 7 — NOTES DE VIDÉO SUR TIMESTAMPS
-        // Stockage localStorage, affichage en chips cliquables
-        // ═══════════════════════════════════════════════════
-
+        // =========================================================================
+        // SECTION 7: VIDEO TIMESTAMP NOTES (LocalStorage & UI Chips)
+        // =========================================================================
         const VideoNotes = (() => {
             const STORAGE_KEY = 'sv_video_notes';
 
@@ -2572,6 +2796,11 @@ try {
             return { getForLesson, addNote, deleteNote };
         })();
 
+        /**
+         * Renders the student's timestamp video notes list as interactive tags.
+         * @param {number} lessonId - Unique lesson database key.
+         * @return {void}
+         */
         function renderVideoNotes(lessonId) {
             const section = document.getElementById('video-notes-section');
             const list = document.getElementById('video-notes-list');
@@ -2598,12 +2827,23 @@ try {
             }
         }
 
+        /**
+         * Deletes a specific timestamp note from local storage.
+         * @param {number} lessonId - Unique lesson database key.
+         * @param {number} noteId - Unique note timestamp database key.
+         * @return {void}
+         */
         function deleteVideoNote(lessonId, noteId) {
             VideoNotes.deleteNote(lessonId, noteId);
             renderVideoNotes(lessonId);
         }
 
-        // Show/hide notes section based on lesson content type
+        /**
+         * Toggles the visibility of the timestamp notes section.
+         * @param {number} lessonId - Unique lesson database key.
+         * @param {string} contentType - Type of the lesson content.
+         * @return {void}
+         */
         function updateVideoNotesVisibility(lessonId, contentType) {
             const section = document.getElementById('video-notes-section');
             if (!section) return;
@@ -2612,7 +2852,6 @@ try {
             if (isVideo) renderVideoNotes(lessonId);
         }
 
-        // Hook into the video-note-form submit
         document.getElementById('video-note-form')?.addEventListener('submit', function(e) {
             e.preventDefault();
             const lessonId = parseInt(document.getElementById('comment-lesson-id').value);
@@ -2626,11 +2865,9 @@ try {
             Toast.success('Note ajoutée.');
         });
 
-        // Patch loadLesson to show video notes section
         const _origLoadLesson = loadLesson;
         loadLesson = function(lessonId) {
             _origLoadLesson(lessonId);
-            // Delay to let lesson data load first
             setTimeout(() => {
                 const badge = document.getElementById('study-lesson-badge');
                 const contentType = badge ? badge.textContent.toLowerCase() : '';
@@ -2642,6 +2879,12 @@ try {
         // ÉTAPE 8 — SKELETON LOADERS (zones de chargement)
         // ═══════════════════════════════════════════════════
 
+        /**
+         * Generates and injects a skeleton loading template into a container.
+         * @param {string} containerId - The ID of the HTML element to hold the skeleton.
+         * @param {number} [rows=3] - Number of skeleton rows to display.
+         * @return {void}
+         */
         function showSkeleton(containerId, rows = 3) {
             const el = document.getElementById(containerId);
             if (!el) return;

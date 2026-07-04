@@ -1,9 +1,25 @@
 <?php
+/**
+ * StudyVibe Academic LMS - Student Lesson Details Provider
+ *
+ * This controller fetches detailed learning material contents, associated video items,
+ * and remaining quiz questions for a lesson, enforcing gating timeline checks.
+ *
+ * PHP version 8.2
+ *
+ * @category  Controller
+ * @package   StudyVibe\Student
+ * @author    StudyVibe Team <development@studyvibe.academic>
+ * @copyright 2026 StudyVibe
+ * @license   Proprietary
+ * @link      https://studyvibe.academic
+ */
+
 declare(strict_types=1);
 
-/**
- * Détails d'une leçon pour l'étudiant — contenu, quiz restant, statut complété.
- */
+// =========================================================================
+// SECTION 1: AUTHENTICATION & INPUT PARAMETERS SECURITY
+// =========================================================================
 
 require_once __DIR__ . '/../auth.php';
 
@@ -21,6 +37,10 @@ if ($lessonId <= 0) {
     echo json_encode(['success' => false, 'message' => 'Identifiant de leçon non valide.']);
     exit;
 }
+
+// =========================================================================
+// SECTION 2: ACCESS GATING & ENROLLMENT VERIFICATION
+// =========================================================================
 
 try {
     $pdo = Database::getInstance();
@@ -63,6 +83,10 @@ try {
         echo json_encode(['success' => false, 'message' => 'Le délai d\'accès à cette leçon/quiz a expiré.']);
         exit;
     }
+
+    // =========================================================================
+    // SECTION 3: LESSON MEDIA & EVALUATION METRICS INGESTION
+    // =========================================================================
 
     // Récupérer les vidéos associées à la leçon
     $vStmt = $pdo->prepare("SELECT * FROM lesson_videos WHERE lesson_id = :lesson_id ORDER BY sort_order ASC, id ASC");

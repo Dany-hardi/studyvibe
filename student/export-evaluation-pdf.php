@@ -1,5 +1,25 @@
 <?php
+/**
+ * StudyVibe Academic LMS - Live Evaluation PDF Export Controller
+ *
+ * This controller generates and compiles a LaTeX document representing the
+ * correction report of a student's live evaluation, outputting a high-quality PDF.
+ *
+ * PHP version 8.2
+ *
+ * @category  Controller
+ * @package   StudyVibe\Student
+ * @author    StudyVibe Team <development@studyvibe.academic>
+ * @copyright 2026 StudyVibe
+ * @license   Proprietary
+ * @link      https://studyvibe.academic
+ */
+
 declare(strict_types=1);
+
+// =========================================================================
+// SECTION 1: AUTHENTICATION, JETON SECURITY & QUERY VALIDATION
+// =========================================================================
 
 require_once __DIR__ . '/../auth.php';
 
@@ -27,6 +47,10 @@ if (!hash_equals($expectedToken, $token)) {
 $pdo = Database::getInstance();
 $currentUser = getCurrentUser();
 
+// =========================================================================
+// SECTION 2: REGISTRATION & SESSION DATA RESOLUTION
+// =========================================================================
+
 // Charger l'inscription avec les détails de la séance
 try {
     $stmt = $pdo->prepare("
@@ -53,6 +77,10 @@ if ($currentUser['role'] === 'student' && (int)$registration['student_id'] !== $
     http_response_code(403);
     exit('Vous n\'êtes pas autorisé à accéder aux résultats de cette personne.');
 }
+
+// =========================================================================
+// SECTION 3: ANSWERS DATA FETCHING & SCORE CALCULATION
+// =========================================================================
 
 // Charger les réponses soumises et les questions associées
 try {
@@ -87,8 +115,17 @@ foreach ($answers as $ans) {
 }
 $scorePercent = $totalQuestions > 0 ? ($correctCount / $totalQuestions) * 100 : 0.0;
 
+// =========================================================================
+// SECTION 4: LATEX FORMATTING HELPER FUNCTIONS
+// =========================================================================
+
 /**
- * Filtre et échappe les caractères spéciaux pour LaTeX tout en préservant le code LaTeX mathématique.
+ * Filter and escape special character sequences for safe compilation in LaTeX documents.
+ * Preserves inline/block math markup syntax.
+ *
+ * @param string|null $text Unescaped input text string.
+ *
+ * @return string LaTeX-safe escaped text string.
  */
 function escapeLatex(?string $text): string
 {
@@ -129,6 +166,10 @@ function escapeLatex(?string $text): string
     }
     return implode('', $parts);
 }
+
+// =========================================================================
+// SECTION 5: LATEX STRUCTURE & DOCUMENT ASSEMBLY
+// =========================================================================
 
 // Construction du document LaTeX
 $tex = "";
@@ -274,6 +315,10 @@ foreach ($answers as $index => $qa) {
 }
 
 $tex .= "\\end{document}\n";
+
+// =========================================================================
+// SECTION 6: PDF COMPILATION & TEMPORARY FILES CLEANUP
+// =========================================================================
 
 // Enregistrement temporaire et compilation LaTeX
 $tempDir = __DIR__ . '/../uploads/temp_pdf';

@@ -2,11 +2,30 @@
 declare(strict_types=1);
 
 /**
- * Gestion des abonnés et campagnes newsletter StudyVibe.
+ * StudyVibe LMS - Newsletter & Campaign Management Service
+ * 
+ * Manages newsletter subscription lifecycles, active subscriber list queries, 
+ * target-audience resolution checks (all subscribers vs student portal users), 
+ * unsubscribe token mapping, and audit logging of broadcast history.
+ * 
+ * @package    StudyVibe
+ * @author     Advanced Engineering Team
  */
 class Newsletter
 {
-    /** Inscrit ou réactive un abonné. */
+    // =========================================================================
+    // SECTION 1: SUBSCRIPTION LIFECYCLE MUTATIONS
+    // =========================================================================
+
+    /**
+     * Subscribes a new email address or reactivates an existing subscription.
+     * 
+     * @param PDO      $pdo    Database connection instance.
+     * @param string   $email  The subscriber email address.
+     * @param string   $name   The subscriber name.
+     * @param int|null $userId Link to user account id if authenticated.
+     * @return bool True if execution succeeded, false on invalid format or DB errors.
+     */
     public static function subscribe(PDO $pdo, string $email, string $name = '', ?int $userId = null): bool
     {
         $email = strtolower(trim($email));
@@ -14,6 +33,7 @@ class Newsletter
             return false;
         }
 
+        // Generate unique security token for unsubscribe link queries
         $token = bin2hex(random_bytes(32));
 
         $stmt = $pdo->prepare("
@@ -34,7 +54,13 @@ class Newsletter
         ]);
     }
 
-    /** Désabonne via token unique. */
+    /**
+     * Deactivates a subscriber account using a unique unsubscribe token.
+     * 
+     * @param PDO    $pdo   Database connection instance.
+     * @param string $token Unique unsubscribe verification token.
+     * @return bool True if a subscriber was successfully deactivated.
+     */
     public static function unsubscribe(PDO $pdo, string $token): bool
     {
         $stmt = $pdo->prepare("
@@ -45,7 +71,16 @@ class Newsletter
         return $stmt->rowCount() > 0;
     }
 
-    /** Retourne les abonnés actifs. */
+    // =========================================================================
+    // SECTION 2: SUBSCRIBER QUERIES
+    // =========================================================================
+
+    /**
+     * Retrieves all active subscribers.
+     * 
+     * @param PDO $pdo Database connection instance.
+     * @return array List of subscriber row arrays.
+     */
     public static function getActiveSubscribers(PDO $pdo): array
     {
         return $pdo->query("
@@ -56,11 +91,22 @@ class Newsletter
         ")->fetchAll();
     }
 
-    /** Résout la liste de destinataires selon l'audience choisie. */
+    // =========================================================================
+    // SECTION 3: AUDIENCE RESOLUTION LOGIC
+    // =========================================================================
+
+    /**
+     * Resolves the list of recipients based on the targeted audience selection.
+     * 
+     * @param PDO    $pdo      Database connection instance.
+     * @param string $audience Target selection ('subscribers' | 'students' | 'all').
+     * @return array List of unique recipients with keys [email, name, token].
+     */
     public static function resolveRecipients(PDO $pdo, string $audience): array
     {
         $recipients = [];
 
+        // Include subscribers if requested
         if ($audience === 'subscribers' || $audience === 'all') {
             foreach (self::getActiveSubscribers($pdo) as $sub) {
                 $recipients[$sub['email']] = [
@@ -71,6 +117,7 @@ class Newsletter
             }
         }
 
+        // Include student portal users if requested
         if ($audience === 'students' || $audience === 'all') {
             $students = $pdo->query("SELECT id, email, name FROM users WHERE role = 'student'")->fetchAll();
             foreach ($students as $s) {
@@ -87,6 +134,13 @@ class Newsletter
         return array_values($recipients);
     }
 
+    /**
+     * Retrieves the unsubscribe token for a given email address.
+     * 
+     * @param PDO    $pdo   Database connection instance.
+     * @param string $email Target email.
+     * @return string Unsubscribe token, or empty string if not found.
+     */
     private static function getTokenForEmail(PDO $pdo, string $email): string
     {
         $stmt = $pdo->prepare("SELECT unsubscribe_token FROM newsletter_subscribers WHERE email = :email LIMIT 1");
@@ -95,7 +149,15 @@ class Newsletter
         return $token ? (string)$token : '';
     }
 
-    /** Garantit un token de désabonnement pour un étudiant non encore abonné. */
+    /**
+     * Guarantees that a student has an unsubscribe token, subscribing them if not present.
+     * 
+     * @param PDO    $pdo    Database connection instance.
+     * @param int    $userId Student user ID.
+     * @param string $email  Student email.
+     * @param string $name   Student name.
+     * @return string Resolved unsubscribe token.
+     */
     private static function ensureTokenForUser(PDO $pdo, int $userId, string $email, string $name): string
     {
         $existing = self::getTokenForEmail($pdo, $email);
@@ -116,7 +178,20 @@ class Newsletter
         return $token;
     }
 
-    /** Enregistre une campagne envoyée. */
+    // =========================================================================
+    // SECTION 4: HISTORICAL AUDIT & LOGGING
+    // =========================================================================
+
+    /**
+     * Logs the details of a sent newsletter campaign.
+     * 
+     * @param PDO    $pdo            Database connection instance.
+     * @param int    $sentBy         The ID of the administrator/promoter who sent the email.
+     * @param string $subject        Newsletter subject.
+     * @param string $body           HTML email body.
+     * @param int    $recipientCount Total number of recipients.
+     * @return void
+     */
     public static function logCampaign(PDO $pdo, int $sentBy, string $subject, string $body, int $recipientCount): void
     {
         $pdo->prepare("
@@ -130,7 +205,13 @@ class Newsletter
         ]);
     }
 
-    /** Historique des campagnes. */
+    /**
+     * Retrieves historical records of past newsletter campaigns.
+     * 
+     * @param PDO $pdo   Database connection instance.
+     * @param int $limit Maximum number of campaign records to return.
+     * @return array List of campaign history rows.
+     */
     public static function getCampaigns(PDO $pdo, int $limit = 20): array
     {
         $stmt = $pdo->prepare("

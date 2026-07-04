@@ -1,5 +1,25 @@
 <?php
+/**
+ * StudyVibe Academic LMS - Student Academic Transcript Data Provider
+ *
+ * This controller compiles course progress percentages, completed lesson scores,
+ * and failed certification exam attempts for a student's profile.
+ *
+ * PHP version 8.2
+ *
+ * @category  Controller
+ * @package   StudyVibe\Student
+ * @author    StudyVibe Team <development@studyvibe.academic>
+ * @copyright 2026 StudyVibe
+ * @license   Proprietary
+ * @link      https://studyvibe.academic
+ */
+
 declare(strict_types=1);
+
+// =========================================================================
+// SECTION 1: AUTHENTICATION
+// =========================================================================
 
 require_once __DIR__ . '/../auth.php';
 
@@ -11,6 +31,10 @@ if (!isLoggedIn() || $_SESSION['user_role'] !== 'student') {
 }
 
 $studentId = (int)$_SESSION['user_id'];
+
+// =========================================================================
+// SECTION 2: FETCH TRANSCRIPT RECORDS
+// =========================================================================
 
 try {
     $pdo = Database::getInstance();

@@ -1,9 +1,25 @@
 <?php
+/**
+ * StudyVibe Academic LMS - Lesson Content Consumption Handler
+ *
+ * This controller processes requests by students to mark a lesson's learning material
+ * (text reader, PDF view, or video finished) as consumed.
+ *
+ * PHP version 8.2
+ *
+ * @category  Controller
+ * @package   StudyVibe\Student
+ * @author    StudyVibe Team <development@studyvibe.academic>
+ * @copyright 2026 StudyVibe
+ * @license   Proprietary
+ * @link      https://studyvibe.academic
+ */
+
 declare(strict_types=1);
 
-/**
- * Marque le contenu d'une leçon comme entièrement consommé (lecture PDF/texte ou fin vidéo).
- */
+// =========================================================================
+// SECTION 1: AUTHENTICATION & INPUT PARAMETERS SECURITY
+// =========================================================================
 
 require_once __DIR__ . '/../auth.php';
 
@@ -19,8 +35,6 @@ if ($_SERVER['REQUEST_METHOD'] !== 'POST') {
     exit;
 }
 
-
-// requireCsrf();
 $lessonId  = isset($_POST['lesson_id']) ? (int)$_POST['lesson_id'] : 0;
 $studentId = $_SESSION['user_id'];
 
@@ -28,6 +42,10 @@ if ($lessonId <= 0) {
     echo json_encode(['success' => false, 'message' => 'Identifiant de leçon non valide.']);
     exit;
 }
+
+// =========================================================================
+// SECTION 2: CONTENT CONSUMED STATUS TRANSACTION
+// =========================================================================
 
 try {
     $pdo = Database::getInstance();

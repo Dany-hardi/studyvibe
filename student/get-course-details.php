@@ -1,5 +1,25 @@
 <?php
+/**
+ * StudyVibe Academic LMS - Student Course Details Provider
+ *
+ * This controller serves the details of a course, its chapters, and associated
+ * lessons including current student completion progress status.
+ *
+ * PHP version 8.2
+ *
+ * @category  Controller
+ * @package   StudyVibe\Student
+ * @author    StudyVibe Team <development@studyvibe.academic>
+ * @copyright 2026 StudyVibe
+ * @license   Proprietary
+ * @link      https://studyvibe.academic
+ */
+
 declare(strict_types=1);
+
+// =========================================================================
+// SECTION 1: AUTHENTICATION & INPUT PARAMETERS SECURITY
+// =========================================================================
 
 require_once __DIR__ . '/../auth.php';
 
@@ -23,6 +43,10 @@ if ($courseId <= 0) {
     ]);
     exit;
 }
+
+// =========================================================================
+// SECTION 2: ENROLLMENT & COURSE SYLLABUS DATA INGESTION
+// =========================================================================
 
 try {
     $pdo = Database::getInstance();
@@ -69,6 +93,7 @@ try {
         ]);
         $ch['lessons'] = $lessonStmt->fetchAll();
     }
+    unset($ch);
 
     echo json_encode([
         'success' => true,

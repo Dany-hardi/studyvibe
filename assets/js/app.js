@@ -324,7 +324,7 @@ const PdfViewer = (() => {
 
     try {
       const lib = await loadScript();
-      pdf = await lib.getDocument(url).promise;
+      pdf = await lib.getDocument({ url: url, withCredentials: true }).promise;
       totalEl.textContent = pdf.numPages;
 
       loading.classList.add('hidden');
@@ -659,12 +659,23 @@ const LessonContentGate = (() => {
 
     const l = config.lesson || {};
     const videosToTrack = [];
+    const seenUrls = new Set();
     if (l.video_url) {
-      videosToTrack.push({ url: l.video_url, label: 'Vidéo' });
+      const cleanUrl = l.video_url.trim();
+      if (cleanUrl) {
+        videosToTrack.push({ url: cleanUrl, label: 'Vidéo' });
+        seenUrls.add(cleanUrl);
+      }
     }
     if (config.videos && Array.isArray(config.videos)) {
       config.videos.forEach((v, idx) => {
-        videosToTrack.push({ url: v.url, label: v.label || `Vidéo ${idx + 1}` });
+        if (v.url) {
+          const cleanUrl = v.url.trim();
+          if (cleanUrl && !seenUrls.has(cleanUrl)) {
+            videosToTrack.push({ url: cleanUrl, label: v.label || `Vidéo ${idx + 1}` });
+            seenUrls.add(cleanUrl);
+          }
+        }
       });
     }
 

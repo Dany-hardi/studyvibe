@@ -1,9 +1,27 @@
 <?php
 declare(strict_types=1);
 
+/**
+ * StudyVibe LMS - Live Evaluation Session Controller
+ * 
+ * Manages the synchronised student-facing tele-evaluation interface.
+ * Handles student registration/login flows, real-time polling synchronisation,
+ * automatic LaTeX equation rendering using KaTeX, audio chime indicators,
+ * circular progress countdown tracking, local cache queue for resilient offline 
+ * submission synchronisation, and live podium leaderboard calculations.
+ * 
+ * @package    StudyVibe
+ * @subpackage Core
+ * @author     Advanced Engineering Team
+ */
+
 require_once __DIR__ . '/auth.php';
 
-// Gérer la déconnexion spécifique à l'évaluation pour changer de compte
+// =========================================================================
+// SECTION 1: LOGOUT OR STATE RESET
+// =========================================================================
+
+// Handle evaluation-specific logout requests to switch accounts
 if (isset($_GET['action']) && $_GET['action'] === 'logout') {
     $code = trim((string)($_GET['code'] ?? ''));
     $_SESSION = [];
@@ -19,6 +37,12 @@ if (isset($_GET['action']) && $_GET['action'] === 'logout') {
     exit;
 }
 
+/**
+ * Formats evaluation start time into a localized human-readable string.
+ * 
+ * @param string $dateTimeStr Standard ISO/MySQL datetime string.
+ * @return string Localized french presentation string.
+ */
 function getFormattedEvalStartTime(string $dateTimeStr): string {
     $timestamp = strtotime($dateTimeStr);
     if (!$timestamp) return $dateTimeStr;
@@ -48,6 +72,7 @@ function getFormattedEvalStartTime(string $dateTimeStr): string {
     return "le " . $day . " " . $months[$monthNum] . " " . $year . " à " . $time;
 }
 
+// Enforce active PHP session
 if (session_status() === PHP_SESSION_NONE) {
     session_start();
 }
@@ -55,6 +80,7 @@ if (session_status() === PHP_SESSION_NONE) {
 $code = trim((string)($_GET['code'] ?? ''));
 $action = trim((string)($_GET['action'] ?? ''));
 
+// Handle participant manual session leave / disconnect logic
 if ($code !== '' && $action === 'disconnect') {
     if (isset($_SESSION['live_registrations'][$code])) {
         $regId = (int)$_SESSION['live_registrations'][$code];
@@ -67,7 +93,7 @@ if ($code !== '' && $action === 'disconnect') {
             $stmt->execute(['id' => $regId]);
             $score = $stmt->fetchColumn();
             if ($score === false || $score === null) {
-                // Supprimer l'inscription si aucun score n'a encore été enregistré (pour vider le dashboard)
+                // Delete empty/abandoned session registrations to keep the student dashboard clean
                 $delStmt = $pdo->prepare("DELETE FROM live_eval_registrations WHERE id = :id");
                 $delStmt->execute(['id' => $regId]);
             }
@@ -86,6 +112,7 @@ $currentUser = getCurrentUser();
 $currentUserName = $currentUser['name'] ?? '';
 $currentUserEmail = $currentUser['email'] ?? '';
 
+// Fetch the targeted live evaluation metadata from database
 try {
     $pdo = Database::getInstance();
     if ($code !== '') {
@@ -102,6 +129,7 @@ try {
     $error = "Erreur de connexion à la base de données (trop de connexions ou serveur saturé). Veuillez rafraîchir la page dans quelques instants.";
 }
 
+// Evaluate asynchronous constraints
 $isAsync = ($session && isset($session['is_async']) && (int)$session['is_async'] === 1);
 $asyncDeadlinePassed = false;
 if ($isAsync && !empty($session['async_deadline'])) {
@@ -112,6 +140,7 @@ $isStudent = isset($_SESSION['user_id'], $_SESSION['user_role']) && $_SESSION['u
 $redirectUrl = $isStudent ? 'student/dashboard.php' : 'index.php';
 $redirectLabel = $isStudent ? 'Retour au tableau de bord' : "Retour à l'accueil";
 
+// Render custom professional error views on invalid states
 if ($error !== null) {
     $errorCode = 500;
     $errorTitle = "Erreur de connexion";
@@ -165,7 +194,9 @@ if (!$session) {
     exit;
 }
 
-// Gérer l'enregistrement et l'authentification/inscription intégrée
+// =========================================================================
+// SECTION 2: REGISTRATION & AUTHENTICATION POST DISPATCHER
+// =========================================================================
 $regError = null;
 if (!$error && $_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['register_live'])) {
     $authAction = trim((string)($_POST['auth_action'] ?? ''));
@@ -189,7 +220,7 @@ if (!$error && $_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['register_l
                 $pdo = Database::getInstance();
                 
                 if ($authAction === 'login') {
-                    // Connexion
+                    // Login Handler logic
                     $stmt = $pdo->prepare("SELECT id, name, password, role, is_active FROM users WHERE email = :email");
                     $stmt->execute(['email' => $email]);
                     $user = $stmt->fetch();
@@ -199,7 +230,7 @@ if (!$error && $_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['register_l
                     } elseif (!(int)($user['is_active'] ?? 1)) {
                         $regError = "Ce compte a été désactivé. Veuillez contacter l'administrateur.";
                     } else {
-                        // Ouvrir la session
+                        // Open session
                         $_SESSION['user_id'] = (int)$user['id'];
                         $_SESSION['user_role'] = $user['role'];
                         $_SESSION['last_regen'] = time();
@@ -208,19 +239,19 @@ if (!$error && $_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['register_l
                         $studentId = $user['id'];
                     }
                 } elseif ($authAction === 'signup') {
-                    // Création de compte
+                    // Account Creation logic
                     if (empty($name)) {
                         $regError = "Le nom complet est requis pour créer un compte.";
                     } elseif (strlen($password) < 6) {
                         $regError = "Le mot de passe doit contenir au moins 6 caractères.";
                     } else {
-                        // Vérifier si l'adresse e-mail existe déjà
+                        // Verify duplicate email constraints
                         $stmt = $pdo->prepare("SELECT id FROM users WHERE email = :email");
                         $stmt->execute(['email' => $email]);
                         if ($stmt->fetch()) {
                             $regError = "Cette adresse e-mail est déjà associée à un compte StudyVibe. Veuillez vous connecter.";
                         } else {
-                            // Créer l'utilisateur (étudiant)
+                            // Insert new student record
                             $hashedPassword = password_hash($password, PASSWORD_DEFAULT);
                             $stmt = $pdo->prepare("
                                 INSERT INTO users (name, email, password, role, is_approved)
@@ -233,14 +264,14 @@ if (!$error && $_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['register_l
                             ]);
                             $newUserId = (int)$pdo->lastInsertId();
                             
-                            // Log in
+                            // Establish session auth variables
                             $_SESSION['user_id'] = $newUserId;
                             $_SESSION['user_role'] = 'student';
                             $_SESSION['last_regen'] = time();
                             
                             $studentId = $newUserId;
                             
-                            // Audit log & welcome messages (non-blocking)
+                            // Audit log & welcome messages
                             try {
                                 require_once __DIR__ . '/lib/AuthTokens.php';
                                 require_once __DIR__ . '/Mailer.php';
@@ -250,7 +281,7 @@ if (!$error && $_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['register_l
                                 Mailer::emailVerification($email, $name, $verifyToken);
                                 Mailer::welcome($email, $name, 'apprenant');
                             } catch (Exception $e) {
-                                // non-blocking
+                                // Non-blocking
                             }
                         }
                     }
@@ -263,11 +294,10 @@ if (!$error && $_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['register_l
         }
     }
     
-    // Si pas d'erreur d'authentification, on procède à l'inscription à l'évaluation
+    // Register the participant for the specific live evaluation session if auth completes successfully
     if ($regError === null) {
         try {
             $pdo = Database::getInstance();
-            // Insérer ou récupérer l'inscription existante
             $stmt = $pdo->prepare("
                 INSERT INTO live_eval_registrations (session_id, name, email, student_id)
                 VALUES (:sid, :name, :email, :student_id)
@@ -282,7 +312,7 @@ if (!$error && $_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['register_l
                 'student_id2' => $studentId ?? null,
             ]);
 
-            // Récupérer le ID d'inscription
+            // Fetch registration identifier
             $stmt = $pdo->prepare("SELECT id FROM live_eval_registrations WHERE session_id = :sid AND email = :email");
             $stmt->execute(['sid' => $session['id'], 'email' => $email]);
             $regId = (int)$stmt->fetchColumn();
@@ -291,7 +321,7 @@ if (!$error && $_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['register_l
                 throw new PDOException("Impossible de récupérer l'ID d'inscription.");
             }
 
-            // Enregistrer dans la session PHP
+            // Sync with local session
             $_SESSION['live_registrations'][$code] = $regId;
 
             if ($isAsync) {
@@ -314,7 +344,9 @@ if (!$error && $_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['register_l
     }
 }
 
-// Vérifier si le participant est déjà enregistré
+// =========================================================================
+// SECTION 3: SESSION REGISTRATION RECOVERY & ASYNC RESTARTS
+// =========================================================================
 $regId = 0;
 $registration = null;
 $isReset = false;
@@ -335,7 +367,7 @@ if (!$error) {
         $stmt->execute(['id' => $regId, 'sid' => $session['id']]);
         $registration = $stmt->fetch();
         if (!$registration) {
-            // L'inscription existait en session mais plus en BDD -> Reset/Exclusion !
+            // Soft reset session registers if excluded or purged from database
             $isReset = true;
             unset($_SESSION['live_registrations'][$code]);
             unset($_SESSION['verified_registrations'][$code]);
@@ -346,7 +378,7 @@ if (!$error) {
             }
         }
 
-        // Gérer le redémarrage automatique d'une tentative complétée en mode asynchrone
+        // Handle automated restart triggers for completed async student attempts
         if ($isAsync && $registration) {
             $shouldReset = (isset($_GET['restart']) && (int)$_GET['restart'] === 1) || ($registration && $registration['score'] !== null);
             if ($shouldReset) {
@@ -379,7 +411,7 @@ if (!$error) {
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600&family=Plus+Jakarta+Sans:wght@300;400;500;600;700&display=swap" rel="stylesheet">
     <link rel="stylesheet" href="/assets/css/app.css">
     
-    <!-- Bibliothèques KaTeX pour le rendu des formules mathématiques et caractères spéciaux en LaTeX -->
+    <!-- KaTeX mathematical typesetting integrations -->
     <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/katex@0.16.8/dist/katex.min.css">
     <script defer src="https://cdn.jsdelivr.net/npm/katex@0.16.8/dist/katex.min.js"></script>
     <script defer src="https://cdn.jsdelivr.net/npm/katex@0.16.8/dist/contrib/auto-render.min.js" onload="renderMath()"></script>
@@ -611,14 +643,14 @@ if (!$error) {
 
         .option-btn.selected {
             border-color: var(--green2);
-            background: rgba(0, 135, 63, 0.07); /* green glass background */
+            background: rgba(0, 135, 63, 0.07);
             color: var(--green);
             font-weight: 700;
             transform: translateY(-1.5px) scale(1.01);
             box-shadow: 
                 0 0 0 1px var(--green2),
                 0 10px 25px -8px rgba(0, 135, 63, 0.2),
-                0 0 16px rgba(0, 135, 63, 0.15); /* vibrant glow */
+                0 0 16px rgba(0, 135, 63, 0.15);
         }
 
         .option-btn.selected span.opt-label {
@@ -731,7 +763,7 @@ if (!$error) {
                 0 0 12px rgba(0, 75, 35, 0.15);
         }
 
-        /* Styled sliding tabs */
+        /* Styled sliding auth tabs options */
         .auth-tabs-container {
             position: relative;
             display: flex;
@@ -1030,7 +1062,7 @@ if (!$error) {
             50% { opacity: 1; transform: scale(1.01); }
         }
 
-        /* Participants connected badge with radar ping */
+        /* Connected participants badge with live radar ping */
         .participants-badge {
             background: rgba(0, 75, 35, 0.04);
             border: 1px solid rgba(0, 75, 35, 0.08);
@@ -1076,7 +1108,7 @@ if (!$error) {
             100% { transform: scale(2.4); opacity: 0; }
         }
 
-        /* High-contrast container for LaTeX formula layout */
+        /* High-contrast container for LaTeX formulas */
         .katex-display {
             background: rgba(0, 0, 0, 0.02);
             border: 1px solid rgba(0, 75, 35, 0.06);
@@ -1093,7 +1125,7 @@ if (!$error) {
             background: rgba(0, 0, 0, 0.015);
         }
 
-        /* Leaderboard table clean styles */
+        /* Live Leaderboard table styling */
         .leaderboard-scroll {
             max-height: 220px;
             overflow-y: auto;
@@ -1150,32 +1182,32 @@ if (!$error) {
 </head>
 <body>
 
-    <!-- Floating background particles -->
+    <!-- Decorative background elements -->
     <div class="floating-particles" id="floating-particles" aria-hidden="true"></div>
 
     <main class="page">
         <div class="card" id="main-card">
 
-            <!-- Barre live quiz (visible uniquement en phase quiz) -->
+            <!-- Sticky top bar for quiz mode information -->
             <div id="quiz-live-bar">
                 <span><span class="live-dot"></span>QUIZ EN COURS</span>
                 <span id="live-bar-question">Question -- / --</span>
             </div>
             
-            <!-- Left column (Dynamic Graphic) -->
+            <!-- Graphic Illustration Column -->
             <div class="col-image" id="col-image-panel">
                 <img id="live-illustration" src="/assets/img/live-lobby-illustration.png" alt="Illustration Téléévaluation">
                 <div class="illustration-caption" id="live-caption">Dans la salle de Téléévaluation StudyVibe…</div>
             </div>
 
-            <!-- Right column (Content panel) -->
+            <!-- Interactive content column -->
             <div class="col-content">
                 
-                <!-- Absolute Timer Watermark (top-right corner) -->
+                <!-- Watermark Clock -->
                 <div class="timer-watermark" id="lobby-timer-watermark">--:--</div>
                 
                 <div id="col-top-bar">
-                    <!-- Brand -->
+                    <!-- Brand Identity -->
                     <a href="/" class="brand">
                         <svg width="22" height="22" viewBox="0 0 64 64" fill="none" xmlns="http://www.w3.org/2000/svg">
                             <defs>
@@ -1194,7 +1226,7 @@ if (!$error) {
                         <span class="brand-name">StudyVibe <span style="font-size:0.625rem; font-weight:700; color:#FFF; background:var(--green); padding: 1px 6px; border-radius:10px; margin-left:4px;">LIVE</span></span>
                     </a>
 
-                    <!-- Badge Status -->
+                    <!-- Live Session status badges -->
                     <div style="display: flex; align-items: center; gap: 8px;">
                         <span class="badge" id="state-badge">
                             <svg width="6" height="6" viewBox="0 0 8 8" fill="none" style="margin-right: 2px;">
@@ -1210,11 +1242,11 @@ if (!$error) {
                     </div>
                 </div>
 
-                <!-- Main dynamic content area -->
+                <!-- Dynamic components switchboard -->
                 <div style="flex-grow: 1; display: flex; flex-direction: column; justify-content: center; margin: 1.5rem 0;">
                     
                     <?php if ($error): ?>
-                        <!-- ÉCRAN : ERREUR -->
+                        <!-- Error Message View -->
                         <div class="text-center py-6">
                             <h2 class="story-title" style="font-family:'Plus Jakarta Sans',sans-serif; font-size:1.8rem; font-weight:500; margin-bottom: 1rem;">
                                 Séance indisponible
@@ -1226,10 +1258,10 @@ if (!$error) {
                         </div>
 
                     <?php elseif (!$registration): ?>
-                        <!-- ÉCRAN : ENREGISTREMENT / RÉINSCRIPTION -->
+                        <!-- Form Step: Auth & Registration Gateway -->
                         <div>
                             <?php if (isset($isReset) && $isReset): ?>
-                                <!-- Rapprochement premium en cas de réinitialisation -->
+                                <!-- Excluded or Reset notification banner -->
                                 <div style="display: flex; flex-direction: column; gap: 1.5rem; align-items: center; justify-content: center; text-align: center; margin-bottom: 2rem;">
                                     <div style="max-width: 280px; width: 100%;">
                                         <img src="/assets/img/reset_eval_illustration.png" alt="Session Reset" style="width: 100%; height: auto; border-radius: 8px; border: 1px solid #E5E5E7; box-shadow: 0 4px 12px rgba(0,0,0,0.05);">
@@ -1253,9 +1285,8 @@ if (!$error) {
                                 Cours : <strong style="color:var(--ink); font-weight:500;"><?= htmlspecialchars($session['course_title']) ?></strong>
                             </p>
                             
-                            <!-- Heure de début de la téléévaluation (depuis la base de données) -->
                             <?php if ($isAsync): ?>
-                                <!-- Devoir libre (Asynchrone) -->
+                                <!-- Free Study Mode (Asynchronous) -->
                                 <div style="background-color: rgba(26,86,219,0.04); border: 1px dashed rgba(26,86,219,0.3); border-radius: 6px; padding: 12px 14px; display: flex; flex-direction: column; gap: 6px; margin-bottom: 1.5rem; position: relative;">
                                     <div style="display: flex; align-items: center; justify-content: space-between; width: 100%;">
                                         <div style="display: flex; align-items: center; gap: 8px;">
@@ -1266,19 +1297,18 @@ if (!$error) {
                                                 Devoir Libre disponible jusqu'au : <strong style="text-transform: capitalize;"><?= htmlspecialchars(getFormattedEvalStartTime($session['async_deadline'] ?? '')) ?></strong>
                                             </span>
                                         </div>
-                                        <!-- Clickable Question Mark -->
                                         <button type="button" onclick="toggleAsyncExplanation()" style="background: none; border: none; cursor: pointer; display: flex; align-items: center; justify-content: center; width: 20px; height: 20px; border-radius: 50%; background-color: rgba(26,86,219,0.1); color: #1A56DB; font-size: 0.75rem; font-weight: 700; transition: background-color 0.2s;" onmouseover="this.style.backgroundColor='rgba(26,86,219,0.2)'" onmouseout="this.style.backgroundColor='rgba(26,86,219,0.1)'" title="En savoir plus sur le Devoir Libre">
                                             ?
                                         </button>
                                     </div>
                                     
-                                    <!-- Inline explanation (hidden by default) -->
                                     <div id="async-explanation-box" style="display: none; margin-top: 8px; padding-top: 8px; border-top: 1px solid rgba(26,86,219,0.15); font-size: 0.75rem; color: #1E3A8A; line-height: 1.5;">
                                         <strong>Qu'est-ce qu'un Devoir Libre ?</strong><br>
                                         Il s'agit d'une évaluation asynchrone autonome. Contrairement aux sessions en direct animées en temps réel par l'enseignant, vous pouvez réaliser cette évaluation à votre rythme, à n'importe quel moment avant la date limite indiquée.
                                     </div>
                                 </div>
                             <?php else: ?>
+                                <!-- Standard Live Mode start time -->
                                 <div style="background-color: rgba(0,75,35,0.04); border: 1px dashed rgba(0,75,35,0.25); border-radius: 6px; padding: 10px 14px; display: flex; align-items: center; gap: 8px; margin-bottom: 1.5rem;">
                                     <svg width="16" height="16" fill="none" stroke="var(--green)" viewBox="0 0 24 24" style="flex-shrink:0;">
                                         <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z"/>
@@ -1296,6 +1326,7 @@ if (!$error) {
                             <?php endif; ?>
 
                             <?php if (isLoggedIn()): ?>
+                                <!-- Logged-in verification state -->
                                 <div style="margin-bottom: 1.5rem; font-size: 0.75rem; color: var(--muted); background-color: rgba(0,75,35,0.03); border: 1px solid rgba(0,75,35,0.1); padding: 8px 12px; border-radius: 6px;">
                                     Connecté en tant que <strong style="color: var(--ink);"><?= htmlspecialchars($currentUserName) ?></strong> (<?= htmlspecialchars($currentUserEmail) ?>).
                                     <a href="/live-session.php?code=<?= urlencode($code) ?>&action=logout" style="color: #9B1C1C; text-decoration: underline; margin-left: 0.5rem; font-weight: 600;">
@@ -1322,7 +1353,7 @@ if (!$error) {
                                     </div>
                                 </form>
                             <?php else: ?>
-                                <!-- Tabs pour Connexion / Création de compte -->
+                                <!-- Authentication tabs selector -->
                                 <div class="auth-tabs-container">
                                     <div class="auth-tabs-pill"></div>
                                     <button type="button" id="tab-login-btn" class="auth-tab-btn active" onclick="switchAuthMode('login')">Se connecter</button>
@@ -1333,19 +1364,16 @@ if (!$error) {
                                     <input type="hidden" name="register_live" value="1">
                                     <input type="hidden" name="auth_action" id="auth_action_input" value="login">
                                     
-                                    <!-- Nom Complet (affiché pour l'inscription) -->
                                     <div id="field-name-container" style="display: none;">
                                         <label style="display:block; font-size:0.65rem; font-weight:600; text-transform:uppercase; letter-spacing:0.08em; color:var(--muted); margin-bottom:0.5rem;">Nom Complet</label>
                                         <input type="text" name="name" id="auth-name-input" placeholder="Ex: Jean Dupont" class="input-field">
                                     </div>
 
-                                    <!-- Adresse E-mail -->
                                     <div>
                                         <label style="display:block; font-size:0.65rem; font-weight:600; text-transform:uppercase; letter-spacing:0.08em; color:var(--muted); margin-bottom:0.5rem;">Adresse E-mail</label>
                                         <input type="email" name="email" required placeholder="Ex: jean.dupont@email.com" class="input-field">
                                     </div>
 
-                                    <!-- Mot de passe -->
                                     <div>
                                         <label style="display:block; font-size:0.65rem; font-weight:600; text-transform:uppercase; letter-spacing:0.08em; color:var(--muted); margin-bottom:0.5rem;">Mot de passe</label>
                                         <input type="password" name="password" required placeholder="Saisissez votre mot de passe" class="input-field">
@@ -1357,6 +1385,7 @@ if (!$error) {
                                 </form>
                                 
                                 <script>
+                                // Client-side toggles for integrated login/signup switch
                                 function switchAuthMode(mode) {
                                     const nameContainer = document.getElementById('field-name-container');
                                     const nameInput = document.getElementById('auth-name-input');
@@ -1393,10 +1422,10 @@ if (!$error) {
                         </div>
 
                     <?php else: ?>
-                        <!-- ÉCRAN PRINCIPAL DYNAMIQUE (Lobby / Quiz / Fin) -->
+                        <!-- Real-time Interactive Portal views -->
                         <div id="live-app" style="position: relative;">
                             
-                            <!-- ÉCRAN : PAUSE (Overlay global de verrouillage) -->
+                            <!-- Overlay in case the evaluation gets paused by the teacher/host -->
                             <div id="pause-overlay" class="hidden" style="position: absolute; inset: 0; background: rgba(255,255,255,0.96); z-index: 100; flex-direction: column; align-items: center; justify-content: center; text-align: center; padding: 2rem;">
                                 <div style="width: 64px; height: 64px; border-radius: 50%; background: #FEF08A; border: 2px solid #FACC15; display: flex; align-items: center; justify-content: center; margin-bottom: 1.5rem; animation: pulse 2s infinite;">
                                     <svg class="w-8 h-8 text-yellow-600" fill="none" stroke="currentColor" viewBox="0 0 24 24" style="width: 2rem; height: 2rem;">
@@ -1411,15 +1440,14 @@ if (!$error) {
                                 </p>
                             </div>
                             
-                            <!-- Chargement initial -->
+                            <!-- Polling/Initial Loading feedback spinner -->
                             <div class="text-center py-8" id="loading-state">
                                 <div style="border: 2px solid rgba(0,75,35,0.1); border-top-color: var(--green); border-radius: 50%; width: 28px; height: 28px; animation: spin 1s linear infinite; margin: 0 auto 1rem auto;"></div>
                                 <p style="font-size: 0.85rem; color: var(--muted);">Synchronisation avec la séance en cours...</p>
                             </div>
 
-                            <!-- 1. VUE : Salle d'attente (Lobby) -->
+                            <!-- View: Waiting Lobby -->
                             <div id="lobby-view" class="hidden">
-                                <!-- Banner Status Lobby -->
                                 <div class="lobby-status-banner <?= $isAsync ? 'async' : '' ?>">
                                     <span class="lobby-pulse-dot"></span>
                                     <span><?= $isAsync ? "Examen disponible en Devoir Libre" : "Attente du signal de départ par l'enseignant..." ?></span>
@@ -1433,7 +1461,6 @@ if (!$error) {
                                         L'évaluation <strong><?= htmlspecialchars($session['title']) ?></strong> (cours : <em><?= htmlspecialchars($session['course_title']) ?></em>) est disponible en Devoir Libre. Vous pouvez la commencer à tout moment.
                                     </p>
 
-                                    <!-- Devoir libre (Asynchrone) -->
                                     <div style="background-color: rgba(26,86,219,0.04); border: 1px dashed rgba(26,86,219,0.3); border-radius: 6px; padding: 12px 14px; display: flex; flex-direction: column; gap: 6px; margin-bottom: 1.5rem; position: relative;">
                                         <div style="display: flex; align-items: center; justify-content: space-between; width: 100%;">
                                             <div style="display: flex; align-items: center; gap: 8px;">
@@ -1444,13 +1471,11 @@ if (!$error) {
                                                     Disponible en Devoir Libre jusqu'au : <strong style="text-transform: capitalize;"><?= htmlspecialchars(getFormattedEvalStartTime($session['async_deadline'] ?? '')) ?></strong>
                                                 </span>
                                             </div>
-                                            <!-- Clickable Question Mark -->
                                             <button type="button" onclick="toggleAsyncExplanationLobby()" style="background: none; border: none; cursor: pointer; display: flex; align-items: center; justify-content: center; width: 20px; height: 20px; border-radius: 50%; background-color: rgba(26,86,219,0.1); color: #1A56DB; font-size: 0.75rem; font-weight: 700; transition: background-color 0.2s;" onmouseover="this.style.backgroundColor='rgba(26,86,219,0.2)'" onmouseout="this.style.backgroundColor='rgba(26,86,219,0.1)'" title="En savoir plus sur le Devoir Libre">
                                                 ?
                                             </button>
                                         </div>
                                         
-                                        <!-- Inline explanation (hidden by default) -->
                                         <div id="async-explanation-box-lobby" style="display: none; margin-top: 8px; padding-top: 8px; border-top: 1px solid rgba(26,86,219,0.15); font-size: 0.75rem; color: #1E3A8A; line-height: 1.5;">
                                             <strong>Qu'est-ce qu'un Devoir Libre ?</strong><br>
                                             Il s'agit d'une évaluation asynchrone autonome. Contrairement aux sessions en direct animées en temps réel par l'enseignant, vous pouvez réaliser cette évaluation à votre rythme, à n'importe quel moment avant la date limite indiquée.
@@ -1461,7 +1486,6 @@ if (!$error) {
                                         L'évaluation <strong><?= htmlspecialchars($session['title']) ?></strong> (cours : <em><?= htmlspecialchars($session['course_title']) ?></em>) débutera automatiquement à l'heure programmée. Veuillez patienter dans cette salle d'attente.
                                     </p>
 
-                                    <!-- Heure de début de la téléévaluation (depuis la base de données) -->
                                     <div style="margin-bottom: 1.5rem; display: flex; align-items: center; gap: 8px;">
                                         <svg width="18" height="18" fill="none" stroke="var(--green)" viewBox="0 0 24 24" style="flex-shrink:0;">
                                             <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z"/>
@@ -1472,7 +1496,7 @@ if (!$error) {
                                     </div>
                                 <?php endif; ?>
 
-                                <!-- Nouveau compteur temps réel d'inscrits avec effet radar -->
+                                <!-- Connected participants metrics indicator -->
                                 <div class="participants-badge">
                                     <div class="radar-ping">
                                         <span class="ping-dot"></span>
@@ -1484,7 +1508,7 @@ if (!$error) {
                                 </div>
                             </div>
 
-                            <!-- 2. VUE : Compte à rebours final (5s avant lancement) -->
+                            <!-- View: Launch Countdown (5s before start) -->
                             <div id="countdown-view" class="hidden text-center py-6">
                                 <span style="font-size:0.65rem; font-weight:600; text-transform:uppercase; letter-spacing:0.08em; color:var(--muted); display:block; margin-bottom:1rem;">Lancement imminent</span>
                                 <div style="font-size: 6rem; font-weight: 700; color: var(--green); line-height: 1; animation: bounce 1s infinite;" id="final-countdown-num">5</div>
@@ -1493,27 +1517,24 @@ if (!$error) {
                                 </p>
                             </div>
 
-                             <!-- 3. VUE : Quiz Actif -->
+                             <!-- View: Active Quiz Question Panel -->
                              <div id="quiz-view" class="hidden" style="user-select: none; -webkit-user-select: none; -moz-user-select: none; -ms-user-select: none;">
 
-                                <!-- Barre de chrono + question -->
                                 <div style="display:flex; align-items:center; justify-content:space-between; margin-bottom:1.5rem; border-bottom:1px solid rgba(0,0,0,0.06); padding-bottom:0.85rem; gap:12px;">
                                     <div style="display:flex; flex-direction:column; gap:6px; flex-grow: 1;">
                                         <span style="font-size:0.65rem; font-weight:700; letter-spacing:0.08em; text-transform:uppercase; color:var(--green); border:1px solid var(--green); padding:3px 10px; width: fit-content; border-radius: 2px;" id="quiz-question-number">Question -- / --</span>
                                         
-                                        <!-- Compteur dynamique des participants restants à répondre -->
+                                        <!-- Active participants progress counter -->
                                         <span id="quiz-live-participants-container" style="font-size:0.75rem; font-weight:500; color:var(--ink); display:flex; align-items:center; gap:6px; background: rgba(0,0,0,0.04); padding: 4px 10px; border-radius: 9999px; width: fit-content;">
                                             <svg width="14" height="14" fill="none" stroke="currentColor" viewBox="0 0 24 24" style="stroke-width:2;"><path stroke-linecap="round" stroke-linejoin="round" d="M17 20h5v-2a3 3 0 00-5.356-1.857M17 20H7m10 0v-2c0-.656-.126-1.283-.356-1.857M7 20H2v-2a3 3 0 015.356-1.857M7 20v-2c0-.656.126-1.283.356-1.857m0 0a5.002 5.002 0 019.288 0M15 7a3 3 0 11-6 0 3 3 0 016 0zm6 3a2 2 0 11-4 0 2 2 0 014 0zM7 10a2 2 0 11-4 0 2 2 0 014 0z"/></svg>
                                             <span>Restants : <strong id="quiz-live-remaining-count">--</strong></span>
                                         </span>
                                     </div>
 
-                                    <!-- Circular SVG countdown (Feature 5) -->
+                                    <!-- Circular countdown container -->
                                     <div style="position: relative; width: 56px; height: 56px; display: flex; align-items: center; justify-content: center; flex-shrink: 0; transition: transform 0.2s ease;" id="quiz-svg-timer-container">
                                         <svg width="56" height="56" style="transform: rotate(-90deg); filter: drop-shadow(0 2px 4px rgba(0,0,0,0.02));">
-                                            <!-- Circle background -->
                                             <circle cx="28" cy="28" r="23" stroke="rgba(0,0,0,0.05)" stroke-width="3.5" fill="transparent" />
-                                            <!-- Animated ring -->
                                             <circle id="quiz-svg-timer-circle" cx="28" cy="28" r="23" stroke="var(--green)" stroke-width="3.5" fill="transparent" 
                                                     stroke-dasharray="144.51" stroke-dashoffset="0" stroke-linecap="round" style="transition: stroke-dashoffset 0.3s linear, stroke 0.3s ease;" />
                                         </svg>
@@ -1521,15 +1542,15 @@ if (!$error) {
                                     </div>
                                 </div>
 
-                                <!-- Énoncé de la question -->
+                                <!-- Question statement text -->
                                 <h3 id="quiz-question-text" style="font-family:'Plus Jakarta Sans',sans-serif; font-size:1.3rem; font-weight:600; color:var(--ink); line-height:1.45; margin-bottom:1.75rem;">--</h3>
 
-                                <!-- Image question (si présente) -->
+                                <!-- Context Image path (if uploaded) -->
                                 <div id="quiz-image-container" class="hidden" style="margin-bottom:1.5rem; border:1px solid rgba(0,0,0,0.08); overflow:hidden; border-radius:4px; background:#000; display:flex; align-items:center; justify-content:center; max-height:240px;">
                                     <img src="" id="quiz-image" style="max-width:100%; max-height:240px; object-fit:contain;" alt="Illustration question">
                                 </div>
 
-                                <!-- Options de réponse -->
+                                <!-- MCQ Options layout -->
                                 <div style="display:flex; flex-direction:column; gap:0.65rem;" id="quiz-options-container">
                                     <button onclick="submitLiveAnswer('A')" id="btn-opt-A" class="option-btn">
                                         <span class="opt-label">A</span><span id="text-opt-A">--</span>
@@ -1545,7 +1566,7 @@ if (!$error) {
                                     </button>
                                 </div>
 
-                                <!-- Réponse écrite / calculée -->
+                                <!-- Written / Numeric input response layout -->
                                 <div id="quiz-written-container" class="hidden" style="display:flex; flex-direction:column; gap:0.85rem;">
                                     <div style="position: relative;">
                                         <input type="text" id="written-answer-input" placeholder="Saisissez votre réponse (ex: 2.5, x^2, ...)" class="input-field" style="font-size: 1rem; padding: 0.95rem 1.2rem; border-radius: 4px; border: 1px solid rgba(0, 75, 35, 0.2);">
@@ -1555,18 +1576,17 @@ if (!$error) {
                                     </button>
                                 </div>
 
-                                <!-- Confirmation de soumission -->
+                                <!-- Submit feedback status overlay -->
                                 <div id="quiz-submit-status" class="hidden" style="margin-top:1.25rem; padding:0.9rem 1rem; background:rgba(16,185,129,0.07); border:1px solid rgba(16,185,129,0.25); color:#065F46; font-size:0.82rem; text-align:center; font-weight:600; border-radius:3px;">
                                     ✓ Réponse enregistrée — en attente de la prochaine question...
                                 </div>
 
-                                <!-- Pied de quiz : nom -->
                                 <div style="margin-top:1.5rem; padding-top:0.85rem; border-top:1px solid rgba(0,0,0,0.06); display:flex; justify-content:space-between; align-items:center; font-size:0.68rem; color:var(--muted);">
                                     <span><?= htmlspecialchars($registration['name']) ?></span>
                                 </div>
                             </div>
 
-                            <!-- 4. VUE : Fin de session -->
+                            <!-- View: Completed session view -->
                             <div id="finished-view" class="hidden text-center py-4">
                                 <h2 style="font-family:'Plus Jakarta Sans',sans-serif; font-size:1.8rem; font-weight:500; margin-bottom: 1rem; line-height:1.2;">
                                     Évaluation terminée !
@@ -1591,13 +1611,12 @@ if (!$error) {
                                     </span>
                                 </div>
 
-                                <!-- Podium / Leaderboard en direct -->
+                                <!-- Podium & Leaderboard visual graphics -->
                                 <div id="live-leaderboard-container" class="hidden" style="margin: 2rem 0; padding: 1.5rem; background: #FFFFFF; border: 1px solid #E5E5E7; border-radius: 4px; box-shadow: 0 4px 12px rgba(0,0,0,0.02); text-align: left;">
                                     <h3 style="font-family:'Plus Jakarta Sans',sans-serif; font-size:1.15rem; font-weight:600; color:var(--ink); margin-bottom:1.5rem; display:flex; align-items:center; gap:8px;">
                                         <span>🏆</span> Tableau d'Honneur (Classement Live)
                                     </h3>
                                     
-                                    <!-- Dynamic Podium layout -->
                                     <div id="podium-wrapper">
                                         <!-- Place 2 (Left) -->
                                         <div id="podium-2" class="podium-bar">
@@ -1627,7 +1646,6 @@ if (!$error) {
                                         </div>
                                     </div>
                                     
-                                    <!-- Rest of leaderboard table -->
                                     <div class="leaderboard-scroll">
                                         <table class="leaderboard-table">
                                             <thead>
@@ -1638,7 +1656,7 @@ if (!$error) {
                                                 </tr>
                                             </thead>
                                             <tbody id="leaderboard-tbody">
-                                                <!-- Dynamic rows -->
+                                                <!-- Dynmically loaded rows -->
                                             </tbody>
                                         </table>
                                     </div>
@@ -1665,7 +1683,7 @@ if (!$error) {
 
                 </div>
 
-                <!-- Typewriter telemetry block -->
+                <!-- Telemetry log terminal line -->
                 <div id="col-bottom-bar">
                     <div id="typewriter-line">
                         <span id="tw-text">> Initialisation...</span><span class="cursor"></span>
@@ -1684,9 +1702,12 @@ if (!$error) {
         </div>
     </main>
 
-    <!-- Scripts JavaScript -->
+    <!-- =========================================================================
+         SECTION 4: JAVASCRIPT POLLING & DYNAMIC STATE MACHINE
+         ========================================================================= -->
     <?php if (!$error): ?>
     <script>
+        // Synchronise client clock with the server
         const sessionCode = <?= json_encode($code) ?>;
         const registrationId = <?= $registration ? (int)$regId : 'null' ?>;
         const serverStartTimestamp = <?= strtotime($session['start_time']) ?>;
@@ -1694,6 +1715,9 @@ if (!$error) {
         const serverTimeOffset = (serverCurrentTimestamp * 1000) - Date.now();
         const isAsync = <?= $isAsync ? 'true' : 'false' ?>;
 
+        /**
+         * Returns estimated absolute server timestamp in milliseconds.
+         */
         function getServerTime() {
             return Date.now() + serverTimeOffset;
         }
@@ -1718,7 +1742,7 @@ if (!$error) {
         let currentQuestionId = null;
         let redirectTimer = null;
 
-        // Message telemetry typewriter system
+        // Custom typewriter message pipeline
         const telemetryMessages = [
             <?= $registration ? "`> Connecté en tant que: " . json_encode($registration['name']) . "`" : "`> En attente d'enregistrement...`" ?>,
             `> Attente de synchronisation de la téléévaluation...`,
@@ -1733,6 +1757,9 @@ if (!$error) {
         const twEl = document.getElementById('tw-text');
         let delay = 0;
 
+        /**
+         * Simulates a character-by-character telemetry terminal typewriter effect.
+         */
         function typewriteTelemetry() {
             const current = telemetryMessages[msgIdx];
             if (!current) return;
@@ -1760,9 +1787,10 @@ if (!$error) {
         }
         setTimeout(typewriteTelemetry, 800);
 
-        // Update typewriter log instantly with custom event message
+        /**
+         * Pushes a new alert string to the front of the telemetry typewriter loop.
+         */
         function logTelemetry(msg) {
-            // Push message to log queue and reset indices to display it immediately
             telemetryMessages.unshift(`> ${msg}`);
             if (telemetryMessages.length > 8) telemetryMessages.pop();
             msgIdx = 0;
@@ -1770,7 +1798,7 @@ if (!$error) {
             deleting = false;
         }
 
-        // Floating particles
+        // Setup background floating canvas graphics particles
         const particlesContainer = document.getElementById('floating-particles');
         const particleSVGs = [
             `<svg width="16" height="16" viewBox="0 0 16 16" fill="none" xmlns="http://www.w3.org/2000/svg"><circle cx="8" cy="8" r="7" stroke="#004B23" stroke-width="1.5" opacity="0.3"/></svg>`,
@@ -1801,9 +1829,11 @@ if (!$error) {
 
         let lobbyClockInterval = null;
 
-        // Start polling loop
+        /**
+         * Bootstraps the real-time application listeners and triggers polling.
+         */
         function startApp() {
-            // Sécuriser les questions contre la copie
+            // Anti-cheat mechanisms (disabling text copying/select triggers during active quiz)
             const quizViewEl = document.getElementById('quiz-view');
             if (quizViewEl) {
                 quizViewEl.addEventListener('selectstart', (e) => e.preventDefault());
@@ -1811,7 +1841,6 @@ if (!$error) {
                 quizViewEl.addEventListener('contextmenu', (e) => e.preventDefault());
             }
 
-            // Start real-time absolute timer ticking for lobby
             updateLobbyClock();
             lobbyClockInterval = setInterval(updateLobbyClock, 1000);
 
@@ -1819,15 +1848,17 @@ if (!$error) {
                 poll();
                 pollingInterval = setInterval(poll, 2500);
                 
-                // Queue background sync (Feature 4)
+                // Keep resilient synchronization queue active
                 setInterval(syncPendingAnswers, 3000);
             }
         }
 
+        /**
+         * Counts down absolute time parameters towards lobby start index.
+         */
         function updateLobbyClock() {
             if (isFinalCountdown) return;
 
-            // Si la séance est suspendue, on gèle le compte à rebours
             const pauseOverlay = document.getElementById('pause-overlay');
             if (pauseOverlay && !pauseOverlay.classList.contains('hidden')) {
                 return;
@@ -1849,7 +1880,7 @@ if (!$error) {
                 }
             }
 
-            // If start is imminent (5s or less)
+            // Launch immediate 5-seconds countdown visual indicator if start threshold crossed
             if (seconds <= 5 && seconds > 0 && !isFinalCountdown) {
                 isFinalCountdown = true;
                 if (pollingInterval) clearInterval(pollingInterval);
@@ -1858,6 +1889,9 @@ if (!$error) {
             }
         }
 
+        /**
+         * Polls lobby endpoint state to detect live session switches.
+         */
         function poll() {
             if (isFinalCountdown) return;
 
@@ -1872,7 +1906,7 @@ if (!$error) {
                     return;
                 }
 
-                // Gérer l'overlay de pause
+                // Handle pause overlay switch state
                 const pauseOverlay = document.getElementById('pause-overlay');
                 if (pauseOverlay) {
                     if (data.is_paused) {
@@ -1893,7 +1927,6 @@ if (!$error) {
                 } else if (data.status === 'active') {
                     if (lobbyClockInterval) clearInterval(lobbyClockInterval);
                     pollQuiz();
-                    // Switch interval to pollQuiz
                     clearInterval(pollingInterval);
                     pollingInterval = setInterval(pollQuiz, 2000);
                 }
@@ -1901,6 +1934,9 @@ if (!$error) {
             .catch(err => console.error("Erreur connexion : ", err));
         }
 
+        /**
+         * Fetches current active question parameters from polling cache layer.
+         */
         function pollQuiz() {
             fetch(`/api/live-eval-poll.php?code=${sessionCode}&action=poll_quiz`)
             .then(res => res.json())
@@ -1914,13 +1950,11 @@ if (!$error) {
                     return;
                 }
 
-                // Gérer l'overlay de pause
                 const pauseOverlay = document.getElementById('pause-overlay');
                 if (pauseOverlay) {
                     if (data.is_paused) {
                         pauseOverlay.classList.remove('hidden');
                         pauseOverlay.style.display = 'flex';
-                        // Arrêter immédiatement le timer local de la question si actif
                         if (questionTimer) {
                             clearInterval(questionTimer);
                             questionTimer = null;
@@ -1939,12 +1973,11 @@ if (!$error) {
                         totalUsersEl.textContent = data.total_registered || '--';
                     }
 
-                    // Render podium & leaderboard (Feature 2)
+                    // Render podium rankings and dynamic leaderboard rows
                     if (data.leaderboard && data.leaderboard.length > 0) {
                         const boardContainer = document.getElementById('live-leaderboard-container');
                         if (boardContainer) boardContainer.classList.remove('hidden');
 
-                        // Fill Podium
                         const top1 = data.leaderboard[0] || null;
                         const top2 = data.leaderboard[1] || null;
                         const top3 = data.leaderboard[2] || null;
@@ -1973,7 +2006,6 @@ if (!$error) {
                             document.getElementById('podium-3').style.opacity = '0.3';
                         }
 
-                        // Fill Table for rest of top 10
                         const tbody = document.getElementById('leaderboard-tbody');
                         if (tbody) {
                             tbody.innerHTML = '';
@@ -2008,7 +2040,6 @@ if (!$error) {
                 document.getElementById('quiz-question-number').textContent = qNumText;
                 document.getElementById('live-bar-question').textContent = qNumText;
 
-                // Mettre à jour le compteur dynamique des participants restants à répondre
                 const remainingEl = document.getElementById('quiz-live-remaining-count');
                 if (remainingEl) {
                     const total = data.total_registered || 0;
@@ -2020,7 +2051,7 @@ if (!$error) {
                 
                 if (currentQuestionId !== q.id) {
                     currentQuestionId = q.id;
-                    questionTotalDuration = 0; // Reset total duration for the new question
+                    questionTotalDuration = 0;
                     resetQuizForm(q);
                     logTelemetry(`Question ${data.current_question_index + 1} activée: ${q.question_text.slice(0, 30)}...`);
                 }
@@ -2046,15 +2077,17 @@ if (!$error) {
         let questionSecondsLeft = 0;
         let questionTotalDuration = 0;
 
-        // Native Audio Synthesizers (Feature 4)
+        /**
+         * Synthesizes a positive confirmation chime sound.
+         */
         function playPositiveChime() {
             try {
                 const ctx = new (window.AudioContext || window.webkitAudioContext)();
                 const osc1 = ctx.createOscillator();
                 const gain1 = ctx.createGain();
                 osc1.type = 'sine';
-                osc1.frequency.setValueAtTime(523.25, ctx.currentTime); // C5
-                osc1.frequency.exponentialRampToValueAtTime(880, ctx.currentTime + 0.15); // A5
+                osc1.frequency.setValueAtTime(523.25, ctx.currentTime);
+                osc1.frequency.exponentialRampToValueAtTime(880, ctx.currentTime + 0.15);
                 
                 gain1.gain.setValueAtTime(0.15, ctx.currentTime);
                 gain1.gain.exponentialRampToValueAtTime(0.001, ctx.currentTime + 0.35);
@@ -2069,6 +2102,9 @@ if (!$error) {
             }
         }
 
+        /**
+         * Synthesizes a periodic ticking sound.
+         */
         function playTickSound() {
             try {
                 const ctx = new (window.AudioContext || window.webkitAudioContext)();
@@ -2089,43 +2125,44 @@ if (!$error) {
             } catch (e) {}
         }
 
-        // Circular Timer Visual Updater (Feature 5)
+        /**
+         * Computes circular SVG countdown ring offset vectors.
+         */
         function updateSvgTimer(seconds, total) {
             const circle = document.getElementById('quiz-svg-timer-circle');
             const text = document.getElementById('quiz-timer-text');
             if (!circle || !text) return;
 
-            // Set text (seconds only)
             text.textContent = seconds;
 
-            // Calculate circumference and dashoffset
             const radius = 23;
-            const circumference = 2 * Math.PI * radius; // 144.51
+            const circumference = 2 * Math.PI * radius;
             
             let pct = total > 0 ? (seconds / total) : 0;
-            pct = Math.min(Math.max(pct, 0), 1); // Clamp to 0-1
+            pct = Math.min(Math.max(pct, 0), 1);
             
             const offset = circumference - (pct * circumference);
             circle.style.strokeDashoffset = offset;
 
-            // Color adjustments
             if (seconds > 10) {
-                circle.style.stroke = '#004B23'; // var(--green)
+                circle.style.stroke = '#004B23';
                 circle.style.filter = 'drop-shadow(0 0 6px rgba(0, 75, 35, 0.4))';
                 text.style.color = '#111111';
             } else if (seconds > 5) {
-                circle.style.stroke = '#D97706'; // Yellow/Orange
+                circle.style.stroke = '#D97706';
                 circle.style.filter = 'drop-shadow(0 0 6px rgba(217, 119, 6, 0.5))';
                 text.style.color = '#D97706';
             } else {
-                circle.style.stroke = '#DC2626'; // Red
+                circle.style.stroke = '#DC2626';
                 circle.style.filter = 'drop-shadow(0 0 6px rgba(220, 38, 38, 0.6))';
                 text.style.color = '#DC2626';
             }
         }
 
+        /**
+         * Ticks down the question duration parameters locally between server queries.
+         */
         function updateQuestionTimer(seconds, isPaused) {
-            // Synchronisation intelligente : si la dérive est supérieure à 2s ou si le timer local est à 0, on resynchronise
             const drift = Math.abs(questionSecondsLeft - seconds);
             if (drift > 2 || questionSecondsLeft <= 0 || isPaused) {
                 questionSecondsLeft = seconds;
@@ -2134,10 +2171,8 @@ if (!$error) {
                 }
             }
 
-            // Mettre à jour l'affichage immédiatement
             updateSvgTimer(questionSecondsLeft, questionTotalDuration);
 
-            // Si en pause, on arrête l'intervalle local et on ne relance rien
             if (isPaused) {
                 if (questionTimer) {
                     clearInterval(questionTimer);
@@ -2146,13 +2181,11 @@ if (!$error) {
                 return;
             }
 
-            // Démarrer l'intervalle local unique s'il n'est pas déjà actif
             if (!questionTimer) {
                 questionTimer = setInterval(() => {
                     if (questionSecondsLeft > 0) {
                         questionSecondsLeft--;
                         
-                        // Heartbeat pulsing & ticking sounds on the last 5 seconds (Feature 5)
                         if (questionSecondsLeft <= 5 && questionSecondsLeft > 0) {
                             const container = document.getElementById('quiz-svg-timer-container');
                             if (container) {
@@ -2179,6 +2212,9 @@ if (!$error) {
             }
         }
 
+        /**
+         * Switches the active DOM layout views.
+         */
         function showView(viewId) {
             const views = ['lobby-view', 'countdown-view', 'quiz-view', 'finished-view', 'loading-state'];
             views.forEach(v => {
@@ -2196,7 +2232,6 @@ if (!$error) {
             const watermark  = document.getElementById('lobby-timer-watermark');
 
             if (viewId === 'quiz-view') {
-                // Immersive full-screen quiz mode
                 card.classList.add('quiz-mode');
                 liveBar.classList.add('active');
                 if (topBar) topBar.classList.add('hidden');
@@ -2206,7 +2241,6 @@ if (!$error) {
                     badge.innerHTML = `<svg width="6" height="6" viewBox="0 0 8 8" fill="none" style="margin-right:2px;"><circle cx="4" cy="4" r="3" fill="#EF4444"/></svg> Quiz Actif`;
                 }
             } else if (viewId === 'finished-view') {
-                // Restore standard card styling for the finish view
                 card.classList.remove('quiz-mode');
                 liveBar.classList.remove('active');
                 if (topBar) topBar.classList.remove('hidden');
@@ -2218,13 +2252,11 @@ if (!$error) {
                     badge.innerHTML = `<svg width="6" height="6" viewBox="0 0 8 8" fill="none" style="margin-right:2px;"><circle cx="4" cy="4" r="3" fill="#10B981"/></svg> Session Complétée`;
                 }
 
-                // Hide irrelevant telemetry in finished screen
                 const typewriterLine = document.getElementById('typewriter-line');
                 const hintEl = document.querySelector('#col-bottom-bar .hint');
                 if (typewriterLine) typewriterLine.classList.add('hidden');
                 if (hintEl) hintEl.classList.add('hidden');
 
-                // Redirect timer (30 seconds)
                 if (!redirectTimer) {
                     let redirectSecs = 30;
                     const counterEl = document.getElementById('redirect-counter');
@@ -2242,7 +2274,6 @@ if (!$error) {
                     }
                 }
             } else {
-                // Lobby & count down: standard double column card with watermark timer
                 card.classList.remove('quiz-mode');
                 liveBar.classList.remove('active');
                 if (topBar) topBar.classList.remove('hidden');
@@ -2261,7 +2292,6 @@ if (!$error) {
                     badge.innerHTML = `<svg width="6" height="6" viewBox="0 0 8 8" fill="none" style="margin-right:2px;"><circle cx="4" cy="4" r="3" fill="${color}"/></svg> Salle d'attente`;
                 }
 
-                // Restore typewriter and hint for lobby/countdown
                 const typewriterLine = document.getElementById('typewriter-line');
                 const hintEl = document.querySelector('#col-bottom-bar .hint');
                 if (typewriterLine) typewriterLine.classList.remove('hidden');
@@ -2276,6 +2306,9 @@ if (!$error) {
             alert(msg);
         }
 
+        /**
+         * Launches a 5-second countdown step.
+         */
         function startFinalCountdown(seconds) {
             showView('countdown-view');
             logTelemetry(`Lancement imminent dans ${seconds} secondes !`);
@@ -2312,6 +2345,9 @@ if (!$error) {
             }
         }
 
+        /**
+         * Resets the question form parameters when switching questions.
+         */
         function resetQuizForm(q) {
             if (questionTimer) {
                 clearInterval(questionTimer);
@@ -2362,8 +2398,6 @@ if (!$error) {
             }
 
             document.getElementById('quiz-submit-status').classList.add('hidden');
-
-            // Lancer le rendu des formules mathématiques sur le nouveau contenu
             setTimeout(renderMath, 50);
         }
 
@@ -2395,6 +2429,9 @@ if (!$error) {
             submitLiveAnswerRaw(val);
         }
 
+        /**
+         * Dispatches answer submission forms asynchronously.
+         */
         function submitLiveAnswerRaw(option) {
             const statusEl = document.getElementById('quiz-submit-status');
             if (statusEl) {
@@ -2406,7 +2443,7 @@ if (!$error) {
             }
             logTelemetry(`Réponse "${option}" soumise. En attente...`);
 
-            // Save to Local Storage Queue for Resiliency (Feature 4)
+            // Queue the request details in local storage for network fault resilience
             const pendingAnswer = {
                 code: sessionCode,
                 action: 'submit_answer',
@@ -2458,7 +2495,9 @@ if (!$error) {
             });
         }
 
-        // Background synchronization function for offline answers (Feature 4)
+        /**
+         * Empties and synchronizes locally cached submission queue if internet link restores.
+         */
         function syncPendingAnswers() {
             const pendingKey = 'pending_live_answer_' + sessionCode;
             const dataStr = localStorage.getItem(pendingKey);
@@ -2472,7 +2511,6 @@ if (!$error) {
                 return;
             }
 
-            // If the pending answer is for a different question than the current active one, discard it
             if (pending.question_id !== currentQuestionId) {
                 localStorage.removeItem(pendingKey);
                 return;
@@ -2505,6 +2543,9 @@ if (!$error) {
             .catch(err => console.log("Retrying pending sync... connection still offline."));
         }
 
+        /**
+         * Disables question options to prevent double-submissions.
+         */
         function disableOptions() {
             ['A', 'B', 'C', 'D'].forEach(opt => {
                 const btn = document.getElementById(`btn-opt-${opt}`);

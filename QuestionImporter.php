@@ -2,17 +2,35 @@
 declare(strict_types=1);
 
 /**
- * Import en masse de questions QCM depuis CSV ou tableaux JSON.
- * Colonnes : question, option_a, option_b, option_c, option_d, correct
+ * StudyVibe LMS - Massive Question Importer Service
+ * 
+ * Facilitates the batch import of multiple-choice (MCQs) and written/calculation questions 
+ * into lesson, course, or live session question banks. Supports parsing CSV structures 
+ * (automatically detecting separators) and raw JSON datasets (Excel uploads mapped by SheetJS).
+ * 
+ * Columns mapped: question, option_a, option_b, option_c, option_d, correct, explanation, type
+ * 
+ * @package    StudyVibe
+ * @author     Advanced Engineering Team
  */
 class QuestionImporter
 {
-    /** Parse un fichier CSV (délimiteur , ou ;). */
+    // =========================================================================
+    // SECTION 1: PARSING ROUTINES
+    // =========================================================================
+
+    /**
+     * Parses CSV data, automatically resolving delimiters and column indexes.
+     * 
+     * @param string $content Raw CSV file string.
+     * @return array{questions: array, errors: array} Parsed questions list and validation error logs.
+     */
     public static function parseCsv(string $content): array
     {
+        // Strip UTF-8 Byte Order Mark (BOM) if present
         $content = trim(preg_replace('/^\xEF\xBB\xBF/', '', $content));
         if ($content === '') {
-            return [];
+            return ['questions' => [], 'errors' => ['Fichier CSV vide.']];
         }
 
         $lines = preg_split('/\r\n|\r|\n/', $content);
@@ -26,17 +44,26 @@ class QuestionImporter
                 continue;
             }
             $cols = str_getcsv($line, $delimiter);
+            
+            // Check if first line looks like a header label row
             if ($i === 0 && self::looksLikeHeader($cols)) {
                 $header = self::normalizeHeader($cols);
                 continue;
             }
+            
+            // Map row to data fields using resolved headers or default numeric index map
             $rows[] = $header ? self::mapRow($header, $cols) : self::mapRowDefault($cols);
         }
 
         return self::validateRows($rows);
     }
 
-    /** Parse un tableau JSON (lignes SheetJS). */
+    /**
+     * Parses raw rows received from JSON converters (such as client-side SheetJS arrays).
+     * 
+     * @param array $rows Array of raw rows.
+     * @return array{questions: array, errors: array} Parsed records list and error logs.
+     */
     public static function parseJsonRows(array $rows): array
     {
         if (empty($rows)) {
@@ -52,7 +79,7 @@ class QuestionImporter
             array_shift($rows);
         }
 
-        foreach ($rows as $idx => $row) {
+        foreach ($rows as $row) {
             if (!is_array($row)) {
                 continue;
             }
@@ -66,6 +93,18 @@ class QuestionImporter
         return self::validateRows($parsed);
     }
 
+    // =========================================================================
+    // SECTION 2: BULK DATABASE IMPORT ACTIONS
+    // =========================================================================
+
+    /**
+     * Imports parsed questions into a target lesson quiz bank.
+     * 
+     * @param PDO   $pdo       Database connection instance.
+     * @param int   $lessonId  Target lesson primary key.
+     * @param array $questions List of validated question arrays.
+     * @return int Count of successfully imported questions.
+     */
     public static function importLessonQuestions(PDO $pdo, int $lessonId, array $questions): int
     {
         $stmt = $pdo->prepare("
@@ -89,6 +128,14 @@ class QuestionImporter
         return $count;
     }
 
+    /**
+     * Imports parsed questions into a course evaluation bank.
+     * 
+     * @param PDO   $pdo      Database connection instance.
+     * @param int   $courseId Target course primary key.
+     * @param array $questions List of validated question arrays.
+     * @return int Count of successfully imported questions.
+     */
     public static function importCourseQuestions(PDO $pdo, int $courseId, array $questions): int
     {
         $stmt = $pdo->prepare("
@@ -112,6 +159,14 @@ class QuestionImporter
         return $count;
     }
 
+    /**
+     * Imports parsed questions into a live evaluation session bank.
+     * 
+     * @param PDO   $pdo       Database connection instance.
+     * @param int   $sessionId Target live evaluation session primary key.
+     * @param array $questions List of validated question arrays.
+     * @return int Count of successfully imported questions.
+     */
     public static function importLiveQuestions(PDO $pdo, int $sessionId, array $questions): int
     {
         $stmt = $pdo->prepare("
@@ -136,21 +191,40 @@ class QuestionImporter
         return $count;
     }
 
+    // =========================================================================
+    // SECTION 3: PARSING UTILITIES
+    // =========================================================================
+
+    /**
+     * Detects delimiter character in first line of CSV inputs (semicolons vs commas).
+     * 
+     * @param string $line First line of CSV file.
+     * @return string Semicolon (;) or comma (,).
+     */
     private static function detectDelimiter(string $line): string
     {
         return substr_count($line, ';') > substr_count($line, ',') ? ';' : ',';
     }
 
+    /**
+     * Wrapper checking if string array contains header labels.
+     * 
+     * @param array $cols Columns.
+     * @return bool True if header detected.
+     */
     private static function looksLikeHeader(array $cols): bool
     {
         return self::looksLikeHeaderArray($cols);
     }
 
+    /**
+     * Analyzes if a line contains column headers (matches at least 2 column keywords).
+     * 
+     * @param array $cols Columns.
+     * @return bool True if header detected.
+     */
     private static function looksLikeHeaderArray(array $cols): bool
     {
-        // A real header row has SHORT cells whose trimmed value exactly matches
-        // known column-name keywords. We must NOT fire on data rows whose long
-        // free-text explanation or question body merely *contains* these words.
         $knownNames = [
             'question', 'libelle', 'enonce',
             'option_a', 'option_b', 'option_c', 'option_d',
@@ -161,15 +235,19 @@ class QuestionImporter
         $matches = 0;
         foreach ($cols as $col) {
             $val = strtolower(trim((string)$col));
-            // A header cell is always short (≤ 30 chars) and matches a known name.
             if (strlen($val) <= 30 && in_array($val, $knownNames, true)) {
                 $matches++;
             }
         }
-        // Require at least 2 cells to look like header names.
         return $matches >= 2;
     }
 
+    /**
+     * Standardizes header labels into system keys.
+     * 
+     * @param array $cols Header column labels.
+     * @return array Normalized header names list.
+     */
     private static function normalizeHeader(array $cols): array
     {
         $map = [];
@@ -192,6 +270,13 @@ class QuestionImporter
         return $map;
     }
 
+    /**
+     * Maps CSV columns to database fields using resolved header positions.
+     * 
+     * @param array $header Normalized header names.
+     * @param array $cols Raw row columns.
+     * @return array Standardized question row array.
+     */
     private static function mapRow(array $header, array $cols): array
     {
         $row = [
@@ -217,6 +302,12 @@ class QuestionImporter
         return $row;
     }
 
+    /**
+     * Maps CSV columns using default index positions (no header row detected).
+     * 
+     * @param array $cols Columns.
+     * @return array Standardized question row array.
+     */
     private static function mapRowDefault(array $cols): array
     {
         return [
@@ -231,6 +322,16 @@ class QuestionImporter
         ];
     }
 
+    // =========================================================================
+    // SECTION 4: DATA NORMALIZATION AND VALIDATION
+    // =========================================================================
+
+    /**
+     * Validates parsed question rows, resolving types (MCQs vs open written text).
+     * 
+     * @param array $rows Standardized rows list.
+     * @return array{questions: array, errors: array} Valid questions and error logs list.
+     */
     private static function validateRows(array $rows): array
     {
         $questions = [];
@@ -248,11 +349,12 @@ class QuestionImporter
             $exp  = trim($row['explanation'] ?? '');
             $type = isset($row['question_type']) ? trim((string)$row['question_type']) : '';
 
+            // Ignore empty rows
             if ($q === '' && $a === '' && $b === '') {
                 continue;
             }
 
-            // Deductive check for written/calculation questions
+            // Determine if question is open written text or multiple choice
             $isWritten = false;
             if ($type === 'written' || $type === 'calculation') {
                 $isWritten = true;
@@ -267,20 +369,20 @@ class QuestionImporter
 
             if (!$isWritten) {
                 if ($q === '' || $a === '' || $b === '' || $c === '' || $d === '') {
-                    $errors[] = "Ligne {$line} : champs incomplets.";
+                    $errors[] = "Ligne {$line} : champs de QCM incomplets.";
                     continue;
                 }
                 if (!in_array($co, ['A', 'B', 'C', 'D'], true)) {
-                    $errors[] = "Ligne {$line} : réponse correcte invalide (utilisez A, B, C ou D).";
+                    $errors[] = "Ligne {$line} : réponse correcte QCM invalide (utilisez A, B, C ou D).";
                     continue;
                 }
             } else {
                 if ($q === '') {
-                    $errors[] = "Ligne {$line} : question vide.";
+                    $errors[] = "Ligne {$line} : énoncé de question ouverte vide.";
                     continue;
                 }
                 if ($co === '') {
-                    $errors[] = "Ligne {$line} : réponse correcte vide.";
+                    $errors[] = "Ligne {$line} : réponse attendue de question ouverte vide.";
                     continue;
                 }
             }
@@ -300,6 +402,12 @@ class QuestionImporter
         return ['questions' => $questions, 'errors' => $errors];
     }
 
+    /**
+     * Normalizes MCQ option letters (A, B, C, D) and numeric options (1->A, etc.).
+     * 
+     * @param string $raw Raw correct answer string.
+     * @return string Normalized key.
+     */
     private static function normalizeCorrect(string $raw): string
     {
         $raw = strtoupper(trim($raw));
@@ -315,6 +423,12 @@ class QuestionImporter
         return in_array($raw, ['A', 'B', 'C', 'D'], true) ? $raw : '';
     }
 
+    /**
+     * Checks if a values array is entirely empty.
+     * 
+     * @param array $values Columns.
+     * @return bool True if all cells are blank.
+     */
     private static function rowIsEmpty(array $values): bool
     {
         foreach ($values as $v) {

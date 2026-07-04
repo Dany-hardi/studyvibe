@@ -1,9 +1,25 @@
 <?php
+/**
+ * StudyVibe Academic LMS - Live Grades Export Controller
+ *
+ * This controller compiles grades from a specific live evaluation session, computes
+ * totals, formats them, and dispatches them as an Excel download.
+ *
+ * PHP version 8.2
+ *
+ * @category  Controller
+ * @package   StudyVibe\Teacher
+ * @author    StudyVibe Team <development@studyvibe.academic>
+ * @copyright 2026 StudyVibe
+ * @license   Proprietary
+ * @link      https://studyvibe.academic
+ */
+
 declare(strict_types=1);
 
-/**
- * Export Excel des notes participants pour une séance de téléévaluation (enseignant).
- */
+// =========================================================================
+// SECTION 1: AUTHENTICATION & ACCESS GATING CHECKS
+// =========================================================================
 
 require_once __DIR__ . '/../auth.php';
 require_once __DIR__ . '/../lib/SpreadsheetExporter.php';
@@ -20,6 +36,10 @@ if ($sessionId <= 0) {
     http_response_code(400);
     exit('Identifiant de séance non valide.');
 }
+
+// =========================================================================
+// SECTION 2: REPORT METRICS COMPILATION
+// =========================================================================
 
 try {
     $pdo = Database::getInstance();
@@ -80,6 +100,10 @@ try {
 
     $slug = preg_replace('/[^a-z0-9_-]+/i', '_', (string)$session['title']) ?: 'live_eval';
     $filename = 'resultats_' . mb_strtolower($slug) . '_' . date('Y-m-d');
+
+    // =========================================================================
+    // SECTION 3: SPREADSHEET DISPATCH
+    // =========================================================================
 
     auditLog('export_live_grades', "Session #{$sessionId}");
     SpreadsheetExporter::sendDownload($filename, $sheets);

@@ -1,15 +1,31 @@
 <?php
-declare(strict_types=1);
-
 /**
- * Soumission du mini-quiz de leçon — une question à la fois.
- * POST: lesson_id, question_id, answer (A-D) | no_quiz=true
+ * StudyVibe Academic LMS - Lesson Quiz & Completion Processor
+ *
+ * This controller processes submissions of mini-quizzes and lesson completions
+ * from students, updates lesson progress, triggers badges and notifications, and
+ * sends email summaries of quiz results.
+ *
+ * PHP version 8.2
+ *
+ * @category  Controller
+ * @package   StudyVibe\Student
+ * @author    StudyVibe Team <development@studyvibe.academic>
+ * @copyright 2026 StudyVibe
+ * @license   Proprietary
+ * @link      https://studyvibe.academic
  */
+
+declare(strict_types=1);
 
 require_once __DIR__ . '/../auth.php';
 require_once __DIR__ . '/../lib/Notifications.php';
 
 header('Content-Type: application/json');
+
+// =========================================================================
+// SECTION 1: AUTHENTICATION & INPUT PARAMETERS SECURITY
+// =========================================================================
 
 if (!isLoggedIn() || $_SESSION['user_role'] !== 'student') {
     echo json_encode(['success' => false, 'message' => 'Accès non autorisé.']);
@@ -21,8 +37,6 @@ if ($_SERVER['REQUEST_METHOD'] !== 'POST') {
     exit;
 }
 
-
-// requireCsrf();
 $lessonId   = isset($_POST['lesson_id']) ? (int)$_POST['lesson_id'] : 0;
 $questionId = isset($_POST['question_id']) ? (int)$_POST['question_id'] : 0;
 $noQuiz       = isset($_POST['no_quiz']) && $_POST['no_quiz'] === 'true';
@@ -33,6 +47,10 @@ if ($lessonId <= 0) {
     echo json_encode(['success' => false, 'message' => 'Identifiant de leçon non valide.']);
     exit;
 }
+
+// =========================================================================
+// SECTION 2: GATING RULES & PROGRESS CHECKING
+// =========================================================================
 
 try {
     $pdo = Database::getInstance();
@@ -87,6 +105,10 @@ try {
         exit;
     }
 
+    // =========================================================================
+    // SECTION 3: QUICK COMPLETE CONTROLLERS (NO QUIZ / MARK COMPLETE)
+    // =========================================================================
+
     // Marquer la leçon complétée (sans quiz ou action manuelle de l'étudiant)
     if ($noQuiz || $markComplete) {
         completeLesson($pdo, $studentId, $lessonId, $courseId);
@@ -97,6 +119,10 @@ try {
         ]);
         exit;
     }
+
+    // =========================================================================
+    // SECTION 4: MCQ EVALUATION SUBMISSION PROCESSING
+    // =========================================================================
 
     if ($questionId <= 0) {
         echo json_encode(['success' => false, 'message' => 'Identifiant de question non valide.']);
@@ -175,6 +201,10 @@ try {
     $lessonComplete = $totalQuestions > 0 && $answeredCount >= $totalQuestions;
     $calculatedScore = $totalQuestions > 0 ? (int)round(($correctCount / $totalQuestions) * 100) : 100;
 
+    // =========================================================================
+    // SECTION 5: COMPLETION ACTION HOOKS & MAILER DISPATCH
+    // =========================================================================
+
     if ($lessonComplete) {
         completeLesson($pdo, $studentId, $lessonId, $courseId, $calculatedScore);
 
@@ -234,7 +264,19 @@ try {
     jsonError('Erreur serveur. Veuillez réessayer.', $e, 'submit-lesson-quiz.php');
 }
 
-/** Vérifie que l'étudiant a consommé le contenu pédagogique de la leçon. */
+// =========================================================================
+// SECTION 6: GATING & PROGRESS DATA ACCESS ACCESSORS
+// =========================================================================
+
+/**
+ * Verify whether the student has fully consumed the lesson learning materials.
+ *
+ * @param PDO $pdo       The database connection instance.
+ * @param int $studentId Unique student ID.
+ * @param int $lessonId  Unique lesson ID.
+ *
+ * @return bool True if content consumed or already completed; false otherwise.
+ */
 function isLessonContentConsumed(PDO $pdo, int $studentId, int $lessonId): bool
 {
     $stmt = $pdo->prepare(
@@ -250,7 +292,18 @@ function isLessonContentConsumed(PDO $pdo, int $studentId, int $lessonId): bool
     return (int)$row['content_consumed'] === 1 || (int)$row['completed'] === 1;
 }
 
-/** Marque la leçon complétée et met à jour la progression du cours. */
+/**
+ * Marks the lesson completed, updates progress percentage in enrollment, and triggers badges.
+ * Also sends an in-app system notification.
+ *
+ * @param PDO $pdo       The database connection instance.
+ * @param int $studentId Unique student ID.
+ * @param int $lessonId  Unique lesson ID.
+ * @param int $courseId  Unique course ID.
+ * @param int $score     The quiz score achieved.
+ *
+ * @return void
+ */
 function completeLesson(PDO $pdo, int $studentId, int $lessonId, int $courseId, int $score = 100): void
 {
     $pdo->prepare("
@@ -290,7 +343,15 @@ function completeLesson(PDO $pdo, int $studentId, int $lessonId, int $courseId, 
     Notifications::send($pdo, $studentId, 'lesson_complete', 'Leçon complétée !', "Félicitations, vous avez complété la leçon \"$lessonTitle\" avec un score de $score%.");
 }
 
-/** Calcule le pourcentage de progression d'un cours pour un étudiant. */
+/**
+ * Calculates a student's completion progress percentage for a given course.
+ *
+ * @param PDO $pdo       The database connection instance.
+ * @param int $studentId Unique student ID.
+ * @param int $courseId  Unique course ID.
+ *
+ * @return int Progress percentage (0 to 100).
+ */
 function getCourseProgress(PDO $pdo, int $studentId, int $courseId): int
 {
     $stmt = $pdo->prepare("

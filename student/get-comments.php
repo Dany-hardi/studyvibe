@@ -1,5 +1,24 @@
 <?php
+/**
+ * StudyVibe Academic LMS - Lesson Comments Fetcher
+ *
+ * This controller retrieves the list of visible comments posted under a specific lesson.
+ *
+ * PHP version 8.2
+ *
+ * @category  Controller
+ * @package   StudyVibe\Student
+ * @author    StudyVibe Team <development@studyvibe.academic>
+ * @copyright 2026 StudyVibe
+ * @license   Proprietary
+ * @link      https://studyvibe.academic
+ */
+
 declare(strict_types=1);
+
+// =========================================================================
+// SECTION 1: AUTHENTICATION & INPUT PARAMETERS SECURITY
+// =========================================================================
 
 require_once __DIR__ . '/../auth.php';
 
@@ -15,6 +34,10 @@ if ($lessonId <= 0) {
     echo json_encode(['success' => false, 'message' => 'Leçon invalide.']);
     exit;
 }
+
+// =========================================================================
+// SECTION 2: COMMENTS DATA INGESTION
+// =========================================================================
 
 try {
     $pdo  = Database::getInstance();

@@ -1,5 +1,25 @@
 <?php
+/**
+ * StudyVibe Academic LMS - Course Enrollment Handler
+ *
+ * This controller processes requests by students to enroll in a course.
+ * It verifies enrollment keys (if required) and schedules constraints.
+ *
+ * PHP version 8.2
+ *
+ * @category  Controller
+ * @package   StudyVibe\Student
+ * @author    StudyVibe Team <development@studyvibe.academic>
+ * @copyright 2026 StudyVibe
+ * @license   Proprietary
+ * @link      https://studyvibe.academic
+ */
+
 declare(strict_types=1);
+
+// =========================================================================
+// SECTION 1: AUTHENTICATION & INPUT PARAMETERS SECURITY
+// =========================================================================
 
 require_once __DIR__ . '/../auth.php';
 require_once __DIR__ . '/../lib/CourseSchedule.php';
@@ -22,8 +42,6 @@ if ($_SERVER['REQUEST_METHOD'] !== 'POST') {
     exit;
 }
 
-
-// requireCsrf();
 $courseId = isset($_POST['course_id']) ? (int)$_POST['course_id'] : 0;
 $providedKey = isset($_POST['enrollment_key']) ? trim((string)$_POST['enrollment_key']) : null;
 
@@ -34,6 +52,10 @@ if ($courseId <= 0) {
     ]);
     exit;
 }
+
+// =========================================================================
+// SECTION 2: COURSE VALIDATION & STATUS CHECKS
+// =========================================================================
 
 try {
     $pdo = Database::getInstance();
@@ -67,6 +89,10 @@ try {
             exit;
         }
     }
+
+    // =========================================================================
+    // SECTION 3: STUDENT ENROLLMENT RECORD TRANSACTION
+    // =========================================================================
 
     // Enroll the student
     $stmt = $pdo->prepare("

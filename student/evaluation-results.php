@@ -1,5 +1,26 @@
 <?php
+/**
+ * StudyVibe Academic LMS - Live Evaluation Results View
+ *
+ * This controller processes and displays the detailed results page for a student's
+ * completed live evaluation, including a breakdown of correct/incorrect responses
+ * and teacher justifications rendered with KaTeX.
+ *
+ * PHP version 8.2
+ *
+ * @category  Controller
+ * @package   StudyVibe\Student
+ * @author    StudyVibe Team <development@studyvibe.academic>
+ * @copyright 2026 StudyVibe
+ * @license   Proprietary
+ * @link      https://studyvibe.academic
+ */
+
 declare(strict_types=1);
+
+// =========================================================================
+// SECTION 1: AUTHENTICATION & SECURITY PARAMETERS VALIDATION
+// =========================================================================
 
 require_once __DIR__ . '/../auth.php';
 
@@ -36,6 +57,10 @@ if (!hash_equals($expectedToken, $token)) {
 $pdo = Database::getInstance();
 $currentUser = getCurrentUser();
 
+// =========================================================================
+// SECTION 2: LIVE EVALUATION SESSION REGISTRATION RESOLUTION
+// =========================================================================
+
 // Charger l'inscription avec les détails de la séance
 try {
     $stmt = $pdo->prepare("
@@ -69,6 +94,10 @@ if ($currentUser['role'] === 'student' && (int)$registration['student_id'] !== $
     include __DIR__ . '/../error.php';
     exit;
 }
+
+// =========================================================================
+// SECTION 3: USER ANSWERS FETCHING & METRIC COMPUTATION
+// =========================================================================
 
 // Charger les réponses soumises et les questions associées
 try {
@@ -104,6 +133,9 @@ foreach ($answers as $ans) {
 $scorePercent = $totalQuestions > 0 ? ($correctCount / $totalQuestions) * 100 : 0;
 $hasPassed = $scorePercent >= 50;
 
+// =========================================================================
+// SECTION 4: HTML INTERFACE LAYOUT & KATEX INTEGRATION
+// =========================================================================
 ?>
 <!DOCTYPE html>
 <html lang="fr" class="sv-cream">
@@ -300,8 +332,14 @@ $hasPassed = $scorePercent >= 50;
         </div>
     </main>
 
-    <!-- Footer script -->
+    <!-- =========================================================================
+    // SECTION 5: MATHEMATICAL FORMULA RENDERING SCRIPTS
+    // ========================================================================= -->
     <script>
+        /**
+         * Parses and renders mathematical equations and expressions formatted in LaTeX/KaTeX delimiters.
+         * @return {void}
+         */
         function renderMath() {
             if (typeof renderMathInElement === 'function') {
                 renderMathInElement(document.body, {

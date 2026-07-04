@@ -2,29 +2,56 @@
 declare(strict_types=1);
 
 /**
- * Envoi d'emails StudyVibe — SMTP natif (sans dépendance Composer).
- * Configurez SMTP_* dans .env ; sinon fallback sur mail().
+ * StudyVibe LMS - Native SMTP & Mail Service
+ * 
+ * Provides native SMTP communication via raw stream sockets (tcp/ssl) to avoid 
+ * heavy Composer external dependencies (like PHPMailer). Features HTML template wraps, 
+ * base64 header encoding, custom SSL/TLS handshake contexts, application/gmail app-password 
+ * sanitization, and graceful fallback to the local mail() function.
+ * 
+ * @package    StudyVibe
+ * @author     Advanced Engineering Team
  */
 class Mailer
 {
+    /** @var string|null Tracks description of the last failed SMTP transaction error */
     private static ?string $lastError = null;
 
+    /**
+     * Retrieves the description error log from the last failed transaction.
+     * 
+     * @return string|null The error message, or null if no error occurred.
+     */
     public static function getLastError(): ?string
     {
         return self::$lastError;
     }
 
+    /**
+     * Checks if SMTP credentials are set.
+     * 
+     * @return bool True if host and username constants are configured.
+     */
     public static function isConfigured(): bool
     {
         return defined('SMTP_HOST') && SMTP_HOST !== '' && defined('SMTP_USER') && SMTP_USER !== '';
     }
 
+    /**
+     * Sends an HTML email, routing through SMTP if configured, or falling back to PHP mail().
+     * 
+     * @param string $to       Recipient email address.
+     * @param string $subject  Email subject.
+     * @param string $htmlBody The HTML markup template body.
+     * @return bool True if dispatch succeeded, false otherwise.
+     */
     public static function send(string $to, string $subject, string $htmlBody): bool
     {
         self::$lastError = null;
         $from     = defined('SMTP_FROM') ? SMTP_FROM : 'noreply@studyvibe.edu';
         $fromName = defined('SMTP_FROM_NAME') ? SMTP_FROM_NAME : 'StudyVibe';
 
+        // Route using native SMTP sockets if credentials are valid
         if (self::isConfigured()) {
             $ok = self::sendSmtp($to, $subject, $htmlBody, $from, $fromName);
             if (!$ok && self::$lastError === null) {
@@ -33,10 +60,12 @@ class Mailer
             return $ok;
         }
 
+        // Fallback: system mail() function
         $headers  = "MIME-Version: 1.0\r\n";
         $headers .= "Content-Type: text/html; charset=UTF-8\r\n";
         $headers .= "From: {$fromName} <{$from}>\r\n";
 
+        // Subject header base64 encoded to prevent text representation breaks
         $ok = @mail($to, '=?UTF-8?B?' . base64_encode($subject) . '?=', $htmlBody, $headers);
         if (!$ok) {
             self::$lastError = 'mail() PHP indisponible — configurez SMTP_HOST dans .env';
@@ -44,11 +73,24 @@ class Mailer
         return $ok;
     }
 
+    // =========================================================================
+    // SECTION 1: CORE TRANSACTIONAL ACCOUNT TEMPLATES
+    // =========================================================================
+
+    /**
+     * Sends a welcome email containing instructions and course registration keys if applicable.
+     * 
+     * @param string $to        Recipient email.
+     * @param string $name      Recipient name.
+     * @param string $roleLabel Description of user account role ('apprenant' | 'enseignant').
+     * @return bool True if sent successfully.
+     */
     public static function welcome(string $to, string $name, string $roleLabel = 'apprenant'): bool
     {
         $appUrl = APP_URL;
         $coursesInfo = '';
         
+        // Fetch active keys to allow students to enroll instantly
         if ($roleLabel === 'apprenant') {
             try {
                 require_once __DIR__ . '/Database.php';
@@ -71,7 +113,7 @@ class Mailer
                     $coursesInfo .= "</ul></div>";
                 }
             } catch (Exception $e) {
-                // Fallback silently if database is not available
+                // Fallback silently if database is transiently unavailable
             }
         }
 
@@ -91,6 +133,14 @@ class Mailer
         return self::send($to, 'Bienvenue sur StudyVibe !', $body);
     }
 
+    /**
+     * Sends an email verification link.
+     * 
+     * @param string $to    Recipient email.
+     * @param string $name  Recipient name.
+     * @param string $token Verification token.
+     * @return bool True if sent.
+     */
     public static function emailVerification(string $to, string $name, string $token): bool
     {
         $url  = APP_URL . '/verify-email.php?token=' . urlencode($token);
@@ -104,6 +154,14 @@ class Mailer
         return self::send($to, 'Vérifiez votre email — StudyVibe', $body);
     }
 
+    /**
+     * Dispatches a secure password reset link.
+     * 
+     * @param string $to    Recipient email.
+     * @param string $name  Recipient name.
+     * @param string $token Reset security token.
+     * @return bool True if sent.
+     */
     public static function passwordReset(string $to, string $name, string $token): bool
     {
         $url  = APP_URL . '/reset-password.php?token=' . urlencode($token);
@@ -117,6 +175,15 @@ class Mailer
         return self::send($to, 'Réinitialisation mot de passe — StudyVibe', $body);
     }
 
+    /**
+     * Sends module validation certification details.
+     * 
+     * @param string $to          Recipient email.
+     * @param string $name        Recipient name.
+     * @param string $moduleTitle Completed module title.
+     * @param string $certCode    Unique certification hash code.
+     * @return bool True if sent.
+     */
     public static function certification(string $to, string $name, string $moduleTitle, string $certCode): bool
     {
         $appUrl    = APP_URL;
@@ -133,6 +200,21 @@ class Mailer
         return self::send($to, 'Votre certificat StudyVibe — ' . $moduleTitle, $body);
     }
 
+    // =========================================================================
+    // SECTION 2: COMPREHENSIVE COURSE & TELE-EVALUATION MARKS REPORTING
+    // =========================================================================
+
+    /**
+     * Dispatches lesson quiz response review and correct option maps.
+     * 
+     * @param string $to          Recipient email.
+     * @param string $studentName Recipient name.
+     * @param string $lessonTitle Target lesson.
+     * @param string $courseTitle Parent course title.
+     * @param int    $score       Achieved score percentage.
+     * @param array  $qas         List of questions, options, and correctness flags.
+     * @return bool True if sent successfully.
+     */
     public static function quizResults(string $to, string $studentName, string $lessonTitle, string $courseTitle, int $score, array $qas): bool
     {
         $qasHtml = '';
@@ -193,6 +275,18 @@ class Mailer
         return self::send($to, "StudyVibe — Résultats du Quiz : {$lessonTitle}", $body);
     }
 
+    /**
+     * Dispatches tele-evaluation session performance details and safe results display links.
+     * 
+     * @param string $to             Recipient email.
+     * @param string $studentName     Recipient name.
+     * @param string $sessionTitle   Session room name.
+     * @param int    $correctCount   Count of correctly answered questions.
+     * @param int    $totalQuestions Total questions counted in assessment.
+     * @param array  $qas            Response list parameters.
+     * @param int    $registrationId Registration identifier to build validation link.
+     * @return bool True if sent successfully.
+     */
     public static function sendLiveEvalResults(string $to, string $studentName, string $sessionTitle, int $correctCount, int $totalQuestions, array $qas, int $registrationId = 0): bool
     {
         $scorePercent = $totalQuestions > 0 ? round(($correctCount / $totalQuestions) * 100, 1) : 0.0;
@@ -201,6 +295,7 @@ class Mailer
 
         $linkHtml = '';
         if ($registrationId > 0 && defined('APP_SECRET')) {
+            // Generate verification HMAC token to prevent parameter tampering on evaluation result views
             $token = hash_hmac('sha256', (string)$registrationId, APP_SECRET);
             $baseUrl = defined('APP_URL') ? APP_URL : '';
             if (empty($baseUrl)) {
@@ -246,7 +341,20 @@ class Mailer
         return self::send($to, "StudyVibe — Résultats Téléévaluation : {$sessionTitle}", $body);
     }
 
-    /** Notification promoteur : nouvel cours créé par un enseignant. */
+    // =========================================================================
+    // SECTION 3: ADMINISTRATIVE & PROMOTER COMMUNICATIONS
+    // =========================================================================
+
+    /**
+     * Alert sent to promoters when a teacher introduces a new course.
+     * 
+     * @param string $to           Promoter email.
+     * @param string $promoterName Promoter name.
+     * @param string $teacherName  Author teacher name.
+     * @param string $courseTitle  Course title.
+     * @param string $moduleTitle  Target module title.
+     * @return bool True if sent.
+     */
     public static function courseCreatedByTeacher(
         string $to,
         string $promoterName,
@@ -269,7 +377,15 @@ class Mailer
         return self::send($to, 'StudyVibe — Nouveau cours : ' . $courseTitle, $body);
     }
 
-    /** Notification enseignant : cours révoqué ou réassigné par le promoteur. */
+    /**
+     * Alert sent to teachers when their course allocation is adjusted.
+     * 
+     * @param string $to          Teacher email.
+     * @param string $teacherName Teacher name.
+     * @param string $courseTitle Course title.
+     * @param string $actionLabel Description of the reallocation change.
+     * @return bool True if sent.
+     */
     public static function courseAssignmentChanged(
         string $to,
         string $teacherName,
@@ -286,7 +402,13 @@ class Mailer
         return self::send($to, 'StudyVibe — Assignation cours modifiée', $body);
     }
 
-    /** Notification enseignant : compte validé par le promoteur. */
+    /**
+     * Alert sent to teachers once registration approval is granted.
+     * 
+     * @param string $to   Teacher email.
+     * @param string $name Teacher name.
+     * @return bool True if sent.
+     */
     public static function teacherApproved(string $to, string $name): bool
     {
         $appUrl = APP_URL;
@@ -300,7 +422,15 @@ class Mailer
         return self::send($to, 'Votre compte enseignant a été validé ! — StudyVibe', $body);
     }
 
-    /** Message direct envoyé par le promoteur à un apprenant. */
+    /**
+     * Sends a direct warning or administrative message to a student.
+     * 
+     * @param string $to          Recipient student email.
+     * @param string $studentName Student name.
+     * @param string $subject     Mail header topic.
+     * @param string $messageText Message body text.
+     * @return bool True if sent.
+     */
     public static function directMessage(string $to, string $studentName, string $subject, string $messageText): bool
     {
         $body = self::wrap("
@@ -313,7 +443,16 @@ class Mailer
         return self::send($to, $subject, $body);
     }
 
-    /** Newsletter envoyée par le promoteur. */
+    /**
+     * Broadcasts promotional newsletters or systemic reports.
+     * 
+     * @param string $to             Recipient email.
+     * @param string $name           Recipient name.
+     * @param string $subject        Subject line.
+     * @param string $htmlContent    Raw content markup.
+     * @param string $unsubscribeUrl Unsubscribe route path.
+     * @return bool True if sent.
+     */
     public static function newsletter(string $to, string $name, string $subject, string $htmlContent, string $unsubscribeUrl): bool
     {
         $body = self::wrap("
@@ -326,7 +465,14 @@ class Mailer
         return self::send($to, $subject, $body);
     }
 
-    /** Envoie de la liste des clés d'inscription actives à un étudiant. */
+    /**
+     * Dispatches list of enrollment keys requested by student.
+     * 
+     * @param string $to      Recipient student email.
+     * @param string $name    Student name.
+     * @param array  $courses Array listing published courses and keys.
+     * @return bool True if sent.
+     */
     public static function sendEnrollmentKeys(string $to, string $name, array $courses): bool
     {
         $appUrl = APP_URL;
@@ -354,11 +500,35 @@ class Mailer
         return self::send($to, "Vos clés d'inscription aux cours - StudyVibe", $body);
     }
 
+    // =========================================================================
+    // SECTION 4: TEMPLATE STYLE WRAPPERS
+    // =========================================================================
+
+    /**
+     * Encloses HTML content within standard corporate header/footer layouts.
+     * 
+     * @param string $content HTML block details.
+     * @return string Wrapped HTML document.
+     */
     private static function wrap(string $content): string
     {
         return "<!DOCTYPE html><html><body style='font-family:Inter,Arial,sans-serif;color:#111;max-width:560px;margin:0 auto;padding:32px'>{$content}<hr style='border:none;border-top:1px solid #eee;margin-top:32px'><p style='font-size:11px;color:#888'>StudyVibe — Plateforme Académique</p></body></html>";
     }
 
+    // =========================================================================
+    // SECTION 5: SOCKET CONNECTION AND DATA STREAMING
+    // =========================================================================
+
+    /**
+     * Low-level SMTP client. Opens direct streams to servers and handles transactions.
+     * 
+     * @param string $to       Recipient email.
+     * @param string $subject  Email subject.
+     * @param string $html     HTML content.
+     * @param string $from     Sender email.
+     * @param string $fromName Sender display name.
+     * @return bool True if successfully dispatched to the MTA.
+     */
     private static function sendSmtp(string $to, string $subject, string $html, string $from, string $fromName): bool
     {
         $host = SMTP_HOST;
@@ -366,12 +536,12 @@ class Mailer
         $user = SMTP_USER;
         $pass = defined('SMTP_PASS') ? SMTP_PASS : '';
 
-        // Si c'est un mot de passe d'application Google (16 char sans espace), on nettoie les espaces
+        // Clean up Google App Password whitespaces
         if (str_contains($host, 'gmail.com') && strlen(str_replace(' ', '', $pass)) === 16) {
             $pass = str_replace(' ', '', $pass);
         }
 
-        // Désactiver la vérification SSL stricte pour éviter les échecs dus aux certificats CA manquants sur Railway
+        // Disable certificate verification peer validation if server keys are self-signed
         $context = stream_context_create([
             'ssl' => [
                 'verify_peer' => false,
@@ -388,6 +558,7 @@ class Mailer
             return false;
         }
 
+        // Socket stream readers
         $read = static function () use ($socket): string {
             $data = '';
             while ($line = fgets($socket, 515)) {
@@ -396,6 +567,8 @@ class Mailer
             }
             return $data;
         };
+        
+        // Socket stream writers
         $write = static function (string $cmd) use ($socket): void {
             fwrite($socket, $cmd . "\r\n");
         };
@@ -404,6 +577,7 @@ class Mailer
         $write("EHLO studyvibe.local");
         $read();
 
+        // Enforce STARTTLS if not running on port 465
         if ($port !== 465) {
             $write('STARTTLS');
             $tlsResponse = $read();
@@ -413,7 +587,7 @@ class Mailer
                 return false;
             }
             
-            // Activer le chiffrement TLS sur la socket
+            // Upgrade connection context to TLS Client
             if (!@stream_socket_enable_crypto($socket, true, STREAM_CRYPTO_METHOD_TLS_CLIENT)) {
                 self::$lastError = "Échec de l'activation du chiffrement TLS (Handshake)";
                 fclose($socket);
@@ -424,6 +598,7 @@ class Mailer
             $read();
         }
 
+        // Authentication login exchange
         $write('AUTH LOGIN');
         $authLoginRes = $read();
         if (!str_starts_with($authLoginRes, '334')) {
@@ -432,6 +607,7 @@ class Mailer
             return false;
         }
 
+        // Send base64 username
         $write(base64_encode($user));
         $userRes = $read();
         if (!str_starts_with($userRes, '334')) {
@@ -440,6 +616,7 @@ class Mailer
             return false;
         }
 
+        // Send base64 password
         $write(base64_encode($pass));
         $authResponse = $read();
         if (!str_starts_with($authResponse, '235')) {
@@ -448,6 +625,7 @@ class Mailer
             return false;
         }
 
+        // MAIL FROM transaction
         $write("MAIL FROM:<{$from}>");
         $mailFromRes = $read();
         if (!str_starts_with($mailFromRes, '250')) {
@@ -456,6 +634,7 @@ class Mailer
             return false;
         }
 
+        // RCPT TO transaction
         $write("RCPT TO:<{$to}>");
         $rcptRes = $read();
         if (!str_starts_with($rcptRes, '250') && !str_starts_with($rcptRes, '251')) {
@@ -464,6 +643,7 @@ class Mailer
             return false;
         }
 
+        // DATA payload block init
         $write('DATA');
         $dataRes = $read();
         if (!str_starts_with($dataRes, '354')) {
@@ -472,6 +652,7 @@ class Mailer
             return false;
         }
 
+        // Construct headers and body payload
         $encodedSubject = '=?UTF-8?B?' . base64_encode($subject) . '?=';
         $message  = "From: {$fromName} <{$from}>\r\n";
         $message .= "To: {$to}\r\n";
@@ -487,6 +668,7 @@ class Mailer
             self::$lastError = "Envoi du corps du message échoué : " . trim($dataEndRes);
         }
 
+        // SMTP connection termination
         $write('QUIT');
         fclose($socket);
         return $ok;

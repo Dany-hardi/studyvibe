@@ -1,13 +1,30 @@
 <?php
 declare(strict_types=1);
+
 /**
- * Page d'accueil StudyVibe — landing, connexion et inscription.
- * Redirige les utilisateurs déjà connectés vers leur tableau de bord.
+ * StudyVibe LMS - Landing & Authentication Portal
+ * 
+ * Serves as the public gateway page. Welcomes visitors, manages locale selection switches, 
+ * renders showcase carousels representing system features, and implements security controls 
+ * for login, password-reset requests, and multi-step registration (student/teacher profiles).
+ * Rediriges logged-in users automatically to their respective roles' dashboards.
+ * 
+ * @package    StudyVibe
+ * @author     Advanced Engineering Team
  */
+
 require_once __DIR__ . '/auth.php';
 
+// =========================================================================
+// SECTION 1: USER SESSION REDIRECTION GATE
+// =========================================================================
+
 if (isLoggedIn()) {
-    $map = ['promoter' => '/promoter/dashboard.php', 'teacher' => '/teacher/dashboard.php', 'student' => '/student/dashboard.php'];
+    $map = [
+        'promoter' => '/promoter/dashboard.php', 
+        'teacher' => '/teacher/dashboard.php', 
+        'student' => '/student/dashboard.php'
+    ];
     header('Location: ' . ($map[$_SESSION['user_role']] ?? '/index.php'));
     exit;
 }
@@ -27,7 +44,10 @@ if (isLoggedIn()) {
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&family=Plus+Jakarta+Sans:ital,wght@0,300..800;1,300..800&display=swap" rel="stylesheet">
     <link rel="stylesheet" href="/assets/css/app.css">
+    
+    <!-- Injects CSRF token security meta tags for fetch requests -->
     <?= csrfMetaTag(); ?>
+    
     <script>document.documentElement.classList.add('js-enabled');</script>
     <style>
         .js-enabled .sv-hero-content, 
@@ -83,7 +103,9 @@ if (isLoggedIn()) {
 </head>
 <body class="sv-landing sv-page">
 
-<!-- Navbar -->
+<!-- =========================================================================
+     SECTION 2: NAVIGATION HEADER BAR
+     ========================================================================= -->
 <nav class="sv-navbar" role="navigation" aria-label="Navigation principale">
     <a href="#accueil" class="sv-navbar-brand">
         <svg class="w-9 h-9" viewBox="0 0 100 100" fill="none" xmlns="http://www.w3.org/2000/svg" style="width: 36px; height: 36px;">
@@ -122,11 +144,13 @@ if (isLoggedIn()) {
     </div>
 </nav>
 
-<!-- Hero : contenu gauche + formulaire droite -->
+<!-- =========================================================================
+     SECTION 3: HERO LAYOUT WITH INTERACTIVE GATEWAY PANEL
+     ========================================================================= -->
 <section class="sv-hero" id="accueil">
     <div class="sv-hero-grid">
 
-        <!-- Colonne gauche -->
+        <!-- Column Left: Messaging -->
         <div class="sv-hero-content">
             <div class="sv-eyebrow">Plateforme académique</div>
             <h1 class="sv-hero-headline">
@@ -146,7 +170,7 @@ if (isLoggedIn()) {
             </div>
         </div>
 
-        <!-- Colonne droite : formulaire dynamique -->
+        <!-- Column Right: Dynamic Registration/Login Widget -->
         <div class="sv-auth-card" id="auth-card">
             <div class="sv-auth-card-header">
                 <div class="sv-auth-card-title">Accédez à StudyVibe</div>
@@ -158,7 +182,7 @@ if (isLoggedIn()) {
                 <button class="sv-form-tab" id="tab-signup" role="tab" aria-selected="false" onclick="switchAuthTab('signup')">Inscription</button>
             </div>
 
-            <!-- Panneau connexion -->
+            <!-- Login Panel Form -->
             <div id="panel-login" class="sv-form-panel active" role="tabpanel">
                 <form id="login-form" novalidate>
                     <div class="sv-field">
@@ -187,7 +211,7 @@ if (isLoggedIn()) {
                 <p class="sv-form-footer">Pas encore de compte ? <button type="button" onclick="switchAuthTab('signup')">Créer un compte</button></p>
             </div>
 
-            <!-- Panneau inscription -->
+            <!-- Signup Multi-step Form -->
             <div id="panel-signup" class="sv-form-panel" role="tabpanel">
                 <form id="signup-form" novalidate>
                     <div class="sv-signup-stepper" aria-label="Étapes d'inscription">
@@ -202,7 +226,7 @@ if (isLoggedIn()) {
                         </div>
                     </div>
 
-                    <!-- Étape 1 : choix du rôle -->
+                    <!-- Step 1: Role Selection -->
                     <div class="sv-signup-step active" id="signup-step-1" data-step="1">
                         <p class="sv-signup-intro">Choisissez le profil qui correspond à votre usage.</p>
                         <div class="sv-field sv-signup-role-field">
@@ -222,7 +246,7 @@ if (isLoggedIn()) {
                         <button type="button" id="signup-next" class="sv-btn-submit" disabled>Continuer</button>
                     </div>
 
-                    <!-- Étape 2 : informations personnelles -->
+                    <!-- Step 2: Personal Profile Data -->
                     <div class="sv-signup-step" id="signup-step-2" data-step="2" hidden>
                         <div class="sv-signup-role-chip" id="signup-role-chip">
                             <span id="signup-role-chip-label"></span>
@@ -262,7 +286,9 @@ if (isLoggedIn()) {
     </div>
 </section>
 
-<!-- Bandeau partenaires — logos EdTech US -->
+<!-- =========================================================================
+     SECTION 4: PARTNERSHIPS LOGO MARQUEE
+     ========================================================================= -->
 <div class="sv-partners-band" role="region" aria-label="Entreprises de formation">
     <div class="sv-container">
         <p class="sv-partners-eyebrow">Écosystème formation &amp; EdTech</p>
@@ -299,7 +325,9 @@ if (isLoggedIn()) {
     </div>
 </div>
 
-<!-- Présentation & Philosophie de StudyVibe (Storytelling Principal) -->
+<!-- =========================================================================
+     SECTION 5: PHILOSOPHY & STORYTELLING
+     ========================================================================= -->
 <section class="sv-section" id="presentation-story" style="background:#fff;">
     <div class="sv-container" style="display:grid; grid-template-columns:1fr 1fr; gap:4rem; align-items:center;">
         <div>
@@ -344,7 +372,9 @@ if (isLoggedIn()) {
 
 <div class="sv-divider"></div>
 
-<!-- Fonctionnalités -->
+<!-- =========================================================================
+     SECTION 6: CORE SYSTEM FEATURES LIST
+     ========================================================================= -->
 <section class="sv-section" id="fonctionnalites">
     <div class="sv-container">
         <div class="sv-eyebrow">Fonctionnalités</div>
@@ -372,7 +402,9 @@ if (isLoggedIn()) {
 
 <div class="sv-divider"></div>
 
-<!-- Aperçu de la liseuse de cours interactive (Storytelling Section A - Showdown Carousel) -->
+<!-- =========================================================================
+     SECTION 7: SHOWCASE HORIZONTAL SCROLL CAROUSEL
+     ========================================================================= -->
 <section class="sv-section" id="aperçu-cours" style="background:var(--sv-cream-light);">
     <div class="sv-container">
         <div class="sv-eyebrow">Aperçu de la Plateforme</div>
@@ -384,7 +416,7 @@ if (isLoggedIn()) {
     <div class="sv-showdown-viewport">
         <div class="sv-showdown-track">
             
-            <!-- Panel 1: Liseuse de cours interactive -->
+            <!-- Panel 1: Course Reader Preview -->
             <div class="sv-showdown-panel">
                 <div class="sv-preview-header">
                     <div class="sv-preview-dot" style="background:#FF5F56;"></div>
@@ -441,7 +473,7 @@ if (isLoggedIn()) {
                 </div>
             </div>
 
-            <!-- Panel 2: Télé-évaluation synchrone (Live Quiz) -->
+            <!-- Panel 2: Live Quiz Room Preview -->
             <div class="sv-showdown-panel">
                 <div class="sv-preview-header">
                     <div class="sv-preview-dot" style="background:#FF5F56;"></div>
@@ -491,7 +523,7 @@ if (isLoggedIn()) {
                 </div>
             </div>
 
-            <!-- Panel 3: Classe Virtuelle (Webinar Classroom Jitsi) -->
+            <!-- Panel 3: Virtual Classroom Preview -->
             <div class="sv-showdown-panel">
                 <div class="sv-preview-header">
                     <div class="sv-preview-dot" style="background:#FF5F56;"></div>
@@ -543,7 +575,7 @@ if (isLoggedIn()) {
                 </div>
             </div>
 
-            <!-- Panel 4: Tableau de bord apprenant -->
+            <!-- Panel 4: Student Dashboard Preview -->
             <div class="sv-showdown-panel">
                 <div class="sv-preview-header">
                     <div class="sv-preview-dot" style="background:#FF5F56;"></div>
@@ -596,7 +628,9 @@ if (isLoggedIn()) {
 
 <div class="sv-divider"></div>
 
-<!-- Rôles -->
+<!-- =========================================================================
+     SECTION 8: PORTAL ROLE SWITCHERS
+     ========================================================================= -->
 <section class="sv-section" id="roles">
     <div class="sv-container">
         <div class="sv-eyebrow">Pour qui</div>
@@ -623,7 +657,9 @@ if (isLoggedIn()) {
 
 <div class="sv-divider"></div>
 
-<!-- Statistiques & Insights (Storytelling Section B) -->
+<!-- =========================================================================
+     SECTION 9: SYSTEM STATISTICS COUNTERS
+     ========================================================================= -->
 <section class="sv-section" id="statistiques-insights" style="background:#fff;">
     <div class="sv-container">
         <div class="sv-eyebrow">Mesure de performance</div>
@@ -651,7 +687,9 @@ if (isLoggedIn()) {
 
 <div class="sv-divider"></div>
 
-<!-- Comment ça marche -->
+<!-- =========================================================================
+     SECTION 10: GETTING STARTED STEPS
+     ========================================================================= -->
 <section class="sv-section" id="comment" style="background:var(--sv-cream-light);">
     <div class="sv-container sv-comment-grid" style="display:grid; grid-template-columns:1fr 1fr; gap:4rem; align-items:center;">
         <div>
@@ -667,7 +705,7 @@ if (isLoggedIn()) {
                 ['02', 'Explorez le catalogue', 'Inscrivez-vous aux cours et accédez aux leçons.'],
                 ['03', 'Validez et certifiez', 'Passez les QCM et obtenez votre certificat officiel.'],
             ];
-            foreach ($steps as $i => $s): ?>
+            foreach ($steps as $s): ?>
             <div class="sv-step-card" style="display:flex; gap:1rem; align-items:flex-start;">
                 <span class="sv-step-badge" style="font-size:0.625rem; font-weight:700; letter-spacing:0.1em; background:var(--sv-text); color:#fff; padding:0.35rem 0.6rem; flex-shrink:0;"><?= $s[0]; ?></span>
                 <div>
@@ -682,7 +720,9 @@ if (isLoggedIn()) {
 
 <div class="sv-divider"></div>
 
-<!-- Webinaires & Cours en Direct (Storytelling Section C) -->
+<!-- =========================================================================
+     SECTION 11: WEBINAR PREVIEW STORY PANEL
+     ========================================================================= -->
 <section class="sv-section" id="webinaires-direct" style="background:#fff;">
     <div class="sv-container sv-comment-grid" style="display:grid; grid-template-columns:1fr 1fr; gap:4rem; align-items:center;">
         <div>
@@ -708,6 +748,7 @@ if (isLoggedIn()) {
             </div>
         </div>
         
+        <!-- Browser Mockup -->
         <div class="sv-preview-browser" id="webinar-mockup">
             <div class="sv-preview-header">
                 <div class="sv-preview-dot" style="background:#FF5F56;"></div>
@@ -744,6 +785,9 @@ if (isLoggedIn()) {
 
 <div class="sv-divider"></div>
 
+<!-- =========================================================================
+     SECTION 12: SYSTEM FOOTER BLOCK
+     ========================================================================= -->
 <footer class="sv-footer" role="contentinfo">
     <div class="sv-container" style="display:flex; justify-content:space-between; align-items:center; flex-wrap:wrap; gap:1rem;">
         <div>
@@ -758,6 +802,9 @@ if (isLoggedIn()) {
     </div>
 </footer>
 
+<!-- =========================================================================
+     SECTION 13: JAVASCRIPT ANIMATIONS & SCRIPTS
+     ========================================================================= -->
 <script src="https://cdn.jsdelivr.net/npm/gsap@3.12.5/dist/gsap.min.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/gsap@3.12.5/dist/ScrollTrigger.min.js"></script>
 <script src="/assets/js/app.js"></script>
@@ -766,10 +813,10 @@ if (isLoggedIn()) {
     gsap.registerPlugin(ScrollTrigger);
 
     window.addEventListener('DOMContentLoaded', () => {
-        // Set main containers opacity immediately when script executes to avoid FOUC
+        // Set main containers opacity immediately when script executes to avoid FOUC (Flash of Unstyled Content)
         gsap.set([".sv-hero-content", ".sv-auth-card", ".sv-feature-card", ".sv-step-card"], { opacity: 1 });
 
-        // 1. Hero Reveal Timeline
+        // 1. Hero Reveal Animation Timeline
         const tl = gsap.timeline({ defaults: { ease: "power3.out" } });
         tl.from(".sv-navbar", { y: -45, opacity: 0, duration: 1.1 })
           .from(".sv-hero-content .sv-eyebrow", { y: 25, opacity: 0, duration: 0.65 }, "-=0.6")
@@ -793,7 +840,7 @@ if (isLoggedIn()) {
             ease: "power2.out"
         });
 
-        // 3. ScrollTrigger Course Reader Mockup (Section A - Showdown viewports)
+        // 3. ScrollTrigger Course Reader Mockup
         gsap.from(".sv-showdown-viewport", {
             scrollTrigger: {
                 trigger: "#aperçu-cours",
@@ -881,7 +928,11 @@ if (isLoggedIn()) {
     });
 </script>
 <script>
-    /* ── Onglets auth ── */
+    // =========================================================================
+    // SECTION 14: INTERACTIVE WIDGET CONTROLLERS
+    // =========================================================================
+
+    /* Tab switcher between login and signup card panels */
     function switchAuthTab(tab) {
         const isLogin = tab === 'login';
         document.querySelectorAll('.sv-form-panel').forEach(p => p.classList.remove('active'));
@@ -920,7 +971,7 @@ if (isLoggedIn()) {
         try {
             const data = await svPost('/forgot-password-action.php', fd);
             Toast[data.success ? 'success' : 'error'](data.message);
-        } catch { /* svPost handles */ }
+        } catch { /* svPost handles errors */ }
         btn.disabled = false;
     });
 
@@ -934,7 +985,7 @@ if (isLoggedIn()) {
         });
     }
 
-    /* ── Validation dynamique inscription ── */
+    // Input fields references
     const signupRole  = document.getElementById('signup-role');
     const signupName  = document.getElementById('signup-name');
     const signupEmail = document.getElementById('signup-email');
@@ -980,6 +1031,7 @@ if (isLoggedIn()) {
         validateSignup();
     }
 
+    // Dynamic Form validation rules for signup inputs
     function validateSignup() {
         const roleOk  = signupRole.value === 'student' || signupRole.value === 'teacher';
         const nameOk  = signupName.value.trim().length >= 2;
@@ -996,6 +1048,7 @@ if (isLoggedIn()) {
         signupEmail.classList.toggle('valid', emailOk);
         signupEmail.classList.toggle('invalid', signupEmail.value && !emailOk);
 
+        // Check password complexity strength bar
         const strength = Math.min(100, passLen * 12 + (/\d/.test(signupPass.value) ? 20 : 0) + (/[A-Z]/.test(signupPass.value) ? 15 : 0));
         pwBar.style.width = passLen ? strength + '%' : '0';
         pwBar.style.background = strength < 40 ? '#D32F2F' : strength < 70 ? '#E6A817' : '#004B23';
@@ -1020,7 +1073,7 @@ if (isLoggedIn()) {
     [signupName, signupEmail, signupPass].forEach(el => el.addEventListener('input', validateSignup));
     signupRole.addEventListener('change', validateSignup);
 
-    /* ── Soumission connexion ── */
+    /* Submit Login Action Handler */
     document.getElementById('login-form').addEventListener('submit', async (e) => {
         e.preventDefault();
         const btn = document.getElementById('login-btn');
@@ -1056,7 +1109,7 @@ if (isLoggedIn()) {
         }
     });
 
-    /* ── Soumission inscription ── */
+    /* Submit Signup Action Handler */
     document.getElementById('signup-form').addEventListener('submit', async (e) => {
         e.preventDefault();
         if (!validateSignup()) return;
@@ -1086,7 +1139,7 @@ if (isLoggedIn()) {
         } catch { btn.disabled = false; validateSignup(); }
     });
 
-    /* Responsive rôles */
+    /* Adjust roles responsive columns grid */
     const mq = window.matchMedia('(max-width:768px)');
     function fixRoleGrid() {
         document.querySelectorAll('.role-panel').forEach(p => {

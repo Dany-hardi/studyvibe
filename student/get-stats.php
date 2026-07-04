@@ -1,5 +1,25 @@
 <?php
+/**
+ * StudyVibe Academic LMS - Student Statistical Data Fetcher
+ *
+ * This endpoint compiles and returns academic statistics for the current logged-in student,
+ * including completed courses count, average exam score, total study hours, and badges earned.
+ *
+ * PHP version 8.2
+ *
+ * @category  Controller
+ * @package   StudyVibe\Student
+ * @author    StudyVibe Team <development@studyvibe.academic>
+ * @copyright 2026 StudyVibe
+ * @license   Proprietary
+ * @link      https://studyvibe.academic
+ */
+
 declare(strict_types=1);
+
+// =========================================================================
+// SECTION 1: AUTHENTICATION & SESSION RETRIEVAL
+// =========================================================================
 
 require_once __DIR__ . '/../auth.php';
 
@@ -11,6 +31,10 @@ if (!isLoggedIn() || $_SESSION['user_role'] !== 'student') {
 }
 
 $studentId = (int)$_SESSION['user_id'];
+
+// =========================================================================
+// SECTION 2: STATISTICAL METRICS QUERIES & TRANSACTIONS
+// =========================================================================
 
 try {
     $pdo = Database::getInstance();

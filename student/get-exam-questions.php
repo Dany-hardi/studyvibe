@@ -1,5 +1,26 @@
 <?php
+/**
+ * StudyVibe Academic LMS - Student Certification Questions Fetcher
+ *
+ * This controller validates student enrollment progress, rate limits, and scheduling.
+ * It retrieves a randomized set of questions for a course's final assessment
+ * with hidden solutions for secure delivery.
+ *
+ * PHP version 8.2
+ *
+ * @category  Controller
+ * @package   StudyVibe\Student
+ * @author    StudyVibe Team <development@studyvibe.academic>
+ * @copyright 2026 StudyVibe
+ * @license   Proprietary
+ * @link      https://studyvibe.academic
+ */
+
 declare(strict_types=1);
+
+// =========================================================================
+// SECTION 1: AUTHENTICATION & INPUT PARAMETERS SECURITY
+// =========================================================================
 
 require_once __DIR__ . '/../auth.php';
 require_once __DIR__ . '/../lib/CourseSchedule.php';
@@ -25,6 +46,10 @@ if ($courseId <= 0) {
     ]);
     exit;
 }
+
+// =========================================================================
+// SECTION 2: ENROLLMENT & RATE-LIMIT VALIDATION
+// =========================================================================
 
 try {
     $pdo = Database::getInstance();
@@ -77,6 +102,10 @@ try {
         echo json_encode(['success' => false, 'message' => $examBlock]);
         exit;
     }
+
+    // =========================================================================
+    // SECTION 3: EXAM TIMELINE SCHEDULING & SECURE QUESTION INGESTION
+    // =========================================================================
 
     $examMinutes = (int)($course['exam_duration_minutes'] ?: 90);
     $session = ExamSession::startOrResume($pdo, $studentId, $courseId, $examMinutes);

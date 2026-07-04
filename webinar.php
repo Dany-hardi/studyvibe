@@ -1,7 +1,22 @@
 <?php
 declare(strict_types=1);
 
+/**
+ * StudyVibe LMS - Webinar Room Viewer
+ * 
+ * Renders the webinar virtual classroom page. Integrates the Jitsi Meet WebRTC client 
+ * for real-time video/audio streams, logs student presence duration metrics via a heartbeat 
+ * routine, and provides interactive Q&A submission and voting feeds.
+ * 
+ * @package    StudyVibe
+ * @author     Advanced Engineering Team
+ */
+
 require_once __DIR__ . '/auth.php';
+
+// =========================================================================
+// SECTION 1: AUTHENTICATION & ACCESS GATES
+// =========================================================================
 
 if (!isLoggedIn()) {
     header("Location: /index.php?error=auth_required");
@@ -12,7 +27,11 @@ $user = getCurrentUser();
 $webinarId = (int)($_GET['id'] ?? 0);
 $pdo = Database::getInstance();
 
-// Récupérer les détails du webinaire
+// =========================================================================
+// SECTION 2: WEBINAR & COURSE REGISTRATION VERIFICATION
+// =========================================================================
+
+// Retrieve target webinar room details
 $stmt = $pdo->prepare("
     SELECT w.*, c.title AS course_title, u.name AS teacher_name, u.email AS teacher_email
     FROM webinars w
@@ -27,7 +46,7 @@ if (!$webinar) {
     die("Webinaire introuvable.");
 }
 
-// Vérifier l'inscription pour les étudiants
+// Enforce course enrollment gates for student accounts
 if ($user['role'] === 'student') {
     $stmt = $pdo->prepare("SELECT id FROM enrollments WHERE course_id = :cid AND student_id = :sid");
     $stmt->execute(['cid' => $webinar['course_id'], 'sid' => $user['id']]);
@@ -36,7 +55,10 @@ if ($user['role'] === 'student') {
     }
 }
 
-// Initialiser ou mettre à jour la session d'assistance (Join log)
+// =========================================================================
+// SECTION 3: ATTENDANCE TRACKING INITIALIZATION
+// =========================================================================
+
 try {
     $stmt = $pdo->prepare("
         INSERT INTO webinar_attendance (webinar_id, student_id, joined_at, last_seen_at, total_minutes_present)
@@ -44,9 +66,11 @@ try {
         ON DUPLICATE KEY UPDATE last_seen_at = NOW()
     ");
     $stmt->execute(['wid' => $webinar['id'], 'sid' => $user['id']]);
-} catch (Exception $e) {}
+} catch (Exception $e) {
+    // Log failures internally but do not disrupt client page rendering
+}
 
-// Générer un ID de salon Jitsi unique
+// Format unique room identifier for Jitsi session matching
 $meetingRoomName = "StudyVibe_" . preg_replace('/[^A-Za-z0-9]/', '', $webinar['meeting_id']);
 ?>
 <!DOCTYPE html>
@@ -149,7 +173,9 @@ $meetingRoomName = "StudyVibe_" . preg_replace('/[^A-Za-z0-9]/', '', $webinar['m
 </head>
 <body>
 
-    <!-- Header bar -->
+    <!-- =========================================================================
+         SECTION 4: TOP HEADER NAVIGATION
+         ========================================================================= -->
     <header class="h-16 border-b border-black/5 bg-white px-6 flex items-center justify-between z-10">
         <div class="flex items-center gap-4">
             <a href="/student/dashboard.php" class="text-xs font-semibold uppercase tracking-wider text-black/60 hover:text-black transition-colors flex items-center gap-1">
@@ -172,9 +198,11 @@ $meetingRoomName = "StudyVibe_" . preg_replace('/[^A-Za-z0-9]/', '', $webinar['m
         </div>
     </header>
 
-    <!-- Main Workspace -->
+    <!-- =========================================================================
+         SECTION 5: WEBINAR PANES GRID
+         ========================================================================= -->
     <div class="webinar-grid">
-        <!-- Video Stream area (Jitsi API) -->
+        <!-- Video Stream area (Jitsi API Wrapper) -->
         <div class="video-pane">
             <div id="jitsi-container"></div>
         </div>
@@ -187,7 +215,7 @@ $meetingRoomName = "StudyVibe_" . preg_replace('/[^A-Za-z0-9]/', '', $webinar['m
                 <div class="tab-btn" onclick="switchPane('eval')">Quiz Live</div>
             </div>
 
-            <!-- Tab 1: Info -->
+            <!-- Tab 1: Info & Overview -->
             <div class="tab-panel active" id="pane-info">
                 <h3 class="font-serif text-xl font-light text-black mb-4">À propos de la leçon</h3>
                 <p class="text-sm font-light text-black/70 leading-relaxed mb-6">
@@ -205,7 +233,7 @@ $meetingRoomName = "StudyVibe_" . preg_replace('/[^A-Za-z0-9]/', '', $webinar['m
                 </div>
             </div>
 
-            <!-- Tab 2: Q&A -->
+            <!-- Tab 2: Q&A Forum -->
             <div class="tab-panel" id="pane-qa">
                 <div class="flex flex-col gap-4 h-full">
                     <!-- Ask Form -->
@@ -216,14 +244,14 @@ $meetingRoomName = "StudyVibe_" . preg_replace('/[^A-Za-z0-9]/', '', $webinar['m
 
                     <div class="h-px bg-black/5"></div>
 
-                    <!-- Questions list -->
+                    <!-- Questions feed list -->
                     <div id="qa-list" class="flex-1 overflow-y-auto pr-1">
                         <div class="text-center text-xs text-black/40 py-8">Chargement des questions...</div>
                     </div>
                 </div>
             </div>
 
-            <!-- Tab 3: Live Quiz -->
+            <!-- Tab 3: Live Quiz Notifications -->
             <div class="tab-panel" id="pane-eval">
                 <div class="flex flex-col justify-between h-full text-center">
                     <div class="my-auto space-y-4">
@@ -243,7 +271,9 @@ $meetingRoomName = "StudyVibe_" . preg_replace('/[^A-Za-z0-9]/', '', $webinar['m
         </div>
     </div>
 
-    <!-- Jitsi & Real-time scripts -->
+    <!-- =========================================================================
+         SECTION 6: CLIENT-SIDE JITSI ENGINE & INTEGRATION SCRIPT
+         ========================================================================= -->
     <script src="https://meet.jit.si/external_api.js"></script>
     <script>
         const roomName = "<?= $meetingRoomName; ?>";
@@ -251,7 +281,7 @@ $meetingRoomName = "StudyVibe_" . preg_replace('/[^A-Za-z0-9]/', '', $webinar['m
         const userEmail = "<?= htmlspecialchars($user['email']); ?>";
         const webinarId = <?= $webinarId; ?>;
 
-        // Initialize Jitsi Meet Iframe
+        // Configure Jitsi external frame options
         const domain = "meet.jit.si";
         const options = {
             roomName: roomName,
@@ -284,12 +314,11 @@ $meetingRoomName = "StudyVibe_" . preg_replace('/[^A-Za-z0-9]/', '', $webinar['m
 
         const api = new JitsiMeetExternalAPI(domain, options);
 
-        // Sidebar tabs switcher
+        // Sidebar tabs switcher controller
         function switchPane(pane) {
             document.querySelectorAll('.tab-btn').forEach(btn => btn.classList.remove('active'));
             document.querySelectorAll('.tab-panel').forEach(p => p.classList.remove('active'));
             
-            // Find sender
             let idx = 0;
             if (pane === 'qa') idx = 1;
             if (pane === 'eval') idx = 2;
@@ -302,7 +331,7 @@ $meetingRoomName = "StudyVibe_" . preg_replace('/[^A-Za-z0-9]/', '', $webinar['m
             }
         }
 
-        // Q&A actions
+        // Q&A async fetches
         async function loadQuestions() {
             try {
                 const res = await fetch('/webinar-actions.php?action=get_qa&webinar_id=' + webinarId);
@@ -336,6 +365,7 @@ $meetingRoomName = "StudyVibe_" . preg_replace('/[^A-Za-z0-9]/', '', $webinar['m
             }
         }
 
+        // Q&A voting increments
         async function voteQuestion(qaId) {
             try {
                 await fetch('/webinar-actions.php?action=vote_qa&id=' + qaId, { method: 'POST' });
@@ -343,6 +373,7 @@ $meetingRoomName = "StudyVibe_" . preg_replace('/[^A-Za-z0-9]/', '', $webinar['m
             } catch (e) {}
         }
 
+        // Q&A form submissions
         document.getElementById('qa-form').addEventListener('submit', async (e) => {
             e.preventDefault();
             const text = document.getElementById('qa-input').value.trim();
@@ -365,7 +396,7 @@ $meetingRoomName = "StudyVibe_" . preg_replace('/[^A-Za-z0-9]/', '', $webinar['m
             } catch (err) {}
         });
 
-        // Attendance Tracking Heartbeat system
+        // Attendance Tracking Heartbeat system dispatch
         async function runHeartbeat() {
             try {
                 const res = await fetch('/webinar-heartbeat.php?webinar_id=' + webinarId, { method: 'POST' });
@@ -376,17 +407,18 @@ $meetingRoomName = "StudyVibe_" . preg_replace('/[^A-Za-z0-9]/', '', $webinar['m
             } catch (e) {}
         }
 
-        // Run heartbeat every 30s
+        // Execute heartbeat ticks every 30 seconds
         setInterval(runHeartbeat, 30000);
-        runHeartbeat(); // Start immediately
+        runHeartbeat(); // Start heartbeat immediately on entry
 
-        // Auto reload questions every 10s if tab is open
+        // Auto reload Q&A questions list every 10 seconds if panel is open
         setInterval(() => {
             if (document.getElementById('pane-qa').classList.contains('active')) {
                 loadQuestions();
             }
         }, 10000);
 
+        // Standard string encoder to prevent script injections
         function escapeHtml(str) {
             return str.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;").replace(/"/g, "&quot;").replace(/'/g, "&#039;");
         }
