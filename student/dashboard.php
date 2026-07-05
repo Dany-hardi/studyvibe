@@ -916,7 +916,7 @@ try {
     <!-- Modal : Liseuse / Étude de Cours (Zen, spacieux) -->
     <div id="study-modal" class="hidden fixed inset-0 bg-[#FAF9F6] dark:bg-[#121212] z-50 flex flex-col justify-between">
         <!-- En-tête Liseuse -->
-        <header class="border-b border-[#E5E5E7] dark:border-[#2C2C2C] py-4 px-6 md:px-12 flex justify-between items-center bg-white dark:bg-[#1E1E1E]">
+        <header id="study-header" class="border-b border-[#E5E5E7] dark:border-[#2C2C2C] py-4 px-6 md:px-12 flex justify-between items-center bg-white dark:bg-[#1E1E1E]">
             <div class="flex items-center gap-4">
                 <button onclick="toggleOutline()" class="p-2 text-xs font-semibold border border-[#E5E5E7] dark:border-[#2C2C2C] hover:bg-[#F5F5F7] dark:hover:bg-[#252525] rounded transition-all" title="Afficher/Masquer le programme">
                     Programme
@@ -946,7 +946,7 @@ try {
         <div class="flex-grow flex flex-col md:flex-row overflow-hidden relative">
             
             <!-- Sidebar : Arborescence du cours -->
-            <div class="w-full md:w-80 border-r border-[#E5E5E7] dark:border-[#2C2C2C] bg-white dark:bg-[#1C1C1E] p-6 overflow-y-auto flex-shrink-0 space-y-6">
+            <div id="study-sidebar" class="w-full md:w-80 border-r border-[#E5E5E7] dark:border-[#2C2C2C] bg-white dark:bg-[#1C1C1E] p-6 overflow-y-auto flex-shrink-0 space-y-6">
                 <div class="flex justify-between items-center pb-2 border-b border-[#E5E5E7] dark:border-[#2C2C2C]">
                     <h3 class="text-xs font-semibold uppercase tracking-widest text-[#888888] dark:text-[#AAAAAA]">Programme du cours</h3>
                     <button onclick="toggleOutline()" class="text-xs text-[#888888] hover:text-[#111111] dark:hover:text-white font-bold">✕</button>
@@ -957,7 +957,7 @@ try {
             </div>
 
             <!-- Viewer central (Spacieux, Scrollable) -->
-            <div class="flex-grow p-6 md:p-10 overflow-y-auto space-y-8 bg-[#FFFFFF] dark:bg-[#121212] flex flex-col">
+            <div id="study-viewer-content" class="flex-grow p-6 md:p-10 overflow-y-auto space-y-8 bg-[#FFFFFF] dark:bg-[#121212] flex flex-col">
                 <!-- Titre leçon et type -->
                 <div id="lesson-viewer-header" class="border-b border-[#E5E5E7] dark:border-[#2C2C2C] pb-4 hidden flex justify-between items-start gap-4">
                     <div>
@@ -1915,7 +1915,11 @@ try {
             LessonContentGate.reset();
             const media = document.getElementById('study-media-container');
             [...media.children].forEach(el => { if (el._pdfCleanup) el._pdfCleanup(); });
-            document.getElementById('study-modal').classList.add('hidden');
+            const modal = document.getElementById('study-modal');
+            if (modal) {
+                modal.classList.remove('sv-pdf-focus-mode');
+                modal.classList.add('hidden');
+            }
             refreshDashboard();
         }
 

@@ -228,21 +228,47 @@ const PdfViewer = (() => {
     container.innerHTML = `
       <div class="sv-pdf-reader" role="region" aria-label="Lecteur PDF">
         <div class="sv-pdf-reader__header">
-          <div class="sv-pdf-reader__label">${PDF_ICON}<span data-pdf-title>Document PDF</span></div>
+          <div class="sv-pdf-reader__label">
+            ${PDF_ICON}
+            <span data-pdf-title class="truncate max-w-[150px] md:max-w-xs">Document PDF</span>
+          </div>
           <div class="sv-pdf-reader__toolbar">
-            <button type="button" class="sv-pdf-reader__btn" data-pdf-prev title="Page précédente" aria-label="Page précédente">←</button>
+            <button type="button" class="sv-pdf-reader__btn" data-pdf-prev title="Page précédente" aria-label="Page précédente">
+              <svg class="w-4 h-4" fill="none" stroke="currentColor" stroke-width="2.5" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M15.75 19.5L8.25 12l7.5-7.5"/></svg>
+            </button>
             <span class="sv-pdf-reader__page-info">
               <input type="number" class="sv-pdf-reader__page-input" data-pdf-page-input min="1" value="1" aria-label="Numéro de page"> /
               <span data-pdf-total>1</span>
             </span>
-            <button type="button" class="sv-pdf-reader__btn" data-pdf-next title="Page suivante" aria-label="Page suivante">→</button>
+            <button type="button" class="sv-pdf-reader__btn" data-pdf-next title="Page suivante" aria-label="Page suivante">
+              <svg class="w-4 h-4" fill="none" stroke="currentColor" stroke-width="2.5" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M8.25 4.5l7.5 7.5-7.5 7.5"/></svg>
+            </button>
+            
             <span class="sv-pdf-reader__sep"></span>
-            <button type="button" class="sv-pdf-reader__btn" data-pdf-zoom-out title="Réduire" aria-label="Réduire">−</button>
+            
+            <button type="button" class="sv-pdf-reader__btn" data-pdf-zoom-out title="Réduire" aria-label="Réduire">
+              <svg class="w-4 h-4" fill="none" stroke="currentColor" stroke-width="2.5" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M18 12H6"/></svg>
+            </button>
             <span class="sv-pdf-reader__zoom-label" data-pdf-zoom-label>100%</span>
-            <button type="button" class="sv-pdf-reader__btn" data-pdf-zoom-in title="Agrandir" aria-label="Agrandir">+</button>
-            <button type="button" class="sv-pdf-reader__btn" data-pdf-fit title="Ajuster à la largeur" aria-label="Ajuster à la largeur">Ajuster</button>
+            <button type="button" class="sv-pdf-reader__btn" data-pdf-zoom-in title="Agrandir" aria-label="Agrandir">
+              <svg class="w-4 h-4" fill="none" stroke="currentColor" stroke-width="2.5" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M12 4.5v15m7.5-7.5h-15"/></svg>
+            </button>
+            <button type="button" class="sv-pdf-reader__btn" data-pdf-fit title="Ajuster à la largeur" aria-label="Ajuster à la largeur">
+              <svg class="w-4 h-4" fill="none" stroke="currentColor" stroke-width="2.5" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M3.75 3.75v4.5m0-4.5h4.5m-4.5 0L9 9M3.75 20.25v-4.5m0 4.5h4.5m-4.5 0L9 15M20.25 3.75v4.5m0-4.5h-4.5m4.5 0L15 9m5.25 11.25v-4.5m0 4.5h-4.5m4.5 0L15 15"/></svg>
+            </button>
+            
             <span class="sv-pdf-reader__sep"></span>
-            <a href="${url}" target="_blank" rel="noopener" class="sv-pdf-reader__btn sv-pdf-reader__btn--primary" data-pdf-download title="Télécharger le PDF">⬇ PDF</a>
+            
+            <button type="button" class="sv-pdf-reader__btn" data-pdf-focus title="Mode Focus" aria-label="Mode Focus">
+              <svg class="w-4 h-4" fill="none" stroke="currentColor" stroke-width="2.5" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M3.75 3.75h6.5m-6.5 0v6.5m0-6.5L9 9m11.25-5.25h-6.5m6.5 0v6.5m0-6.5L15 9M3.75 20.25h6.5m-6.5 0v-6.5m0 6.5L9 15m11.25 5.25h-6.5m6.5 0v-6.5m0 6.5L15 15"/></svg>
+            </button>
+            
+            <span class="sv-pdf-reader__sep"></span>
+            
+            <a href="${url}" target="_blank" rel="noopener" class="sv-pdf-reader__btn sv-pdf-reader__btn--primary" data-pdf-download title="Télécharger le PDF">
+              <svg class="w-4 h-4 mr-1" fill="none" stroke="currentColor" stroke-width="2.5" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M3 16.5v2.25A2.25 2.25 0 005.25 21h13.5A2.25 2.25 0 0021 18.75V16.5M16.5 12L12 16.5m0 0L7.5 12m4.5 4.5V3"/></svg>
+              PDF
+            </a>
           </div>
         </div>
         <div class="sv-pdf-reader__viewport" data-pdf-viewport>
@@ -348,6 +374,24 @@ const PdfViewer = (() => {
         const n = parseInt(pageInput.value, 10);
         if (!isNaN(n)) goToPage(n);
       });
+
+      const focusBtn = container.querySelector('[data-pdf-focus]');
+      if (focusBtn) {
+        focusBtn.onclick = () => {
+          const modal = document.getElementById('study-modal');
+          if (modal) {
+            modal.classList.toggle('sv-pdf-focus-mode');
+            // Recompute fitScale and redraw after class changes
+            setTimeout(async () => {
+              if (pdf) {
+                fitScale = await computeFitScale(await pdf.getPage(pageNum));
+                scale = fitScale;
+                drawPage();
+              }
+            }, 300);
+          }
+        };
+      }
 
       activeKeyHandler = (e) => {
         if (!root.isConnected || !document.getElementById('study-modal') ||
