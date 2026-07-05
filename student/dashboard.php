@@ -1360,21 +1360,6 @@ try {
             switchTabAnimated(tabName, STUDENT_TABS);
             updateSidebarButtons(tabName);
             if (tabName === 'releve') loadTranscript();
-
-            // Stagger fade elements inside the active tab panel using GSAP
-            const activePanel = document.getElementById('tab-' + tabName);
-            if (activePanel) {
-                const animTargets = activePanel.querySelectorAll('.grid > div, .space-y-8 > div, .space-y-6 > div, h2, table tbody tr');
-                if (animTargets.length) {
-                    gsap.from(animTargets, {
-                        opacity: 0,
-                        y: 20,
-                        stagger: 0.05,
-                        duration: 0.55,
-                        ease: "power2.out"
-                    });
-                }
-            }
         }
 
         /**
@@ -1428,7 +1413,12 @@ try {
                 if (!data.success) return;
                 document.getElementById('kpi-completed').textContent = data.completed_courses;
                 document.getElementById('kpi-score').textContent = data.avg_score + '%';
-                    /**
+                document.getElementById('kpi-time').textContent = data.study_time.hours + 'h' + String(data.study_time.minutes).padStart(2,'0');
+                document.getElementById('kpi-certs').textContent = data.certificates;
+            });
+        }
+
+        /**
          * Initiates enrollment action for a course, checking if access key is needed.
          * @param {number} courseId - The unique course database ID.
          * @param {boolean} needsKey - Indication if course is locked by key.
