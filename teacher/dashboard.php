@@ -1340,8 +1340,11 @@ $successMsg = $successMessages[$successKey] ?? null;
                 </nav>
             </div>
             <div class="flex-shrink-0 flex border-t border-[#003619] p-4 bg-[#003c1c] items-center gap-3">
-                <img src="<?= $user['avatar_path'] ? htmlspecialchars(mediaUrl('avatar', $user['avatar_path'])) : 'https://www.gravatar.com/avatar/' . md5(strtolower(trim($user['email']))) . '?d=mp'; ?>" 
-                     alt="Photo de profil" class="w-8 h-8 rounded-full object-cover border border-white/20">
+                <div class="w-8 h-8 rounded-full bg-[#003619] flex items-center justify-center border border-white/20 flex-shrink-0">
+                    <svg class="w-4 h-4 text-white/80" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" d="M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z" />
+                    </svg>
+                </div>
                 <div class="flex-grow overflow-hidden">
                     <div class="text-xs font-semibold text-white truncate"><?= htmlspecialchars($user['name']); ?></div>
                     <div class="text-[10px] text-white/60 truncate"><?= htmlspecialchars($user['email']); ?></div>
@@ -1448,8 +1451,11 @@ $successMsg = $successMessages[$successKey] ?? null;
         <!-- Profile / Sidebar Footer -->
         <div class="p-4 border-t border-[#003619] bg-[#003c1c] flex items-center justify-between gap-3">
             <div class="flex items-center gap-3 overflow-hidden">
-                <img src="<?= $user['avatar_path'] ? htmlspecialchars(mediaUrl('avatar', $user['avatar_path'])) : 'https://www.gravatar.com/avatar/' . md5(strtolower(trim($user['email']))) . '?d=mp'; ?>" 
-                     alt="Photo de profil" class="w-9 h-9 rounded-full object-cover border border-white/20">
+                <div class="w-9 h-9 rounded-full bg-[#003619] flex items-center justify-center border border-white/20 flex-shrink-0">
+                    <svg class="w-4 h-4 text-white/80" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" d="M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z" />
+                    </svg>
+                </div>
                 <div class="flex-grow overflow-hidden">
                     <div class="text-xs font-semibold text-white truncate"><?= htmlspecialchars($user['name']); ?></div>
                     <div class="text-[10px] text-white/60 truncate"><?= htmlspecialchars($user['email']); ?></div>
