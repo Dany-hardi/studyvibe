@@ -5,7 +5,7 @@ declare(strict_types=1);
  * StudyVibe LMS - Student Dashboard Portal View
  * 
  * Serves as the primary client-facing portal for registered students. Handles 
- * data queries for courses, certifications, badges, study statistics, webinars, 
+ * data queries for courses, certifications, badges, study statistics, 
  * live assessments, and initializes the modal system structures.
  * 
  * @package    StudyVibe
@@ -96,19 +96,7 @@ try {
     $stmt->execute(['student_id' => $user['id'], 'email' => $user['email']]);
     $myEvaluations = $stmt->fetchAll();
 
-    // 5. Récupérer les webinaires des cours de l'étudiant
-    $stmt = $pdo->prepare("
-        SELECT w.*, c.title AS course_title, u.name AS teacher_name,
-               att.total_minutes_present
-        FROM webinars w
-        JOIN courses c ON w.course_id = c.id
-        JOIN enrollments e ON e.course_id = c.id AND e.student_id = :student_id
-        LEFT JOIN users u ON w.teacher_id = u.id
-        LEFT JOIN webinar_attendance att ON att.webinar_id = w.id AND att.student_id = :student_id2
-        ORDER BY w.scheduled_at DESC
-    ");
-    $stmt->execute(['student_id' => $user['id'], 'student_id2' => $user['id']]);
-    $myWebinars = $stmt->fetchAll();
+
 
 } catch (PDOException $e) {
     dieSafe('Erreur serveur. Veuillez réessayer.', $e, 'student/dashboard');
@@ -263,9 +251,7 @@ try {
                     <button onclick="switchTab('tele-evaluations'); toggleMobileDrawer();" id="mobile-tab-btn-tele-evaluations" class="w-full flex items-center gap-3 px-4 py-3 rounded-lg text-sm font-medium transition-all text-white/70 hover:text-white hover:bg-white/10 text-left">
                         Téléévaluations
                     </button>
-                    <button onclick="switchTab('webinaires'); toggleMobileDrawer();" id="mobile-tab-btn-webinaires" class="w-full flex items-center gap-3 px-4 py-3 rounded-lg text-sm font-medium transition-all text-white/70 hover:text-white hover:bg-white/10 text-left">
-                        Webinaires
-                    </button>
+
                     <button onclick="switchTab('profil'); toggleMobileDrawer();" id="mobile-tab-btn-profil" class="w-full flex items-center gap-3 px-4 py-3 rounded-lg text-sm font-medium transition-all text-white/70 hover:text-white hover:bg-white/10 text-left">
                         Mon Profil
                     </button>
@@ -328,9 +314,7 @@ try {
             <button onclick="switchTab('tele-evaluations')" id="tab-btn-tele-evaluations" class="w-full flex items-center gap-3 px-4 py-3 rounded-lg text-sm font-medium transition-all text-white/70 hover:text-white hover:bg-white/10 text-left">
                 Téléévaluations
             </button>
-            <button onclick="switchTab('webinaires')" id="tab-btn-webinaires" class="w-full flex items-center gap-3 px-4 py-3 rounded-lg text-sm font-medium transition-all text-white/70 hover:text-white hover:bg-white/10 text-left">
-                Webinaires
-            </button>
+
             <button onclick="switchTab('profil')" id="tab-btn-profil" class="w-full flex items-center gap-3 px-4 py-3 rounded-lg text-sm font-medium transition-all text-white/70 hover:text-white hover:bg-white/10 text-left">
                 Mon Profil
             </button>
@@ -770,90 +754,7 @@ try {
             </div>
         </div>
 
-        <!-- 3c. Onglet WEBINAIRES -->
-        <div id="tab-webinaires" class="tab-content hidden space-y-12">
-            <div class="space-y-3">
-                <h2 class="font-serif text-3xl font-light">Mes Cours & Webinaires en Direct</h2>
-                <p class="text-sm font-light text-[#555555]">
-                    Rejoignez les classes virtuelles en direct animées par vos enseignants et accédez aux replays des séances terminées.
-                </p>
-            </div>
 
-            <div class="space-y-6">
-                <?php if (empty($myWebinars)): ?>
-                    <div class="p-12 border border-dashed border-[#E5E5E7] text-center text-sm font-light text-[#888888]">
-                        Aucun webinaire n'est planifié ou disponible pour vos cours pour le moment.
-                    </div>
-                <?php else: ?>
-                    <div class="overflow-x-auto border border-[#E5E5E7] rounded-sm bg-white shadow-sm">
-                        <table class="w-full text-sm">
-                            <thead>
-                                <tr class="border-b border-[#111111] text-xs uppercase text-[#555555] bg-[#FAFAFA]">
-                                    <th class="p-4 text-left font-medium">Webinaire / Cours</th>
-                                    <th class="p-4 text-left font-medium">Enseignant</th>
-                                    <th class="p-4 text-left font-medium">Date de début</th>
-                                    <th class="p-4 text-center font-medium">Statut</th>
-                                    <th class="p-4 text-center font-medium">Présence</th>
-                                    <th class="p-4 text-right font-medium">Action</th>
-                                </tr>
-                            </thead>
-                            <tbody class="divide-y divide-[#E5E5E7]">
-                                <?php foreach ($myWebinars as $web): 
-                                    $timeFormatted = date('d/m/Y H:i', strtotime($web['scheduled_at']));
-                                    $isLive = $web['status'] === 'live';
-                                    $isCompleted = $web['status'] === 'completed';
-                                ?>
-                                    <tr class="hover:bg-[#FAFAFA] transition-colors">
-                                        <td class="p-4">
-                                            <div class="font-medium text-[#111111]"><?= htmlspecialchars($web['title']); ?></div>
-                                            <div class="text-xs text-[#888888]"><?= htmlspecialchars($web['course_title']); ?></div>
-                                        </td>
-                                        <td class="p-4 text-[#555555]"><?= htmlspecialchars($web['teacher_name'] ?? 'Non assigné'); ?></td>
-                                        <td class="p-4 text-[#555555]"><?= $timeFormatted; ?></td>
-                                        <td class="p-4 text-center">
-                                            <?php if ($isLive): ?>
-                                                <span class="inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full text-xs font-semibold bg-red-100 text-red-800 animate-pulse">
-                                                    <span class="w-1.5 h-1.5 rounded-full bg-red-600"></span>
-                                                    En Direct
-                                                </span>
-                                            <?php elseif ($isCompleted): ?>
-                                                <span class="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-semibold bg-gray-100 text-gray-800">
-                                                    Terminé
-                                                </span>
-                                            <?php else: ?>
-                                                <span class="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-semibold bg-blue-100 text-blue-800">
-                                                    Planifié
-                                                </span>
-                                            <?php endif; ?>
-                                        </td>
-                                        <td class="p-4 text-center text-[#555555]">
-                                            <?= $web['total_minutes_present'] ? $web['total_minutes_present'] . ' min' : '0 min'; ?>
-                                        </td>
-                                        <td class="p-4 text-right">
-                                            <?php if ($isLive): ?>
-                                                <a href="/webinar.php?id=<?= $web['id']; ?>"
-                                                   class="inline-block px-4 py-2 bg-red-600 hover:bg-red-700 text-[#FFFFFF] text-xs font-semibold uppercase tracking-wider transition-colors rounded-sm shadow-sm">
-                                                    Rejoindre
-                                                </a>
-                                            <?php elseif ($isCompleted && !empty($web['recording_url'])): ?>
-                                                <a href="<?= htmlspecialchars($web['recording_url']); ?>" target="_blank"
-                                                   class="inline-block px-4 py-2 bg-[#111111] hover:bg-brand text-[#FFFFFF] text-xs font-semibold uppercase tracking-wider transition-colors rounded-sm shadow-sm">
-                                                    Revoir (Replay)
-                                                </a>
-                                            <?php else: ?>
-                                                <button disabled class="inline-block px-4 py-2 bg-gray-200 text-gray-400 text-xs font-semibold uppercase tracking-wider rounded-sm cursor-not-allowed">
-                                                    Non disponible
-                                                </button>
-                                            <?php endif; ?>
-                                        </td>
-                                    </tr>
-                                <?php endforeach; ?>
-                            </tbody>
-                        </table>
-                    </div>
-                <?php endif; ?>
-            </div>
-        </div>
 
         <!-- 4. Onglet MON PROFIL -->
         <div id="tab-profil" class="tab-content hidden space-y-12">

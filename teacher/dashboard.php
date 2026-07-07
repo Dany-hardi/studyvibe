@@ -4,7 +4,7 @@
  *
  * This controller serves as the primary management panel for instructors,
  * providing course scheduling, content curation, evaluation authoring,
- * live tele-evaluations, webinar links, and student progress metrics.
+ * live tele-evaluations, and student progress metrics.
  *
  * PHP version 8.2
  *
@@ -188,9 +188,6 @@ try {
     $stmt->execute(['tid' => $user['id']]);
     $totalTeacherStudents = (int)$stmt->fetchColumn();
 
-    $stmt = $pdo->prepare("SELECT COUNT(*) FROM webinars WHERE teacher_id = :tid");
-    $stmt->execute(['tid' => $user['id']]);
-    $totalTeacherWebinars = (int)$stmt->fetchColumn();
 
     $stmt = $pdo->prepare("SELECT COUNT(*) FROM live_eval_sessions WHERE teacher_id = :tid");
     $stmt->execute(['tid' => $user['id']]);
@@ -822,131 +819,7 @@ try {
             }
         }
 
-        // ── W1. Ajouter un webinaire ────────────────────────────────────
-        if ($action === 'add_webinar') {
-            $title = trim((string)($_POST['title'] ?? ''));
-            $description = trim((string)($_POST['description'] ?? ''));
-            $scheduled_at = trim((string)($_POST['scheduled_at'] ?? ''));
-            $duration = (int)($_POST['duration'] ?? 60);
-            $meeting_id = trim((string)($_POST['meeting_id'] ?? ''));
-
-            if (empty($meeting_id)) {
-                $meeting_id = 'web_' . uniqid();
-            }
-
-            if (!empty($title) && !empty($scheduled_at)) {
-                $stmt = $pdo->prepare("
-                    INSERT INTO webinars (course_id, teacher_id, title, description, scheduled_at, duration, status, meeting_id)
-                    VALUES (:cid, :tid, :title, :desc, :sched, :dur, 'scheduled', :meet)
-                ");
-                $stmt->execute([
-                    'cid' => $selectedCourse['id'],
-                    'tid' => $teacherId,
-                    'title' => $title,
-                    'desc' => $description ?: null,
-                    'sched' => date('Y-m-d H:i:s', strtotime($scheduled_at)),
-                    'dur' => $duration,
-                    'meet' => $meeting_id
-                ]);
-                header("Location: /teacher/dashboard.php?course_id={$selectedCourse['id']}&success=webinar_added#tab-webinars"); exit;
-            }
-        }
-
-        // ── W2. Éditer un webinaire ─────────────────────────────────────
-        if ($action === 'edit_webinar') {
-            $wid = (int)($_POST['webinar_id'] ?? 0);
-            $title = trim((string)($_POST['title'] ?? ''));
-            $description = trim((string)($_POST['description'] ?? ''));
-            $scheduled_at = trim((string)($_POST['scheduled_at'] ?? ''));
-            $duration = (int)($_POST['duration'] ?? 60);
-            $meeting_id = trim((string)($_POST['meeting_id'] ?? ''));
-
-            if (!empty($title) && !empty($scheduled_at) && $wid > 0) {
-                $stmt = $pdo->prepare("
-                    UPDATE webinars 
-                    SET title = :title, description = :desc, scheduled_at = :sched, duration = :dur, meeting_id = :meet
-                    WHERE id = :id AND teacher_id = :tid AND course_id = :cid
-                ");
-                $stmt->execute([
-                    'id' => $wid,
-                    'tid' => $teacherId,
-                    'cid' => $selectedCourse['id'],
-                    'title' => $title,
-                    'desc' => $description ?: null,
-                    'sched' => date('Y-m-d H:i:s', strtotime($scheduled_at)),
-                    'dur' => $duration,
-                    'meet' => $meeting_id
-                ]);
-                header("Location: /teacher/dashboard.php?course_id={$selectedCourse['id']}&success=webinar_updated#tab-webinars"); exit;
-            }
-        }
-
-        // ── W3. Démarrer un webinaire (Live) ────────────────────────────
-        if ($action === 'start_webinar') {
-            $wid = (int)($_POST['webinar_id'] ?? 0);
-            if ($wid > 0) {
-                $stmt = $pdo->prepare("
-                    UPDATE webinars 
-                    SET status = 'live'
-                    WHERE id = :id AND teacher_id = :tid AND course_id = :cid
-                ");
-                $stmt->execute(['id' => $wid, 'tid' => $teacherId, 'cid' => $selectedCourse['id']]);
-                header("Location: /teacher/dashboard.php?course_id={$selectedCourse['id']}&success=webinar_started#tab-webinars"); exit;
-            }
-        }
-
-        // ── W4. Terminer un webinaire ──────────────────────────────────
-        if ($action === 'complete_webinar') {
-            $wid = (int)($_POST['webinar_id'] ?? 0);
-            $recUrl = trim((string)($_POST['recording_url'] ?? ''));
-            if ($wid > 0) {
-                $stmt = $pdo->prepare("
-                    UPDATE webinars 
-                    SET status = 'completed', recording_url = :rec
-                    WHERE id = :id AND teacher_id = :tid AND course_id = :cid
-                ");
-                $stmt->execute([
-                    'id' => $wid,
-                    'tid' => $teacherId,
-                    'cid' => $selectedCourse['id'],
-                    'rec' => $recUrl ?: null
-                ]);
-                header("Location: /teacher/dashboard.php?course_id={$selectedCourse['id']}&success=webinar_completed#tab-webinars"); exit;
-            }
-        }
-
-        // ── W5. Supprimer un webinaire ─────────────────────────────────
-        if ($action === 'delete_webinar') {
-            $wid = (int)($_POST['webinar_id'] ?? 0);
-            if ($wid > 0) {
-                $stmt = $pdo->prepare("
-                    DELETE FROM webinars 
-                    WHERE id = :id AND teacher_id = :tid AND course_id = :cid
-                ");
-                $stmt->execute(['id' => $wid, 'tid' => $teacherId, 'cid' => $selectedCourse['id']]);
-                header("Location: /teacher/dashboard.php?course_id={$selectedCourse['id']}&success=webinar_deleted#tab-webinars"); exit;
-            }
-        }
-
-        // ── W6. Enregistrer Replay ─────────────────────────────────────
-        if ($action === 'save_webinar_replay') {
-            $wid = (int)($_POST['webinar_id'] ?? 0);
-            $recUrl = trim((string)($_POST['recording_url'] ?? ''));
-            if ($wid > 0) {
-                $stmt = $pdo->prepare("
-                    UPDATE webinars 
-                    SET recording_url = :rec
-                    WHERE id = :id AND teacher_id = :tid AND course_id = :cid
-                ");
-                $stmt->execute([
-                    'id' => $wid,
-                    'tid' => $teacherId,
-                    'cid' => $selectedCourse['id'],
-                    'rec' => $recUrl ?: null
-                ]);
-                header("Location: /teacher/dashboard.php?course_id={$selectedCourse['id']}&success=webinar_replay_saved#tab-webinars"); exit;
-            }
-        }
+        // Webinaires actions removed
     }
 
     // ─────────────────────────────────────────────────────────────────────
@@ -956,7 +829,7 @@ try {
     $finalExamQuestionCount = 0;
     $finalQuestions        = [];
     $liveSessions          = [];
-    $myWebinars            = [];
+
     $courseComments        = [];
 
     if ($selectedCourse) {
@@ -1042,16 +915,7 @@ try {
         }
         unset($ls);
 
-        // Charger les webinaires du cours
-        $stmt = $pdo->prepare("
-            SELECT w.*, 
-                   (SELECT COUNT(*) FROM webinar_attendance WHERE webinar_id = w.id) AS participant_count
-            FROM webinars w
-            WHERE w.course_id = :cid AND w.teacher_id = :tid
-            ORDER BY w.scheduled_at DESC
-        ");
-        $stmt->execute(['cid' => $selectedCourse['id'], 'tid' => $teacherId]);
-        $myWebinars = $stmt->fetchAll();
+
 
         // Charger les commentaires globaux du cours
         $stmt = $pdo->prepare("
@@ -1133,12 +997,7 @@ $successMessages = [
     'course_updated'         => '✓ Informations du cours mises à jour.',
     'course_created'         => '✓ Cours créé avec succès. Le promoteur a été informé.',
     'live_all_questions_deleted' => '✓ Toutes les questions de la séance ont été supprimées.',
-    'webinar_added'          => '✓ Webinaire planifié avec succès.',
-    'webinar_updated'        => '✓ Webinaire mis à jour avec succès.',
-    'webinar_started'        => '✓ Le webinaire est maintenant en direct ! Rejoignez la classe.',
-    'webinar_completed'      => '✓ Séance terminée avec succès.',
-    'webinar_deleted'        => '✓ Webinaire supprimé.',
-    'webinar_replay_saved'   => '✓ Lien du replay enregistré avec succès.',
+
 ];
 $successKey = (string)($_GET['success'] ?? '');
 $successMsg = $successMessages[$successKey] ?? null;
@@ -1325,10 +1184,7 @@ $successMsg = $successMessages[$successKey] ?? null;
                             class="sidebar-tab-btn w-full flex items-center gap-3 px-4 py-3 rounded-lg text-left text-sm transition-all duration-200 <?= $selectedCourse ? 'text-white hover:bg-white/10' : 'opacity-40 cursor-not-allowed text-white/40' ?>">
                         Téléévaluations (Live)
                     </button>
-                    <button onclick="switchDashboardTab('tab-webinars'); toggleMobileDrawer();" data-tab-target="tab-webinars" 
-                            class="sidebar-tab-btn w-full flex items-center gap-3 px-4 py-3 rounded-lg text-left text-sm transition-all duration-200 <?= $selectedCourse ? 'text-white hover:bg-white/10' : 'opacity-40 cursor-not-allowed text-white/40' ?>">
-                        Webinaires &amp; Directs
-                    </button>
+
                     <button onclick="switchDashboardTab('tab-grades'); toggleMobileDrawer();" data-tab-target="tab-grades" 
                             class="sidebar-tab-btn w-full flex items-center gap-3 px-4 py-3 rounded-lg text-left text-sm transition-all duration-200 <?= $selectedCourse ? 'text-white hover:bg-white/10' : 'opacity-40 cursor-not-allowed text-white/40' ?>">
                         Notes &amp; Suivi
@@ -1428,11 +1284,7 @@ $successMsg = $successMessages[$successKey] ?? null;
                     Téléévaluations (Live)
                 </button>
 
-                <button onclick="switchDashboardTab('tab-webinars')" data-tab-target="tab-webinars" 
-                        class="sidebar-tab-btn w-full flex items-center gap-3 px-4 py-3 rounded-lg text-left text-sm transition-all duration-200 <?= $selectedCourse ? 'text-white/70 hover:text-white hover:bg-white/10' : 'opacity-40 cursor-not-allowed text-white/40' ?>">
-                    <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 10l4.553-2.276A1 1 0 0121 8.618v6.764a1 1 0 01-1.447.894L15 14M5 18h8a2 2 0 002-2V8a2 2 0 00-2-2H5a2 2 0 00-2 2v8a2 2 0 002 2z"/></svg>
-                    Webinaires &amp; Directs
-                </button>
+
 
                 <button onclick="switchDashboardTab('tab-grades')" data-tab-target="tab-grades" 
                         class="sidebar-tab-btn w-full flex items-center gap-3 px-4 py-3 rounded-lg text-left text-sm transition-all duration-200 <?= $selectedCourse ? 'text-white/70 hover:text-white hover:bg-white/10' : 'opacity-40 cursor-not-allowed text-white/40' ?>">
@@ -1566,18 +1418,13 @@ $successMsg = $successMessages[$successKey] ?? null;
                     $totalEnrolledCount = (int)$pdo->query("SELECT COUNT(*) FROM enrollments WHERE course_id IN ($cidsStr)")->fetchColumn();
                 }
                 
-                // Total webinars
-                $totalWebinarsStmt = $pdo->prepare("SELECT COUNT(*) FROM webinars WHERE teacher_id = :tid");
-                $totalWebinarsStmt->execute(['tid' => $teacherId]);
-                $totalWebinars = (int)$totalWebinarsStmt->fetchColumn();
-
                 // Total live sessions (QuizBox)
                 $totalQuizSessions = 0;
                 if ($allCoursesCount > 0) {
                     $totalQuizSessions = (int)$pdo->query("SELECT COUNT(*) FROM live_eval_sessions WHERE course_id IN ($cidsStr)")->fetchColumn();
                 }
                 ?>
-                <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-6 mt-12 max-w-5xl mx-auto">
+                <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-6 mt-12 max-w-5xl mx-auto">
                     <div class="bg-white/80 dark:bg-[#1E1E1E]/80 backdrop-blur-md border border-[#E5E5E7] dark:border-[#2C2C2C] p-6 rounded-xl shadow-sm flex items-center justify-between">
                         <div>
                             <div class="text-xs font-semibold uppercase tracking-wider text-[#555555] dark:text-[#AAAAAA] mb-1">Total Cours</div>
@@ -1592,13 +1439,7 @@ $successMsg = $successMessages[$successKey] ?? null;
                         </div>
                         <svg class="w-8 h-8 text-[#004B23] dark:text-[#34C759]" fill="none" stroke="currentColor" stroke-width="1.5" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M15 19.128a9.38 9.38 0 002.625.372 9.337 9.337 0 004.121-.952 4.125 4.125 0 00-7.533-2.493M15 19.128v-.003c0-1.113-.285-2.16-.786-3.07M15 19.128v.109A11.386 11.386 0 0110.089 20.5a11.378 11.378 0 01-4.94-1.27v-.1c0-2.22 3.584-3.496 5.894-3.496 2.31 0 5.894 1.27 5.894 3.496m-4.121-6.953A4.125 4.125 0 1111 8a4.125 4.125 0 012.879 4.175m4.746-1.125a3.375 3.375 0 11-3.375-3.375 3.375 3.375 0 013.375 3.375z" /></svg>
                     </div>
-                    <div class="bg-white/80 dark:bg-[#1E1E1E]/80 backdrop-blur-md border border-[#E5E5E7] dark:border-[#2C2C2C] p-6 rounded-xl shadow-sm flex items-center justify-between">
-                        <div>
-                            <div class="text-xs font-semibold uppercase tracking-wider text-[#555555] dark:text-[#AAAAAA] mb-1">Classes Webinaires</div>
-                            <div class="text-3xl font-semibold text-[#111111] dark:text-white"><?= $totalWebinars ?></div>
-                        </div>
-                        <svg class="w-8 h-8 text-[#004B23] dark:text-[#34C759]" fill="none" stroke="currentColor" stroke-width="1.5" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M15 10l4.553-2.276A1 1 0 0121 8.618v6.764a1 1 0 01-1.447.894L15 14M5 18h8a2 2 0 002-2V8a2 2 0 00-2-2H5a2 2 0 00-2 2v8a2 2 0 002 2z" /></svg>
-                    </div>
+
                     <div class="bg-white/80 dark:bg-[#1E1E1E]/80 backdrop-blur-md border border-[#E5E5E7] dark:border-[#2C2C2C] p-6 rounded-xl shadow-sm flex items-center justify-between">
                         <div>
                             <div class="text-xs font-semibold uppercase tracking-wider text-[#555555] dark:text-[#AAAAAA] mb-1">Téléévaluations</div>
@@ -1675,7 +1516,7 @@ $successMsg = $successMessages[$successKey] ?? null;
                 $certificatesCountStmt->execute(['cid' => $selectedCourse['id']]);
                 $certificatesCount = (int)$certificatesCountStmt->fetchColumn();
                 ?>
-                <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-5 gap-6 my-8">
+                <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-6 my-8">
                     <!-- KPI 1: Apprenants -->
                     <div class="bg-white/80 dark:bg-[#1E1E1E]/80 backdrop-blur-md border border-[#E5E5E7] dark:border-[#2C2C2C] p-6 hover:shadow-md transition-all cursor-pointer flex flex-col justify-between rounded-xl shadow-sm" onclick="switchDashboardTab('tab-grades'); switchGradesSubTab('subtab-students');">
                         <div>
@@ -1744,29 +1585,14 @@ $successMsg = $successMessages[$successKey] ?? null;
                         </div>
                     </div>
 
-                    <!-- KPI 5: Webinaires -->
-                    <div class="bg-white/80 dark:bg-[#1E1E1E]/80 backdrop-blur-md border border-[#E5E5E7] dark:border-[#2C2C2C] p-6 hover:shadow-md transition-all cursor-pointer flex flex-col justify-between rounded-xl shadow-sm" onclick="switchDashboardTab('tab-webinars')">
-                        <div>
-                            <div class="flex items-center justify-between mb-4">
-                                <span class="text-xs font-semibold uppercase tracking-wider text-[#555555] dark:text-[#AAAAAA]">Webinaires</span>
-                                <svg class="w-6 h-6 text-[#004B23] dark:text-[#34C759]" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M15 10l4.553-2.276A1 1 0 0121 8.618v6.764a1 1 0 01-1.447.894L15 14M5 18h8a2 2 0 002-2V8a2 2 0 00-2-2H5a2 2 0 00-2 2v8a2 2 0 002 2z" />
-                                </svg>
-                            </div>
-                            <div class="text-3xl font-semibold text-[#111111] dark:text-white mb-2"><?= count($myWebinars); ?></div>
-                            <p class="text-xs text-[#888888] dark:text-[#AAAAAA] font-light">Cours de visioconférence programmés.</p>
-                        </div>
-                        <div class="mt-4 text-xs font-semibold text-[#004B23] dark:text-[#34C759] uppercase tracking-wider flex items-center gap-1">
-                            Gérer <span>→</span>
-                        </div>
-                    </div>
+
                 </div>
 
                 <!-- Info guide box -->
                 <div class="bg-white/85 dark:bg-[#1E1E1E]/85 border border-[#E5E5E7] dark:border-[#2C2C2C] p-8 rounded-xl space-y-4">
                     <h4 class="font-serif text-xl font-light text-[#111111] dark:text-white">Bienvenue dans votre Workspace de Cours</h4>
                     <p class="text-sm font-light text-[#555555] dark:text-[#AAAAAA] leading-relaxed">
-                        Sélectionnez les différents onglets de la barre latérale pour concevoir les modules du cours, planifier vos webinars en direct, lancer des sessions d'évaluation interactives (QuizBox) ou consulter les notes et les progressions détaillées de vos étudiants.
+                        Sélectionnez les différents onglets de la barre latérale pour concevoir les modules du cours, lancer des sessions d'évaluation interactives (QuizBox) ou consulter les notes et les progressions détaillées de vos étudiants.
                     </p>
                 </div>
 
@@ -2492,123 +2318,8 @@ $successMsg = $successMessages[$successKey] ?? null;
                 <?php endif; ?>
             </div>
 
-            <!-- 4. WEBINAIRES (tab-webinars) -->
-            <div id="tab-webinars" class="tab-content hidden space-y-12 animate-fade-in">
-                <div class="flex justify-between items-center mb-6">
-                    <h3 class="font-serif text-2xl font-light text-[#111111]">Webinaires &amp; Cours en Direct</h3>
-                </div>
 
-                <!-- Créer un Webinaire -->
-                <div class="border-b border-[#E5E5E7] pb-6 bg-white p-6 border border-[#E5E5E7] rounded-sm">
-                    <button onclick="toggleAccordion('add-webinar-form')" class="px-4 py-2 bg-[#004B23] text-white text-xs font-semibold uppercase tracking-wider rounded-sm hover:bg-[#003d1c] transition-colors flex items-center gap-2">
-                        <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 4v16m8-8H4"/></svg>
-                        Planifier un nouveau Webinaire
-                    </button>
 
-                    <form id="add-webinar-form" method="POST" action="/teacher/dashboard.php?course_id=<?= $selectedCourse['id'] ?>&action=add_webinar" class="hidden mt-4 p-5 bg-[#F5F5F7] border border-[#E5E5E7] rounded-sm space-y-4">
-                        <?= csrfInput(); ?>
-                        <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
-                            <div>
-                                <label class="block text-xs font-semibold text-[#555555] uppercase tracking-wider mb-2">Titre du Webinaire</label>
-                                <input type="text" name="title" required placeholder="Ex: Séance de révision / TD" class="w-full px-3 py-2 border border-[#E5E5E7] rounded-sm focus:outline-none focus:border-[#004B23] text-sm bg-white">
-                            </div>
-                            <div>
-                                <label class="block text-xs font-semibold text-[#555555] uppercase tracking-wider mb-2">Salle Jitsi (Nom unique)</label>
-                                <input type="text" name="meeting_id" required value="StudyVibe_Room_<?= uniqid() ?>" class="w-full px-3 py-2 border border-[#E5E5E7] rounded-sm focus:outline-none focus:border-[#004B23] text-sm bg-white font-mono">
-                            </div>
-                        </div>
-                        <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
-                            <div>
-                                <label class="block text-xs font-semibold text-[#555555] uppercase tracking-wider mb-2">Date &amp; Heure de début</label>
-                                <input type="datetime-local" name="scheduled_at" required class="w-full px-3 py-2 border border-[#E5E5E7] rounded-sm focus:outline-none focus:border-[#004B23] text-sm bg-white">
-                            </div>
-                            <div>
-                                <label class="block text-xs font-semibold text-[#555555] uppercase tracking-wider mb-2">Durée estimée (minutes)</label>
-                                <input type="number" name="duration" required value="60" min="15" class="w-full px-3 py-2 border border-[#E5E5E7] rounded-sm focus:outline-none focus:border-[#004B23] text-sm bg-white">
-                            </div>
-                        </div>
-                        <div>
-                            <label class="block text-xs font-semibold text-[#555555] uppercase tracking-wider mb-2">Description / Consignes</label>
-                            <textarea name="description" rows="3" placeholder="Description de la séance..." class="w-full px-3 py-2 border border-[#E5E5E7] rounded-sm focus:outline-none focus:border-[#004B23] text-sm bg-white"></textarea>
-                        </div>
-                        <div class="flex justify-end gap-3 pt-2">
-                            <button type="button" onclick="toggleAccordion('add-webinar-form')" class="px-4 py-2 border border-[#E5E5E7] text-xs font-semibold uppercase tracking-wider rounded-sm text-[#555555] hover:bg-gray-50 bg-white">Annuler</button>
-                            <button type="submit" class="px-4 py-2 bg-[#111111] text-white text-xs font-semibold uppercase tracking-wider rounded-sm hover:bg-black">Planifier</button>
-                        </div>
-                    </form>
-                </div>
-
-                <!-- Liste des Webinaires -->
-                <h4 class="text-xs font-semibold text-[#555555] uppercase tracking-wider mb-4">Webinaires programmés &amp; Replays</h4>
-                
-                <?php if (empty($myWebinars)): ?>
-                    <div class="p-8 text-center border border-[#E5E5E7] text-[#888888] text-sm bg-white rounded-sm">
-                        Aucun webinaire planifié pour le moment.
-                    </div>
-                <?php else: ?>
-                    <div class="space-y-6">
-                        <?php foreach ($myWebinars as $web): 
-                            $dateWeb = date('d/m/Y H:i', strtotime($web['scheduled_at']));
-                            $isFinished = $web['status'] === 'completed';
-                        ?>
-                            <div class="border border-[#E5E5E7] p-6 rounded-sm bg-white space-y-4 hover:shadow-md transition-shadow">
-                                <div class="flex flex-wrap justify-between items-start gap-4">
-                                    <div>
-                                        <h5 class="font-semibold text-lg text-[#111111]"><?= htmlspecialchars($web['title']) ?></h5>
-                                        <p class="text-xs text-[#555555] mt-1">
-                                            Planifié le : <strong><?= $dateWeb ?></strong> (<?= $web['duration'] ?> minutes)
-                                        </p>
-                                        <?php if (!empty($web['description'])): ?>
-                                            <p class="text-xs text-[#888888] font-light mt-2 max-w-2xl leading-relaxed"><?= htmlspecialchars($web['description']) ?></p>
-                                        <?php endif; ?>
-                                    </div>
-
-                                    <div class="flex items-center gap-3">
-                                        <?php if ($isFinished): ?>
-                                            <span class="px-2.5 py-1 text-[10px] font-semibold bg-gray-100 border border-gray-200 text-gray-600 rounded-full">Terminé</span>
-                                        <?php else: ?>
-                                            <a href="/webinar.php?id=<?= $web['id'] ?>" target="_blank" class="px-3 py-1.5 bg-[#004B23] text-white text-[11px] font-semibold uppercase tracking-wider rounded-sm hover:bg-[#003d1c] flex items-center gap-1.5">
-                                                Démarrer la visioconférence
-                                            </a>
-                                            <button type="button" onclick="openCompleteWebinarModal(<?= $web['id'] ?>)" class="px-3 py-1.5 border border-[#004B23] text-[#004B23] text-[11px] font-semibold uppercase tracking-wider rounded-sm hover:bg-[#EAF2EC]">
-                                                Terminer
-                                            </button>
-                                        <?php endif; ?>
-
-                                        <!-- Actions complémentaires -->
-                                        <button onclick='openEditWebinarModal(<?= json_encode($web, JSON_HEX_APOS | JSON_HEX_QUOT) ?>)' class="p-1.5 border border-[#E5E5E7] text-[#111111] rounded-sm hover:bg-gray-50" title="Éditer le webinaire">
-                                            <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15.232 5.232l3.536 3.536m-2.036-5.036a2.5 2.5 0 113.536 3.536L6.5 21.036H3v-3.572L16.732 3.732z"/></svg>
-                                        </button>
-
-                                        <form method="POST" action="/teacher/dashboard.php?course_id=<?= $selectedCourse['id'] ?>&action=delete_webinar" onsubmit="return confirm('Supprimer ce webinaire ?');">
-                                            <?= csrfInput(); ?>
-                                            <input type="hidden" name="webinar_id" value="<?= $web['id'] ?>">
-                                            <button type="submit" class="p-1.5 border border-red-200 text-red-600 rounded-sm hover:bg-red-50" title="Supprimer le webinaire">
-                                                <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16"/></svg>
-                                            </button>
-                                        </form>
-                                    </div>
-                                </div>
-
-                                <!-- Section Replay / Enregistrement -->
-                                <div class="bg-[#F5F5F7] p-4 rounded-sm border border-[#E5E5E7] flex flex-wrap justify-between items-center gap-4 text-xs">
-                                    <div>
-                                        <span class="font-semibold text-[#555555]">Lien du Replay / Enregistrement :</span>
-                                        <?php if (!empty($web['recording_url'])): ?>
-                                            <a href="<?= htmlspecialchars($web['recording_url']) ?>" target="_blank" class="font-mono text-[#004B23] hover:underline ml-2 break-all"><?= htmlspecialchars($web['recording_url']) ?></a>
-                                        <?php else: ?>
-                                            <span class="text-gray-400 italic ml-2">Aucun enregistrement spécifié</span>
-                                        <?php endif; ?>
-                                    </div>
-                                    <button onclick="openSaveReplayModal(<?= $web['id'] ?>, '<?= htmlspecialchars($web['recording_url'] ?? '', ENT_QUOTES, 'UTF-8') ?>')" class="px-3 py-1 bg-white border border-[#E5E5E7] text-[10px] font-semibold uppercase tracking-wider rounded-sm hover:bg-gray-50 transition-colors">
-                                        <?= !empty($web['recording_url']) ? 'Modifier le lien' : 'Ajouter un replay' ?>
-                                    </button>
-                                </div>
-                            </div>
-                        <?php endforeach; ?>
-                    </div>
-                <?php endif; ?>
-            </div>
 
             <!-- 5. NOTES & SUIVI (tab-grades) -->
             <div id="tab-grades" class="tab-content hidden space-y-12 animate-fade-in">

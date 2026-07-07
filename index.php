@@ -350,11 +350,11 @@ if (isLoggedIn()) {
             </div>
             <div class="sv-glass-card" style="padding:2rem; display:flex; gap:1.5rem; align-items:flex-start; background:var(--sv-cream-light);">
                 <div style="background:rgba(201,168,76,0.08); color:#C9A84C; width:50px; height:50px; border-radius:12px; display:flex; align-items:center; justify-content:center; flex-shrink:0;">
-                    <svg class="w-6 h-6" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24" style="width: 24px; height: 24px;"><path stroke-linecap="round" stroke-linejoin="round" d="M13 10V3L4 14h7v7l9-11h-7z"/></svg>
+                    <svg class="w-6 h-6" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24" style="width: 24px; height: 24px;"><path stroke-linecap="round" stroke-linejoin="round" d="M9.663 17h4.673M12 3v1m6.364 1.636l-.707.707M21 12h-1M4 12H3m3.343-5.657l-.707-.707m2.828 9.9a5 5 0 117.072 0l-.548.547A3.374 3.374 0 0014 18.469V19a2 2 0 11-4 0v-.531c0-.895-.356-1.754-.988-2.386l-.548-.547z"/></svg>
                 </div>
                 <div>
-                    <h3 style="font-family:'Plus Jakarta Sans',sans-serif; font-size:1.125rem; font-weight:600; color:var(--sv-text);">Synchronisation Active</h3>
-                    <p style="font-size:0.8125rem; color:var(--sv-text-muted); margin-top:0.35rem; line-height:1.5; font-weight:300;">Des webinaires et télé-évaluations en temps réel pour dynamiser l'échange entre étudiants et enseignants.</p>
+                    <h3 style="font-family:'Plus Jakarta Sans',sans-serif; font-size:1.125rem; font-weight:600; color:var(--sv-text);">Compagnon IA Interactif</h3>
+                    <p style="font-size:0.8125rem; color:var(--sv-text-muted); margin-top:0.35rem; line-height:1.5; font-weight:300;">Un assistant virtuel disponible 24h/24 pour synthétiser vos leçons, répondre à vos questions et générer des quiz sur-mesure.</p>
                 </div>
             </div>
             <div class="sv-glass-card" style="padding:2rem; display:flex; gap:1.5rem; align-items:flex-start; background:var(--sv-cream-light);">
@@ -523,52 +523,71 @@ if (isLoggedIn()) {
                 </div>
             </div>
 
-            <!-- Panel 3: Virtual Classroom Preview -->
+            <!-- Panel 3: Teacher Dashboard Preview -->
             <div class="sv-showdown-panel">
                 <div class="sv-preview-header">
                     <div class="sv-preview-dot" style="background:#FF5F56;"></div>
                     <div class="sv-preview-dot" style="background:#FFBD2E;"></div>
                     <div class="sv-preview-dot" style="background:#27C93F;"></div>
-                    <div class="sv-preview-address">https://app.studyvibe.edu/webinar?id=42</div>
+                    <div class="sv-preview-address">https://app.studyvibe.edu/teacher/dashboard</div>
                 </div>
                 <div style="display:grid; grid-template-columns:1fr 260px; min-height:480px; font-family:'Inter', sans-serif;">
-                    <!-- Left: Stream Area -->
-                    <div style="background:#0b0c10; padding:1.5rem; display:flex; flex-direction:column; justify-content:space-between; position:relative;">
+                    <!-- Left: Main Workspace -->
+                    <div style="background:#FAF9F6; padding:2rem; display:flex; flex-direction:column; gap:1.5rem; justify-content:flex-start;">
                         <div style="display:flex; justify-content:space-between; align-items:center;">
-                            <span style="background:#EF4444; color:#fff; font-size:0.55rem; font-weight:800; padding:0.2rem 0.4rem; border-radius:4px;">LIVE EN COURS</span>
-                            <span style="font-size:0.625rem; color:#fff; opacity:0.8;">142 participants</span>
-                        </div>
-                        <div style="text-align:center; color:#fff; padding:3rem 1rem;">
-                            <h4 style="font-size:1.375rem; font-family:'Plus Jakarta Sans',sans-serif; font-weight:500;">Thermodynamique des systèmes complexes</h4>
-                            <p style="font-size:0.75rem; opacity:0.6; margin-top:0.25rem;">Dr. Martin · Faculté des Sciences Appliquées</p>
-                        </div>
-                        <div style="display:flex; gap:0.75rem; justify-content:center; padding-top:1rem; border-top:1px solid rgba(255,255,255,0.1);">
-                            <span style="width:28px; height:28px; border-radius:50%; background:rgba(255,255,255,0.1); display:flex; align-items:center; justify-content:center; font-size:0.75rem; color:#fff;">🎤</span>
-                            <span style="width:28px; height:28px; border-radius:50%; background:rgba(255,255,255,0.1); display:flex; align-items:center; justify-content:center; font-size:0.75rem; color:#fff;">📷</span>
-                            <span style="width:28px; height:28px; border-radius:50%; background:rgba(255,255,255,0.1); display:flex; align-items:center; justify-content:center; font-size:0.75rem; color:#fff;">🖥️</span>
-                        </div>
-                        <!-- floating teacher webcam -->
-                        <div style="position:absolute; bottom:4.5rem; right:1.5rem; width:80px; height:60px; background:rgba(255,255,255,0.15); backdrop-filter:blur(4px); border:1px solid rgba(255,255,255,0.25); border-radius:4px; display:flex; align-items:center; justify-content:center; font-size:0.5rem; color:#fff;">Prof Cam</div>
-                    </div>
-                    <!-- Right: Q&A panel -->
-                    <div style="border-left:1px solid rgba(0,0,0,0.06); padding:1.25rem; display:flex; flex-direction:column; gap:1rem;">
-                        <div style="font-weight:700; font-size:0.8125rem; color:var(--sv-text); border-bottom:1px solid rgba(0,0,0,0.06); padding-bottom:0.5rem;">Questions Q&A</div>
-                        <div style="display:flex; flex-direction:column; gap:0.6rem; flex:1; overflow:hidden;">
-                            <div style="background:rgba(0,0,0,0.015); border:1px solid rgba(0,0,0,0.04); padding:0.6rem; border-radius:6px;">
-                                <div style="display:flex; justify-content:space-between; font-size:0.55rem; color:var(--sv-text-muted);">
-                                    <strong>Sara L.</strong>
-                                    <span>il y a 2m</span>
-                                </div>
-                                <div style="font-size:0.6875rem; color:var(--sv-text); margin-top:0.2rem;">Pouvez-vous réexpliquer la loi de Carnot ?</div>
-                                <div style="text-align:right; font-size:0.55rem; color:#004B23; font-weight:700; margin-top:0.25rem;">▲ 12 votes</div>
+                            <div>
+                                <span class="sv-badge sv-badge-accent" style="font-size:0.625rem; font-weight:700; border-radius:12px;">ESPACE ENSEIGNANT</span>
+                                <h4 style="font-size:1.25rem; font-family:'Plus Jakarta Sans',sans-serif; font-weight:500; margin-top:0.25rem; color:var(--sv-text);">Suivi de la cohorte : Algorithmique</h4>
                             </div>
-                            <div style="background:rgba(0,75,35,0.02); border:1px solid rgba(0,75,35,0.08); border-left:3px solid #004B23; padding:0.6rem; border-radius:6px;">
-                                <div style="display:flex; justify-content:space-between; font-size:0.55rem; color:var(--sv-text-muted);">
-                                    <strong>Marc O.</strong>
-                                    <span>il y a 5m</span>
-                                </div>
-                                <div style="font-size:0.6875rem; color:var(--sv-text); margin-top:0.2rem;">Est-ce que l'évaluation finale portera sur ce chapitre ?</div>
-                                <div style="text-align:right; font-size:0.55rem; color:#004B23; font-weight:700; margin-top:0.25rem;">✓ Répondu live</div>
+                            <span class="sv-badge" style="border-radius:12px; font-weight:600; background:#fff;">24 Apprenants</span>
+                        </div>
+                        
+                        <!-- KPIs -->
+                        <div style="display:grid; grid-template-columns:1fr 1fr 1fr; gap:1rem;">
+                            <div style="background:#fff; border:1px solid rgba(0,0,0,0.06); padding:1rem; border-radius:8px;">
+                                <div style="font-size:0.6875rem; color:var(--sv-text-muted); font-weight:700; uppercase">MOYENNE</div>
+                                <div style="font-size:1.5rem; font-family:'Plus Jakarta Sans',sans-serif; font-weight:700; color:#004B23; margin-top:0.25rem;">14.2<span style="font-size:0.875rem;">/20</span></div>
+                            </div>
+                            <div style="background:#fff; border:1px solid rgba(0,0,0,0.06); padding:1rem; border-radius:8px;">
+                                <div style="font-size:0.6875rem; color:var(--sv-text-muted); font-weight:700; uppercase">PROGRESSION</div>
+                                <div style="font-size:1.5rem; font-family:'Plus Jakarta Sans',sans-serif; font-weight:700; color:#004B23; margin-top:0.25rem;">78.5%</div>
+                            </div>
+                            <div style="background:#fff; border:1px solid rgba(0,0,0,0.06); padding:1rem; border-radius:8px;">
+                                <div style="font-size:0.6875rem; color:var(--sv-text-muted); font-weight:700; uppercase">CERTIFIÉS</div>
+                                <div style="font-size:1.5rem; font-family:'Plus Jakarta Sans',sans-serif; font-weight:700; color:#C9A84C; margin-top:0.25rem;">16<span style="font-size:0.875rem;"> / 24</span></div>
+                            </div>
+                        </div>
+
+                        <!-- Class Progress list mockup -->
+                        <div style="background:#fff; border:1px solid rgba(0,0,0,0.06); border-radius:8px; padding:1.25rem; display:flex; flex-direction:column; gap:0.75rem;">
+                            <div style="font-size:0.75rem; font-weight:700; color:var(--sv-text); border-bottom:1px solid rgba(0,0,0,0.06); padding-bottom:0.5rem;">Activité récente des apprenants</div>
+                            <div style="display:flex; justify-content:space-between; align-items:center; font-size:0.75rem;">
+                                <span style="font-weight:600;">Sophie V.</span>
+                                <span style="color:var(--sv-text-muted);">A complété la leçon : Graphes connexes</span>
+                                <span style="background:rgba(0,75,35,0.08); color:#004B23; padding:0.15rem 0.4rem; border-radius:4px; font-weight:700; font-size:0.625rem;">A l'instant</span>
+                            </div>
+                            <div style="display:flex; justify-content:space-between; align-items:center; font-size:0.75rem; border-top:1px solid rgba(0,0,0,0.04); padding-top:0.5rem;">
+                                <span style="font-weight:600;">Arthur D.</span>
+                                <span style="color:var(--sv-text-muted);">A obtenu 16.5/20 au QCM Chapitre 2</span>
+                                <span style="color:var(--sv-text-muted); font-size:0.625rem;">Il y a 10m</span>
+                            </div>
+                        </div>
+                    </div>
+                    <!-- Right: Quick actions panel -->
+                    <div style="border-left:1px solid rgba(0,0,0,0.06); background:#fff; padding:1.5rem; display:flex; flex-direction:column; gap:1.25rem;">
+                        <div style="font-weight:700; font-size:0.8125rem; color:var(--sv-text); border-bottom:1px solid rgba(0,0,0,0.06); padding-bottom:0.5rem;">Gestion de Cours</div>
+                        <div style="display:flex; flex-direction:column; gap:0.75rem; flex:1;">
+                            <div style="padding:0.75rem 1rem; border:1px solid rgba(0,0,0,0.08); border-radius:6px; font-size:0.75rem; font-weight:600; text-align:center; background:#fafafa; cursor:pointer;">
+                                ➕ Ajouter un Chapitre
+                            </div>
+                            <div style="padding:0.75rem 1rem; border:1px solid rgba(0,0,0,0.08); border-radius:6px; font-size:0.75rem; font-weight:600; text-align:center; background:#fafafa; cursor:pointer;">
+                                📝 Créer une Évaluation
+                            </div>
+                            <div style="padding:0.75rem 1rem; border:1px solid #004B23; color:#004B23; background:rgba(0,75,35,0.02); border-radius:6px; font-size:0.75rem; font-weight:700; text-align:center; cursor:pointer;">
+                                ⚡ Évaluation en Direct
+                            </div>
+                            <div style="padding:0.75rem 1rem; border:1px solid rgba(0,0,0,0.08); border-radius:6px; font-size:0.75rem; font-weight:600; text-align:center; background:#fafafa; cursor:pointer; margin-top:auto;">
+                                📥 Exporter les Notes (PDF)
                             </div>
                         </div>
                     </div>
@@ -721,61 +740,59 @@ if (isLoggedIn()) {
 <div class="sv-divider"></div>
 
 <!-- =========================================================================
-     SECTION 11: WEBINAR PREVIEW STORY PANEL
+     SECTION 11: AI PEDAGOGICAL COMPANION SHOWCASE
      ========================================================================= -->
-<section class="sv-section" id="webinaires-direct" style="background:#fff;">
+<section class="sv-section" id="assistant-ia-section" style="background:#fff;">
     <div class="sv-container sv-comment-grid" style="display:grid; grid-template-columns:1fr 1fr; gap:4rem; align-items:center;">
         <div>
-            <div class="sv-eyebrow">Classe Virtuelle</div>
-            <h2 class="sv-section-title">Webinaires immersifs.<br>Interagissez en temps réel.</h2>
-            <p class="sv-section-sub">Regardez les leçons en direct, posez vos questions à l'enseignant via le chat et participez aux évaluations live interactives avec vos camarades.</p>
+            <div class="sv-eyebrow">Compagnon d'Étude IA</div>
+            <h2 class="sv-section-title">Un tuteur personnel.<br>Disponible 24h/24, 7j/7.</h2>
+            <p class="sv-section-sub">Étudiez plus intelligemment. Notre compagnon pédagogique basé sur l'IA est intégré directement dans votre espace de lecture pour lever tous vos doutes instantanément.</p>
             
             <div style="display:flex; flex-direction:column; gap:1.25rem; margin-top:2rem;">
                 <div style="display:flex; gap:0.75rem; align-items:flex-start;">
                     <div style="width:24px; height:24px; border-radius:50%; background:rgba(0,75,35,0.08); display:flex; align-items:center; justify-content:center; flex-shrink:0; font-size:0.75rem; color:#004B23;">✓</div>
                     <div>
-                        <strong style="font-size:0.875rem; color:var(--sv-text);">Intégration Jitsi Meet native</strong>
-                        <p style="font-size:0.75rem; color:var(--sv-text-muted); margin-top:0.15rem; font-weight:300;">Rejoignez les visioconférences en un clic, directement depuis la leçon.</p>
+                        <strong style="font-size:0.875rem; color:var(--sv-text);">Synthèse de documents de cours</strong>
+                        <p style="font-size:0.75rem; color:var(--sv-text-muted); margin-top:0.15rem; font-weight:300;">Importez vos cours PDF et demandez à l'IA d'extraire les notions clés et les définitions fondamentales.</p>
                     </div>
                 </div>
                 <div style="display:flex; gap:0.75rem; align-items:flex-start;">
                     <div style="width:24px; height:24px; border-radius:50%; background:rgba(0,75,35,0.08); display:flex; align-items:center; justify-content:center; flex-shrink:0; font-size:0.75rem; color:#004B23;">✓</div>
                     <div>
-                        <strong style="font-size:0.875rem; color:var(--sv-text);">Évaluations en temps réel</strong>
-                        <p style="font-size:0.75rem; color:var(--sv-text-muted); margin-top:0.15rem; font-weight:300;">Les enseignants lancent des questionnaires interactifs en direct pour vérifier l'acquisition des notions.</p>
+                        <strong style="font-size:0.875rem; color:var(--sv-text);">Génération de quiz d'entraînement</strong>
+                        <p style="font-size:0.75rem; color:var(--sv-text-muted); margin-top:0.15rem; font-weight:300;">L'IA conçoit des questions d'entraînement adaptées à vos faiblesses pour ancrer durablement vos connaissances.</p>
                     </div>
                 </div>
             </div>
         </div>
         
         <!-- Browser Mockup -->
-        <div class="sv-preview-browser" id="webinar-mockup">
+        <div class="sv-preview-browser" id="ia-companion-mockup">
             <div class="sv-preview-header">
                 <div class="sv-preview-dot" style="background:#FF5F56;"></div>
                 <div class="sv-preview-dot" style="background:#FFBD2E;"></div>
                 <div class="sv-preview-dot" style="background:#27C93F;"></div>
-                <div class="sv-preview-address">https://app.studyvibe.edu/live-evaluation</div>
+                <div class="sv-preview-address">https://app.studyvibe.edu/student/dashboard#assistant-ia</div>
             </div>
-            <div style="position:relative; aspect-ratio:16/9; background:#000; overflow:hidden; display:flex; align-items:center; justify-content:center;">
-                <!-- Dummy Video Background / Presentation slide -->
-                <div style="text-align:center; padding:2rem; color:#fff; font-family:'Plus Jakarta Sans',sans-serif;">
-                    <span style="background:#D32F2F; color:#fff; font-size:0.625rem; font-weight:800; padding:0.25rem 0.5rem; border-radius:4px; letter-spacing:0.05em; vertical-align:middle;">EN DIRECT</span>
-                    <h4 style="font-size:1.25rem; font-weight:500; margin-top:0.5rem;">Dr. Martin - Cours de Mathématiques Appliquées</h4>
-                    <p style="font-size:0.75rem; color:rgba(255,255,255,0.7); margin-top:0.25rem;">Sujet : Résolution géométrique par homothétie</p>
-                </div>
-                
-                <!-- Floating Teacher Camera Overlay -->
-                <div style="position:absolute; bottom:1rem; right:1rem; width:100px; height:75px; background:rgba(255,255,255,0.15); backdrop-filter:blur(4px); border:1px solid rgba(255,255,255,0.25); border-radius:6px; display:flex; align-items:center; justify-content:center;">
-                    <div style="font-size:0.55rem; color:#fff; font-weight:600;">Caméra Prof</div>
-                </div>
-                
-                <!-- Collaborative Quiz Popup Overlay -->
-                <div style="position:absolute; top:1rem; left:1rem; right:1rem; background:rgba(255,255,255,0.92); border-radius:8px; padding:0.75rem 1rem; border:1px solid rgba(0,75,35,0.12); box-shadow:0 8px 24px rgba(0,0,0,0.15); display:flex; flex-direction:column; gap:0.35rem; font-family:'Inter', sans-serif;">
-                    <div style="font-size:0.6875rem; font-weight:700; color:#004B23;">QUESTION LIVE EN COURS</div>
-                    <div style="font-size:0.75rem; font-weight:600; color:var(--sv-text);">Quelle est la matrice associée à une rotation d'angle π/2 ?</div>
-                    <div style="display:flex; gap:0.5rem; margin-top:0.25rem;">
-                        <span style="font-size:0.625rem; font-weight:600; background:#004B23; color:#fff; padding:0.2rem 0.5rem; border-radius:4px;">A: R(θ)</span>
-                        <span style="font-size:0.625rem; font-weight:600; background:rgba(0,0,0,0.05); color:var(--sv-text-muted); padding:0.2rem 0.5rem; border-radius:4px;">B: M(x, y)</span>
+            <div style="position:relative; aspect-ratio:16/9; background:#efeae2; overflow:hidden; display:flex; flex-direction:column; padding:1rem; font-family:'Inter', sans-serif;">
+                <!-- Chat Window Container -->
+                <div style="display:flex; flex-direction:column; gap:0.75rem; flex:1; overflow-y:auto; font-size:0.75rem;">
+                    <!-- AI message -->
+                    <div style="align-self:flex-start; background:#fff; padding:0.6rem 0.8rem; border-radius:8px 8px 8px 0px; max-width:80%; box-shadow:0 1px 1px rgba(0,0,0,0.08); line-height:1.4;">
+                        Bonjour ! Je suis votre compagnon d'étude IA. De quoi souhaitez-vous discuter aujourd'hui ?
+                    </div>
+                    <!-- Student message -->
+                    <div style="align-self:flex-end; background:#d9fdd3; padding:0.6rem 0.8rem; border-radius:8px 8px 0px 8px; max-width:80%; box-shadow:0 1px 1px rgba(0,0,0,0.08); line-height:1.4;">
+                        Peux-tu m'expliquer simplement le principe d'une matrice symétrique ?
+                    </div>
+                    <!-- AI response -->
+                    <div style="align-self:flex-start; background:#fff; padding:0.6rem 0.8rem; border-radius:8px 8px 8px 0px; max-width:85%; box-shadow:0 1px 1px rgba(0,0,0,0.08); line-height:1.4;">
+                        Une <strong>matrice symétrique</strong> est une matrice carrée égale à sa transposée (A = Aᵀ). Les coefficients sont symétriques par rapport à la diagonale principale.
+                        <div style="display:flex; gap:0.5rem; margin-top:0.5rem;">
+                            <span style="font-size:0.625rem; font-weight:600; background:#004B23; color:#fff; padding:0.2rem 0.5rem; border-radius:4px; cursor:pointer;">📝 Lancer un mini-quiz</span>
+                            <span style="font-size:0.625rem; font-weight:600; background:rgba(0,0,0,0.05); color:var(--sv-text-muted); padding:0.2rem 0.5rem; border-radius:4px; cursor:pointer;">📖 Résumer la leçon</span>
+                        </div>
                     </div>
                 </div>
             </div>
@@ -913,10 +930,10 @@ if (isLoggedIn()) {
             ease: "power2.out"
         });
 
-        // 6. ScrollTrigger Webinars Mockup (Section C)
-        gsap.from("#webinaires-direct #webinar-mockup", {
+        // 6. ScrollTrigger AI Companion Mockup (Section C)
+        gsap.from("#assistant-ia-section #ia-companion-mockup", {
             scrollTrigger: {
-                trigger: "#webinaires-direct",
+                trigger: "#assistant-ia-section",
                 start: "top 80%",
                 toggleActions: "play none none none"
             },

@@ -18,7 +18,7 @@ class Notifications
      * 
      * @param PDO         $pdo      Database connection instance.
      * @param int         $userId   The target user primary key.
-     * @param string      $type     The alert category (e.g. 'exam', 'webinar', 'general').
+     * @param string      $type     The alert category (e.g. 'exam', 'general').
      * @param string      $title    Short header description of the notification.
      * @param string      $body     Complete notification description/body.
      * @param string|null $link     Optional redirect action path.
