@@ -144,7 +144,21 @@ class Database
                 } catch (PDOException $ex) {}
             }
 
-
+            // Migration 2.7: Support binary storage backups for course cover images and lesson PDFs
+            try {
+                self::$instance->query("SELECT cover_image_data FROM courses LIMIT 1");
+            } catch (PDOException $e) {
+                try {
+                    self::$instance->exec("ALTER TABLE `courses` ADD COLUMN `cover_image_data` MEDIUMBLOB DEFAULT NULL");
+                } catch (PDOException $ex) {}
+            }
+            try {
+                self::$instance->query("SELECT pdf_data FROM lessons LIMIT 1");
+            } catch (PDOException $e) {
+                try {
+                    self::$instance->exec("ALTER TABLE `lessons` ADD COLUMN `pdf_data` MEDIUMBLOB DEFAULT NULL");
+                } catch (PDOException $ex) {}
+            }
         }
         
         return self::$instance;

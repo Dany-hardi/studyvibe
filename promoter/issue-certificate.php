@@ -19,9 +19,9 @@ if ($_SERVER['REQUEST_METHOD'] !== 'POST') {
 
 // requireCsrf();
 $studentId = (int)($_POST['student_id'] ?? 0);
-$moduleId  = (int)($_POST['module_id'] ?? 0);
+$courseId  = (int)($_POST['course_id'] ?? 0);
 
-if ($studentId <= 0 || $moduleId <= 0) {
+if ($studentId <= 0 || $courseId <= 0) {
     echo json_encode(['success' => false, 'message' => 'Paramètres invalides.']);
     exit;
 }
@@ -37,34 +37,35 @@ try {
         exit;
     }
 
-    $stmt = $pdo->prepare("SELECT id, title FROM modules WHERE id = :id");
-    $stmt->execute(['id' => $moduleId]);
-    $module = $stmt->fetch();
-    if (!$module) {
-        echo json_encode(['success' => false, 'message' => 'Module introuvable.']);
+    $stmt = $pdo->prepare("SELECT id, title, module_id FROM courses WHERE id = :id");
+    $stmt->execute(['id' => $courseId]);
+    $course = $stmt->fetch();
+    if (!$course) {
+        echo json_encode(['success' => false, 'message' => 'Cours introuvable.']);
         exit;
     }
+    $moduleId = (int)$course['module_id'];
 
-    $stmt = $pdo->prepare("SELECT id, certificate_code FROM certificates WHERE student_id = :sid AND module_id = :mid");
-    $stmt->execute(['sid' => $studentId, 'mid' => $moduleId]);
+    $stmt = $pdo->prepare("SELECT id, certificate_code FROM certificates WHERE student_id = :sid AND course_id = :cid");
+    $stmt->execute(['sid' => $studentId, 'cid' => $courseId]);
     $existing = $stmt->fetch();
 
     if ($existing) {
-        echo json_encode(['success' => false, 'message' => 'Un certificat existe déjà pour cet étudiant et ce module.']);
+        echo json_encode(['success' => false, 'message' => 'Un certificat existe déjà pour cet étudiant et ce cours.']);
         exit;
     }
 
-    $certCode = 'SV-' . $moduleId . '-' . strtoupper(substr(md5(uniqid((string)$studentId, true)), 0, 8));
+    $certCode = 'SV-' . $courseId . '-' . strtoupper(substr(md5(uniqid((string)$studentId, true)), 0, 8));
     $promoterId = (int)$_SESSION['user_id'];
 
     $stmt = $pdo->prepare("
-        INSERT INTO certificates (student_id, module_id, certificate_code, manual_issue, issued_by)
-        VALUES (:sid, :mid, :code, 1, :by)
+        INSERT INTO certificates (student_id, course_id, module_id, certificate_code, manual_issue, issued_by)
+        VALUES (:sid, :cid, :mid, :code, 1, :by)
     ");
-    $stmt->execute(['sid' => $studentId, 'mid' => $moduleId, 'code' => $certCode, 'by' => $promoterId]);
+    $stmt->execute(['sid' => $studentId, 'cid' => $courseId, 'mid' => $moduleId, 'code' => $certCode, 'by' => $promoterId]);
 
-    auditLog('certificate_manual', "Student #{$studentId}, Module #{$moduleId}, Code: {$certCode}");
-    Mailer::certification($student['email'], $student['name'], $module['title'], $certCode);
+    auditLog('certificate_manual', "Student #{$studentId}, Course #{$courseId}, Code: {$certCode}");
+    Mailer::certification($student['email'], $student['name'], $course['title'], $certCode);
 
     $pdo->prepare("INSERT IGNORE INTO student_badges (student_id, badge_type) VALUES (:sid, 'certified')")
         ->execute(['sid' => $studentId]);
@@ -73,7 +74,7 @@ try {
         'success'          => true,
         'certificate_code' => $certCode,
         'student_name'     => $student['name'],
-        'module_title'     => $module['title'],
+        'module_title'     => $course['title'],
     ]);
 } catch (PDOException $e) {
     jsonError('Erreur serveur. Veuillez réessayer.', $e, 'issue-certificate.php');

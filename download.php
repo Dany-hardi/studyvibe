@@ -20,42 +20,34 @@ if ($file === '' || !preg_match('/^[a-zA-Z0-9._-]+$/', $file)) {
     exit('Fichier invalide.');
 }
 
-if (!isLoggedIn()) {
-    http_response_code(401);
-    exit('Authentification requise.');
+if ($type !== 'cover') {
+    if (!isLoggedIn()) {
+        http_response_code(401);
+        exit('Authentification requise.');
+    }
+    $userId = (int)$_SESSION['user_id'];
+    $role   = $_SESSION['user_role'];
+} else {
+    $userId = isLoggedIn() ? (int)$_SESSION['user_id'] : 0;
+    $role   = isLoggedIn() ? $_SESSION['user_role'] : '';
 }
-
-$userId = (int)$_SESSION['user_id'];
-$role   = $_SESSION['user_role'];
 
 try {
     $pdo = Database::getInstance();
 
     if ($type === 'pdf') {
         $stmt = $pdo->prepare("
-        SELECT l.id
-        FROM lessons l
-        JOIN chapters ch ON l.chapter_id = ch.id
-        JOIN courses c ON ch.course_id = c.id
-        LEFT JOIN enrollments e ON e.course_id = c.id AND e.student_id = :uid
-        WHERE l.pdf_path = :file
-          AND (
-              :role = 'promoter'
-              OR (:role2 = 'teacher' AND c.teacher_id = :uid2)
-              OR (:role3 = 'student' AND e.id IS NOT NULL)
-          )
-        LIMIT 1
-    ");
-    $stmt->execute([
-        'file'  => $file,
-        'uid'   => $userId,
-        'uid2'  => $userId,
-        'role'  => $role,
-        'role2' => $role,
-        'role3' => $role,
-    ]);        if (!$stmt->fetch()) {
-            http_response_code(403);
-            exit('Accès refusé.');
+            SELECT id
+            FROM lessons
+            WHERE pdf_path = :file
+            LIMIT 1
+        ");
+        $stmt->execute(['file' => $file]);
+        $lesson = $stmt->fetch();
+
+        if (!$lesson) {
+            http_response_code(404);
+            exit('Fichier introuvable.');
         }
 
         $path = __DIR__ . '/uploads/pdfs/' . $file;
@@ -92,6 +84,26 @@ try {
     } else {
         http_response_code(400);
         exit('Type de fichier non supporté.');
+    }
+
+    if (!is_file($path)) {
+        if ($type === 'pdf') {
+            $restoreStmt = $pdo->prepare("SELECT pdf_data FROM lessons WHERE pdf_path = :file AND pdf_data IS NOT NULL LIMIT 1");
+            $restoreStmt->execute(['file' => $file]);
+            $blob = $restoreStmt->fetch();
+            if ($blob && !empty($blob['pdf_data'])) {
+                @mkdir(dirname($path), 0777, true);
+                @file_put_contents($path, $blob['pdf_data']);
+            }
+        } elseif ($type === 'cover') {
+            $restoreStmt = $pdo->prepare("SELECT cover_image_data FROM courses WHERE cover_image = :file AND cover_image_data IS NOT NULL LIMIT 1");
+            $restoreStmt->execute(['file' => $file]);
+            $blob = $restoreStmt->fetch();
+            if ($blob && !empty($blob['cover_image_data'])) {
+                @mkdir(dirname($path), 0777, true);
+                @file_put_contents($path, $blob['cover_image_data']);
+            }
+        }
     }
 
     if (!is_file($path)) {

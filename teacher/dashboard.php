@@ -123,13 +123,18 @@ try {
                 }
             }
 
+            $coverImageData = null;
+            if ($coverImage !== null) {
+                $coverImageData = @file_get_contents($uploadFileDir . $coverImage);
+            }
+
             $stmt = $pdo->prepare("
                 INSERT INTO courses (
                     module_id, teacher_id, created_by, title, description, svg_icon,
-                    enrollment_key, start_date, end_date, eval_deadline, exam_duration_minutes, cover_image
+                    enrollment_key, start_date, end_date, eval_deadline, exam_duration_minutes, cover_image, cover_image_data
                 ) VALUES (
                     :module_id, :teacher_id, :created_by, :title, :description, :svg_icon,
-                    :enrollment_key, :start_date, :end_date, :eval_deadline, :exam_minutes, :cover_image
+                    :enrollment_key, :start_date, :end_date, :eval_deadline, :exam_minutes, :cover_image, :cover_image_data
                 )
             ");
             $stmt->execute([
@@ -145,6 +150,7 @@ try {
                 'eval_deadline'  => $evalDeadline,
                 'exam_minutes'   => $examMinutes,
                 'cover_image'    => $coverImage,
+                'cover_image_data' => $coverImageData,
             ]);
             $newCourseId = (int)$pdo->lastInsertId();
 
@@ -258,18 +264,23 @@ try {
                 $pdfPath = handlePdfUpload($_FILES['lesson_pdf']);
             }
 
+            $pdfData = null;
+            if ($pdfPath !== null) {
+                $pdfData = @file_get_contents(__DIR__ . '/../uploads/pdfs/' . $pdfPath);
+            }
+
             if (!empty($title) && $chapterId > 0) {
                 $stmt = $pdo->prepare("SELECT COALESCE(MAX(sort_order),0) FROM lessons WHERE chapter_id=:cid");
                 $stmt->execute(['cid' => $chapterId]);
                 $maxSort = (int)$stmt->fetchColumn();
 
                 $stmt = $pdo->prepare("
-                    INSERT INTO lessons (chapter_id,title,content_type,text_content,pdf_path,video_url,sort_order,quiz_deadline)
-                    VALUES (:cid,:title,:ct,:tc,:pp,NULL,:so,:qd)
+                    INSERT INTO lessons (chapter_id,title,content_type,text_content,pdf_path,pdf_data,video_url,sort_order,quiz_deadline)
+                    VALUES (:cid,:title,:ct,:tc,:pp,:pd,NULL,:so,:qd)
                 ");
                 $stmt->execute([
                     'cid' => $chapterId, 'title' => $title, 'ct' => $contentType,
-                    'tc'  => $textContent, 'pp' => $pdfPath, 'so' => $maxSort + 1,
+                    'tc'  => $textContent, 'pp' => $pdfPath, 'pd' => $pdfData, 'so' => $maxSort + 1,
                     'qd'  => $quizDeadline,
                 ]);
                 $lessonId = (int)$pdo->lastInsertId();
@@ -306,6 +317,8 @@ try {
                     // Nouveau PDF éventuellement uploadé (quel que soit le type)
                     $newPdf    = null;
                     $finalPdf  = $existingLesson['pdf_path']; // conserver par défaut
+                    $pdfData   = null;
+                    $updatePdfData = false;
 
                     if (!empty($_FILES['lesson_pdf']['name']) && $_FILES['lesson_pdf']['error'] === UPLOAD_ERR_OK) {
                         $uploaded = handlePdfUpload($_FILES['lesson_pdf']);
@@ -315,6 +328,8 @@ try {
                                 @unlink(__DIR__ . '/../uploads/pdfs/' . $finalPdf);
                             }
                             $finalPdf = $uploaded;
+                            $pdfData = @file_get_contents(__DIR__ . '/../uploads/pdfs/' . $finalPdf);
+                            $updatePdfData = true;
                         }
                     } elseif ($deletePdf) {
                         // Suppression explicite du PDF sans remplacement
@@ -322,13 +337,23 @@ try {
                             @unlink(__DIR__ . '/../uploads/pdfs/' . $finalPdf);
                         }
                         $finalPdf = null;
+                        $pdfData = null;
+                        $updatePdfData = true;
                     }
 
-                    $stmt = $pdo->prepare("
-                        UPDATE lessons SET title=:t,content_type=:ct,text_content=:tc,pdf_path=:pp,quiz_deadline=:qd
-                        WHERE id=:id
-                    ");
-                    $stmt->execute(['t'=>$title,'ct'=>$contentType,'tc'=>$textContent,'pp'=>$finalPdf,'qd'=>$quizDeadline,'id'=>$lessonId]);
+                    if ($updatePdfData) {
+                        $stmt = $pdo->prepare("
+                            UPDATE lessons SET title=:t,content_type=:ct,text_content=:tc,pdf_path=:pp,pdf_data=:pd,quiz_deadline=:qd
+                            WHERE id=:id
+                        ");
+                        $stmt->execute(['t'=>$title,'ct'=>$contentType,'tc'=>$textContent,'pp'=>$finalPdf,'pd'=>$pdfData,'qd'=>$quizDeadline,'id'=>$lessonId]);
+                    } else {
+                        $stmt = $pdo->prepare("
+                            UPDATE lessons SET title=:t,content_type=:ct,text_content=:tc,quiz_deadline=:qd
+                            WHERE id=:id
+                        ");
+                        $stmt->execute(['t'=>$title,'ct'=>$contentType,'tc'=>$textContent,'qd'=>$quizDeadline,'id'=>$lessonId]);
+                    }
 
                     // Nouvelles vidéos à ajouter
                     this_processNewVideos($pdo, $lessonId, $_POST);
@@ -450,15 +475,18 @@ try {
                 }
 
                 if ($coverImage) {
+                    $coverImageData = @file_get_contents($uploadFileDir . $coverImage);
                     $stmt = $pdo->prepare("
                         UPDATE courses SET title=:t, description=:d, enrollment_key=:ek,
-                            start_date=:sd, end_date=:ed, eval_deadline=:ev, exam_duration_minutes=:em, cover_image=:ci
+                            start_date=:sd, end_date=:ed, eval_deadline=:ev, exam_duration_minutes=:em,
+                            cover_image=:ci, cover_image_data=:cid
                         WHERE id=:id AND teacher_id=:tid
                     ");
                     $stmt->execute([
                         't'=>$title,'d'=>$description,'ek'=>$enrollKey,
                         'sd'=>$startDate,'ed'=>$endDate,'ev'=>$evalDeadline,'em'=>$examMinutes,
                         'ci'=>$coverImage,
+                        'cid'=>$coverImageData,
                         'id'=>$selectedCourse['id'],'tid'=>$user['id'],
                     ]);
                 } else {
@@ -838,7 +866,7 @@ try {
         $chapters = $stmt->fetchAll();
 
         foreach ($chapters as &$chapter) {
-            $stmt = $pdo->prepare("SELECT * FROM lessons WHERE chapter_id=:cid ORDER BY sort_order ASC,id ASC");
+            $stmt = $pdo->prepare("SELECT id, chapter_id, title, content_type, text_content, pdf_path, video_url, sort_order, quiz_deadline FROM lessons WHERE chapter_id=:cid ORDER BY sort_order ASC,id ASC");
             $stmt->execute(['cid' => $chapter['id']]);
             $chapter['lessons'] = $stmt->fetchAll();
 
@@ -1360,24 +1388,32 @@ $successMsg = $successMessages[$successKey] ?? null;
         <main class="flex-grow p-6 md:p-10 lg:p-12 space-y-10 w-full mx-auto bg-[#FAF9F6] dark:bg-[#121212] transition-colors duration-200">
 
             <?php if ($successMsg): ?>
-                <div class="p-4 bg-[#EAF2EC] border border-[#004B23]/20 dark:bg-[#1D3D25] dark:border-[#34C759]/20 text-[#004B23] dark:text-[#34C759] text-sm font-semibold rounded-lg fade-in">
-                    <?= htmlspecialchars($successMsg); ?>
-                </div>
+                <script>
+                    window.addEventListener('DOMContentLoaded', () => {
+                        if (typeof Toast !== 'undefined') {
+                            Toast.success(<?= json_encode($successMsg) ?>);
+                        }
+                    });
+                </script>
             <?php endif; ?>
 
             <?php
             $errorKey = (string)($_GET['error'] ?? '');
             $errorMessages = [
-                'upload_move_error' => '❌ Échec du déplacement du fichier téléchargé. Veuillez vérifier les droits d\'écriture du dossier uploads/course-covers/.',
-                'upload_size_error' => '❌ L\'image de couverture dépasse la taille maximale autorisée de 3 Mo.',
-                'upload_ext_error'  => '❌ Format d\'image non autorisé. Formats acceptés : JPG, JPEG, PNG, WEBP.',
-                'upload_error'      => '❌ Une erreur est survenue lors du chargement de l\'image de couverture.',
+                'upload_move_error' => 'Échec du déplacement du fichier téléchargé. Veuillez vérifier les droits d\'écriture du dossier uploads/course-covers/.',
+                'upload_size_error' => 'L\'image de couverture dépasse la taille maximale autorisée de 3 Mo.',
+                'upload_ext_error'  => 'Format d\'image non autorisé. Formats acceptés : JPG, JPEG, PNG, WEBP.',
+                'upload_error'      => 'Une erreur est survenue lors du chargement de l\'image de couverture.',
             ];
             $errorMsg = $errorMessages[$errorKey] ?? null;
             if ($errorMsg): ?>
-                <div class="p-4 bg-red-50 border border-red-200 dark:bg-red-950/20 dark:border-red-800/30 text-red-800 dark:text-red-300 text-sm font-semibold rounded-lg fade-in">
-                    <?= htmlspecialchars($errorMsg); ?>
-                </div>
+                <script>
+                    window.addEventListener('DOMContentLoaded', () => {
+                        if (typeof Toast !== 'undefined') {
+                            Toast.error(<?= json_encode($errorMsg) ?>);
+                        }
+                    });
+                </script>
             <?php endif; ?>
 
             <!-- 1. VUE D'ENSEMBLE (tab-overview) -->

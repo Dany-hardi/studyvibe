@@ -383,3 +383,51 @@ function mediaUrl(string $type, string $file): string
     $file = basename($file);
     return '/download.php?type=' . rawurlencode($type) . '&file=' . rawurlencode($file);
 }
+
+/**
+ * Verifies if the student has completed all lessons for a specific course.
+ *
+ * @param int $studentId Student's user ID.
+ * @param int $courseId Course ID.
+ * @return bool True if all lessons in the course are completed (or if the course has no lessons).
+ */
+function hasCompletedAllLessons(int $studentId, int $courseId): bool
+{
+    try {
+        $pdo = Database::getInstance();
+        
+        // Count total lessons in the course
+        $stmt = $pdo->prepare("
+            SELECT COUNT(*) 
+            FROM lessons l
+            JOIN chapters ch ON l.chapter_id = ch.id
+            WHERE ch.course_id = :course_id
+        ");
+        $stmt->execute(['course_id' => $courseId]);
+        $totalLessons = (int)$stmt->fetchColumn();
+        
+        if ($totalLessons === 0) {
+            return true;
+        }
+        
+        // Count completed lessons by this student in this course
+        $stmt = $pdo->prepare("
+            SELECT COUNT(DISTINCT lp.lesson_id)
+            FROM lesson_progress lp
+            JOIN lessons l ON lp.lesson_id = l.id
+            JOIN chapters ch ON l.chapter_id = ch.id
+            WHERE lp.student_id = :student_id 
+              AND ch.course_id = :course_id 
+              AND lp.completed = 1
+        ");
+        $stmt->execute([
+            'student_id' => $studentId,
+            'course_id' => $courseId
+        ]);
+        $completedLessons = (int)$stmt->fetchColumn();
+        
+        return $completedLessons >= $totalLessons;
+    } catch (PDOException $e) {
+        return false;
+    }
+}

@@ -44,10 +44,9 @@ if ($attemptId <= 0) {
 try {
     $pdo  = Database::getInstance();
     $stmt = $pdo->prepare("
-        SELECT ca.*, c.title AS course_title, m.title AS module_title, u.name AS student_name
+        SELECT ca.*, c.title AS course_title, u.name AS student_name
         FROM certification_attempts ca
         JOIN courses c ON c.id = ca.course_id
-        JOIN modules m ON m.id = c.module_id
         JOIN users u ON u.id = ca.student_id
         WHERE ca.id = :id AND ca.student_id = :sid AND ca.passed = 0
     ");
@@ -190,7 +189,6 @@ $approxOk   = $totalQ > 0 ? (int)round(($score / 100) * $totalQ) : null;
             <div class="subtitle">Relevé de tentative de certification</div>
             <h1><?= htmlspecialchars($attempt['course_title']); ?></h1>
             <p class="meta">
-                Module : <strong><?= htmlspecialchars($attempt['module_title']); ?></strong><br>
                 Apprenant : <strong><?= htmlspecialchars($attempt['student_name']); ?></strong><br>
                 Date de la tentative : <strong><?= $dateStr; ?></strong>
             </p>

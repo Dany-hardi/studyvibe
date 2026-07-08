@@ -77,10 +77,10 @@ try {
         exit;
     }
 
-    if ((int)$enrollment['progress_percent'] < 100) {
+    if ((int)$enrollment['progress_percent'] < 100 || !hasCompletedAllLessons($studentId, $courseId)) {
         echo json_encode([
             'success' => false,
-            'message' => 'Vous devez terminer le cours à 100% pour passer la certification.'
+            'message' => 'Vous devez terminer le cours à 100% (toutes les leçons validées) pour passer la certification.'
         ]);
         exit;
     }
@@ -176,20 +176,21 @@ try {
         $moduleId = (int)$stmt->fetchColumn();
 
         if ($moduleId > 0) {
-            // Check if certificate already exists
-            $stmt = $pdo->prepare("SELECT id, certificate_code FROM certificates WHERE student_id = :student_id AND module_id = :module_id");
-            $stmt->execute(['student_id' => $studentId, 'module_id' => $moduleId]);
+            // Check if certificate already exists for this course
+            $stmt = $pdo->prepare("SELECT id, certificate_code FROM certificates WHERE student_id = :student_id AND course_id = :course_id");
+            $stmt->execute(['student_id' => $studentId, 'course_id' => $courseId]);
             $existingCert = $stmt->fetch();
 
             if (!$existingCert) {
-                $certCode = 'SV-' . $moduleId . '-' . strtoupper(substr(md5(uniqid((string)$studentId, true)), 0, 8));
+                $certCode = 'SV-' . $courseId . '-' . strtoupper(substr(md5(uniqid((string)$studentId, true)), 0, 8));
 
                 $stmt = $pdo->prepare("
-                    INSERT INTO certificates (student_id, module_id, certificate_code)
-                    VALUES (:student_id, :module_id, :certificate_code)
+                    INSERT INTO certificates (student_id, course_id, module_id, certificate_code)
+                    VALUES (:student_id, :course_id, :module_id, :certificate_code)
                 ");
                 $stmt->execute([
                     'student_id' => $studentId,
+                    'course_id' => $courseId,
                     'module_id' => $moduleId,
                     'certificate_code' => $certCode
                 ]);
@@ -205,18 +206,15 @@ try {
             $userStmt->execute(['id' => $studentId]);
             $studentUser = $userStmt->fetch();
 
-            $modStmt = $pdo->prepare("SELECT title FROM modules WHERE id = :id");
-            $modStmt->execute(['id' => $moduleId]);
-            $moduleTitle = (string)$modStmt->fetchColumn();
-
             if ($studentUser && $certCode) {
-                Mailer::certification($studentUser['email'], $studentUser['name'], $moduleTitle, $certCode);
+                $courseTitle = $course['title'] ?? 'Cours';
+                Mailer::certification($studentUser['email'], $studentUser['name'], $courseTitle, $certCode);
                 Notifications::send(
                     $pdo,
                     $studentId,
                     'certification',
                     'Certificat obtenu',
-                    'Module : ' . $moduleTitle,
+                    'Cours : ' . $courseTitle,
                     '/certificate.php?code=' . urlencode($certCode)
                 );
             }

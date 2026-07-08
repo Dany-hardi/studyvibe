@@ -46,7 +46,7 @@ try {
     $pdo = Database::getInstance();
 
     $stmt = $pdo->prepare("
-        SELECT l.*, c.id AS course_id
+        SELECT l.id, l.chapter_id, l.title, l.content_type, l.text_content, l.pdf_path, l.video_url, l.sort_order, l.quiz_deadline, c.id AS course_id
         FROM lessons l
         JOIN chapters ch ON l.chapter_id = ch.id
         JOIN courses c ON ch.course_id = c.id
@@ -93,26 +93,30 @@ try {
     $vStmt->execute(['lesson_id' => $lessonId]);
     $videos = $vStmt->fetchAll();
 
-    // Questions du quiz — exclure celles déjà répondues (correctes ou incorrectes)
-    $qStmt = $pdo->prepare("
-        SELECT lq.id, lq.question_text, lq.option_a, lq.option_b, lq.option_c, lq.option_d
-        FROM lesson_questions lq
-        WHERE lq.lesson_id = :lesson_id
-          AND lq.id NOT IN (
-              SELECT lqa.question_id FROM lesson_question_answers lqa
-              WHERE lqa.student_id = :student_id
-          )
-        ORDER BY lq.id ASC
-    ");
-    $qStmt->execute(['lesson_id' => $lessonId, 'student_id' => $studentId]);
-    $questions = $qStmt->fetchAll();
-
     $totalStmt = $pdo->prepare("SELECT COUNT(*) FROM lesson_questions WHERE lesson_id = :lesson_id");
     $totalStmt->execute(['lesson_id' => $lessonId]);
     $totalQuestions = (int)$totalStmt->fetchColumn();
 
     $hasQuiz      = $totalQuestions > 0;
-    $quizComplete = $completed || ($hasQuiz && empty($questions));
+    $questions    = [];
+
+    if ($hasQuiz && ($contentConsumed || $completed)) {
+        // Questions du quiz — exclure celles déjà répondues (correctes ou incorrectes)
+        $qStmt = $pdo->prepare("
+            SELECT lq.id, lq.question_text, lq.option_a, lq.option_b, lq.option_c, lq.option_d
+            FROM lesson_questions lq
+            WHERE lq.lesson_id = :lesson_id
+              AND lq.id NOT IN (
+                  SELECT lqa.question_id FROM lesson_question_answers lqa
+                  WHERE lqa.student_id = :student_id
+              )
+            ORDER BY lq.id ASC
+        ");
+        $qStmt->execute(['lesson_id' => $lessonId, 'student_id' => $studentId]);
+        $questions = $qStmt->fetchAll();
+    }
+
+    $quizComplete = $completed || ($hasQuiz && ($contentConsumed || $completed) && empty($questions));
 
     echo json_encode([
         'success'          => true,

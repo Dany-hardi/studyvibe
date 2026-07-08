@@ -19,10 +19,10 @@ $cert = null;
 try {
     $pdo  = Database::getInstance();
     $stmt = $pdo->prepare("
-        SELECT cert.*, u.name AS student_name, m.title AS module_title
+        SELECT cert.*, u.name AS student_name, c.title AS course_title
         FROM certificates cert
         JOIN users u ON cert.student_id = u.id
-        JOIN modules m ON cert.module_id = m.id
+        LEFT JOIN courses c ON cert.course_id = c.id
         WHERE cert.certificate_code = :code AND cert.student_id = :student_id
     ");
     $stmt->execute(['code' => $code, 'student_id' => $user['id']]);
@@ -45,7 +45,7 @@ $verifyUrl = APP_URL . '/verify.php?code=' . urlencode($code);
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Certificat — <?= htmlspecialchars($cert['module_title']) ?> — StudyVibe</title>
+    <title>Certificat — <?= htmlspecialchars($cert['course_title'] ?? 'Cours') ?> — StudyVibe</title>
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&family=Playfair+Display:ital,wght@0,400..900;1,400..900&display=swap" rel="stylesheet">
     <style>
@@ -208,10 +208,10 @@ $verifyUrl = APP_URL . '/verify.php?code=' . urlencode($code);
         <div class="cert-body">
             <p class="cert-label">Ce certificat est décerné à</p>
             <h1 class="cert-recipient"><?= htmlspecialchars($cert['student_name']) ?></h1>
-            <p class="cert-module-label">Pour la validation complète du module</p>
-            <h2 class="cert-module"><?= htmlspecialchars($cert['module_title']) ?></h2>
+            <p class="cert-module-label">Pour la validation complète du cours</p>
+            <h2 class="cert-module"><?= htmlspecialchars($cert['course_title'] ?? 'Cours Inconnu') ?></h2>
             <p class="cert-desc">
-                En reconnaissance de la réussite à l'ensemble des évaluations du module, avec un score supérieur ou égal au seuil réglementaire de 80%.
+                En reconnaissance de la réussite à l'ensemble des évaluations du cours, avec un score supérieur ou égal au seuil réglementaire de 80%.
             </p>
         </div>
 

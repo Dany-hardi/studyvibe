@@ -43,9 +43,9 @@ try {
 
     // 2. Fetch completed certificates
     $stmt = $pdo->prepare("
-        SELECT cert.*, m.title AS module_title
+        SELECT cert.*, c.title AS course_title
         FROM certificates cert
-        JOIN modules m ON cert.module_id = m.id
+        LEFT JOIN courses c ON cert.course_id = c.id
         WHERE cert.student_id = :student_id
         ORDER BY cert.id DESC
     ");
@@ -80,9 +80,145 @@ try {
 
     $deadlineAlerts = CourseSchedule::deadlineAlerts($pdo, (int)$user['id']);
 
+    // --- Dynamic Self-Healing Badges Logic ---
+    $sid = (int)$user['id'];
+    $earnedTypes = [];
+
+    // Check first_lesson
+    $checkFirst = $pdo->prepare("SELECT COUNT(*) FROM lesson_progress WHERE student_id = :sid AND completed = 1");
+    $checkFirst->execute(['sid' => $sid]);
+    if ((int)$checkFirst->fetchColumn() > 0) {
+        $earnedTypes[] = 'first_lesson';
+    }
+
+    // Check study_hour
+    $checkStudy = $pdo->prepare("SELECT COALESCE(SUM(duration), 0) FROM study_sessions WHERE student_id = :sid");
+    $checkStudy->execute(['sid' => $sid]);
+    if ((int)$checkStudy->fetchColumn() >= 3600) {
+        $earnedTypes[] = 'study_hour';
+    }
+
+    // Check course_complete
+    $checkComplete = $pdo->prepare("SELECT COUNT(*) FROM enrollments WHERE student_id = :sid AND progress_percent = 100");
+    $checkComplete->execute(['sid' => $sid]);
+    if ((int)$checkComplete->fetchColumn() > 0) {
+        $earnedTypes[] = 'course_complete';
+    }
+
+    // Check certified
+    $checkCert = $pdo->prepare("SELECT COUNT(*) FROM certificates WHERE student_id = :sid");
+    $checkCert->execute(['sid' => $sid]);
+    if ((int)$checkCert->fetchColumn() > 0) {
+        $earnedTypes[] = 'certified';
+    }
+
+    // Check perfect_score
+    $checkPerfectQuiz = $pdo->prepare("SELECT COUNT(*) FROM lesson_progress WHERE student_id = :sid AND score = 100");
+    $checkPerfectQuiz->execute(['sid' => $sid]);
+    $checkPerfectExam = $pdo->prepare("SELECT COUNT(*) FROM certification_attempts WHERE student_id = :sid AND score = 100");
+    $checkPerfectExam->execute(['sid' => $sid]);
+    if ((int)$checkPerfectQuiz->fetchColumn() > 0 || (int)$checkPerfectExam->fetchColumn() > 0) {
+        $earnedTypes[] = 'perfect_score';
+    }
+
+    // Check multitasker
+    $checkMulti = $pdo->prepare("SELECT COUNT(*) FROM enrollments WHERE student_id = :sid");
+    $checkMulti->execute(['sid' => $sid]);
+    if ((int)$checkMulti->fetchColumn() >= 3) {
+        $earnedTypes[] = 'multitasker';
+    }
+
+    // Check night_owl
+    $checkNightQuiz = $pdo->prepare("SELECT COUNT(*) FROM lesson_progress WHERE student_id = :sid AND (HOUR(completed_at) >= 22 OR HOUR(completed_at) < 4)");
+    $checkNightQuiz->execute(['sid' => $sid]);
+    $checkNightExam = $pdo->prepare("SELECT COUNT(*) FROM certification_attempts WHERE student_id = :sid AND (HOUR(attempted_at) >= 22 OR HOUR(attempted_at) < 4)");
+    $checkNightExam->execute(['sid' => $sid]);
+    if ((int)$checkNightQuiz->fetchColumn() > 0 || (int)$checkNightExam->fetchColumn() > 0) {
+        $earnedTypes[] = 'night_owl';
+    }
+
+    // Check note_taker
+    $checkNote = $pdo->prepare("SELECT COUNT(*) FROM video_notes WHERE student_id = :sid");
+    $checkNote->execute(['sid' => $sid]);
+    if ((int)$checkNote->fetchColumn() > 0) {
+        $earnedTypes[] = 'note_taker';
+    }
+
+    // Insert earned badges into student_badges table if they don't already exist
+    if (!empty($earnedTypes)) {
+        $insertBadge = $pdo->prepare("INSERT IGNORE INTO student_badges (student_id, badge_type) VALUES (:sid, :type)");
+        foreach ($earnedTypes as $type) {
+            $insertBadge->execute(['sid' => $sid, 'type' => $type]);
+        }
+    }
+
     $stmt = $pdo->prepare("SELECT badge_type, earned_at FROM student_badges WHERE student_id = :sid ORDER BY earned_at DESC");
     $stmt->execute(['sid' => $user['id']]);
     $myBadges = $stmt->fetchAll();
+
+    $earnedBadgesLookup = [];
+    foreach ($myBadges as $b) {
+        $earnedBadgesLookup[$b['badge_type']] = $b['earned_at'];
+    }
+
+    $allBadgesConfig = [
+        'first_lesson' => [
+            'title' => 'Pionnier',
+            'desc' => 'Compléter votre toute première leçon sur la plateforme.',
+            'icon' => '<svg class="w-10 h-10" fill="none" stroke="currentColor" stroke-width="1.5" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M12 6.042A8.967 8.967 0 006 3.75c-1.052 0-2.062.18-3 .512v14.25A8.987 8.987 0 016 18c2.305 0 4.408.867 6 2.292m0-14.25a8.966 8.966 0 016-2.292c1.052 0 2.062.18 3 .512v14.25A8.987 8.987 0 0018 18a8.967 8.967 0 00-6 2.292m0-14.25v14.25" /></svg>',
+            'color' => 'from-blue-500 to-indigo-600',
+            'border' => 'border-blue-200'
+        ],
+        'study_hour' => [
+            'title' => 'Apprenant Assidu',
+            'desc' => 'Cumuler plus d\'une heure de temps d\'étude sur StudyVibe.',
+            'icon' => '<svg class="w-10 h-10" fill="none" stroke="currentColor" stroke-width="1.5" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M12 6v6h4.5m4.5 0a9 9 0 11-18 0 9 9 0 0118 0z" /></svg>',
+            'color' => 'from-amber-500 to-orange-600',
+            'border' => 'border-amber-200'
+        ],
+        'course_complete' => [
+            'title' => 'Finisseur d\'Élite',
+            'desc' => 'Compléter à 100% au moins un cours de votre programme.',
+            'icon' => '<svg class="w-10 h-10" fill="none" stroke="currentColor" stroke-width="1.5" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M9 12.75L11.25 15 15 9.75M21 12c0 1.268-.63 2.39-1.593 3.068a3.745 3.745 0 01-1.043 3.296 3.745 3.745 0 01-3.296 1.043A3.745 3.745 0 0110 21a3.745 3.745 0 01-3.296-1.043 3.745 3.745 0 01-1.043-3.296A3.745 3.745 0 013 12c0-1.268.63-2.39 1.593-3.068a3.746 3.746 0 011.043-3.296 3.746 3.746 0 013.296-1.043A3.746 3.746 0 0112 3c1.268 0 2.39.63 3.068 1.593a3.746 3.746 0 013.296 1.043 3.746 3.746 0 011.043 3.296A3.745 3.745 0 0121 12z" /></svg>',
+            'color' => 'from-emerald-500 to-teal-600',
+            'border' => 'border-emerald-200'
+        ],
+        'certified' => [
+            'title' => 'Diplômé Officiel',
+            'desc' => 'Obtenir votre premier certificat de réussite académique.',
+            'icon' => '<svg class="w-10 h-10" fill="none" stroke="currentColor" stroke-width="1.5" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M4.26 10.147a60.436 60.436 0 00-.491 6.347A48.62 48.62 0 0112 20.904a48.62 48.62 0 018.232-4.41 60.46 60.46 0 00-.491-6.347m-15.482 0a50.57 50.57 0 00-2.658-.813A59.905 59.905 0 0112 3.493a59.902 59.902 0 0110.399 5.84a50.58 50.58 0 00-2.658.814m-15.482 0A50.697 50.697 0 0112 13.489a50.702 50.702 0 017.74-3.342M6.75 15a.75.75 0 100-1.5.75.75 0 000 1.5zm0 0v-3.675A55.378 55.378 0 0112 8.443m-7.007 11.55A5.981 5.981 0 006.75 15.75v-1.5" /></svg>',
+            'color' => 'from-purple-500 to-fuchsia-600',
+            'border' => 'border-purple-200'
+        ],
+        'perfect_score' => [
+            'title' => 'Major de Promo',
+            'desc' => 'Obtenir un score parfait de 100% à un quiz de leçon ou examen final.',
+            'icon' => '<svg class="w-10 h-10" fill="none" stroke="currentColor" stroke-width="1.5" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M11.48 3.499c.195-.558.976-.558 1.17 0l2.36 6.816a1 1 0 00.95.69h7.162c.582 0 .822.748.35 1.14l-5.797 4.837a1 1 0 00-.364 1.118l2.36 6.816c.196.558-.432 1.016-.906.69l-5.797-4.837a1 1 0 00-1.17 0l-5.797 4.837c-.474.326-1.102-.132-.906-.69l2.36-6.816a1 1 0 00-.364-1.118L2.05 12.139c-.472-.392-.232-1.14.35-1.14h7.162a1 1 0 00.95-.69l2.36-6.82z" /></svg>',
+            'color' => 'from-yellow-500 to-rose-600',
+            'border' => 'border-yellow-200'
+        ],
+        'multitasker' => [
+            'title' => 'Esprit Polyvalent',
+            'desc' => 'S\'inscrire activement à au moins 3 cours différents.',
+            'icon' => '<svg class="w-10 h-10" fill="none" stroke="currentColor" stroke-width="1.5" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M3.75 6A2.25 2.25 0 016 3.75h2.25A2.25 2.25 0 0110.5 6v2.25a2.25 2.25 0 01-2.25 2.25H6a2.25 2.25 0 01-2.25-2.25V6zM3.75 15.75A2.25 2.25 0 016 13.5h2.25a2.25 2.25 0 012.25 2.25V18a2.25 2.25 0 01-2.25 2.25H6A2.25 2.25 0 013.75 18v-2.25zM13.5 6a2.25 2.25 0 012.25-2.25H18A2.25 2.25 0 0120.25 6v2.25A2.25 2.25 0 0118 10.5h-2.25A2.25 2.25 0 0113.5 8.25V6zM13.5 15.75a2.25 2.25 0 012.25-2.25H18a2.25 2.25 0 012.25 2.25V18A2.25 2.25 0 0118 20.25h-2.25A2.25 2.25 0 0113.5 18v-2.25z" /></svg>',
+            'color' => 'from-cyan-500 to-sky-600',
+            'border' => 'border-cyan-200'
+        ],
+        'night_owl' => [
+            'title' => 'Hibou Académique',
+            'desc' => 'Valider une leçon ou un examen entre 22h et 4h du matin.',
+            'icon' => '<svg class="w-10 h-10" fill="none" stroke="currentColor" stroke-width="1.5" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M21.752 15.002A9.718 9.718 0 0118 15.75c-5.385 0-9.75-4.365-9.75-9.75 0-1.33.266-2.597.748-3.752A9.753 9.753 0 003 11.25C3 16.635 7.365 21 12.75 21a9.753 9.753 0 009.002-5.998z" /></svg>',
+            'color' => 'from-zinc-700 to-slate-900',
+            'border' => 'border-zinc-500'
+        ],
+        'note_taker' => [
+            'title' => 'Greffier Assidu',
+            'desc' => 'Prendre votre première note d\'étude sur une vidéo de cours.',
+            'icon' => '<svg class="w-10 h-10" fill="none" stroke="currentColor" stroke-width="1.5" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M16.862 4.487l1.687-1.688a1.875 1.875 0 112.652 2.652L6.83 18.3 3 19.305l1.012-3.83 12.85-12.853zm0 0L19.5 7.125M18 14v4.75A2.25 2.25 0 0115.75 21H5.25A2.25 2.25 0 013 18.75V8.25A2.25 2.25 0 015.25 6H10" /></svg>',
+            'color' => 'from-pink-500 to-rose-600',
+            'border' => 'border-pink-200'
+        ]
+    ];
 
     // 4. Récupérer les téléévaluations de l'étudiant
     $stmt = $pdo->prepare("
@@ -248,6 +384,9 @@ try {
                     <button onclick="switchTab('certifications'); toggleMobileDrawer();" id="mobile-tab-btn-certifications" class="w-full flex items-center gap-3 px-4 py-3 rounded-lg text-sm font-medium transition-all text-white/70 hover:text-white hover:bg-white/10 text-left">
                         Certifications
                     </button>
+                    <button onclick="switchTab('achievements'); toggleMobileDrawer();" id="mobile-tab-btn-achievements" class="w-full flex items-center gap-3 px-4 py-3 rounded-lg text-sm font-medium transition-all text-white/70 hover:text-white hover:bg-white/10 text-left">
+                        Succès & Badges
+                    </button>
                     <button onclick="switchTab('tele-evaluations'); toggleMobileDrawer();" id="mobile-tab-btn-tele-evaluations" class="w-full flex items-center gap-3 px-4 py-3 rounded-lg text-sm font-medium transition-all text-white/70 hover:text-white hover:bg-white/10 text-left">
                         Téléévaluations
                     </button>
@@ -310,6 +449,9 @@ try {
             </button>
             <button onclick="switchTab('certifications')" id="tab-btn-certifications" class="w-full flex items-center gap-3 px-4 py-3 rounded-lg text-sm font-medium transition-all text-white/70 hover:text-white hover:bg-white/10 text-left">
                 Certifications
+            </button>
+            <button onclick="switchTab('achievements')" id="tab-btn-achievements" class="w-full flex items-center gap-3 px-4 py-3 rounded-lg text-sm font-medium transition-all text-white/70 hover:text-white hover:bg-white/10 text-left">
+                Succès & Badges
             </button>
             <button onclick="switchTab('tele-evaluations')" id="tab-btn-tele-evaluations" class="w-full flex items-center gap-3 px-4 py-3 rounded-lg text-sm font-medium transition-all text-white/70 hover:text-white hover:bg-white/10 text-left">
                 Téléévaluations
@@ -657,10 +799,10 @@ try {
                                         ✓ Certificat de Validation
                                     </div>
                                     <h3 class="font-serif text-2xl font-light text-[#111111] leading-tight">
-                                        <?= htmlspecialchars($cert['module_title']); ?>
+                                        <?= htmlspecialchars($cert['course_title'] ?? 'Cours Inconnu'); ?>
                                     </h3>
                                     <p class="text-xs text-[#555555] font-light leading-relaxed">
-                                        Délivré officiellement à <span class="font-semibold text-[#111111]"><?= htmlspecialchars($user['name']); ?></span> pour la validation réglementaire du module de formation.
+                                        Délivré officiellement à <span class="font-semibold text-[#111111]"><?= htmlspecialchars($user['name']); ?></span> pour la validation réglementaire du cours de formation.
                                     </p>
                                 </div>
                                 <div class="pt-6 border-t border-[#E5E5E7] flex justify-between items-center text-xs flex-wrap gap-2">
@@ -677,6 +819,126 @@ try {
                         <?php endforeach; ?>
                     </div>
                 <?php endif; ?>
+            </div>
+        </div>
+
+        <!-- 3a. Onglet ACHIEVEMENTS -->
+        <div id="tab-achievements" class="tab-content hidden space-y-12">
+            <div class="space-y-3">
+                <h2 class="font-serif text-3xl font-light">Mes Succès & Badges</h2>
+                <p class="text-sm font-light text-[#555555]">
+                    Débloquez des badges uniques en complétant vos cours, en obtenant de parfaits scores ou en étudiant à toute heure.
+                </p>
+            </div>
+
+            <!-- Progression & Level Dashboard -->
+            <?php
+            $unlockedCount = count($myBadges);
+            $totalBadges = count($allBadgesConfig);
+            $percentUnlocked = $totalBadges > 0 ? round(($unlockedCount / $totalBadges) * 100) : 0;
+            
+            // Determine Level Rank
+            if ($unlockedCount <= 1) {
+                $rankTitle = "Novice Académique";
+                $rankColor = "bg-zinc-100 text-zinc-800 border-zinc-200 dark:bg-zinc-900/50 dark:text-zinc-300 dark:border-zinc-800";
+            } elseif ($unlockedCount <= 3) {
+                $rankTitle = "Initié Studieux";
+                $rankColor = "bg-emerald-50 text-emerald-800 border-emerald-200 dark:bg-emerald-950/20 dark:text-emerald-400 dark:border-emerald-900/50";
+            } elseif ($unlockedCount <= 5) {
+                $rankTitle = "Spécialiste Éclairé";
+                $rankColor = "bg-indigo-50 text-indigo-800 border-indigo-200 dark:bg-indigo-950/20 dark:text-indigo-400 dark:border-indigo-900/50";
+            } elseif ($unlockedCount <= 7) {
+                $rankTitle = "Expert Émérite";
+                $rankColor = "bg-amber-50 text-amber-800 border-amber-200 dark:bg-amber-950/20 dark:text-amber-400 dark:border-amber-900/50";
+            } else {
+                $rankTitle = "Grand Maître StudyVibe";
+                $rankColor = "bg-gradient-to-r from-yellow-500/10 via-pink-500/10 to-purple-500/10 text-purple-900 border-purple-300 dark:from-yellow-500/20 dark:to-purple-500/20 dark:text-purple-300 dark:border-purple-800";
+            }
+            ?>
+
+            <div class="border border-[#111111] dark:border-zinc-800 p-8 bg-[var(--sv-cream-light)] dark:bg-[#1E1E1E]/50 space-y-6">
+                <div class="flex flex-col md:flex-row md:items-center justify-between gap-6">
+                    <div class="flex items-center gap-4">
+                        <div class="w-16 h-16 rounded-full bg-[#004B23] text-white flex items-center justify-center font-serif text-2xl font-bold">
+                            <?= strtoupper(substr($user['name'], 0, 1)); ?>
+                        </div>
+                        <div>
+                            <div class="text-xs uppercase tracking-widest text-[#888888] font-mono">Rang actuel</div>
+                            <h3 class="font-serif text-2xl font-light text-[#111111] dark:text-white mt-0.5"><?= htmlspecialchars($user['name']); ?></h3>
+                            <span class="inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full text-xs font-semibold border <?= $rankColor ?> mt-1.5">
+                                <?= $rankTitle ?>
+                            </span>
+                        </div>
+                    </div>
+                    
+                    <div class="text-left md:text-right">
+                        <div class="text-xs uppercase tracking-widest text-[#888888] font-mono">Taux de Complétion</div>
+                        <div class="text-3xl font-light text-[#111111] dark:text-white mt-0.5"><?= $unlockedCount ?> / <?= $totalBadges ?> Badges</div>
+                        <p class="text-xs text-[#555555] dark:text-zinc-400 mt-1 font-light">
+                            Prochain niveau après <?= min($totalBadges, $unlockedCount + 1) ?> badge<?= ($unlockedCount + 1 > 1) ? 's' : '' ?>.
+                        </p>
+                    </div>
+                </div>
+
+                <!-- Custom Progress Bar -->
+                <div class="space-y-2 pt-2">
+                    <div class="flex justify-between text-xs font-light text-[#555555] dark:text-zinc-400">
+                        <span>Progression Générale</span>
+                        <span class="font-semibold text-[#111111] dark:text-white"><?= $percentUnlocked ?>%</span>
+                    </div>
+                    <div class="h-3 w-full bg-white dark:bg-zinc-900 border border-[#111111] dark:border-zinc-800 rounded-full overflow-hidden p-0.5">
+                        <div class="h-full bg-gradient-to-r from-[#004B23] to-[#34C759] rounded-full transition-all duration-1000 ease-out" style="width: <?= $percentUnlocked ?>%"></div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Badges Grid -->
+            <div id="badges-grid-container" class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-6">
+                <?php foreach ($allBadgesConfig as $key => $config): ?>
+                    <?php 
+                    $isEarned = isset($earnedBadgesLookup[$key]);
+                    $earnedDate = $isEarned ? $earnedBadgesLookup[$key] : null;
+                    ?>
+                    <div data-badge-key="<?= $key ?>"
+                         onclick="openBadgeModal('<?= $key ?>', '<?= addslashes($config['title']) ?>', '<?= addslashes($config['desc']) ?>', '<?= $isEarned ? 'unlocked' : 'locked' ?>', '<?= $earnedDate ? date('d/m/Y', strtotime($earnedDate)) : '' ?>')" 
+                         class="cursor-pointer border border-[#111111] dark:border-zinc-800 p-6 bg-white dark:bg-[#1E1E1E] transition-all hover:shadow-[4px_4px_0px_#111111] dark:hover:shadow-[4px_4px_0px_#34C759] duration-300 flex flex-col justify-between items-center text-center space-y-4 <?= $isEarned ? 'hover:scale-[1.02]' : 'opacity-65' ?> sv-badge-card">
+                        
+                        <!-- Icon Wrapper with status styling -->
+                        <div class="relative w-20 h-20 flex items-center justify-center rounded-full border-2 <?= $isEarned ? 'bg-gradient-to-br ' . $config['color'] . ' text-white ' . $config['border'] : 'bg-zinc-100 text-zinc-400 border-dashed border-zinc-300 dark:bg-zinc-800 dark:border-zinc-700' ?> transition-all duration-500">
+                            <?= $config['icon'] ?>
+                            
+                            <?php if (!$isEarned): ?>
+                                <!-- Lock Badge -->
+                                <div class="absolute -bottom-1 -right-1 bg-zinc-800 text-white rounded-full p-1 border border-white dark:border-zinc-900">
+                                    <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" stroke-width="2.5" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M16.5 10.5V6.75a4.5 4.5 0 10-9 0v3.75m-.75 11.25h10.5a2.25 2.25 0 002.25-2.25v-6.75a2.25 2.25 0 00-2.25-2.25H6.75a2.25 2.25 0 00-2.25 2.25v6.75a2.25 2.25 0 002.25 2.25z" /></svg>
+                                </div>
+                            <?php else: ?>
+                                <!-- Glow Effect -->
+                                <div class="absolute inset-0 rounded-full bg-gradient-to-br <?= $config['color'] ?> opacity-25 blur-md -z-10 animate-pulse"></div>
+                            <?php endif; ?>
+                        </div>
+
+                        <!-- Card text details -->
+                        <div class="space-y-1 w-full">
+                            <h4 class="font-serif text-lg font-semibold text-[#111111] dark:text-white"><?= htmlspecialchars($config['title']) ?></h4>
+                            <p class="text-xs text-[#555555] dark:text-zinc-400 font-light line-clamp-2 leading-relaxed">
+                                <?= htmlspecialchars($config['desc']) ?>
+                            </p>
+                        </div>
+
+                        <!-- Earned status / Date tag -->
+                        <div class="w-full pt-3 border-t border-[#E5E5E7] dark:border-zinc-800">
+                            <?php if ($isEarned): ?>
+                                <span class="inline-flex items-center gap-1 text-[10px] font-mono text-[#004B23] dark:text-[#34C759] font-bold">
+                                    <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" stroke-width="3" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M4.5 12.75l6 6 9-13.5" /></svg>
+                                    Obtenu le <?= date('d/m/Y', strtotime($earnedDate)) ?>
+                                </span>
+                            <?php else: ?>
+                                <span class="text-[10px] font-mono text-zinc-500 uppercase tracking-wider">Verrouillé</span>
+                            <?php endif; ?>
+                        </div>
+                    </div>
+                <?php endforeach; ?>
             </div>
         </div>
 
@@ -1172,7 +1434,7 @@ try {
                 }
             }
         }
-        const STUDENT_TABS = ['catalogue', 'mes-cours', 'releve', 'certifications', 'profil', 'tele-evaluations', 'webinaires'];
+        const STUDENT_TABS = ['catalogue', 'mes-cours', 'releve', 'certifications', 'achievements', 'profil', 'tele-evaluations', 'webinaires'];
 
         document.addEventListener('DOMContentLoaded', () => {
             initCourseSearch('course-search', 'course-grid');
@@ -1261,6 +1523,7 @@ try {
             switchTabAnimated(tabName, STUDENT_TABS);
             updateSidebarButtons(tabName);
             if (tabName === 'releve') loadTranscript();
+            if (tabName === 'achievements') animateBadgesEntrance();
         }
 
         /**
@@ -2801,6 +3064,130 @@ try {
             _origLoadComments(lessonId);
         };
 
+        // --- Achievements system interactive functions ---
+        const LORE_MAP = {
+            'first_lesson': "« Chaque grand voyage commence par un seul pas. Le vôtre vient de débuter. »",
+            'study_hour': "« Le temps consacré à l'esprit n'est jamais perdu. La persévérance façonne l'expertise. »",
+            'course_complete': "« Franchir la ligne d'arrivée démontre une volonté de fer. Rien ne vous arrête. »",
+            'certified': "« Un parchemin de réussite officiel, témoin de votre rigueur et de votre talent. »",
+            'perfect_score': "« L'excellence n'est pas un acte, c'est une habitude. Un score absolument impeccable ! »",
+            'multitasker': "« Curieux de tout, avide d'apprendre. Votre polyvalence est une force inestimable. »",
+            'night_owl': "« Quand le monde s'endort, l'esprit s'éveille. Les secrets du savoir appartiennent à la nuit. »",
+            'note_taker': "« L'écriture fixe la pensée. En consignant vos observations, vous gravez le savoir. »"
+        };
+
+        function openBadgeModal(key, title, desc, status, earnedDate) {
+            const modal = document.getElementById('badge-modal');
+            const content = document.getElementById('badge-modal-content');
+            if (!modal || !content) return;
+
+            // Set Title & Description
+            document.getElementById('badge-modal-title').textContent = title;
+            document.getElementById('badge-modal-desc').textContent = desc;
+
+            // Set Lore
+            const lore = LORE_MAP[key] || "";
+            document.getElementById('badge-modal-lore').textContent = lore;
+
+            // Find clicked card's icon and clone it
+            const card = document.querySelector(`[data-badge-key="${key}"]`);
+            const iconWrap = document.getElementById('badge-modal-icon-wrap');
+            
+            if (card && iconWrap) {
+                const cardIcon = card.querySelector('.relative.w-20.h-20');
+                if (cardIcon) {
+                    iconWrap.className = cardIcon.className.replace('w-20 h-20', 'w-24 h-24 mx-auto') + ' flex items-center justify-center rounded-full border-2';
+                    iconWrap.innerHTML = cardIcon.innerHTML;
+                    
+                    const lockDiv = iconWrap.querySelector('.absolute');
+                    if (lockDiv) lockDiv.remove();
+                }
+            }
+
+            // Set status
+            const statusWrap = document.getElementById('badge-modal-status-wrap');
+            if (statusWrap) {
+                if (status === 'unlocked') {
+                    statusWrap.innerHTML = `<span class="inline-flex items-center gap-1.5 px-3.5 py-1 bg-emerald-50 dark:bg-emerald-950/20 text-emerald-800 dark:text-emerald-400 border border-emerald-200 dark:border-emerald-900/50 rounded-full text-xs font-semibold font-mono">
+                        <svg class="w-4 h-4" fill="none" stroke="currentColor" stroke-width="3" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M4.5 12.75l6 6 9-13.5" /></svg>
+                        Débloqué le ${earnedDate}
+                    </span>`;
+                } else {
+                    statusWrap.innerHTML = `<span class="inline-flex items-center gap-1.5 px-3.5 py-1 bg-zinc-100 dark:bg-zinc-800 text-zinc-600 dark:text-zinc-400 border border-zinc-200 dark:border-zinc-700 rounded-full text-xs font-semibold font-mono">
+                        <svg class="w-4 h-4" fill="none" stroke="currentColor" stroke-width="2.5" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M16.5 10.5V6.75a4.5 4.5 0 10-9 0v3.75m-.75 11.25h10.5a2.25 2.25 0 002.25-2.25v-6.75a2.25 2.25 0 00-2.25-2.25H6.75a2.25 2.25 0 00-2.25 2.25v6.75a2.25 2.25 0 002.25 2.25z" /></svg>
+                        Verrouillé
+                    </span>`;
+                }
+            }
+
+            modal.classList.remove('hidden');
+            gsap.killTweensOf(content);
+            gsap.fromTo(content, 
+                { scale: 0.9, opacity: 0 },
+                { scale: 1, opacity: 1, duration: 0.35, ease: "back.out(1.5)" }
+            );
+        }
+
+        function closeBadgeModal() {
+            const modal = document.getElementById('badge-modal');
+            const content = document.getElementById('badge-modal-content');
+            if (!modal || !content) return;
+
+            gsap.to(content, {
+                scale: 0.9,
+                opacity: 0,
+                duration: 0.25,
+                ease: "power2.in",
+                onComplete: () => {
+                    modal.classList.add('hidden');
+                }
+            });
+        }
+
+        function animateBadgesEntrance() {
+            gsap.fromTo(".sv-badge-card", 
+                { opacity: 0, y: 25, scale: 0.95 },
+                { 
+                    opacity: (i, el) => el.classList.contains('opacity-65') ? 0.65 : 1, 
+                    y: 0, 
+                    scale: 1, 
+                    duration: 0.45, 
+                    stagger: 0.06, 
+                    ease: "power2.out",
+                    overwrite: "auto"
+                }
+            );
+        }
+
     </script>
+
+    <!-- ACHIEVEMENTS BADGE MODAL -->
+    <div id="badge-modal" class="fixed inset-0 z-50 flex items-center justify-center hidden">
+        <div onclick="closeBadgeModal()" class="fixed inset-0 bg-black/60 backdrop-blur-sm transition-opacity duration-300"></div>
+        <div class="relative bg-white dark:bg-[#1E1E1E] border border-[#111111] dark:border-zinc-800 max-w-sm w-full p-8 mx-4 shadow-[8px_8px_0px_#111111] dark:shadow-[8px_8px_0px_#004B23] transition-all duration-300 z-10 flex flex-col items-center text-center space-y-6" id="badge-modal-content">
+            <button onclick="closeBadgeModal()" class="absolute top-4 right-4 text-zinc-400 hover:text-zinc-600 dark:hover:text-zinc-200 transition-colors">
+                <svg class="w-6 h-6" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M6 18L18 6M6 6l12 12" /></svg>
+            </button>
+            
+            <div id="badge-modal-icon-wrap" class="w-24 h-24 rounded-full flex items-center justify-center text-white border-2 relative">
+                <!-- SVG Icon -->
+            </div>
+            
+            <div class="space-y-2">
+                <h3 id="badge-modal-title" class="font-serif text-2xl font-bold text-[#111111] dark:text-white"></h3>
+                <p id="badge-modal-desc" class="text-sm text-zinc-600 dark:text-zinc-300 leading-relaxed font-light"></p>
+            </div>
+            
+            <div id="badge-modal-status-wrap" class="w-full pt-4 border-t border-zinc-100 dark:border-zinc-850">
+                <!-- Status tag -->
+            </div>
+
+            <div id="badge-modal-lore" class="text-xs italic text-zinc-400 dark:text-zinc-550 font-serif leading-relaxed px-4"></div>
+            
+            <button onclick="closeBadgeModal()" class="w-full py-3 bg-[#111111] dark:bg-[#004B23] dark:hover:bg-[#00602D] text-white text-xs font-semibold uppercase tracking-wider hover:bg-[#004B23] transition-colors rounded-sm shadow-md">
+                Fermer
+            </button>
+        </div>
+    </div>
 </body>
 </html>

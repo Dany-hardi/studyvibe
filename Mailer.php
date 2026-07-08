@@ -176,15 +176,15 @@ class Mailer
     }
 
     /**
-     * Sends module validation certification details.
+     * Sends course validation certification details.
      * 
      * @param string $to          Recipient email.
      * @param string $name        Recipient name.
-     * @param string $moduleTitle Completed module title.
+     * @param string $courseTitle Completed course title.
      * @param string $certCode    Unique certification hash code.
      * @return bool True if sent.
      */
-    public static function certification(string $to, string $name, string $moduleTitle, string $certCode): bool
+    public static function certification(string $to, string $name, string $courseTitle, string $certCode): bool
     {
         $appUrl    = APP_URL;
         $verifyUrl = $appUrl . '/verify.php?code=' . urlencode($certCode);
@@ -192,12 +192,12 @@ class Mailer
         $body      = self::wrap("
             <h2 style='font-family:Georgia,serif;font-weight:300'>Félicitations !</h2>
             <p>Bonjour <strong>" . htmlspecialchars($name) . "</strong>,</p>
-            <p>Vous avez validé le module <strong>" . htmlspecialchars($moduleTitle) . "</strong>.</p>
+            <p>Vous avez validé le cours <strong>" . htmlspecialchars($courseTitle) . "</strong>.</p>
             <p>Code certificat : <code style='background:#f5f5f7;padding:4px 8px'>{$certCode}</code></p>
             <p><a href='{$certUrl}' style='display:inline-block;padding:12px 24px;background:#004B23;color:#fff;text-decoration:none;font-size:13px;margin-right:8px'>Voir mon certificat</a>
             <a href='{$verifyUrl}' style='font-size:13px;color:#004B23'>Vérifier en ligne</a></p>
         ");
-        return self::send($to, 'Votre certificat StudyVibe — ' . $moduleTitle, $body);
+        return self::send($to, 'Votre certificat StudyVibe — ' . $courseTitle, $body);
     }
 
     // =========================================================================

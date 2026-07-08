@@ -130,17 +130,14 @@ try {
 
     // Fetch all Certificates
     $certificates = $pdo->query("
-        SELECT cert.*, u.name AS student_name, u.email AS student_email, m.title AS module_title,
-               (
-                   SELECT GROUP_CONCAT(DISTINCT ut.name SEPARATOR ', ')
-                   FROM courses c
-                   JOIN users ut ON c.teacher_id = ut.id
-                   WHERE c.module_id = cert.module_id
-               ) AS teachers_list,
+        SELECT cert.*, u.name AS student_name, u.email AS student_email, 
+               co.title AS course_title,
+               ut.name AS teacher_name,
                issuer.name AS issuer_name
         FROM certificates cert
         JOIN users u ON cert.student_id = u.id
-        JOIN modules m ON cert.module_id = m.id
+        LEFT JOIN courses co ON cert.course_id = co.id
+        LEFT JOIN users ut ON co.teacher_id = ut.id
         LEFT JOIN users issuer ON cert.issued_by = issuer.id
         ORDER BY cert.id DESC
     ")->fetchAll();
@@ -549,14 +546,15 @@ try {
                             </select>
                         </div>
                         <div>
-                            <label class="block text-xs text-[#888] mb-1.5">Module validé</label>
-                            <select name="module_id" required class="w-full px-3 py-2 bg-[#F5F5F7] border border-[#E5E5E7] text-sm rounded-sm">
+                            <label class="block text-xs text-[#888] mb-1.5">Cours validé</label>
+                            <select name="course_id" required class="w-full px-3 py-2 bg-[#F5F5F7] border border-[#E5E5E7] text-sm rounded-sm">
                                 <option value="">Choisir…</option>
-                                <?php foreach ($modules as $m): ?>
-                                    <option value="<?= $m['id']; ?>"><?= htmlspecialchars($m['title']); ?></option>
+                                <?php foreach ($courses as $c): ?>
+                                    <option value="<?= $c['id']; ?>"><?= htmlspecialchars($c['title']); ?></option>
                                 <?php endforeach; ?>
                             </select>
                         </div>
+
                         <button type="submit" class="px-5 py-2 bg-[#111111] text-white text-xs font-semibold uppercase tracking-wider hover:bg-[#004B23] rounded-sm h-[38px] transition-colors">
                             Délivrer le certificat
                         </button>
@@ -577,8 +575,8 @@ try {
                             <thead>
                                 <tr class="border-b border-[#111111] text-xs uppercase tracking-wider text-[#555555]">
                                     <th class="pb-4 font-semibold">Étudiant</th>
-                                    <th class="pb-4 font-semibold">Module Validé</th>
-                                    <th class="pb-4 font-semibold">Enseignant(s)</th>
+                                    <th class="pb-4 font-semibold">Cours Validé</th>
+                                    <th class="pb-4 font-semibold">Enseignant</th>
                                     <th class="pb-4 font-semibold">Origine</th>
                                     <th class="pb-4 font-semibold">Code Unique</th>
                                     <th class="pb-4 font-semibold">Date de Délivrance</th>
@@ -600,10 +598,10 @@ try {
                                                 <span class="text-xs text-[#888888]"><?= htmlspecialchars($cert['student_email']); ?></span>
                                             </td>
                                             <td class="py-4 text-[#555555]">
-                                                <?= htmlspecialchars($cert['module_title']); ?>
+                                                <?= htmlspecialchars($cert['course_title'] ?? 'Inconnu'); ?>
                                             </td>
                                             <td class="py-4 text-xs text-[#555555]">
-                                                <?= htmlspecialchars($cert['teachers_list'] ?? 'Aucun'); ?>
+                                                <?= htmlspecialchars($cert['teacher_name'] ?? 'Aucun'); ?>
                                             </td>
                                             <td class="py-4 text-xs">
                                                 <?php if ($cert['manual_issue']): ?>

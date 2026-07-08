@@ -150,11 +150,11 @@ class PromoterExportService
     {
         return $this->pdo->query("
             SELECT u.name AS student_name, u.email AS student_email,
-                   m.title AS module_title, cert.certificate_code,
+                   co.title AS course_title, cert.certificate_code,
                    cert.issued_at, cert.manual_issue
             FROM certificates cert
             JOIN users u ON u.id = cert.student_id
-            JOIN modules m ON m.id = cert.module_id
+            LEFT JOIN courses co ON co.id = cert.course_id
             ORDER BY cert.issued_at DESC
         ")->fetchAll();
     }
@@ -330,7 +330,7 @@ class PromoterExportService
             $rows[] = [
                 $c['student_name'],
                 $c['student_email'],
-                $c['module_title'],
+                $c['course_title'] ?? 'Inconnu',
                 $c['certificate_code'],
                 date('d/m/Y H:i', strtotime((string)$c['issued_at'])),
                 $c['manual_issue'] ? 'Oui' : 'Non',
@@ -339,7 +339,7 @@ class PromoterExportService
 
         return [
             'name'    => 'Certifications',
-            'headers' => ['Apprenant', 'Email', 'Module', 'Code', 'Date', 'Manuel'],
+            'headers' => ['Apprenant', 'Email', 'Cours', 'Code', 'Date', 'Manuel'],
             'rows'    => $rows,
         ];
     }

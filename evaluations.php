@@ -303,8 +303,11 @@ if (isLoggedIn()) {
                 $deadlineTime = $hasDeadline ? strtotime($eval['async_deadline']) : 0;
                 $hasAttempted = isset($userScores[(int)$eval['id']]);
                 $score = $hasAttempted ? $userScores[(int)$eval['id']] : null;
+                
+                $isStudent = isLoggedIn() && $_SESSION['user_role'] === 'student';
+                $isLocked = $isStudent && !hasCompletedAllLessons((int)$user['id'], (int)$eval['course_id']);
             ?>
-                <div class="eval-card" data-title="<?= htmlspecialchars(strtolower($eval['title'])) ?>" data-course="<?= htmlspecialchars(strtolower($eval['course_title'])) ?>">
+                <div class="eval-card" data-title="<?= htmlspecialchars(strtolower($eval['title'])) ?>" data-course="<?= htmlspecialchars(strtolower($eval['course_title'])) ?>" style="<?= $isLocked ? 'opacity: 0.8;' : '' ?>">
                     <div>
                         <span class="course-badge"><?= htmlspecialchars($eval['course_title']) ?></span>
                         <h3 class="eval-name"><?= htmlspecialchars($eval['title']) ?></h3>
@@ -336,8 +339,13 @@ if (isLoggedIn()) {
                     </div>
 
                     <div>
-                        <!-- Badge de complétion -->
-                        <?php if ($hasAttempted): ?>
+                        <!-- Badge de complétion ou cadenas -->
+                        <?php if ($isLocked): ?>
+                            <div class="score-badge score-badge-pending" style="background-color: #FFF0F0; border-color: #FFC0C0; color: #D32F2F;">
+                                <svg width="14" height="14" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 15v2m-6 4h12a2 2 0 002-2v-6a2 2 0 00-2-2H6a2 2 0 00-2 2v6a2 2 0 002 2zm10-10V7a4 4 0 00-8 0v4h8z"/></svg>
+                                <span>Cours incomplet</span>
+                            </div>
+                        <?php elseif ($hasAttempted): ?>
                             <div class="score-badge <?= $score !== null ? 'score-badge-completed' : 'score-badge-pending' ?>">
                                 <?php if ($score !== null): ?>
                                     <svg width="14" height="14" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7"/></svg>
@@ -350,9 +358,15 @@ if (isLoggedIn()) {
                         <?php endif; ?>
 
                         <!-- Lien d'action -->
-                        <a href="/live-session.php?code=<?= urlencode($eval['session_code']) ?>" class="btn-start-eval">
-                            <?= $hasAttempted ? 'Recommencer l\'évaluation' : 'Démarrer l\'évaluation' ?>
-                        </a>
+                        <?php if ($isLocked): ?>
+                            <button class="btn-start-eval" style="background-color: #777777; cursor: not-allowed;" disabled title="Veuillez terminer toutes les leçons de ce cours pour accéder à l'évaluation.">
+                                Accès Verrouillé
+                            </button>
+                        <?php else: ?>
+                            <a href="/live-session.php?code=<?= urlencode($eval['session_code']) ?>" class="btn-start-eval">
+                                <?= $hasAttempted ? 'Recommencer l\'évaluation' : 'Démarrer l\'évaluation' ?>
+                            </a>
+                        <?php endif; ?>
                     </div>
                 </div>
             <?php endforeach; ?>
