@@ -92,7 +92,7 @@ try {
     }
 
     // Check study_hour
-    $checkStudy = $pdo->prepare("SELECT COALESCE(SUM(duration), 0) FROM study_sessions WHERE student_id = :sid");
+    $checkStudy = $pdo->prepare("SELECT COALESCE(SUM(seconds_spent), 0) FROM study_sessions WHERE student_id = :sid");
     $checkStudy->execute(['sid' => $sid]);
     if ((int)$checkStudy->fetchColumn() >= 3600) {
         $earnedTypes[] = 'study_hour';
