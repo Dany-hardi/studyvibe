@@ -3698,7 +3698,6 @@ function openLessonModal(chapterId) {
     document.getElementById('lesson-form-action').value        = 'add_lesson';
     document.getElementById('lesson-chapter-id').value        = chapterId;
     document.getElementById('lesson-submit-btn').textContent   = 'Ajouter';
-    document.getElementById('existing-pdf-info').classList.add('hidden');
     toggleModal('lesson-modal');
 }
 
