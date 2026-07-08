@@ -14,12 +14,10 @@ if (empty($code)) {
         $stmt = $pdo->prepare("
             SELECT cert.*, u.name AS student_name,
                    c.title AS course_title, c.description AS course_description,
-                   m.title AS module_title,
                    t.name AS teacher_name
             FROM certificates cert
             JOIN users u ON cert.student_id = u.id
             LEFT JOIN courses c ON cert.course_id = c.id
-            LEFT JOIN modules m ON cert.module_id = m.id
             LEFT JOIN users t ON c.teacher_id = t.id
             WHERE cert.certificate_code = :code
         ");

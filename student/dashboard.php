@@ -80,85 +80,77 @@ try {
 
     $deadlineAlerts = CourseSchedule::deadlineAlerts($pdo, (int)$user['id']);
 
-    // --- Dynamic Self-Healing Badges Logic ---
+    // --- Dynamic Self-Healing Badges Logic (isolated — never crashes dashboard) ---
     $sid = (int)$user['id'];
-    $earnedTypes = [];
-
-    // Check first_lesson
-    $checkFirst = $pdo->prepare("SELECT COUNT(*) FROM lesson_progress WHERE student_id = :sid AND completed = 1");
-    $checkFirst->execute(['sid' => $sid]);
-    if ((int)$checkFirst->fetchColumn() > 0) {
-        $earnedTypes[] = 'first_lesson';
-    }
-
-    // Check study_hour
-    $checkStudy = $pdo->prepare("SELECT COALESCE(SUM(seconds_spent), 0) FROM study_sessions WHERE student_id = :sid");
-    $checkStudy->execute(['sid' => $sid]);
-    if ((int)$checkStudy->fetchColumn() >= 3600) {
-        $earnedTypes[] = 'study_hour';
-    }
-
-    // Check course_complete
-    $checkComplete = $pdo->prepare("SELECT COUNT(*) FROM enrollments WHERE student_id = :sid AND progress_percent = 100");
-    $checkComplete->execute(['sid' => $sid]);
-    if ((int)$checkComplete->fetchColumn() > 0) {
-        $earnedTypes[] = 'course_complete';
-    }
-
-    // Check certified
-    $checkCert = $pdo->prepare("SELECT COUNT(*) FROM certificates WHERE student_id = :sid");
-    $checkCert->execute(['sid' => $sid]);
-    if ((int)$checkCert->fetchColumn() > 0) {
-        $earnedTypes[] = 'certified';
-    }
-
-    // Check perfect_score
-    $checkPerfectQuiz = $pdo->prepare("SELECT COUNT(*) FROM lesson_progress WHERE student_id = :sid AND score = 100");
-    $checkPerfectQuiz->execute(['sid' => $sid]);
-    $checkPerfectExam = $pdo->prepare("SELECT COUNT(*) FROM certification_attempts WHERE student_id = :sid AND score = 100");
-    $checkPerfectExam->execute(['sid' => $sid]);
-    if ((int)$checkPerfectQuiz->fetchColumn() > 0 || (int)$checkPerfectExam->fetchColumn() > 0) {
-        $earnedTypes[] = 'perfect_score';
-    }
-
-    // Check multitasker
-    $checkMulti = $pdo->prepare("SELECT COUNT(*) FROM enrollments WHERE student_id = :sid");
-    $checkMulti->execute(['sid' => $sid]);
-    if ((int)$checkMulti->fetchColumn() >= 3) {
-        $earnedTypes[] = 'multitasker';
-    }
-
-    // Check night_owl
-    $checkNightQuiz = $pdo->prepare("SELECT COUNT(*) FROM lesson_progress WHERE student_id = :sid AND (HOUR(completed_at) >= 22 OR HOUR(completed_at) < 4)");
-    $checkNightQuiz->execute(['sid' => $sid]);
-    $checkNightExam = $pdo->prepare("SELECT COUNT(*) FROM certification_attempts WHERE student_id = :sid AND (HOUR(attempted_at) >= 22 OR HOUR(attempted_at) < 4)");
-    $checkNightExam->execute(['sid' => $sid]);
-    if ((int)$checkNightQuiz->fetchColumn() > 0 || (int)$checkNightExam->fetchColumn() > 0) {
-        $earnedTypes[] = 'night_owl';
-    }
-
-    // Check note_taker
-    $checkNote = $pdo->prepare("SELECT COUNT(*) FROM video_notes WHERE student_id = :sid");
-    $checkNote->execute(['sid' => $sid]);
-    if ((int)$checkNote->fetchColumn() > 0) {
-        $earnedTypes[] = 'note_taker';
-    }
-
-    // Insert earned badges into student_badges table if they don't already exist
-    if (!empty($earnedTypes)) {
-        $insertBadge = $pdo->prepare("INSERT IGNORE INTO student_badges (student_id, badge_type) VALUES (:sid, :type)");
-        foreach ($earnedTypes as $type) {
-            $insertBadge->execute(['sid' => $sid, 'type' => $type]);
-        }
-    }
-
-    $stmt = $pdo->prepare("SELECT badge_type, earned_at FROM student_badges WHERE student_id = :sid ORDER BY earned_at DESC");
-    $stmt->execute(['sid' => $user['id']]);
-    $myBadges = $stmt->fetchAll();
-
+    $earnedTypes   = [];
+    $myBadges      = [];
     $earnedBadgesLookup = [];
-    foreach ($myBadges as $b) {
-        $earnedBadgesLookup[$b['badge_type']] = $b['earned_at'];
+    try {
+        // Check first_lesson
+        $checkFirst = $pdo->prepare("SELECT COUNT(*) FROM lesson_progress WHERE student_id = :sid AND completed = 1");
+        $checkFirst->execute(['sid' => $sid]);
+        if ((int)$checkFirst->fetchColumn() > 0) { $earnedTypes[] = 'first_lesson'; }
+
+        // Check study_hour
+        $checkStudy = $pdo->prepare("SELECT COALESCE(SUM(seconds_spent), 0) FROM study_sessions WHERE student_id = :sid");
+        $checkStudy->execute(['sid' => $sid]);
+        if ((int)$checkStudy->fetchColumn() >= 3600) { $earnedTypes[] = 'study_hour'; }
+
+        // Check course_complete
+        $checkComplete = $pdo->prepare("SELECT COUNT(*) FROM enrollments WHERE student_id = :sid AND progress_percent = 100");
+        $checkComplete->execute(['sid' => $sid]);
+        if ((int)$checkComplete->fetchColumn() > 0) { $earnedTypes[] = 'course_complete'; }
+
+        // Check certified
+        $checkCert = $pdo->prepare("SELECT COUNT(*) FROM certificates WHERE student_id = :sid");
+        $checkCert->execute(['sid' => $sid]);
+        if ((int)$checkCert->fetchColumn() > 0) { $earnedTypes[] = 'certified'; }
+
+        // Check perfect_score
+        $checkPerfectQuiz = $pdo->prepare("SELECT COUNT(*) FROM lesson_progress WHERE student_id = :sid AND score = 100");
+        $checkPerfectQuiz->execute(['sid' => $sid]);
+        $checkPerfectExam = $pdo->prepare("SELECT COUNT(*) FROM certification_attempts WHERE student_id = :sid AND score = 100");
+        $checkPerfectExam->execute(['sid' => $sid]);
+        if ((int)$checkPerfectQuiz->fetchColumn() > 0 || (int)$checkPerfectExam->fetchColumn() > 0) { $earnedTypes[] = 'perfect_score'; }
+
+        // Check multitasker
+        $checkMulti = $pdo->prepare("SELECT COUNT(*) FROM enrollments WHERE student_id = :sid");
+        $checkMulti->execute(['sid' => $sid]);
+        if ((int)$checkMulti->fetchColumn() >= 3) { $earnedTypes[] = 'multitasker'; }
+
+        // Check night_owl
+        $checkNightQuiz = $pdo->prepare("SELECT COUNT(*) FROM lesson_progress WHERE student_id = :sid AND (HOUR(completed_at) >= 22 OR HOUR(completed_at) < 4)");
+        $checkNightQuiz->execute(['sid' => $sid]);
+        $checkNightExam = $pdo->prepare("SELECT COUNT(*) FROM certification_attempts WHERE student_id = :sid AND (HOUR(attempted_at) >= 22 OR HOUR(attempted_at) < 4)");
+        $checkNightExam->execute(['sid' => $sid]);
+        if ((int)$checkNightQuiz->fetchColumn() > 0 || (int)$checkNightExam->fetchColumn() > 0) { $earnedTypes[] = 'night_owl'; }
+
+        // Check note_taker
+        $checkNote = $pdo->prepare("SELECT COUNT(*) FROM video_notes WHERE student_id = :sid");
+        $checkNote->execute(['sid' => $sid]);
+        if ((int)$checkNote->fetchColumn() > 0) { $earnedTypes[] = 'note_taker'; }
+
+        // Insert earned badges (INSERT IGNORE is idempotent — safe to re-run)
+        if (!empty($earnedTypes)) {
+            $insertBadge = $pdo->prepare("INSERT IGNORE INTO student_badges (student_id, badge_type) VALUES (:sid, :type)");
+            foreach ($earnedTypes as $type) {
+                $insertBadge->execute(['sid' => $sid, 'type' => $type]);
+            }
+        }
+
+        // Fetch all earned badges for display
+        $stmt = $pdo->prepare("SELECT badge_type, earned_at FROM student_badges WHERE student_id = :sid ORDER BY earned_at DESC");
+        $stmt->execute(['sid' => $user['id']]);
+        $myBadges = $stmt->fetchAll();
+
+        foreach ($myBadges as $b) {
+            $earnedBadgesLookup[$b['badge_type']] = $b['earned_at'];
+        }
+    } catch (Throwable $badgeEx) {
+        // Badge system degraded silently — dashboard still loads normally
+        // Production schema may differ; badges will show as locked until migration is applied
+        $myBadges           = [];
+        $earnedBadgesLookup = [];
     }
 
     $allBadgesConfig = [

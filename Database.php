@@ -159,6 +159,81 @@ class Database
                     self::$instance->exec("ALTER TABLE `lessons` ADD COLUMN `pdf_data` MEDIUMBLOB DEFAULT NULL");
                 } catch (PDOException $ex) {}
             }
+
+            // Migration 2.8: Gamification — student badges table
+            try {
+                self::$instance->query("SELECT id FROM student_badges LIMIT 1");
+            } catch (PDOException $e) {
+                try {
+                    self::$instance->exec("
+                        CREATE TABLE IF NOT EXISTS `student_badges` (
+                            `id`         INT AUTO_INCREMENT PRIMARY KEY,
+                            `student_id` INT NOT NULL,
+                            `badge_type` VARCHAR(64) NOT NULL,
+                            `earned_at`  TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                            UNIQUE KEY `uniq_student_badge` (`student_id`, `badge_type`)
+                        ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4
+                    ");
+                } catch (PDOException $ex) {}
+            }
+
+            // Migration 2.9: Study sessions table with seconds_spent column
+            try {
+                self::$instance->query("SELECT seconds_spent FROM study_sessions LIMIT 1");
+            } catch (PDOException $e) {
+                try {
+                    self::$instance->exec("
+                        CREATE TABLE IF NOT EXISTS `study_sessions` (
+                            `id`           INT AUTO_INCREMENT PRIMARY KEY,
+                            `student_id`   INT NOT NULL,
+                            `lesson_id`    INT DEFAULT NULL,
+                            `seconds_spent` INT NOT NULL DEFAULT 0,
+                            `session_date` DATE DEFAULT NULL,
+                            `updated_at`   TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP
+                        ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4
+                    ");
+                } catch (PDOException $ex) {
+                    // Table exists but missing column — add it
+                    try {
+                        self::$instance->exec("ALTER TABLE `study_sessions` ADD COLUMN `seconds_spent` INT NOT NULL DEFAULT 0");
+                    } catch (PDOException $ex2) {}
+                }
+            }
+
+            // Migration 2.10: video_notes table for note_taker badge
+            try {
+                self::$instance->query("SELECT id FROM video_notes LIMIT 1");
+            } catch (PDOException $e) {
+                try {
+                    self::$instance->exec("
+                        CREATE TABLE IF NOT EXISTS `video_notes` (
+                            `id`         INT AUTO_INCREMENT PRIMARY KEY,
+                            `student_id` INT NOT NULL,
+                            `lesson_id`  INT DEFAULT NULL,
+                            `note`       TEXT DEFAULT NULL,
+                            `created_at` TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+                        ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4
+                    ");
+                } catch (PDOException $ex) {}
+            }
+
+            // Migration 2.11: lesson_progress — completed, score, completed_at columns
+            try {
+                self::$instance->query("SELECT completed, score, completed_at FROM lesson_progress LIMIT 1");
+            } catch (PDOException $e) {
+                try { self::$instance->exec("ALTER TABLE `lesson_progress` ADD COLUMN `completed` TINYINT(1) NOT NULL DEFAULT 0"); } catch (PDOException $ex) {}
+                try { self::$instance->exec("ALTER TABLE `lesson_progress` ADD COLUMN `score` DECIMAL(5,2) DEFAULT NULL"); } catch (PDOException $ex) {}
+                try { self::$instance->exec("ALTER TABLE `lesson_progress` ADD COLUMN `completed_at` DATETIME DEFAULT NULL"); } catch (PDOException $ex) {}
+            }
+
+            // Migration 2.12: users — lang column for localization preferences
+            try {
+                self::$instance->query("SELECT lang FROM users LIMIT 1");
+            } catch (PDOException $e) {
+                try {
+                    self::$instance->exec("ALTER TABLE `users` ADD COLUMN `lang` VARCHAR(5) NOT NULL DEFAULT 'fr'");
+                } catch (PDOException $ex) {}
+            }
         }
         
         return self::$instance;
