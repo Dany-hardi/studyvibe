@@ -351,7 +351,6 @@ function dieSafe(string $message = 'Erreur serveur. Veuillez réessayer.', ?Thro
 {
     if ($e !== null) {
         logServerError($e, $context);
-        $message .= ' | Détails : ' . $e->getMessage() . ' dans ' . $e->getFile() . ':' . $e->getLine();
     }
     
     $errorCode = 500;
