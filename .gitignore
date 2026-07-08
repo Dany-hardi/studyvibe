@@ -34,3 +34,19 @@ Thumbs.db
 .vscode/
 .idea/
 .phpunit.result.cache
+
+# 6. Scripts de Debug et Fichiers Locaux Temporaires
+login-test.php
+deploy_sync.php
+sync_prod.sh
+.user.ini
+
+# 7. Imports CSV / Fichiers de Données Brutes
+*.csv
+
+# 8. PDFs Générés Localement (hors uploads/)
+*.pdf
+
+# 9. Fichiers de Test Temporaires
+test_*.txt
+test_*.php
