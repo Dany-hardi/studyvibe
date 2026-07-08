@@ -234,6 +234,24 @@ class Database
                     self::$instance->exec("ALTER TABLE `users` ADD COLUMN `lang` VARCHAR(5) NOT NULL DEFAULT 'fr'");
                 } catch (PDOException $ex) {}
             }
+
+            // Migration 2.13: certificates — course_id column for course-centric certification model
+            try {
+                self::$instance->query("SELECT course_id FROM certificates LIMIT 1");
+            } catch (PDOException $e) {
+                try {
+                    self::$instance->exec("ALTER TABLE `certificates` ADD COLUMN `course_id` INT DEFAULT NULL AFTER `student_id`");
+                    // Populate course_id for existing certificates based on their module_id
+                    self::$instance->exec("
+                        UPDATE `certificates` cert
+                        JOIN `courses` c ON c.module_id = cert.module_id
+                        SET cert.course_id = c.id
+                        WHERE cert.course_id IS NULL
+                    ");
+                    // Add foreign key constraint
+                    self::$instance->exec("ALTER TABLE `certificates` ADD CONSTRAINT `fk_certificates_course` FOREIGN KEY (`course_id`) REFERENCES `courses` (`id`) ON DELETE CASCADE");
+                } catch (PDOException $ex) {}
+            }
         }
         
         return self::$instance;
