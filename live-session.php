@@ -194,25 +194,7 @@ if (!$session) {
     exit;
 }
 
-// Validation de la progression des leçons pour les étudiants (uniquement pour les évaluations asynchrones)
-if ($isAsync && $session && isLoggedIn()) {
-    $currentUser = getCurrentUser();
-    if ($currentUser && $currentUser['role'] === 'student') {
-        if (!hasCompletedAllLessons((int)$currentUser['id'], (int)$session['course_id'])) {
-            $errorCode = 403;
-            $errorTitle = "Progression Insuffisante";
-            $errorMessage = "Vous devez avoir terminé la totalité des leçons du cours pour accéder à cette évaluation.";
-            $badgeText = "Accès verrouillé";
-            $typewriterLines = [
-                '> GATING : Progression du cours incomplète',
-                '> Veuillez terminer l\'apprentissage de toutes les leçons.',
-                '> Revenez une fois que le contenu a été entièrement assimilé.',
-            ];
-            include __DIR__ . '/error.php';
-            exit;
-        }
-    }
-}
+
 
 // =========================================================================
 // SECTION 2: REGISTRATION & AUTHENTICATION POST DISPATCHER

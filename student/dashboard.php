@@ -1148,6 +1148,10 @@ try {
                 
                 <div id="lesson-quiz-container" class="hidden p-6 border border-[#E5E5E7] dark:border-[#2C2C2C] bg-[#FAF9F6] dark:bg-[#1C1C1E] rounded-xl space-y-4">
                     <h4 class="font-serif text-lg font-semibold text-[#111111] dark:text-white">Évaluation de Leçon</h4>
+                    <div id="lesson-completed-success-msg" class="hidden p-4 bg-[#E8F5E9] dark:bg-[#1B5E20]/20 border border-[#C8E6C9] dark:border-[#1B5E20]/40 text-[#2E7D32] dark:text-[#81C784] text-xs rounded-lg font-medium flex items-center gap-2">
+                        <span class="text-sm">✓</span>
+                        <span>Félicitations ! Le contenu de la leçon a été entièrement lu/visionné. La leçon est achevée, vous pouvez maintenant passer à l'évaluation ci-dessous.</span>
+                    </div>
                     <p id="lesson-quiz-hint" class="text-xs font-light text-[#555555] dark:text-[#AAAAAA]">Répondez à chaque question pour valider la leçon.</p>
                     <p id="lesson-quiz-complete-msg" class="hidden text-sm text-[#004B23] dark:text-[#34C759] font-medium">✓ Évaluation terminée — leçon validée.</p>
 
@@ -2141,25 +2145,22 @@ try {
             updateContentProgressHint(lesson, videos, true);
             document.getElementById('lesson-quiz-locked').classList.add('hidden');
 
+            const successMsg = document.getElementById('lesson-completed-success-msg');
+            if (successMsg) successMsg.classList.remove('hidden');
+
             const isCompleted = document.getElementById('lesson-complete-status').classList.contains('hidden') === false;
 
-            if (autoLaunchQuiz) {
-                // Pour une leçon vidéo terminée
-                if (pendingLessonQuiz && pendingLessonQuiz.has_quiz && pendingLessonQuiz.questions.length > 0) {
-                    const quizBox = document.getElementById('lesson-quiz-container');
-                    quizBox.classList.remove('hidden');
-                    renderLessonQuestion(pendingLessonQuiz.questions[0], pendingLessonQuiz.questions.length);
-                    Toast.info('Vidéo terminée — lancement de l\'évaluation.');
-                    quizBox.scrollIntoView({ behavior: 'smooth', block: 'start' });
-                    // On s'assure que la barre de complétion est masquée pendant le quiz
-                    updateLessonCompleteBar(isCompleted, true, true);
-                } else {
-                    // Si pas de quiz, on valide directement la leçon
-                    markLessonComplete(lessonId);
-                }
+            if (pendingLessonQuiz && pendingLessonQuiz.has_quiz && pendingLessonQuiz.questions.length > 0) {
+                const quizBox = document.getElementById('lesson-quiz-container');
+                quizBox.classList.remove('hidden');
+                renderLessonQuestion(pendingLessonQuiz.questions[0], pendingLessonQuiz.questions.length);
+                Toast.success('Félicitations ! Le contenu de la leçon a été entièrement lu/visionné. La leçon est achevée, l\'évaluation est maintenant débloquée.');
+                quizBox.scrollIntoView({ behavior: 'smooth', block: 'start' });
+                // On s'assure que la barre de complétion est masquée pendant le quiz
+                updateLessonCompleteBar(isCompleted, true, true);
             } else {
-                // Pour une leçon texte/PDF terminée
-                updateLessonCompleteBar(isCompleted, true, !!(pendingLessonQuiz && pendingLessonQuiz.has_quiz));
+                // Si pas de quiz, on valide directement la leçon
+                markLessonComplete(lessonId);
             }
         }
 
@@ -2311,6 +2312,7 @@ try {
                     const quizHint     = document.getElementById('lesson-quiz-hint');
                     const feedback     = document.getElementById('lesson-quiz-feedback');
                     const quizForm     = document.getElementById('lesson-quiz-form');
+                    const successMsg   = document.getElementById('lesson-completed-success-msg');
 
                     feedback.textContent = '';
                     quizForm.reset();
@@ -2318,6 +2320,7 @@ try {
                     quizActive.classList.remove('hidden');
                     quizHint.classList.remove('hidden');
                     quizBox.classList.add('hidden');
+                    if (successMsg) successMsg.classList.add('hidden');
                     document.getElementById('lesson-quiz-locked').classList.add('hidden');
 
                     document.getElementById('quiz-lesson-id').value = lessonId;
@@ -2330,6 +2333,7 @@ try {
                     if (alreadyUnlocked) {
                         if (data.has_quiz && data.questions.length > 0) {
                             quizBox.classList.remove('hidden');
+                            if (successMsg) successMsg.classList.remove('hidden');
                             renderLessonQuestion(data.questions[0], data.questions.length);
                         }
                     } else if (data.has_quiz) {

@@ -305,7 +305,7 @@ if (isLoggedIn()) {
                 $score = $hasAttempted ? $userScores[(int)$eval['id']] : null;
                 
                 $isStudent = isLoggedIn() && $_SESSION['user_role'] === 'student';
-                $isLocked = $isStudent && !hasCompletedAllLessons((int)$user['id'], (int)$eval['course_id']);
+                $isLocked = false;
             ?>
                 <div class="eval-card" data-title="<?= htmlspecialchars(strtolower($eval['title'])) ?>" data-course="<?= htmlspecialchars(strtolower($eval['course_title'])) ?>" style="<?= $isLocked ? 'opacity: 0.8;' : '' ?>">
                     <div>

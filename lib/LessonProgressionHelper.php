@@ -25,10 +25,10 @@ class LessonProgressionHelper
         $lessonTitle = $info['lesson_title'];
         $courseTitle = $info['course_title'];
 
-        // 2. Trouver tous les étudiants qui ont déjà complété cette leçon
+        // 2. Trouver tous les étudiants qui ont déjà complété cette leçon ou consommé son contenu
         $stmt = $pdo->prepare("
-            SELECT student_id FROM lesson_progress
-            WHERE lesson_id = :lid AND completed = 1
+            SELECT DISTINCT student_id FROM lesson_progress
+            WHERE lesson_id = :lid AND (completed = 1 OR content_consumed = 1)
         ");
         $stmt->execute(['lid' => $lessonId]);
         $studentIds = $stmt->fetchAll(PDO::FETCH_COLUMN);
@@ -40,7 +40,7 @@ class LessonProgressionHelper
         // 3. Réinitialiser la progression de la leçon pour ces étudiants
         $updateProgStmt = $pdo->prepare("
             UPDATE lesson_progress
-            SET completed = 0, content_consumed = 0
+            SET completed = 0, content_consumed = 0, score = NULL, completed_at = NULL
             WHERE lesson_id = :lid AND student_id = :sid
         ");
 
