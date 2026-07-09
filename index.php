@@ -99,6 +99,424 @@ if (isLoggedIn()) {
         .sv-showdown-panel:hover {
             box-shadow: 0 40px 80px -20px rgba(0, 0, 0, 0.12);
         }
+
+        /* ADVANCED IMMERSIVE STORYTELLING DECK CSS */
+        .sv-story-deck {
+            position: relative;
+            background: #0d0f0e; /* Fallback default dark base */
+            transition: background 1.2s cubic-bezier(0.25, 1, 0.5, 1);
+            color: #ffffff;
+            overflow: visible;
+        }
+
+        .sv-story-rows {
+            display: flex;
+            flex-direction: column;
+            gap: 8rem;
+            padding: 6rem 0;
+            position: relative;
+            z-index: 10;
+            width: 100%;
+        }
+
+        .sv-story-row {
+            display: grid;
+            grid-template-columns: 1fr 1.25fr;
+            gap: 4.5rem;
+            align-items: center;
+            width: 100%;
+            min-height: 80vh;
+            opacity: 0.25;
+            transform: translateY(40px) scale(0.97);
+            transition: opacity 0.9s cubic-bezier(0.16, 1, 0.3, 1), transform 0.9s cubic-bezier(0.16, 1, 0.3, 1);
+        }
+
+        .sv-story-row.active {
+            opacity: 1;
+            transform: translateY(0) scale(1);
+        }
+
+        @media (max-width: 1024px) {
+            .sv-story-rows {
+                gap: 5rem;
+                padding: 4rem 0;
+            }
+            .sv-story-row {
+                grid-template-columns: 1fr;
+                gap: 2.5rem;
+                min-height: auto;
+            }
+        }
+
+        .sv-story-row-text {
+            display: flex;
+            flex-direction: column;
+            justify-content: center;
+        }
+
+        .sv-story-step-indicator {
+            display: flex;
+            align-items: center;
+            gap: 0.75rem;
+            margin-bottom: 1.5rem;
+        }
+
+        .sv-story-step-number {
+            font-family: monospace;
+            font-size: 0.75rem;
+            font-weight: 700;
+            background: rgba(255,255,255,0.1);
+            color: #ffffff;
+            padding: 0.25rem 0.6rem;
+            border-radius: 99px;
+            border: 1px solid rgba(255,255,255,0.15);
+        }
+
+        .sv-story-step-line {
+            height: 1px;
+            background: rgba(255,255,255,0.15);
+            flex: 1;
+            position: relative;
+            overflow: hidden;
+        }
+
+        .sv-story-step-line::after {
+            content: '';
+            position: absolute;
+            left: 0; top: 0; bottom: 0;
+            width: 100%;
+            background: #00FF7F;
+            transform: translateX(-100%);
+            transition: transform 0.8s ease;
+        }
+
+        .sv-story-row.active .sv-story-step-line::after {
+            transform: translateX(0);
+        }
+
+        /* Console styling per phase */
+        .sv-story-row-visual {
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            width: 100%;
+        }
+
+        .sv-story-console {
+            width: 100%;
+            aspect-ratio: 1.35;
+            background: rgba(10, 10, 10, 0.9);
+            backdrop-filter: blur(30px);
+            -webkit-backdrop-filter: blur(30px);
+            border: 1px solid rgba(255, 255, 255, 0.1);
+            border-radius: 28px;
+            position: relative;
+            overflow: hidden;
+            transform-style: preserve-3d;
+            perspective: 1200px;
+            transition: all 0.8s cubic-bezier(0.25, 1, 0.5, 1);
+        }
+
+        /* High-tech vector grid mesh overlay inside the console */
+        .sv-console-grid {
+            position: absolute;
+            inset: 0;
+            background-image: linear-gradient(rgba(255, 255, 255, 0.03) 1px, transparent 1px),
+                              linear-gradient(90deg, rgba(255, 255, 255, 0.03) 1px, transparent 1px);
+            background-size: 32px 32px;
+            pointer-events: none;
+            z-index: 1;
+            opacity: 0.7;
+        }
+
+        .sv-story-console.phase-1 {
+            border-color: rgba(0, 255, 127, 0.25);
+            box-shadow: 0 45px 90px rgba(0,0,0,0.65), inset 0 0 40px rgba(0, 255, 127, 0.1);
+        }
+
+        .sv-story-console.phase-2 {
+            border-color: rgba(201, 168, 76, 0.25);
+            box-shadow: 0 45px 90px rgba(0,0,0,0.65), inset 0 0 40px rgba(201, 168, 76, 0.1);
+        }
+
+        .sv-story-console.phase-3 {
+            border-color: rgba(255, 255, 255, 0.25);
+            box-shadow: 0 45px 90px rgba(0,0,0,0.65), inset 0 0 40px rgba(255, 255, 255, 0.06);
+        }
+
+        .sv-story-screen {
+            width: 100%;
+            height: 100%;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            overflow: hidden;
+            z-index: 2;
+        }
+
+        .sv-story-screen.active {
+            opacity: 1;
+            transform: scale(1) translateZ(0);
+            pointer-events: auto;
+        }
+
+        /* VISUAL 1: L'ÉVEIL (NEON NETWORK CORE) */
+        .sv-network-canvas {
+            position: relative;
+            width: 100%;
+            height: 100%;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+        }
+
+        .sv-network-core {
+            width: 90px;
+            height: 90px;
+            border-radius: 50%;
+            background: radial-gradient(circle, #00FF7F 0%, rgba(0,75,35,0.4) 60%, transparent 100%);
+            box-shadow: 0 0 40px rgba(0, 255, 127, 0.5), 0 0 80px rgba(0, 255, 127, 0.2);
+            position: relative;
+            z-index: 10;
+            animation: corePulse 3s infinite alternate ease-in-out;
+            border: 1px solid rgba(0, 255, 127, 0.3);
+        }
+
+        .sv-orbit-ring {
+            position: absolute;
+            border: 1px dashed rgba(255,255,255,0.08);
+            border-radius: 50%;
+            transform-style: preserve-3d;
+            animation: ringRotate 25s linear infinite;
+        }
+
+        .sv-orbit-ring-1 {
+            width: 240px;
+            height: 240px;
+            transform: rotateX(60deg) rotateY(15deg);
+        }
+
+        .sv-orbit-ring-2 {
+            width: 360px;
+            height: 360px;
+            transform: rotateX(-55deg) rotateY(-25deg);
+            animation-duration: 35s;
+            animation-direction: reverse;
+        }
+
+        .sv-orbit-node {
+            position: absolute;
+            background: rgba(15, 15, 15, 0.85);
+            backdrop-filter: blur(10px);
+            border: 1px solid rgba(255, 255, 255, 0.15);
+            color: #fff;
+            font-size: 11px;
+            font-weight: 500;
+            padding: 6px 14px;
+            border-radius: 30px;
+            box-shadow: 0 10px 20px rgba(0,0,0,0.4);
+            white-space: nowrap;
+            display: flex;
+            align-items: center;
+            gap: 6px;
+            transition: all 0.3s;
+        }
+
+        .sv-orbit-node:hover {
+            border-color: #00FF7F;
+            box-shadow: 0 10px 20px rgba(0, 255, 127, 0.2);
+            transform: scale(1.05);
+        }
+
+        .sv-node-1 { top: 0; left: 50%; transform: translate(-50%, -50%); }
+        .sv-node-2 { bottom: 0; left: 50%; transform: translate(-50%, 50%); }
+        .sv-node-3 { top: 50%; left: 0; transform: translate(-50%, -50%); }
+        .sv-node-4 { top: 50%; right: 0; transform: translate(50%, -50%); }
+
+        @keyframes corePulse {
+            0% { transform: scale(0.92); box-shadow: 0 0 35px rgba(0, 255, 127, 0.4); }
+            100% { transform: scale(1.08); box-shadow: 0 0 70px rgba(0, 255, 127, 0.8); }
+        }
+
+        @keyframes ringRotate {
+            0% { transform: rotateX(60deg) rotateY(15deg) rotateZ(0deg); }
+            100% { transform: rotateX(60deg) rotateY(15deg) rotateZ(360deg); }
+        }
+
+        /* VISUAL 2: L'IMMERSION (GLASSMOCK WORKSPACE) */
+        .sv-immersion-mockup {
+            width: 85%;
+            height: 72%;
+            background: rgba(255, 255, 255, 0.02);
+            border: 1px solid rgba(255, 255, 255, 0.08);
+            border-radius: 20px;
+            display: flex;
+            flex-direction: column;
+            overflow: hidden;
+            box-shadow: inset 0 0 30px rgba(255, 255, 255, 0.01), 0 30px 60px rgba(0,0,0,0.5);
+            backdrop-filter: blur(15px);
+        }
+
+        .sv-chat-dialog {
+            background: rgba(0, 75, 35, 0.3);
+            backdrop-filter: blur(10px);
+            border: 1px solid rgba(0, 255, 127, 0.25);
+            border-radius: 16px;
+            padding: 1rem 1.25rem;
+            max-width: 85%;
+            margin: 0 1.5rem 1.5rem;
+            transform: translateY(30px);
+            opacity: 0;
+            transition: all 0.8s cubic-bezier(0.175, 0.885, 0.32, 1.15);
+            box-shadow: 0 10px 30px rgba(0, 0, 0, 0.2);
+        }
+
+        .sv-story-screen.active .sv-chat-dialog {
+            transform: translateY(0);
+            opacity: 1;
+            transition-delay: 0.35s;
+        }
+
+        .sv-grow-gauge {
+            width: 110px;
+            height: 110px;
+            position: relative;
+            margin: 0 auto;
+        }
+
+        .sv-grow-gauge-ring {
+            width: 100%;
+            height: 100%;
+            border-radius: 50%;
+            border: 8px solid rgba(255, 255, 255, 0.04);
+            border-top-color: #00FF7F;
+            border-right-color: #00FF7F;
+            transform: rotate(-45deg);
+            filter: drop-shadow(0 0 8px rgba(0, 255, 127, 0.4));
+        }
+
+        .sv-grow-gauge-val {
+            position: absolute;
+            inset: 0;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 1.5rem;
+            font-weight: 700;
+            font-family: monospace;
+            color: #ffffff;
+            text-shadow: 0 0 10px rgba(0, 255, 127, 0.3);
+        }
+
+        /* VISUAL 3: LA RÉUSSITE (3D HOLOGRAPHIC CARD) */
+        .sv-holo-card-wrap {
+            perspective: 1200px;
+            width: 75%;
+            aspect-ratio: 1.58;
+            position: relative;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+        }
+
+        .sv-holo-card-3d {
+            width: 100%;
+            height: 100%;
+            border-radius: 20px;
+            background: linear-gradient(135deg, rgba(201,168,76,0.15) 0%, rgba(15,15,15,0.96) 50%, rgba(0,75,35,0.15) 100%);
+            border: 1px solid rgba(201,168,76,0.4);
+            box-shadow: 0 40px 80px rgba(0,0,0,0.6), inset 0 0 35px rgba(255,255,255,0.03);
+            padding: 2.25rem;
+            position: relative;
+            overflow: hidden;
+            display: flex;
+            flex-direction: column;
+            justify-content: space-between;
+            transform: rotateY(-15deg) rotateX(10deg);
+            transition: transform 0.3s ease, box-shadow 0.3s ease, border-color 0.3s ease;
+        }
+
+        .sv-holo-card-3d:hover {
+            box-shadow: 0 50px 100px rgba(201,168,76,0.18), 0 10px 45px rgba(0,0,0,0.7);
+            border-color: rgba(201,168,76,0.85);
+        }
+
+        .sv-holo-sheen {
+            position: absolute;
+            top: 0; left: 0; right: 0; bottom: 0;
+            background: linear-gradient(105deg, transparent 30%, rgba(255,255,255,0.06) 40%, rgba(201,168,76,0.12) 50%, transparent 60%);
+            background-size: 200% 200%;
+            background-position: 0% 0%;
+            transition: background-position 0.6s ease;
+            pointer-events: none;
+            z-index: 5;
+        }
+
+        .sv-gold-seal {
+            width: 54px;
+            height: 54px;
+            border-radius: 50%;
+            background: radial-gradient(circle, #C9A84C 0%, #8E6E1A 100%);
+            border: 2px solid #ffffff;
+            box-shadow: 0 0 20px rgba(201,168,76,0.6);
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 1.35rem;
+            position: relative;
+            z-index: 2;
+        }
+
+        .sv-gold-seal::after {
+            content: '';
+            position: absolute;
+            inset: -4px;
+            border-radius: 50%;
+            border: 1px dashed rgba(201, 168, 76, 0.6);
+            animation: sealRotate 8s linear infinite;
+        }
+
+        @keyframes sealRotate {
+            100% { transform: rotate(360deg); }
+        }
+
+        @keyframes floatParticle {
+            0% { transform: translateY(0) scale(1); opacity: 0.15; }
+            100% { transform: translateY(-20px) scale(1.2); opacity: 0.35; }
+        }
+
+        /* PARALLAX & LANDING TRANSITIONS CLASS */
+        .sv-scroll-reveal {
+            opacity: 0;
+            transform: translateY(35px);
+            transition: opacity 1.1s cubic-bezier(0.16, 1, 0.3, 1), transform 1.1s cubic-bezier(0.16, 1, 0.3, 1);
+        }
+        .sv-scroll-reveal.revealed {
+            opacity: 1;
+            transform: translateY(0);
+        }
+
+        /* 3D TILT EFFECT IN CAROUSELS */
+        .sv-3d-tilt-panel {
+            transform: perspective(800px) rotateY(-8deg) scale(0.97);
+            transition: transform 0.8s cubic-bezier(0.16, 1, 0.3, 1);
+        }
+        .sv-3d-tilt-panel.active {
+            transform: perspective(800px) rotateY(0deg) scale(1);
+        }
+
+        /* BACKGROUND SLOPE TRANSITION (CLEAN CURVED PATHS) */
+        .sv-curve-svg-transition {
+            position: absolute;
+            left: 0; right: 0;
+            width: 100%;
+            height: 120px;
+            fill: #0d0f0e;
+            pointer-events: none;
+            z-index: 10;
+        }
+        .sv-curve-top { top: -119px; }
+        .sv-curve-bottom { bottom: -119px; transform: scaleY(-1); }
     </style>
 </head>
 <body class="sv-landing sv-page">
@@ -375,30 +793,201 @@ if (isLoggedIn()) {
 <!-- =========================================================================
      SECTION 6: CORE SYSTEM FEATURES LIST
      ========================================================================= -->
-<section class="sv-section" id="fonctionnalites">
+<!-- =========================================================================
+     SECTION 6: CORE SYSTEM FEATURES LIST (REDESIGNED IMMERSIVE INTERACTIVE SHOWCASE)
+     ========================================================================= -->
+<section class="sv-story-deck" id="fonctionnalites">
+    <!-- Smooth SVG curve top transition -->
+    <svg class="sv-curve-svg-transition sv-curve-top" viewBox="0 0 1440 120" xmlns="http://www.w3.org/2000/svg">
+        <path d="M0,0 C480,120 960,120 1440,0 L1440,120 L0,120 Z" fill="#0d0f0e"></path>
+    </svg>
+
     <div class="sv-container">
-        <div class="sv-eyebrow">Fonctionnalités</div>
-        <h2 class="sv-section-title">Une seule plateforme.<br>Tous les outils pédagogiques.</h2>
-        <p class="sv-section-sub">De la création de cours à la certification — chaque outil réduit la friction et maximise l'apprentissage.</p>
-        <div style="display:grid; grid-template-columns:repeat(auto-fit,minmax(280px,1fr)); gap:1rem; margin-top:3rem;">
-            <div class="sv-feature-card">
-                <div class="sv-eyebrow" style="margin-bottom:0.75rem;">Gestion des cours</div>
-                <h3 class="sv-section-title" style="font-size:1.375rem; margin-bottom:0.75rem;">Créez. Publiez. Gérez.</h3>
-                <p style="font-size:0.875rem; color:var(--sv-text-muted); line-height:1.65; font-weight:300;">Structurez vos modules, publiez du contenu mixte et suivez la progression depuis un tableau de bord unique.</p>
+        <div class="sv-story-rows">
+            
+            <!-- Phase 1: L'Éveil -->
+            <div class="sv-story-row" id="story-phase-1" data-phase-id="1">
+                <div class="sv-story-row-text">
+                    <div class="sv-story-step-indicator">
+                        <span class="sv-story-step-number">01</span>
+                        <div class="sv-story-step-line"></div>
+                        <span style="font-size:0.75rem; font-weight:700; color:#00FF7F; letter-spacing:1px; text-transform:uppercase;">L'Éveil</span>
+                    </div>
+                    <h3 style="font-family:'Plus Jakarta Sans',sans-serif; font-size:clamp(1.75rem, 3.5vw, 2.5rem); font-weight:800; line-height:1.2; margin-bottom:1.5rem; color:#fff;">
+                        L'étincelle de la curiosité.
+                    </h3>
+                    <p style="font-size:1.05rem; color:rgba(255,255,255,0.7); line-height:1.75; font-weight:300; margin-bottom:2rem;">
+                        Chaque grand parcours commence par une simple connexion. StudyVibe cartographie vos connaissances et vos objectifs dès le premier jour, reliant enseignants et étudiants au sein d'un univers académique interactif et inspirant.
+                    </p>
+                    <div style="display:flex; gap:0.5rem;">
+                        <span style="font-size:0.75rem; background:rgba(0,255,127,0.1); color:#00FF7F; padding:0.35rem 0.75rem; border-radius:6px; font-weight:600; border:1px solid rgba(0,255,127,0.2);">Cartographie IA</span>
+                        <span style="font-size:0.75rem; background:rgba(255,255,255,0.05); color:rgba(255,255,255,0.6); padding:0.35rem 0.75rem; border-radius:6px;">Orientation</span>
+                    </div>
+                </div>
+                <div class="sv-story-row-visual">
+                    <div class="sv-story-console phase-1">
+                        <div class="sv-console-grid"></div>
+                        <div class="sv-story-screen">
+                            <div class="sv-network-canvas">
+                                <div class="sv-network-core"></div>
+                                <div class="sv-orbit-ring sv-orbit-ring-1">
+                                    <div class="sv-orbit-node sv-node-1">💻 Algorithmes</div>
+                                    <div class="sv-orbit-node sv-node-2">📊 Statistiques</div>
+                                </div>
+                                <div class="sv-orbit-ring sv-orbit-ring-2">
+                                    <div class="sv-orbit-node sv-node-3">🧠 Intelligence Artificielle</div>
+                                    <div class="sv-orbit-node sv-node-4">🧪 Sciences Physiques</div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
             </div>
-            <div class="sv-feature-card">
-                <div class="sv-eyebrow" style="margin-bottom:0.75rem;">Suivi étudiant</div>
-                <h3 class="sv-section-title" style="font-size:1.375rem; margin-bottom:0.75rem;">Progression en temps réel.</h3>
-                <p style="font-size:0.875rem; color:var(--sv-text-muted); line-height:1.65; font-weight:300;">Visualisez l'avancement, identifiez les difficultés et intervenez au bon moment.</p>
+
+            <!-- Phase 2: L'Immersion -->
+            <div class="sv-story-row" id="story-phase-2" data-phase-id="2">
+                <div class="sv-story-row-text">
+                    <div class="sv-story-step-indicator">
+                        <span class="sv-story-step-number">02</span>
+                        <div class="sv-story-step-line"></div>
+                        <span style="font-size:0.75rem; font-weight:700; color:#C9A84C; letter-spacing:1px; text-transform:uppercase;">L'Immersion</span>
+                    </div>
+                    <h3 style="font-family:'Plus Jakarta Sans',sans-serif; font-size:clamp(1.75rem, 3.5vw, 2.5rem); font-weight:800; line-height:1.2; margin-bottom:1.5rem; color:#fff;">
+                        L'art d'étudier sans distraction.
+                    </h3>
+                    <p style="font-size:1.05rem; color:rgba(255,255,255,0.7); line-height:1.75; font-weight:300; margin-bottom:2rem;">
+                        Plongez au cœur de vos cours grâce à notre liseuse intelligente et notre QuizBox intégrée. Suivez votre temps de concentration, interagissez avec votre tuteur virtuel et visualisez votre progression s'étendre en temps réel.
+                    </p>
+                    <div style="display:flex; gap:0.5rem;">
+                        <span style="font-size:0.75rem; background:rgba(201,168,76,0.15); color:#C9A84C; padding:0.35rem 0.75rem; border-radius:6px; font-weight:600; border:1px solid rgba(201,168,76,0.2);">Liseuse interactive</span>
+                        <span style="font-size:0.75rem; background:rgba(255,255,255,0.05); color:rgba(255,255,255,0.6); padding:0.35rem 0.75rem; border-radius:6px;">QuizBox</span>
+                    </div>
+                </div>
+                <div class="sv-story-row-visual">
+                    <div class="sv-story-console phase-2">
+                        <div class="sv-console-grid"></div>
+                        <div class="sv-story-screen">
+                            <div class="sv-immersion-mockup">
+                                <div style="height:34px; background:rgba(255,255,255,0.02); border-bottom:1px solid rgba(255,255,255,0.06); display:flex; align-items:center; padding:0 1rem; justify-content:space-between; flex-shrink:0;">
+                                    <span style="font-size:0.65rem; font-weight:600; color:rgba(255,255,255,0.5); letter-spacing:0.5px; display:flex; align-items:center; gap:6px;">
+                                        <span style="display:inline-block; width:6px; height:6px; border-radius:50%; background:#00FF7F;"></span>
+                                        COURS ACTIF : ALGÈBRE LINÉAIRE
+                                    </span>
+                                    <span style="font-size:0.6rem; color:#C9A84C; font-family:monospace; background:rgba(201,168,76,0.1); padding:0.15rem 0.4rem; border-radius:4px; border:1px solid rgba(201,168,76,0.15);">SESSION #804</span>
+                                </div>
+                                <div style="flex:1; display:flex; min-height:0; position:relative; width:100%;">
+                                    <div style="width:140px; background:rgba(255,255,255,0.01); border-right:1px solid rgba(255,255,255,0.06); padding:0.75rem 0.6rem; display:flex; flex-direction:column; gap:0.5rem; height:100%; flex-shrink:0;">
+                                        <span style="font-size:0.55rem; font-weight:700; color:rgba(255,255,255,0.3); letter-spacing:0.8px; text-transform:uppercase;">PLAN DE LEÇON</span>
+                                        <div style="font-size:0.65rem; color:#00FF7F; display:flex; align-items:center; gap:6px; font-weight:500;"><span style="font-size:0.55rem;">✔</span> I. Espaces vectoriels</div>
+                                        <div style="font-size:0.65rem; color:#ffffff; display:flex; align-items:center; gap:6px; font-weight:500;"><span style="color:#00FF7F; font-size:0.7rem;">●</span> II. Matrices</div>
+                                        <div style="font-size:0.65rem; color:rgba(255,255,255,0.4); display:flex; align-items:center; gap:6px;"><span style="font-size:0.65rem;">○</span> III. Déterminants</div>
+                                        <div style="font-size:0.65rem; color:rgba(255,255,255,0.4); display:flex; align-items:center; gap:6px;"><span style="font-size:0.65rem;">○</span> IV. Diagonalisation</div>
+                                    </div>
+                                    <div style="flex:1; display:flex; flex-direction:column; padding:0.85rem 1rem; min-height:0; justify-content:space-between;">
+                                        <div>
+                                            <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:0.4rem;">
+                                                <span style="font-size:0.75rem; font-weight:700; color:#fff;">II. Algèbre Matricielle</span>
+                                                <span style="font-size:0.55rem; color:rgba(255,255,255,0.4); font-family:monospace; background:rgba(255,255,255,0.05); padding:0.1rem 0.3rem; border-radius:3px;">LIVRE II</span>
+                                            </div>
+                                            <div style="font-size:0.65rem; color:rgba(255,255,255,0.65); line-height:1.45; font-weight:300; margin-bottom:0.5rem;">
+                                                Soit la matrice A ∈ M<sub>n</sub>(ℝ). On étudie l'existence d'une matrice inverse B telle que :
+                                            </div>
+                                            <div style="font-family:monospace; background:rgba(0,0,0,0.4); padding:0.4rem; border-radius:8px; font-size:0.65rem; border:1px solid rgba(255,255,255,0.06); color:#00FF7F; text-align:center;">
+                                                A × B = B × A = I<sub>n</sub>
+                                            </div>
+                                        </div>
+                                        <div class="sv-chat-dialog" style="margin: 0; max-width: 100%;">
+                                            <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:0.25rem;">
+                                                <span style="font-size:0.6rem; font-weight:700; color:#00FF7F; display:flex; align-items:center; gap:4px;">
+                                                    <span style="display:inline-block; width:5px; height:5px; border-radius:50%; background:#00FF7F; animation:corePulse 1.5s infinite alternate;"></span>
+                                                    🤖 Assistant IA StudyVibe
+                                                </span>
+                                                <span style="font-size:0.5rem; color:rgba(255,255,255,0.4); font-family:monospace;">Actif</span>
+                                            </div>
+                                            <p style="font-size:0.625rem; color:#fff; margin:0; line-height:1.35; font-weight:300;">
+                                                "Tu as complété la lecture. Veux-tu lancer un quiz rapide pour valider cette notion ?"
+                                            </p>
+                                        </div>
+                                    </div>
+                                    <div style="width:130px; background:rgba(255,255,255,0.005); border-left:1px solid rgba(255,255,255,0.06); padding:0.75rem 0.5rem; display:flex; flex-direction:column; align-items:center; justify-content:center; gap:0.6rem; flex-shrink:0;">
+                                        <div class="sv-grow-gauge">
+                                            <div class="sv-grow-gauge-ring"></div>
+                                            <div class="sv-grow-gauge-val">65%</div>
+                                        </div>
+                                        <span style="font-size:0.55rem; color:rgba(255,255,255,0.5); font-weight:600; text-transform:uppercase; letter-spacing:0.5px;">Focus Level</span>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
             </div>
-            <div class="sv-feature-card">
-                <div class="sv-eyebrow" style="margin-bottom:0.75rem;">Administration</div>
-                <h3 class="sv-section-title" style="font-size:1.375rem; margin-bottom:0.75rem;">Pilotez votre établissement.</h3>
-                <p style="font-size:0.875rem; color:var(--sv-text-muted); line-height:1.65; font-weight:300;">Configurez les accès, supervisez les cohortes et exportez les certifications.</p>
+
+            <!-- Phase 3: La Réussite -->
+            <div class="sv-story-row" id="story-phase-3" data-phase-id="3">
+                <div class="sv-story-row-text">
+                    <div class="sv-story-step-indicator">
+                        <span class="sv-story-step-number">03</span>
+                        <div class="sv-story-step-line"></div>
+                        <span style="font-size:0.75rem; font-weight:700; color:#fff; letter-spacing:1px; text-transform:uppercase;">La Réussite</span>
+                    </div>
+                    <h3 style="font-family:'Plus Jakarta Sans',sans-serif; font-size:clamp(1.75rem, 3.5vw, 2.5rem); font-weight:800; line-height:1.2; margin-bottom:1.5rem; color:#fff;">
+                        L'accomplissement certifié.
+                    </h3>
+                    <p style="font-size:1.05rem; color:rgba(255,255,255,0.7); line-height:1.75; font-weight:300; margin-bottom:2rem;">
+                        Chaque étape validée mérite sa reconnaissance. Obtenez des certificats signés cryptographiquement, exportables en un clic et vérifiables instantanément par vos futurs recruteurs à l'aide d'une URL sécurisée unique.
+                    </p>
+                    <div style="display:flex; gap:0.5rem;">
+                        <span style="font-size:0.75rem; background:rgba(255,255,255,0.1); color:#fff; padding:0.35rem 0.75rem; border-radius:6px; font-weight:600; border:1px solid rgba(255,255,255,0.2);">Cryptographic Sign</span>
+                        <span style="font-size:0.75rem; background:rgba(255,255,255,0.05); color:rgba(255,255,255,0.6); padding:0.35rem 0.75rem; border-radius:6px;">Partage instantané</span>
+                    </div>
+                </div>
+                <div class="sv-story-row-visual">
+                    <div class="sv-story-console phase-3">
+                        <div class="sv-console-grid"></div>
+                        <div class="sv-story-screen">
+                            <div class="sv-holo-card-wrap">
+                                <div style="position:absolute; width:120%; height:120%; pointer-events:none; z-index:0; overflow:hidden;">
+                                    <div style="position:absolute; width:8px; height:8px; background:#C9A84C; border-radius:50%; opacity:0.3; top:20%; left:10%; filter:blur(1px); animation:floatParticle 6s infinite alternate;"></div>
+                                    <div style="position:absolute; width:12px; height:12px; background:#C9A84C; border-radius:50%; opacity:0.25; bottom:15%; right:12%; filter:blur(2px); animation:floatParticle 8s infinite alternate-reverse;"></div>
+                                    <div style="position:absolute; width:6px; height:6px; background:#00FF7F; border-radius:50%; opacity:0.2; top:75%; left:25%; filter:blur(1px); animation:floatParticle 5s infinite alternate;"></div>
+                                </div>
+                                <div class="sv-holo-card-3d" id="holo-certificate" style="z-index: 1;">
+                                    <div class="sv-holo-sheen"></div>
+                                    <div style="display:flex; justify-content:space-between; align-items:flex-start;">
+                                        <div>
+                                            <div style="font-size:0.6rem; font-weight:700; color:#C9A84C; letter-spacing:1.5px; text-transform:uppercase; margin-bottom:0.25rem;">STUDYVIBE VERIFIED</div>
+                                            <h4 style="font-family:'Plus Jakarta Sans',sans-serif; font-size:1.15rem; font-weight:800; color:#fff; margin:0; line-height:1.2;">Attestation de Succès</h4>
+                                        </div>
+                                        <div class="sv-gold-seal">🏆</div>
+                                    </div>
+                                    <p style="font-size:0.75rem; color:rgba(255,255,255,0.85); line-height:1.55; margin:1rem 0 0.5rem; font-weight:300;">
+                                        Délivré avec fierté à <strong>Thomas Roche</strong> pour avoir validé avec mention le module complet d'<strong>Algèbre Linéaire Supérieure</strong>.
+                                    </p>
+                                    <div style="display:flex; justify-content:space-between; align-items:center; border-top:1px solid rgba(255,255,255,0.08); padding-top:0.75rem; margin-top:0.5rem;">
+                                        <div>
+                                            <div style="font-size:0.55rem; color:rgba(255,255,255,0.4);">SIGNATURE CRYPTOGRAPHIQUE</div>
+                                            <div style="font-family:monospace; font-size:0.6rem; color:#C9A84C; font-weight:600; margin-top:0.1rem;">hash:0x00FF7F...8A9D</div>
+                                        </div>
+                                        <span style="font-size:0.6rem; background:rgba(0,255,127,0.1); color:#00FF7F; padding:0.2rem 0.5rem; border-radius:4px; font-weight:700; border:1px solid rgba(0,255,127,0.2);">VERIFIED SEAL</span>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
             </div>
+
         </div>
     </div>
+
+    <!-- Smooth SVG curve bottom transition -->
+    <svg class="sv-curve-svg-transition sv-curve-bottom" viewBox="0 0 1440 120" xmlns="http://www.w3.org/2000/svg">
+        <path d="M0,0 C480,120 960,120 1440,0 L1440,120 L0,120 Z" fill="#0d0f0e"></path>
+    </svg>
 </section>
+
+<div class="sv-divider" style="background:#000; margin:0; border:none; height:1px;"></div>
 
 <div class="sv-divider"></div>
 
@@ -829,8 +1418,88 @@ if (isLoggedIn()) {
     // Register GSAP plugins
     gsap.registerPlugin(ScrollTrigger);
 
+    // Storytelling background morph controls
+    const phaseColors = {
+        1: '#0d0f0e', // Deep forest green
+        2: '#1a160d', // Golden bronze
+        3: '#0f1115'  // Platinum slate
+    };
+    function updateStoryBackground(phaseId) {
+        const deck = document.querySelector('.sv-story-deck');
+        if (deck) {
+            deck.style.background = phaseColors[phaseId];
+            document.querySelectorAll('.sv-curve-svg-transition path').forEach(path => {
+                path.setAttribute('fill', phaseColors[phaseId]);
+            });
+        }
+    }
+
+    // Trigger individual animations per active row entry
+    let animatedPhases = {};
+    function triggerPhaseAnimations(phaseId) {
+        // Run entry animations
+        if (phaseId == 1) {
+            gsap.fromTo("#story-phase-1 .sv-network-core", { scale: 0.7, opacity: 0 }, { scale: 1, opacity: 1, duration: 0.6, ease: "back.out(1.7)" });
+            gsap.fromTo("#story-phase-1 .sv-orbit-node", { scale: 0, opacity: 0 }, { scale: 1, opacity: 1, stagger: 0.08, duration: 0.5, ease: "back.out(2)" });
+        } else if (phaseId == 2) {
+            gsap.fromTo("#story-phase-2 .sv-immersion-mockup", { rotateY: 20, scale: 0.95 }, { rotateY: 0, scale: 1, duration: 0.8, ease: "power3.out" });
+            gsap.fromTo("#story-phase-2 .sv-chat-dialog", { y: 30, opacity: 0 }, { y: 0, opacity: 1, duration: 0.6, delay: 0.2, ease: "power2.out" });
+            
+            const valEl = document.querySelector('#story-phase-2 .sv-grow-gauge-val');
+            if (valEl) {
+                let obj = { val: 0 };
+                gsap.to(obj, {
+                    val: 65,
+                    duration: 1.2,
+                    ease: "power1.out",
+                    onUpdate: () => {
+                        valEl.textContent = Math.round(obj.val) + '%';
+                    }
+                });
+            }
+        } else if (phaseId == 3) {
+            gsap.fromTo("#story-phase-3 #holo-certificate", { rotateY: -35, rotateX: 20, scale: 0.9 }, { rotateY: -15, rotateX: 10, scale: 1, duration: 0.9, ease: "power2.out" });
+            gsap.fromTo("#story-phase-3 .sv-gold-seal", { scale: 0, rotation: -180 }, { scale: 1, rotation: 0, duration: 0.8, ease: "back.out(1.5)" });
+        }
+    }
+
+    // 3D Mouse Tilt Interactive Logic for Holographic Certificate
+    const holoCard = document.getElementById('holo-certificate');
+    const holoWrap = document.querySelector('.sv-holo-card-wrap');
+    if (holoCard && holoWrap) {
+        holoWrap.addEventListener('mousemove', (e) => {
+            const rect = holoWrap.getBoundingClientRect();
+            const x = e.clientX - rect.left;
+            const y = e.clientY - rect.top;
+            
+            // Calculate tilt angle based on cursor position relative to card center
+            const centerX = rect.width / 2;
+            const centerY = rect.height / 2;
+            const tiltX = (centerY - y) / 10;
+            const tiltY = (x - centerX) / 12;
+            
+            holoCard.style.transform = `rotateX(${tiltX}deg) rotateY(${tiltY}deg) scale(1.04)`;
+            
+            // Shift sheen highlight gradient towards cursor location
+            const sheen = holoCard.querySelector('.sv-holo-sheen');
+            if (sheen) {
+                const px = (x / rect.width) * 100;
+                const py = (y / rect.height) * 100;
+                sheen.style.backgroundImage = `linear-gradient(105deg, transparent 20%, rgba(255,255,255,0.08) 35%, rgba(201,168,76,0.18) ${px}%, transparent 80%)`;
+            }
+        });
+        
+        holoWrap.addEventListener('mouseleave', () => {
+            holoCard.style.transform = 'rotateY(-15deg) rotateX(10deg) scale(1)';
+            const sheen = holoCard.querySelector('.sv-holo-sheen');
+            if (sheen) {
+                sheen.style.backgroundImage = 'linear-gradient(105deg, transparent 30%, rgba(255,255,255,0.08) 40%, rgba(201,168,76,0.12) 50%, transparent 60%)';
+            }
+        });
+    }
+
     window.addEventListener('DOMContentLoaded', () => {
-        // Set main containers opacity immediately when script executes to avoid FOUC (Flash of Unstyled Content)
+        // Set main containers opacity immediately when script executes to avoid FOUC
         gsap.set([".sv-hero-content", ".sv-auth-card", ".sv-feature-card", ".sv-step-card"], { opacity: 1 });
 
         // 1. Hero Reveal Animation Timeline
@@ -843,18 +1512,30 @@ if (isLoggedIn()) {
           .from(".sv-hero-content .sv-badge", { y: 15, opacity: 0, stagger: 0.08, duration: 0.5 }, "-=0.6")
           .from(".sv-auth-card", { x: 45, opacity: 0, duration: 1.1, ease: "power4.out" }, "-=1.1");
 
-        // 2. ScrollTrigger features stagger reveal
-        gsap.from(".sv-feature-card", {
-            scrollTrigger: {
-                trigger: "#fonctionnalites",
-                start: "top 85%",
-                toggleActions: "play none none none"
-            },
-            y: 45,
-            opacity: 0,
-            duration: 0.85,
-            stagger: 0.12,
-            ease: "power2.out"
+        // 2. Storytelling Rows ScrollTrigger
+        document.querySelectorAll('.sv-story-row').forEach(row => {
+            const phaseId = row.getAttribute('data-phase-id');
+            ScrollTrigger.create({
+                trigger: row,
+                start: "top 65%",
+                end: "bottom 35%",
+                onEnter: () => {
+                    row.classList.add('active');
+                    updateStoryBackground(phaseId);
+                    triggerPhaseAnimations(phaseId);
+                },
+                onEnterBack: () => {
+                    row.classList.add('active');
+                    updateStoryBackground(phaseId);
+                    triggerPhaseAnimations(phaseId);
+                },
+                onLeave: () => {
+                    row.classList.remove('active');
+                },
+                onLeaveBack: () => {
+                    row.classList.remove('active');
+                }
+            });
         });
 
         // 3. ScrollTrigger Course Reader Mockup
@@ -873,7 +1554,7 @@ if (isLoggedIn()) {
         // Showdown Horizontal Scroll (Yoyo Loop)
         const track = document.querySelector('.sv-showdown-track');
         if (track) {
-            const duration = 24; // 24 seconds total cycle
+            const duration = 24;
             const scrollTween = gsap.to(track, {
                 x: () => -(track.scrollWidth - track.parentElement.offsetWidth),
                 ease: "none",
@@ -883,12 +1564,11 @@ if (isLoggedIn()) {
                 repeatDelay: 2.5
             });
 
-            // Pause on hover so the user can interact or look closely
             track.addEventListener('mouseenter', () => scrollTween.pause());
             track.addEventListener('mouseleave', () => scrollTween.play());
         }
 
-        // ScrollTrigger Presentation Story
+        // ScrollTrigger Presentation Philosophy Story
         gsap.from("#presentation-story .sv-glass-card", {
             scrollTrigger: {
                 trigger: "#presentation-story",
@@ -902,7 +1582,7 @@ if (isLoggedIn()) {
             ease: "power2.out"
         });
 
-        // 4. ScrollTrigger Stats Panel (Section B)
+        // 4. ScrollTrigger Stats Panel Counter Increments
         gsap.from("#statistiques-insights .sv-glass-card", {
             scrollTrigger: {
                 trigger: "#statistiques-insights",
@@ -914,6 +1594,28 @@ if (isLoggedIn()) {
             stagger: 0.15,
             duration: 0.9,
             ease: "power2.out"
+        });
+
+        // Counter Numbers Tick Up
+        document.querySelectorAll('.sv-stat-number').forEach(num => {
+            const target = parseInt(num.innerText.replace(/[^0-9]/g, ''));
+            if (!isNaN(target)) {
+                let obj = { val: 0 };
+                const suffix = num.innerText.replace(/[0-9]/g, '');
+                gsap.to(obj, {
+                    val: target,
+                    scrollTrigger: {
+                        trigger: num,
+                        start: "top 90%",
+                        toggleActions: "play none none none"
+                    },
+                    duration: 1.8,
+                    ease: "power2.out",
+                    onUpdate: () => {
+                        num.textContent = Math.round(obj.val) + suffix;
+                    }
+                });
+            }
         });
 
         // 5. ScrollTrigger steps timeline slide-in
@@ -941,6 +1643,23 @@ if (isLoggedIn()) {
             opacity: 0,
             duration: 1,
             ease: "power3.out"
+        });
+
+        // 7. Global Scroll-triggered Parallax/Scale effects for sections
+        gsap.utils.toArray('section:not(.sv-hero):not(.sv-story-deck), .sv-partners-band, footer').forEach(sec => {
+            gsap.fromTo(sec, 
+                { opacity: 0.92, scale: 0.98 },
+                { 
+                    opacity: 1, 
+                    scale: 1,
+                    scrollTrigger: {
+                        trigger: sec,
+                        start: "top 95%",
+                        end: "top 70%",
+                        scrub: 0.8
+                    }
+                }
+            );
         });
     });
 </script>
