@@ -831,12 +831,12 @@ if (isLoggedIn()) {
                             <div class="sv-network-canvas">
                                 <div class="sv-network-core"></div>
                                 <div class="sv-orbit-ring sv-orbit-ring-1">
-                                    <div class="sv-orbit-node sv-node-1">💻 Algorithmes</div>
-                                    <div class="sv-orbit-node sv-node-2">📊 Statistiques</div>
+                                    <div class="sv-orbit-node sv-node-1"> Algorithmes</div>
+                                    <div class="sv-orbit-node sv-node-2"> Statistiques</div>
                                 </div>
                                 <div class="sv-orbit-ring sv-orbit-ring-2">
-                                    <div class="sv-orbit-node sv-node-3">🧠 Intelligence Artificielle</div>
-                                    <div class="sv-orbit-node sv-node-4">🧪 Sciences Physiques</div>
+                                    <div class="sv-orbit-node sv-node-3"> Intelligence Artificielle</div>
+                                    <div class="sv-orbit-node sv-node-4"> Sciences Physiques</div>
                                 </div>
                             </div>
                         </div>
@@ -1683,10 +1683,50 @@ if (isLoggedIn()) {
         }
     }
 
+    function selectSignupRole(role) {
+        const input = document.getElementById('signup-role');
+        if (input) {
+            input.value = role;
+            // Update active states on visual role cards
+            document.querySelectorAll('.sv-role-card').forEach(card => {
+                card.classList.toggle('active', card.getAttribute('data-role') === role);
+            });
+            // Fire validation to update UI
+            validateSignup();
+        }
+    }
+
+    function togglePasswordVisibility(id, btn) {
+        const input = document.getElementById(id);
+        if (input) {
+            const isPassword = input.getAttribute('type') === 'password';
+            input.setAttribute('type', isPassword ? 'text' : 'password');
+            if (isPassword) {
+                btn.innerHTML = `
+                    <svg class="sv-eye-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                        <line x1="1" y1="1" x2="23" y2="23"></line>
+                        <path d="M9 9a3 3 0 1 1-6 0 3 3 0 0 1 6 0z"></path>
+                        <path d="M17.6 17.6a10.22 10.22 0 0 1-5.6 1.4c-7 0-11-8-11-8a18.45 18.45 0 0 1 5.06-5.94M9.9 4.24A9.12 9.12 0 0 1 12 4c7 0 11 8 11 8a18.5 18.5 0 0 1-2.16 3.19"></path>
+                    </svg>
+                `;
+            } else {
+                btn.innerHTML = `
+                    <svg class="sv-eye-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                        <path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"></path>
+                        <circle cx="12" cy="12" r="3"></circle>
+                    </svg>
+                `;
+            }
+        }
+    }
+
+    function handleSocialLogin(provider) {
+        Toast.success(`Authentification avec ${provider.charAt(0).toUpperCase() + provider.slice(1)} initiée...`);
+    }
+
     function openSignup() {
         document.getElementById('auth-card').scrollIntoView({ behavior: 'smooth', block: 'center' });
         switchAuthTab('signup');
-        setTimeout(() => document.getElementById('signup-role').focus(), 400);
     }
 
     function openForgotPassword() {
@@ -1761,8 +1801,6 @@ if (isLoggedIn()) {
             signupRoleChip.dataset.role = signupRole.value;
             signupBtn.textContent = meta ? meta.btn : 'Créer mon compte';
             setTimeout(() => signupName.focus(), 200);
-        } else {
-            setTimeout(() => signupRole.focus(), 200);
         }
         validateSignup();
     }
@@ -1798,7 +1836,6 @@ if (isLoggedIn()) {
         if (signupRole.value !== 'student' && signupRole.value !== 'teacher') {
             hintRole.classList.add('error');
             signupRole.classList.add('invalid');
-            signupRole.focus();
             return;
         }
         goSignupStep(2);

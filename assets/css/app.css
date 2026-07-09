@@ -998,43 +998,256 @@ html.dark body.sv-page {
     margin: 0 auto 0.875rem;
 }
 
-.sv-signup-role-field {
-    margin-bottom: 0.5rem;
+/* Custom premium role selection cards */
+.sv-role-cards {
+    display: flex;
+    flex-direction: column;
+    gap: 0.75rem;
+    width: 100%;
+    max-width: 290px;
+    margin: 0.5rem auto 1.25rem;
 }
 
-.sv-signup-role-chip {
+.sv-role-card {
     display: flex;
     align-items: center;
-    justify-content: space-between;
-    gap: 0.5rem;
-    width: 100%;
-    max-width: 280px;
-    margin-left: auto;
-    margin-right: auto;
-    padding: 0.5rem 0.75rem;
-    margin-bottom: 0.875rem;
-    border: 1px solid var(--sv-border-strong);
+    gap: 0.85rem;
+    padding: 0.85rem 1rem;
+    background: #ffffff;
+    border: 1.5px solid rgba(0, 0, 0, 0.08);
+    border-radius: 16px;
+    cursor: pointer;
+    position: relative;
+    transition: all 0.25s cubic-bezier(0.16, 1, 0.3, 1);
+    box-shadow: 0 4px 10px rgba(0, 0, 0, 0.02);
+}
+
+.sv-role-card:hover {
+    border-color: rgba(0, 75, 35, 0.25);
     background: #f8fcf9;
-    font-size: 0.75rem;
+    transform: translateY(-1px);
+}
+
+.sv-role-card.active {
+    border-color: #004B23;
+    background: #f0faf4;
+    box-shadow: 0 8px 20px rgba(0, 75, 35, 0.08);
+}
+
+.sv-role-card-icon {
+    font-size: 1.35rem;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    background: rgba(0, 75, 35, 0.04);
+    width: 40px;
+    height: 40px;
+    border-radius: 10px;
+    flex-shrink: 0;
+    transition: background 0.2s ease;
+}
+
+.sv-role-card.active .sv-role-card-icon {
+    background: rgba(0, 75, 35, 0.08);
+}
+
+.sv-role-card-content {
+    flex: 1;
+    text-align: left;
+}
+
+.sv-role-card-title {
+    font-size: 0.85rem;
+    font-weight: 700;
+    color: var(--sv-text);
+    margin-bottom: 0.15rem;
+}
+
+.sv-role-card-desc {
+    font-size: 0.6875rem;
+    color: var(--sv-text-muted);
+    line-height: 1.3;
+}
+
+.sv-role-card-check {
+    width: 18px;
+    height: 18px;
+    border: 2px solid rgba(0, 0, 0, 0.12);
+    border-radius: 50%;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    flex-shrink: 0;
+    transition: all 0.2s ease;
+    position: relative;
+}
+
+.sv-role-card.active .sv-role-card-check {
+    border-color: #004B23;
+    background: #004B23;
+}
+
+.sv-role-card.active .sv-role-card-check::after {
+    content: '';
+    width: 6px;
+    height: 6px;
+    background: #ffffff;
+    border-radius: 50%;
+}
+
+/* Social logins */
+.sv-social-logins {
+    display: flex;
+    gap: 0.75rem;
+    width: 100%;
+    max-width: 290px;
+    margin: 0 auto 1.25rem;
+}
+
+.sv-social-btn {
+    flex: 1;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 0.5rem;
+    padding: 0.65rem;
+    background: #ffffff;
+    border: 1px solid rgba(0, 0, 0, 0.1);
+    border-radius: 12px;
+    font-size: 0.8125rem;
     font-weight: 600;
     color: var(--sv-text);
+    cursor: pointer;
+    transition: all 0.25s cubic-bezier(0.16, 1, 0.3, 1);
+    box-shadow: 0 4px 10px rgba(0, 0, 0, 0.02);
 }
 
-.sv-signup-role-chip[data-role="teacher"] {
-    background: #f7f9fc;
+.sv-social-btn:hover {
+    background: #fafafa;
+    border-color: rgba(0, 0, 0, 0.15);
+    transform: translateY(-1px);
+    box-shadow: 0 6px 15px rgba(0, 0, 0, 0.05);
 }
 
-.sv-signup-role-change {
+.sv-social-icon {
+    width: 18px;
+    height: 18px;
+    flex-shrink: 0;
+}
+
+.sv-auth-divider {
+    display: flex;
+    align-items: center;
+    text-align: center;
+    width: 100%;
+    max-width: 290px;
+    margin: 0 auto 1.25rem;
+    color: var(--sv-text-faint);
     font-size: 0.6875rem;
-    font-weight: 700;
-    color: #004B23;
+    font-weight: 600;
+    text-transform: uppercase;
+    letter-spacing: 0.06em;
+}
+
+.sv-auth-divider::before,
+.sv-auth-divider::after {
+    content: '';
+    flex: 1;
+    border-bottom: 1px solid rgba(0, 0, 0, 0.08);
+}
+
+.sv-auth-divider:not(:empty)::before {
+    margin-right: .75em;
+}
+
+.sv-auth-divider:not(:empty)::after {
+    margin-left: .75em;
+}
+
+/* Password field wrapper with eye toggle */
+.sv-pw-field-wrapper {
+    position: relative;
+    width: 100%;
+    max-width: 290px;
+    margin-left: auto;
+    margin-right: auto;
+}
+
+.sv-pw-field-wrapper .sv-field-input {
+    padding-right: 2.75rem;
+}
+
+.sv-pw-toggle-btn {
+    position: absolute;
+    right: 0.85rem;
+    top: 50%;
+    transform: translateY(-50%);
     background: none;
     border: none;
     cursor: pointer;
-    text-decoration: underline;
-    text-underline-offset: 2px;
+    color: var(--sv-text-muted);
     padding: 0;
-    flex-shrink: 0;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    transition: color 0.2s ease;
+}
+
+.sv-pw-toggle-btn:hover {
+    color: var(--sv-text);
+}
+
+.sv-pw-toggle-btn svg {
+    width: 20px;
+    height: 20px;
+}
+
+/* Dark mode overrides for role card, social logins and auth dividers */
+html.dark .sv-role-card {
+    background: rgba(255, 255, 255, 0.02);
+    border-color: rgba(255, 255, 255, 0.08);
+    box-shadow: 0 4px 10px rgba(0, 0, 0, 0.2);
+}
+
+html.dark .sv-role-card:hover {
+    background: rgba(255, 255, 255, 0.04);
+    border-color: rgba(0, 255, 127, 0.2);
+}
+
+html.dark .sv-role-card.active {
+    background: rgba(0, 255, 127, 0.05);
+    border-color: #00FF7F;
+    box-shadow: 0 8px 20px rgba(0, 255, 127, 0.08);
+}
+
+html.dark .sv-role-card-icon {
+    background: rgba(255, 255, 255, 0.04);
+}
+
+html.dark .sv-role-card.active .sv-role-card-icon {
+    background: rgba(0, 255, 127, 0.1);
+}
+
+html.dark .sv-role-card.active .sv-role-card-check {
+    border-color: #00FF7F;
+    background: #00FF7F;
+}
+
+html.dark .sv-social-btn {
+    background: rgba(255, 255, 255, 0.02);
+    border-color: rgba(255, 255, 255, 0.08);
+    color: #F5F5F5;
+    box-shadow: 0 4px 10px rgba(0, 0, 0, 0.2);
+}
+
+html.dark .sv-social-btn:hover {
+    background: rgba(255, 255, 255, 0.05);
+    border-color: rgba(255, 255, 255, 0.15);
+}
+
+html.dark .sv-auth-divider::before,
+html.dark .sv-auth-divider::after {
+    border-bottom-color: rgba(255, 255, 255, 0.08);
 }
 
 .sv-signup-actions {
