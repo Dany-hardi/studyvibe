@@ -10,6 +10,110 @@ function getCsrfToken() {
   return document.querySelector('meta[name="csrf-token"]')?.content ?? '';
 }
 
+/* ── MARKDOWN & LATEX TYPESETTING RENDERER ───────────────── */
+
+/**
+ * Renders raw string content containing Markdown and LaTeX (KaTeX) into formatted HTML.
+ * @param {string} text - Raw input text containing Markdown formatting & LaTeX formulas ($...$ or $$...$$).
+ * @return {string} Formatted HTML ready to be inserted into DOM.
+ */
+function renderMarkdownAndMath(text) {
+  if (!text || typeof text !== 'string') return '';
+
+  // Fallback if marked is not loaded
+  if (typeof marked === 'undefined') {
+    const div = document.createElement('div');
+    div.textContent = text;
+    return div.innerHTML.replace(/\n/g, '<br>');
+  }
+
+  const mathTokens = [];
+  let tokenIndex = 0;
+
+  // 1. Preserve display math $$ ... $$ and \[ ... \]
+  let processed = text.replace(/(\$\$[\s\S]+?\$\$|\\\[[\s\S]+?\\\])/g, function(match) {
+    const token = `___MATH_DISPLAY_${tokenIndex++}___`;
+    mathTokens.push({ token, code: match, display: true });
+    return token;
+  });
+
+  // 2. Preserve inline math $ ... $ (excluding escaped \$ and plain currency)
+  processed = processed.replace(/(?<!\\)\$([^\$\n]+?)(?<!\\)\$/g, function(match, inner) {
+    if (/^\s*\d+(\.\d+)?\s*$/.test(inner) && !/[a-zA-Z\\+\-*\/=^_{}]/.test(inner)) {
+      return match;
+    }
+    const token = `___MATH_INLINE_${tokenIndex++}___`;
+    mathTokens.push({ token, code: match, display: false });
+    return token;
+  });
+
+  // 3. Preserve inline math \( ... \)
+  processed = processed.replace(/\\\(([\s\S]+?)\\\)/g, function(match) {
+    const token = `___MATH_INLINE_${tokenIndex++}___`;
+    mathTokens.push({ token, code: match, display: false });
+    return token;
+  });
+
+  // Configure marked if available
+  try {
+    if (typeof marked.setOptions === 'function') {
+      marked.setOptions({
+        gfm: true,
+        breaks: true,
+        headerIds: false,
+        mangle: false
+      });
+    }
+  } catch (e) {}
+
+  // Parse Markdown to HTML
+  let html = '';
+  try {
+    html = (typeof marked.parse === 'function') ? marked.parse(processed) : marked(processed);
+  } catch (e) {
+    const div = document.createElement('div');
+    div.textContent = processed;
+    html = div.innerHTML.replace(/\n/g, '<br>');
+  }
+
+  // Restore and render KaTeX math tokens
+  mathTokens.forEach(item => {
+    let mathStr = item.code;
+    if (item.display) {
+      if (mathStr.startsWith('$$') && mathStr.endsWith('$$')) mathStr = mathStr.slice(2, -2);
+      else if (mathStr.startsWith('\\[') && mathStr.endsWith('\\]')) mathStr = mathStr.slice(2, -2);
+    } else {
+      if (mathStr.startsWith('$') && mathStr.endsWith('$')) mathStr = mathStr.slice(1, -1);
+      else if (mathStr.startsWith('\\(') && mathStr.endsWith('\\)')) mathStr = mathStr.slice(2, -2);
+    }
+
+    let rendered = item.code;
+    if (typeof katex !== 'undefined' && typeof katex.renderToString === 'function') {
+      try {
+        rendered = katex.renderToString(mathStr, {
+          displayMode: item.display,
+          throwOnError: false
+        });
+      } catch (err) {
+        rendered = `<span class="katex-error text-red-500 font-mono text-xs">${item.code}</span>`;
+      }
+    }
+
+    const replacement = item.display
+      ? `<div class="katex-display-container my-3 py-1 overflow-x-auto text-center">${rendered}</div>`
+      : `<span class="katex-inline-container inline-block px-0.5">${rendered}</span>`;
+
+    if (item.display && html.includes(`<p>${item.token}</p>`)) {
+      html = html.replace(`<p>${item.token}</p>`, replacement);
+    } else {
+      html = html.replace(item.token, replacement);
+    }
+  });
+
+  return html;
+}
+
+
 const DarkMode = (() => {
   const KEY = 'sv_dark';
   const root = document.documentElement;

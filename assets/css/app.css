@@ -2786,3 +2786,189 @@ button:active,
     opacity: 0.9 !important;
     transition: transform 0.05s ease-out !important;
 }
+
+/* ── 9. MARKDOWN & LATEX TYPESETTING STYLES ─────────────── */
+
+.sv-lesson-text, .sv-markdown-render {
+    line-height: 1.7;
+    color: #111111;
+    word-break: break-word;
+}
+
+html.dark .sv-lesson-text, html.dark .sv-markdown-render {
+    color: #E8E8E8;
+}
+
+.sv-lesson-text h1, .sv-markdown-render h1 {
+    font-family: 'Plus Jakarta Sans', sans-serif;
+    font-size: 1.65rem;
+    font-weight: 700;
+    margin-top: 1.5rem;
+    margin-bottom: 0.75rem;
+    color: #111111;
+    border-bottom: 1px solid #E5E5E7;
+    padding-bottom: 0.4rem;
+}
+
+html.dark .sv-lesson-text h1, html.dark .sv-markdown-render h1 {
+    color: #FFFFFF;
+    border-bottom-color: #2A2A2A;
+}
+
+.sv-lesson-text h2, .sv-markdown-render h2 {
+    font-family: 'Plus Jakarta Sans', sans-serif;
+    font-size: 1.35rem;
+    font-weight: 600;
+    margin-top: 1.25rem;
+    margin-bottom: 0.5rem;
+    color: #004B23;
+}
+
+html.dark .sv-lesson-text h2, html.dark .sv-markdown-render h2 {
+    color: #4ADE80;
+}
+
+.sv-lesson-text h3, .sv-markdown-render h3 {
+    font-size: 1.15rem;
+    font-weight: 600;
+    margin-top: 1rem;
+    margin-bottom: 0.4rem;
+    color: #111111;
+}
+
+html.dark .sv-lesson-text h3, html.dark .sv-markdown-render h3 {
+    color: #E8E8E8;
+}
+
+.sv-lesson-text h4, .sv-markdown-render h4 {
+    font-size: 1rem;
+    font-weight: 600;
+    margin-top: 0.85rem;
+    margin-bottom: 0.3rem;
+}
+
+.sv-lesson-text p, .sv-markdown-render p {
+    margin-bottom: 0.85rem;
+}
+
+.sv-lesson-text ul, .sv-markdown-render ul {
+    list-style-type: disc;
+    padding-left: 1.5rem;
+    margin-bottom: 0.85rem;
+}
+
+.sv-lesson-text ol, .sv-markdown-render ol {
+    list-style-type: decimal;
+    padding-left: 1.5rem;
+    margin-bottom: 0.85rem;
+}
+
+.sv-lesson-text li, .sv-markdown-render li {
+    margin-bottom: 0.25rem;
+}
+
+.sv-lesson-text blockquote, .sv-markdown-render blockquote {
+    border-left: 4px solid #004B23;
+    padding: 0.5rem 1rem;
+    background: #F5F5F7;
+    margin: 1rem 0;
+    font-style: italic;
+    color: #444444;
+    border-radius: 0 4px 4px 0;
+}
+
+html.dark .sv-lesson-text blockquote, html.dark .sv-markdown-render blockquote {
+    border-left-color: #34C759;
+    background: #1E1E1E;
+    color: #CCCCCC;
+}
+
+.sv-lesson-text code, .sv-markdown-render code {
+    font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
+    font-size: 0.85em;
+    background: #F0F0F2;
+    color: #004B23;
+    padding: 0.15rem 0.4rem;
+    border-radius: 3px;
+    border: 1px solid #E5E5E7;
+}
+
+html.dark .sv-lesson-text code, html.dark .sv-markdown-render code {
+    background: #252525;
+    color: #4ADE80;
+    border-color: #333333;
+}
+
+.sv-lesson-text pre, .sv-markdown-render pre {
+    background: #111111;
+    color: #F8F8F2;
+    padding: 1rem;
+    border-radius: 6px;
+    overflow-x: auto;
+    margin: 1rem 0;
+    font-size: 0.85rem;
+}
+
+.sv-lesson-text pre code, .sv-markdown-render pre code {
+    background: transparent;
+    color: inherit;
+    padding: 0;
+    border: none;
+}
+
+.sv-lesson-text table, .sv-markdown-render table {
+    width: 100%;
+    border-collapse: collapse;
+    margin: 1rem 0;
+    font-size: 0.875rem;
+}
+
+.sv-lesson-text th, .sv-markdown-render th {
+    background: #F5F5F7;
+    border: 1px solid #E5E5E7;
+    padding: 0.5rem 0.75rem;
+    font-weight: 600;
+    text-align: left;
+}
+
+html.dark .sv-lesson-text th, html.dark .sv-markdown-render th {
+    background: #1E1E1E;
+    border-color: #2C2C2C;
+}
+
+.sv-lesson-text td, .sv-markdown-render td {
+    border: 1px solid #E5E5E7;
+    padding: 0.5rem 0.75rem;
+}
+
+html.dark .sv-lesson-text td, html.dark .sv-markdown-render td {
+    border-color: #2C2C2C;
+}
+
+.sv-lesson-text hr, .sv-markdown-render hr {
+    border: 0;
+    border-top: 1px solid #E5E5E7;
+    margin: 1.5rem 0;
+}
+
+html.dark .sv-lesson-text hr, html.dark .sv-markdown-render hr {
+    border-top-color: #2C2C2C;
+}
+
+.sv-lesson-text a, .sv-markdown-render a {
+    color: #004B23;
+    text-decoration: underline;
+}
+
+html.dark .sv-lesson-text a, html.dark .sv-markdown-render a {
+    color: #4ADE80;
+}
+
+.katex-display-container {
+    padding: 0.5rem 0;
+    overflow-x: auto;
+}
+
+.katex {
+    font-size: 1.08em !important;
+}

@@ -248,6 +248,13 @@ try {
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&family=Plus+Jakarta+Sans:ital,wght@0,300..800;1,300..800&display=swap" rel="stylesheet">
     <link rel="stylesheet" href="/assets/css/app.css">
+    
+    <!-- KaTeX et Marked.js pour le rendu des équations LaTeX et le formatage Markdown des leçons -->
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/katex@0.16.8/dist/katex.min.css">
+    <script defer src="https://cdn.jsdelivr.net/npm/katex@0.16.8/dist/katex.min.js"></script>
+    <script defer src="https://cdn.jsdelivr.net/npm/katex@0.16.8/dist/contrib/auto-render.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/marked@9.1.6/marked.min.js"></script>
+
     <?= csrfMetaTag(); ?>
     <script src="https://cdn.jsdelivr.net/npm/gsap@3.12.5/dist/gsap.min.js"></script>
     <script src="https://cdn.jsdelivr.net/npm/gsap@3.12.5/dist/ScrollTrigger.min.js"></script>
@@ -2231,11 +2238,22 @@ try {
                     let textEl = null;
                     let videoContainer = null;
                     
-                    // 1. Text Content
+                    // 1. Text Content (Markdown & LaTeX Typesetting)
                     if ((l.content_type === 'text' || l.content_type === 'mixed') && l.text_content) {
                         const p = document.createElement('div');
-                        p.className = 'text-base font-light leading-relaxed text-[#111111] max-w-3xl whitespace-pre-line sv-lesson-text';
-                        p.textContent = l.text_content;
+                        p.className = 'text-base font-light leading-relaxed text-[#111111] dark:text-[#E8E8E8] max-w-3xl sv-lesson-text';
+                        p.innerHTML = renderMarkdownAndMath(l.text_content);
+                        if (typeof renderMathInElement === 'function') {
+                            renderMathInElement(p, {
+                                delimiters: [
+                                    {left: '$$', right: '$$', display: true},
+                                    {left: '$', right: '$', display: false},
+                                    {left: '\\(', right: '\\)', display: false},
+                                    {left: '\\[', right: '\\]', display: true}
+                                ],
+                                throwOnError: false
+                            });
+                        }
                         mediaContainer.appendChild(p);
                         textEl = p;
                     }

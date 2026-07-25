@@ -1069,6 +1069,7 @@ $successMsg = $successMessages[$successKey] ?? null;
     </script>
     <script defer src="https://cdn.jsdelivr.net/npm/katex@0.16.8/dist/katex.min.js"></script>
     <script defer src="https://cdn.jsdelivr.net/npm/katex@0.16.8/dist/contrib/auto-render.min.js" onload="renderMath()"></script>
+    <script src="https://cdn.jsdelivr.net/npm/marked@9.1.6/marked.min.js"></script>
     
     <?= csrfMetaTag(); ?>
 
@@ -2865,11 +2866,60 @@ $successMsg = $successMessages[$successKey] ?? null;
             </div>
 
             <!-- Contenu textuel -->
-            <div id="field-text" class="space-y-1">
-                <label class="block text-xs font-semibold uppercase tracking-wider text-[#555555]">Contenu textuel</label>
-                <textarea name="text_content" id="lesson-text-input" rows="5"
-                    placeholder="Saisissez le contenu de votre leçon..."
-                    class="w-full px-4 py-2 bg-[#F5F5F7] border border-[#E5E5E7] text-sm focus:outline-none focus:border-[#004B23] rounded-sm"></textarea>
+            <div id="field-text" class="space-y-3">
+                <div class="flex justify-between items-center">
+                    <label class="block text-xs font-semibold uppercase tracking-wider text-[#555555] dark:text-[#AAAAAA]">
+                        Contenu textuel de la leçon
+                    </label>
+                    <span class="inline-flex items-center gap-1.5 px-2 py-0.5 rounded text-[10px] font-semibold bg-[#E8F5E9] text-[#004B23] dark:bg-[#004B23]/30 dark:text-[#4ADE80] border border-[#004B23]/20">
+                        <svg class="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z"/>
+                        </svg>
+                        Markdown &amp; LaTeX (KaTeX) supportés
+                    </span>
+                </div>
+
+                <!-- Barre d'outils de formatage rapides -->
+                <div class="flex flex-wrap gap-1.5 p-1.5 bg-[#F5F5F7] dark:bg-[#1E1E1E] border border-[#E5E5E7] dark:border-[#2C2C2C] rounded-sm text-xs">
+                    <button type="button" onclick="insertFormatIntoLesson('bold')" title="Gras (**texte**)" class="px-2 py-1 bg-white dark:bg-[#2A2A2A] border border-[#E5E5E7] dark:border-[#3A3A3A] text-[#111111] dark:text-white rounded hover:bg-gray-100 dark:hover:bg-[#333333] font-bold">B</button>
+                    <button type="button" onclick="insertFormatIntoLesson('italic')" title="Italique (*texte*)" class="px-2 py-1 bg-white dark:bg-[#2A2A2A] border border-[#E5E5E7] dark:border-[#3A3A3A] text-[#111111] dark:text-white rounded hover:bg-gray-100 dark:hover:bg-[#333333] italic">I</button>
+                    <button type="button" onclick="insertFormatIntoLesson('h1')" title="Titre principal (#)" class="px-2 py-1 bg-white dark:bg-[#2A2A2A] border border-[#E5E5E7] dark:border-[#3A3A3A] text-[#111111] dark:text-white rounded hover:bg-gray-100 dark:hover:bg-[#333333] font-semibold text-[11px]">H1</button>
+                    <button type="button" onclick="insertFormatIntoLesson('h2')" title="Sous-titre (##)" class="px-2 py-1 bg-white dark:bg-[#2A2A2A] border border-[#E5E5E7] dark:border-[#3A3A3A] text-[#111111] dark:text-white rounded hover:bg-gray-100 dark:hover:bg-[#333333] font-semibold text-[11px]">H2</button>
+                    <button type="button" onclick="insertFormatIntoLesson('list')" title="Liste à puces (- )" class="px-2 py-1 bg-white dark:bg-[#2A2A2A] border border-[#E5E5E7] dark:border-[#3A3A3A] text-[#111111] dark:text-white rounded hover:bg-gray-100 dark:hover:bg-[#333333] text-[11px]">• Liste</button>
+                    <button type="button" onclick="insertFormatIntoLesson('quote')" title="Citation (> )" class="px-2 py-1 bg-white dark:bg-[#2A2A2A] border border-[#E5E5E7] dark:border-[#3A3A3A] text-[#111111] dark:text-white rounded hover:bg-gray-100 dark:hover:bg-[#333333] text-[11px]">“ ”</button>
+                    <button type="button" onclick="insertFormatIntoLesson('code')" title="Bloc de code (```)" class="px-2 py-1 bg-white dark:bg-[#2A2A2A] border border-[#E5E5E7] dark:border-[#3A3A3A] text-[#111111] dark:text-white rounded hover:bg-gray-100 dark:hover:bg-[#333333] font-mono text-[10px]">&lt;/&gt;</button>
+                    <div class="h-5 w-px bg-[#E5E5E7] dark:bg-[#3A3A3A] my-auto mx-0.5"></div>
+                    <button type="button" onclick="insertFormatIntoLesson('math_inline')" title="Formule LaTeX Inline ($ ... $)" class="px-2 py-1 bg-[#004B23] text-white rounded hover:bg-[#003d1c] font-mono text-[11px]">$x^2$</button>
+                    <button type="button" onclick="insertFormatIntoLesson('math_display')" title="Formule LaTeX Centrée ($$ ... $$)" class="px-2 py-1 bg-[#004B23] text-white rounded hover:bg-[#003d1c] font-mono text-[11px]">$$\int$$</button>
+                </div>
+
+                <!-- Champ Texte & Onglets Éditer / Aperçu -->
+                <div class="space-y-2">
+                    <div class="flex border-b border-[#E5E5E7] dark:border-[#2C2C2C]">
+                        <button type="button" id="btn-lesson-tab-edit" onclick="switchLessonTextTab('edit')" class="px-3 py-1.5 text-xs font-semibold border-b-2 border-[#004B23] text-[#004B23] dark:border-[#34C759] dark:text-[#34C759]">
+                            ✍️ Édition Texte
+                        </button>
+                        <button type="button" id="btn-lesson-tab-preview" onclick="switchLessonTextTab('preview')" class="px-3 py-1.5 text-xs font-semibold text-[#888888] hover:text-[#111111] dark:hover:text-white border-b-2 border-transparent">
+                            👁️ Aperçu en direct (Markdown &amp; LaTeX)
+                        </button>
+                    </div>
+
+                    <div id="lesson-text-editor-wrap">
+                        <textarea name="text_content" id="lesson-text-input" rows="6"
+                            oninput="updateLessonLivePreview()"
+                            placeholder="Rédigez le contenu de la leçon (Markdown &amp; LaTeX pris en charge)...&#10;Ex: # Chapitre 1&#10;Voici une formule inline : $f(x) = x^2 + 2x + 1$&#10;Et une formule centrée :&#10;$$ \int_0^\infty e^{-x^2} dx = \frac{\sqrt{\pi}}{2} $$"
+                            class="w-full px-4 py-2 bg-[#F5F5F7] dark:bg-[#1E1E1E] border border-[#E5E5E7] dark:border-[#2C2C2C] text-sm focus:outline-none focus:border-[#004B23] rounded-sm font-mono text-[#111111] dark:text-white"></textarea>
+                    </div>
+
+                    <div id="lesson-text-preview-wrap" class="hidden min-h-[140px] p-4 bg-white dark:bg-[#1E1E1E] border border-[#E5E5E7] dark:border-[#2C2C2C] rounded-sm text-sm overflow-y-auto max-h-[300px]">
+                        <div id="lesson-text-preview" class="sv-lesson-text">
+                            <span class="text-xs text-[#888888] italic">L'aperçu en direct s'affichera ici au fur et à mesure de votre saisie...</span>
+                        </div>
+                    </div>
+                </div>
+                <p class="text-[10px] text-[#888888] dark:text-[#AAAAAA]">
+                    💡 Rédigez en Markdown (<code># Titre</code>, <code>**Gras**</code>, listes) et insérez vos équations LaTeX (<code>$ ... $</code> ou <code>$$ ... $$</code>). Elles seront automatiquement composées et affichées pour l'étudiant.
+                </p>
             </div>
 
             <!-- PDF — Upload / Remplacement / Suppression -->
@@ -3721,6 +3771,8 @@ function openEditLessonModal(lesson) {
 
     // Texte
     document.getElementById('lesson-text-input').value = lesson.text_content || '';
+    switchLessonTextTab('edit');
+    updateLessonLivePreview();
 
     // ── PDF existant ──────────────────────────────────────
     const pdfBlock = document.getElementById('existing-pdf-block');
@@ -3746,6 +3798,8 @@ function resetLessonModal() {
     document.getElementById('lesson-quiz-deadline-input').value = '';
     document.getElementById('video-rows').innerHTML    = '';
     document.getElementById('resource-rows').innerHTML = '';
+    switchLessonTextTab('edit');
+    updateLessonLivePreview();
     // Réinitialiser bloc PDF
     document.getElementById('existing-pdf-block').classList.add('hidden');
     document.getElementById('existing-pdf-name').textContent = '';
@@ -4909,6 +4963,107 @@ function downloadCurrentQuestions(type) {
         return;
     }
     window.location.href = `/teacher/download-async-csv.php?type=${type}&id=${id}`;
+}
+
+// ── Markdown & LaTeX Lesson Editor Helpers ─────────
+function switchLessonTextTab(tab) {
+    const editBtn = document.getElementById('btn-lesson-tab-edit');
+    const previewBtn = document.getElementById('btn-lesson-tab-preview');
+    const editWrap = document.getElementById('lesson-text-editor-wrap');
+    const previewWrap = document.getElementById('lesson-text-preview-wrap');
+    
+    if (!editBtn || !previewBtn || !editWrap || !previewWrap) return;
+
+    if (tab === 'edit') {
+        editWrap.classList.remove('hidden');
+        previewWrap.classList.add('hidden');
+        editBtn.className = "px-3 py-1.5 text-xs font-semibold border-b-2 border-[#004B23] text-[#004B23] dark:border-[#34C759] dark:text-[#34C759]";
+        previewBtn.className = "px-3 py-1.5 text-xs font-semibold text-[#888888] hover:text-[#111111] dark:hover:text-white border-b-2 border-transparent";
+    } else {
+        updateLessonLivePreview();
+        editWrap.classList.add('hidden');
+        previewWrap.classList.remove('hidden');
+        previewBtn.className = "px-3 py-1.5 text-xs font-semibold border-b-2 border-[#004B23] text-[#004B23] dark:border-[#34C759] dark:text-[#34C759]";
+        editBtn.className = "px-3 py-1.5 text-xs font-semibold text-[#888888] hover:text-[#111111] dark:hover:text-white border-b-2 border-transparent";
+    }
+}
+
+function updateLessonLivePreview() {
+    const text = document.getElementById('lesson-text-input')?.value || '';
+    const previewEl = document.getElementById('lesson-text-preview');
+    if (!previewEl) return;
+    if (!text.trim()) {
+        previewEl.innerHTML = '<span class="text-xs text-[#888888] italic">L\'aperçu en direct s\'affichera ici au fur et à mesure de votre saisie...</span>';
+        return;
+    }
+    previewEl.innerHTML = renderMarkdownAndMath(text);
+    if (typeof renderMathInElement === 'function') {
+        renderMathInElement(previewEl, {
+            delimiters: [
+                {left: '$$', right: '$$', display: true},
+                {left: '$', right: '$', display: false},
+                {left: '\\(', right: '\\)', display: false},
+                {left: '\\[', right: '\\]', display: true}
+            ],
+            throwOnError: false
+        });
+    }
+}
+
+function insertFormatIntoLesson(type) {
+    const input = document.getElementById('lesson-text-input');
+    if (!input) return;
+    const start = input.selectionStart;
+    const end = input.selectionEnd;
+    const selected = input.value.substring(start, end);
+    let before = input.value.substring(0, start);
+    let after = input.value.substring(end);
+    let inserted = '';
+    let cursorOffset = 0;
+
+    switch (type) {
+        case 'bold':
+            inserted = `**${selected || 'texte en gras'}**`;
+            cursorOffset = selected ? inserted.length : 2;
+            break;
+        case 'italic':
+            inserted = `*${selected || 'texte en italique'}*`;
+            cursorOffset = selected ? inserted.length : 1;
+            break;
+        case 'h1':
+            inserted = `\n# ${selected || 'Titre de la section'}\n`;
+            cursorOffset = inserted.length;
+            break;
+        case 'h2':
+            inserted = `\n## ${selected || 'Sous-titre'}\n`;
+            cursorOffset = inserted.length;
+            break;
+        case 'list':
+            inserted = `\n- ${selected || 'Élément 1'}\n- Élément 2\n`;
+            cursorOffset = inserted.length;
+            break;
+        case 'quote':
+            inserted = `\n> ${selected || 'Citation ou remarque importante'}\n`;
+            cursorOffset = inserted.length;
+            break;
+        case 'code':
+            inserted = `\n\`\`\`javascript\n${selected || '// Votre code ici'}\n\`\`\`\n`;
+            cursorOffset = inserted.length;
+            break;
+        case 'math_inline':
+            inserted = `$${selected || 'f(x) = x^2 + 1'}$`;
+            cursorOffset = selected ? inserted.length : 1;
+            break;
+        case 'math_display':
+            inserted = `\n$$ ${selected || '\\int_0^1 f(x) dx = F(1) - F(0)'} $$\n`;
+            cursorOffset = selected ? inserted.length : 3;
+            break;
+    }
+
+    input.value = before + inserted + after;
+    input.focus();
+    input.setSelectionRange(start + cursorOffset, start + cursorOffset);
+    updateLessonLivePreview();
 }
 </script>
 
