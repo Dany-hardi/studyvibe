@@ -30,8 +30,10 @@ class TranslationService
      */
     public static function init(): void
     {
-        if (session_status() === PHP_SESSION_NONE) {
+        if (session_status() === PHP_SESSION_NONE && !headers_sent()) {
             session_start();
+        } elseif (session_status() === PHP_SESSION_NONE) {
+            @session_start();
         }
 
         // 1. Resolve active locale preference (Session -> Cookie -> DB profile -> Fallback 'fr')

@@ -46,7 +46,7 @@ try {
     $pdo = Database::getInstance();
 
     $stmt = $pdo->prepare("
-        SELECT l.id, l.chapter_id, l.title, l.content_type, l.text_content, l.pdf_path, l.video_url, l.sort_order, l.quiz_deadline, c.id AS course_id
+        SELECT l.id, l.chapter_id, l.title, l.content_type, l.text_content, l.pdf_path, l.video_url, l.sort_order, l.quiz_deadline, l.has_assignment, l.assignment_title, l.assignment_instructions, l.assignment_deadline, c.id AS course_id
         FROM lessons l
         JOIN chapters ch ON l.chapter_id = ch.id
         JOIN courses c ON ch.course_id = c.id
@@ -118,6 +118,18 @@ try {
 
     $quizComplete = $completed || ($hasQuiz && ($contentConsumed || $completed) && empty($questions));
 
+    // Récupérer le dépôt de devoir éventuel de cet étudiant pour cette leçon
+    $submission = null;
+    if (!empty($lesson['has_assignment'])) {
+        $subStmt = $pdo->prepare("
+            SELECT id, submission_type, submitted_file_path, submitted_file_name, submitted_link, student_comment, submitted_at 
+            FROM lesson_assignment_submissions 
+            WHERE lesson_id = :lid AND student_id = :sid
+        ");
+        $subStmt->execute(['lid' => $lessonId, 'sid' => $studentId]);
+        $submission = $subStmt->fetch(PDO::FETCH_ASSOC) ?: null;
+    }
+
     echo json_encode([
         'success'          => true,
         'lesson'           => $lesson,
@@ -127,6 +139,7 @@ try {
         'questions'        => $questions,
         'completed'        => $completed || $quizComplete,
         'content_consumed' => $contentConsumed || $completed || $quizComplete,
+        'submission'       => $submission,
     ]);
 
 } catch (PDOException $e) {

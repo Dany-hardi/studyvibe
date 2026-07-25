@@ -8,20 +8,20 @@ require_once __DIR__ . '/Database.php';
 // SECTION 1: SECURE SESSION INITIALIZATION & COOKIE CONFIGURATION
 // =========================================================================
 
-// Configure strict session cookie security properties
-ini_set('session.cookie_httponly', '1');      // Prevent XSS from accessing session IDs via document.cookie
-ini_set('session.cookie_samesite', 'Strict');  // Prevent CSRF by withholding cookie on cross-site requests
-ini_set('session.use_strict_mode', '1');       // Force use of server-generated session IDs
-ini_set('session.gc_maxlifetime', '7200');     // Set session lifetime to 2 hours (in seconds)
+// Configure strict session cookie security properties safely
+if (session_status() === PHP_SESSION_NONE && !headers_sent()) {
+    ini_set('session.cookie_httponly', '1');      // Prevent XSS from accessing session IDs via document.cookie
+    ini_set('session.cookie_samesite', 'Strict');  // Prevent CSRF by withholding cookie on cross-site requests
+    ini_set('session.use_strict_mode', '1');       // Force use of server-generated session IDs
+    ini_set('session.gc_maxlifetime', '7200');     // Set session lifetime to 2 hours (in seconds)
 
-// Enforce SSL-only cookies if running on HTTPS
-if (HTTPS_ONLY === 'true') {
-    ini_set('session.cookie_secure', '1');
-}
-
-// Start session if not already initialized
-if (session_status() === PHP_SESSION_NONE) {
+    // Enforce SSL-only cookies if running on HTTPS
+    if (HTTPS_ONLY === 'true') {
+        ini_set('session.cookie_secure', '1');
+    }
     session_start();
+} elseif (session_status() === PHP_SESSION_NONE) {
+    @session_start();
 }
 
 // Load localization and translation translation service

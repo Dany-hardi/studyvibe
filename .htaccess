@@ -2,3 +2,19 @@
 ErrorDocument 404 /404.php
 ErrorDocument 403 /error.php?code=403&title=Acc%C3%A8s+Interdit&message=Vous+n%27avez+pas+l%27autorisation+d%27acc%C3%A8der+%C3%A0+cette+ressource.&badge=Acc%C3%A8s+Interdit
 ErrorDocument 500 /error.php?code=500&title=Erreur+Syst%C3%A8me&message=Une+erreur+interne+du+serveur+est+survenue.+Veuillez+r%C3%A9essayer+ult%C3%A9rieurement.&badge=Alerte
+
+# Configurer les limites d'upload et post max pour documents jusqu'à 60Mo
+<IfModule mod_php7.c>
+    php_value upload_max_filesize 64M
+    php_value post_max_size 128M
+    php_value memory_limit 256M
+    php_value max_execution_time 300
+    php_value max_input_time 300
+</IfModule>
+<IfModule mod_php.c>
+    php_value upload_max_filesize 64M
+    php_value post_max_size 128M
+    php_value memory_limit 256M
+    php_value max_execution_time 300
+    php_value max_input_time 300
+</IfModule>

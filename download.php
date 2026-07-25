@@ -81,6 +81,29 @@ try {
             default       => 'image/jpeg',
         };
 
+    } elseif ($type === 'assignment') {
+        $stmt = $pdo->prepare("SELECT student_id, submitted_file_name FROM lesson_assignment_submissions WHERE submitted_file_path = :file LIMIT 1");
+        $stmt->execute(['file' => $file]);
+        $sub = $stmt->fetch();
+        if (!$sub) {
+            http_response_code(404);
+            exit('Fichier introuvable.');
+        }
+
+        if ($role !== 'teacher' && $role !== 'promoter' && $userId !== (int)$sub['student_id']) {
+            http_response_code(403);
+            exit('Accès non autorisé.');
+        }
+
+        $path = __DIR__ . '/uploads/assignments/' . $file;
+        $ext  = strtolower(pathinfo($file, PATHINFO_EXTENSION));
+        $mime = match ($ext) {
+            'pdf'  => 'application/pdf',
+            'docx' => 'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
+            'doc'  => 'application/msword',
+            default => 'application/octet-stream',
+        };
+
     } else {
         http_response_code(400);
         exit('Type de fichier non supporté.');

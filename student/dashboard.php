@@ -1177,6 +1177,64 @@ try {
                         </form>
                     </div>
                 </div>
+
+                <!-- Dépôt de devoir pour cette leçon -->
+                <div id="lesson-assignment-container" class="hidden p-6 border border-[#E5E5E7] dark:border-[#2C2C2C] bg-white dark:bg-[#1C1C1E] rounded-xl space-y-5 shadow-sm">
+                    <div class="flex items-center justify-between border-b border-[#E5E5E7] dark:border-[#2C2C2C] pb-3">
+                        <div class="flex items-center gap-2">
+                            <span class="px-2.5 py-0.5 text-[10px] font-bold uppercase tracking-wider bg-emerald-100 text-emerald-800 dark:bg-emerald-900/40 dark:text-emerald-400 rounded-full">Devoir / Travail Pratique</span>
+                            <h4 id="assignment-display-title" class="font-serif text-lg font-semibold text-[#111111] dark:text-white">Devoir de la Leçon</h4>
+                        </div>
+                        <span id="assignment-display-deadline" class="text-[10px] font-mono text-gray-500 dark:text-gray-400"></span>
+                    </div>
+
+                    <!-- Consignes & Instructions formatées en Markdown & LaTeX -->
+                    <div id="assignment-display-instructions" class="text-sm font-light text-[#333333] dark:text-[#E8E8E8] leading-relaxed bg-[#FAF9F6] dark:bg-[#252525] p-4 rounded-lg border border-[#E5E5E7] dark:border-[#333333]"></div>
+
+                    <!-- Zone de dépôt / soumission -->
+                    <form id="student-assignment-form" class="space-y-4 pt-2" onsubmit="submitStudentAssignment(event)">
+                        <input type="hidden" id="assignment-lesson-id" value="">
+                        
+                        <!-- Status soumission existante -->
+                        <div id="assignment-existing-status" class="hidden p-3 bg-emerald-50 dark:bg-emerald-900/20 border border-emerald-200 dark:border-emerald-800 rounded-lg text-xs text-emerald-800 dark:text-emerald-300">
+                            <div class="font-semibold flex items-center gap-1.5 mb-1">
+                                <svg class="w-4 h-4 text-emerald-600" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7"/></svg>
+                                <span id="assignment-status-text">Devoir déposé avec succès.</span>
+                            </div>
+                            <div id="assignment-existing-details" class="space-y-1 text-[11px] font-mono mt-1 text-emerald-700 dark:text-emerald-400"></div>
+                        </div>
+
+                        <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+                            <!-- Input Fichier -->
+                            <div class="space-y-1.5">
+                                <label class="block text-xs font-semibold text-[#555555] dark:text-[#AAAAAA]">Document Rendu (PDF ou DOCX &le; 20 Mo)</label>
+                                <input type="file" id="assignment-file-input" accept=".pdf,.docx,.doc" class="w-full text-xs text-[#555555] dark:text-[#AAAAAA] file:mr-3 file:py-2 file:px-3 file:rounded-lg file:border-0 file:text-xs file:font-semibold file:bg-[#004B23] file:text-white hover:file:bg-[#003619] cursor-pointer">
+                                <p class="text-[10px] text-gray-400">Format accepté : PDF ou Microsoft Word (.docx)</p>
+                            </div>
+
+                            <!-- Input Lien -->
+                            <div class="space-y-1.5">
+                                <label class="block text-xs font-semibold text-[#555555] dark:text-[#AAAAAA]">Lien du Projet / Application (GitHub, Drive...)</label>
+                                <input type="url" id="assignment-link-input" placeholder="https://github.com/... ou https://drive.google.com/..." class="w-full px-3 py-2 bg-[#F5F5F7] dark:bg-[#252525] border border-[#E5E5E7] dark:border-[#333333] text-xs focus:outline-none focus:border-[#004B23] rounded-lg dark:text-white">
+                                <p class="text-[10px] text-gray-400">Lien externe direct vers votre travail</p>
+                            </div>
+                        </div>
+
+                        <!-- Remarques -->
+                        <div class="space-y-1.5">
+                            <label class="block text-xs font-semibold text-[#555555] dark:text-[#AAAAAA]">Commentaires / Note pour l'enseignant (Optionnel)</label>
+                            <textarea id="assignment-comment-input" rows="2" placeholder="Précisez tout détail ou note utile concernant votre rendu..." class="w-full px-3 py-2 bg-[#F5F5F7] dark:bg-[#252525] border border-[#E5E5E7] dark:border-[#333333] text-xs focus:outline-none focus:border-[#004B23] rounded-lg dark:text-white"></textarea>
+                        </div>
+
+                        <div class="flex items-center justify-between pt-2">
+                            <button type="submit" id="assignment-submit-btn" class="px-5 py-2.5 bg-[#004B23] hover:bg-[#003619] text-white text-xs font-semibold uppercase tracking-wider rounded-lg transition-colors flex items-center gap-2 shadow-sm">
+                                <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4"/></svg>
+                                <span>Déposer mon Devoir</span>
+                            </button>
+                            <span id="assignment-form-message" class="text-xs font-medium"></span>
+                        </div>
+                    </form>
+                </div>
             </div>
 
             <!-- COMPAGNON SIDEBAR (Right) : Tabbed Companion Widget -->
@@ -2379,6 +2437,15 @@ try {
                         });
                     }
 
+                    // 5. Devoir / Travail pratique à rendre pour cette leçon
+                    const assignmentBox = document.getElementById('lesson-assignment-container');
+                    if ((l.has_assignment == 1 || l.has_assignment === '1') && assignmentBox) {
+                        renderLessonAssignmentBox(l, data.submission);
+                        assignmentBox.classList.remove('hidden');
+                    } else if (assignmentBox) {
+                        assignmentBox.classList.add('hidden');
+                    }
+
                     SessionTimer.start(lessonId, 'lesson-session-timer');
                     if (l.course_id) {
                         const fd = new FormData();
@@ -2393,6 +2460,128 @@ try {
                 }
             })
             .catch(err => Toast.error('Erreur réseau: ' + err.message));
+        }
+
+        function renderLessonAssignmentBox(lesson, submission) {
+            const box = document.getElementById('lesson-assignment-container');
+            if (!box) return;
+
+            document.getElementById('assignment-lesson-id').value = lesson.id;
+            document.getElementById('assignment-display-title').textContent = lesson.assignment_title || 'Devoir de la Leçon';
+            
+            // Instructions avec Markdown et KaTeX
+            const instrBox = document.getElementById('assignment-display-instructions');
+            if (lesson.assignment_instructions) {
+                instrBox.innerHTML = renderMarkdownAndMath(lesson.assignment_instructions);
+                if (typeof renderMathInElement === 'function') {
+                    renderMathInElement(instrBox, {
+                        delimiters: [
+                            {left: '$$', right: '$$', display: true},
+                            {left: '$', right: '$', display: false},
+                            {left: '\\(', right: '\\)', display: false},
+                            {left: '\\[', right: '\\]', display: true}
+                        ],
+                        throwOnError: false
+                    });
+                }
+                instrBox.classList.remove('hidden');
+            } else {
+                instrBox.innerHTML = '<em class="text-gray-400">Aucune consigne spécifique rédigée. Veuillez déposer votre travail ci-dessous.</em>';
+            }
+
+            const deadlineBox = document.getElementById('assignment-display-deadline');
+            if (lesson.assignment_deadline) {
+                deadlineBox.textContent = '⏱ Date limite : ' + new Date(lesson.assignment_deadline).toLocaleString('fr-FR');
+            } else {
+                deadlineBox.textContent = '';
+            }
+
+            const statusBox = document.getElementById('assignment-existing-status');
+            const statusDetails = document.getElementById('assignment-existing-details');
+            const submitBtnSpan = document.querySelector('#assignment-submit-btn span');
+            
+            // Form fields reset
+            document.getElementById('assignment-file-input').value = '';
+            document.getElementById('assignment-link-input').value = submission ? (submission.submitted_link || '') : '';
+            document.getElementById('assignment-comment-input').value = submission ? (submission.student_comment || '') : '';
+
+            if (submission) {
+                statusBox.classList.remove('hidden');
+                let detailsHtml = `Dépôt enregistré le ${new Date(submission.submitted_at).toLocaleString('fr-FR')}<br>`;
+                if (submission.submitted_file_name) {
+                    detailsHtml += `📄 Fichier : <a href="/download.php?type=assignment&file=${encodeURIComponent(submission.submitted_file_path)}" target="_blank" class="underline text-emerald-800 dark:text-emerald-300 font-bold">${escapeHtml(submission.submitted_file_name)}</a><br>`;
+                }
+                if (submission.submitted_link) {
+                    detailsHtml += `🔗 Lien : <a href="${escapeHtml(submission.submitted_link)}" target="_blank" rel="noopener noreferrer" class="underline text-blue-700 dark:text-blue-300 font-bold">${escapeHtml(submission.submitted_link)}</a>`;
+                }
+                statusDetails.innerHTML = detailsHtml;
+                if (submitBtnSpan) submitBtnSpan.textContent = 'Mettre à jour mon devoir';
+            } else {
+                statusBox.classList.add('hidden');
+                statusDetails.innerHTML = '';
+                if (submitBtnSpan) submitBtnSpan.textContent = 'Déposer mon Devoir';
+            }
+        }
+
+        function submitStudentAssignment(e) {
+            e.preventDefault();
+            const lessonId = document.getElementById('assignment-lesson-id').value;
+            const fileInput = document.getElementById('assignment-file-input');
+            const linkInput = document.getElementById('assignment-link-input');
+            const commentInput = document.getElementById('assignment-comment-input');
+            const msgBox = document.getElementById('assignment-form-message');
+            const btn = document.getElementById('assignment-submit-btn');
+
+            if (!fileInput.files[0] && !linkInput.value.trim()) {
+                msgBox.className = 'text-xs text-red-600 dark:text-red-400 font-semibold';
+                msgBox.textContent = 'Veuillez joindre un fichier (PDF/DOCX) ou spécifier un lien de projet.';
+                return;
+            }
+
+            if (fileInput.files[0] && fileInput.files[0].size > 20 * 1024 * 1024) {
+                msgBox.className = 'text-xs text-red-600 dark:text-red-400 font-semibold';
+                msgBox.textContent = 'La taille du fichier dépasse la limite autorisée de 20 Mo.';
+                return;
+            }
+
+            const formData = new FormData();
+            formData.append('lesson_id', lessonId);
+            if (fileInput.files[0]) {
+                formData.append('assignment_file', fileInput.files[0]);
+            }
+            if (linkInput.value.trim()) {
+                formData.append('assignment_link', linkInput.value.trim());
+            }
+            if (commentInput.value.trim()) {
+                formData.append('student_comment', commentInput.value.trim());
+            }
+
+            btn.disabled = true;
+            msgBox.className = 'text-xs text-emerald-600 font-semibold animate-pulse';
+            msgBox.textContent = 'Téléversement de votre devoir en cours...';
+
+            fetch('/api/submit-assignment.php', {
+                method: 'POST',
+                body: formData
+            })
+            .then(res => res.json())
+            .then(data => {
+                btn.disabled = false;
+                if (data.success) {
+                    msgBox.className = 'text-xs text-emerald-600 font-semibold';
+                    msgBox.textContent = '✓ Devoir déposé avec succès !';
+                    Toast.success('Devoir transmis avec succès.');
+                    setTimeout(() => { loadLesson(lessonId); }, 800);
+                } else {
+                    msgBox.className = 'text-xs text-red-600 dark:text-red-400 font-semibold';
+                    msgBox.textContent = 'Erreur : ' + data.message;
+                }
+            })
+            .catch(err => {
+                btn.disabled = false;
+                msgBox.className = 'text-xs text-red-600 dark:text-red-400 font-semibold';
+                msgBox.textContent = 'Erreur réseau : ' + err.message;
+            });
         }
 
         /**

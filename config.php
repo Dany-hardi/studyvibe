@@ -8,6 +8,13 @@ declare(strict_types=1);
 // Configure default server timezone for consistent timestamping
 date_default_timezone_set('Africa/Douala');
 
+// Optimiser les limites d'upload et de mémoire pour les documents PDF (jusqu'à 60Mo)
+@ini_set('upload_max_filesize', '64M');
+@ini_set('post_max_size', '128M');
+@ini_set('memory_limit', '256M');
+@ini_set('max_execution_time', '300');
+@ini_set('max_input_time', '300');
+
 /**
  * StudyVibe LMS - Configuration Loader
  * 
