@@ -117,7 +117,8 @@ class GeminiClient
             ];
         }
 
-        if ($jsonMode) {
+        // Gemini API ne permet pas d'associer tools (Google Search) et responseMimeType application/json (HTTP 400).
+        if ($jsonMode && !$useSearch) {
             $payload['generationConfig'] = [
                 'responseMimeType' => 'application/json'
             ];
@@ -162,10 +163,17 @@ class GeminiClient
         }
 
         $data = json_decode($response, true);
-        if (!isset($data['candidates'][0]['content']['parts'][0]['text'])) {
+        $textParts = [];
+        $parts = $data['candidates'][0]['content']['parts'] ?? [];
+        foreach ($parts as $part) {
+            if (isset($part['text'])) {
+                $textParts[] = $part['text'];
+            }
+        }
+        if (empty($textParts)) {
             throw new \Exception("Format de reponse inattendu de la part de Gemini.");
         }
 
-        return $data['candidates'][0]['content']['parts'][0]['text'];
+        return implode("\n", $textParts);
     }
 }
