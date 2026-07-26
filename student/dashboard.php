@@ -2474,6 +2474,16 @@ try {
             .catch(err => Toast.error('Erreur réseau: ' + err.message));
         }
 
+        function escapeHtml(str) {
+            if (str === null || str === undefined) return '';
+            return String(str)
+                .replace(/&/g, '&amp;')
+                .replace(/</g, '&lt;')
+                .replace(/>/g, '&gt;')
+                .replace(/"/g, '&quot;')
+                .replace(/'/g, '&#039;');
+        }
+
         function renderLessonAssignmentBox(lesson, submission) {
             const box = document.getElementById('lesson-assignment-container');
             if (!box) return;
@@ -2539,25 +2549,29 @@ try {
             const statusBox = document.getElementById('assignment-existing-status');
             const statusDetails = document.getElementById('assignment-existing-details');
             const submitBtnSpan = document.querySelector('#assignment-submit-btn span');
+            const submitBtn = document.getElementById('assignment-submit-btn');
+
+            const nameInput = document.getElementById('assignment-student-name');
+            const matInput = document.getElementById('assignment-student-matricule');
+            const fileInput = document.getElementById('assignment-file-input');
+            const linkInput = document.getElementById('assignment-link-input');
+            const commentInput = document.getElementById('assignment-comment-input');
             
             // Pre-fill Name and Matricule if submission exists
             if (submission) {
-                if (submission.student_name) {
-                    document.getElementById('assignment-student-name').value = submission.student_name;
-                }
-                if (submission.student_matricule) {
-                    document.getElementById('assignment-student-matricule').value = submission.student_matricule;
-                }
+                if (submission.student_name) nameInput.value = submission.student_name;
+                if (submission.student_matricule) matInput.value = submission.student_matricule;
             }
 
             // Form fields reset
-            document.getElementById('assignment-file-input').value = '';
-            document.getElementById('assignment-link-input').value = submission ? (submission.submitted_link || '') : '';
-            document.getElementById('assignment-comment-input').value = submission ? (submission.student_comment || '') : '';
+            fileInput.value = '';
+            linkInput.value = submission ? (submission.submitted_link || '') : '';
+            commentInput.value = submission ? (submission.student_comment || '') : '';
 
             if (submission) {
                 statusBox.classList.remove('hidden');
-                let detailsHtml = `Dépôt enregistré le ${new Date(submission.submitted_at).toLocaleString('fr-FR')}<br>`;
+                let detailsHtml = `<div class="font-bold text-emerald-700 dark:text-emerald-300 mb-1">✓ Devoir déjà soumis pour cette leçon</div>`;
+                detailsHtml += `Dépôt enregistré le ${new Date(submission.submitted_at).toLocaleString('fr-FR')}<br>`;
                 if (submission.student_name && submission.student_matricule) {
                     detailsHtml += `Soumissionnaire : <b>${escapeHtml(submission.student_name)}</b> (Matricule: <code>${escapeHtml(submission.student_matricule)}</code>)<br>`;
                 }
@@ -2568,10 +2582,34 @@ try {
                     detailsHtml += `Lien : <a href="${escapeHtml(submission.submitted_link)}" target="_blank" rel="noopener noreferrer" class="underline text-blue-700 dark:text-blue-300 font-bold">${escapeHtml(submission.submitted_link)}</a>`;
                 }
                 statusDetails.innerHTML = detailsHtml;
-                if (submitBtnSpan) submitBtnSpan.textContent = 'Mettre à jour mon devoir';
+
+                // Lock and freeze form inputs & button
+                nameInput.disabled = true;
+                matInput.disabled = true;
+                fileInput.disabled = true;
+                linkInput.disabled = true;
+                commentInput.disabled = true;
+
+                if (submitBtn) {
+                    submitBtn.disabled = true;
+                    submitBtn.classList.add('opacity-50', 'cursor-not-allowed');
+                }
+                if (submitBtnSpan) submitBtnSpan.textContent = 'Devoir soumis';
             } else {
                 statusBox.classList.add('hidden');
                 statusDetails.innerHTML = '';
+
+                // Unlock inputs & button
+                nameInput.disabled = false;
+                matInput.disabled = false;
+                fileInput.disabled = false;
+                linkInput.disabled = false;
+                commentInput.disabled = false;
+
+                if (submitBtn) {
+                    submitBtn.disabled = false;
+                    submitBtn.classList.remove('opacity-50', 'cursor-not-allowed');
+                }
                 if (submitBtnSpan) submitBtnSpan.textContent = 'Déposer mon Devoir';
             }
         }
@@ -2629,13 +2667,26 @@ try {
             })
             .then(res => res.json())
             .then(data => {
-                btn.disabled = false;
                 if (data.success) {
                     msgBox.className = 'text-xs text-emerald-600 font-semibold';
                     msgBox.textContent = '✓ Devoir déposé avec succès !';
                     Toast.success('Devoir transmis avec succès.');
+
+                    // Lock form controls & button immediately
+                    document.getElementById('assignment-student-name').disabled = true;
+                    document.getElementById('assignment-student-matricule').disabled = true;
+                    document.getElementById('assignment-file-input').disabled = true;
+                    document.getElementById('assignment-link-input').disabled = true;
+                    document.getElementById('assignment-comment-input').disabled = true;
+
+                    btn.disabled = true;
+                    btn.classList.add('opacity-50', 'cursor-not-allowed');
+                    const submitBtnSpan = document.querySelector('#assignment-submit-btn span');
+                    if (submitBtnSpan) submitBtnSpan.textContent = 'Devoir soumis';
+
                     setTimeout(() => { loadLesson(lessonId); }, 800);
                 } else {
+                    btn.disabled = false;
                     msgBox.className = 'text-xs text-red-600 dark:text-red-400 font-semibold';
                     msgBox.textContent = 'Erreur : ' + data.message;
                 }

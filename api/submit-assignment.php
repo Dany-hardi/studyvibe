@@ -68,6 +68,11 @@ try {
     $existingStmt->execute(['lid' => $lessonId, 'sid' => $studentId]);
     $existingSub = $existingStmt->fetch();
 
+    if ($existingSub) {
+        echo json_encode(['success' => false, 'message' => 'Vous avez déjà soumis votre devoir pour cette leçon. Les devoirs ne peuvent être soumis qu\'une seule fois.']);
+        exit;
+    }
+
     $filePath = $existingSub['submitted_file_path'] ?? null;
     $fileName = $existingSub['submitted_file_name'] ?? null;
 
