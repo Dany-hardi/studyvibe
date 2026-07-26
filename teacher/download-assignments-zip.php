@@ -67,19 +67,8 @@ try {
         die('Aucun fichier déposé n\'a été trouvé pour le filtre sélectionné.');
     }
 
-    if (!class_exists('ZipArchive')) {
-        die('L\'extension PHP ZipArchive n\'est pas activée sur le serveur.');
-    }
-
-    $zip = new ZipArchive();
-    $tempZipFile = sys_get_temp_dir() . '/devoirs_pdf_' . time() . '_' . uniqid() . '.zip';
-
-    if ($zip->open($tempZipFile, ZipArchive::CREATE | ZipArchive::OVERWRITE) !== true) {
-        die('Impossible de créer le fichier ZIP temporaire.');
-    }
-
     $assignmentsDir = __DIR__ . '/../uploads/assignments/';
-    $addedCount = 0;
+    $filesToAdd = [];
 
     foreach ($fileSubmissions as $s) {
         $filePath = $assignmentsDir . $s['submitted_file_path'];
@@ -89,15 +78,49 @@ try {
             $origName    = preg_replace('/[^a-zA-Z0-9_.-]/', '_', $s['submitted_file_name'] ?? 'document');
             
             $zipEntryName = "{$studentSlug}_{$lessonSlug}_{$origName}";
-            $zip->addFile($filePath, $zipEntryName);
-            $addedCount++;
+            $filesToAdd[$filePath] = $zipEntryName;
         }
     }
 
-    $zip->close();
-
-    if ($addedCount === 0 || !file_exists($tempZipFile)) {
+    if (empty($filesToAdd)) {
         die('Les fichiers physiques spécifiés sont introuvables sur le serveur.');
+    }
+
+    $tempZipFile = sys_get_temp_dir() . '/devoirs_pdf_' . time() . '_' . uniqid() . '.zip';
+    $zipCreated = false;
+
+    // Mode 1: Native PHP ZipArchive extension
+    if (class_exists('ZipArchive')) {
+        $zip = new ZipArchive();
+        if ($zip->open($tempZipFile, ZipArchive::CREATE | ZipArchive::OVERWRITE) === true) {
+            foreach ($filesToAdd as $filePath => $zipEntryName) {
+                $zip->addFile($filePath, $zipEntryName);
+            }
+            $zip->close();
+            $zipCreated = file_exists($tempZipFile) && filesize($tempZipFile) > 0;
+        }
+    }
+
+    // Mode 2: System CLI fallback if PHP ZipArchive is not installed/enabled
+    if (!$zipCreated) {
+        $tempDir = sys_get_temp_dir() . '/zip_build_' . time() . '_' . uniqid();
+        if (@mkdir($tempDir, 0755, true)) {
+            foreach ($filesToAdd as $filePath => $zipEntryName) {
+                copy($filePath, $tempDir . '/' . $zipEntryName);
+            }
+            $escapedZip = escapeshellarg($tempZipFile);
+            $escapedDir = escapeshellarg($tempDir . '/*');
+            exec("zip -j -9 {$escapedZip} {$escapedDir} 2>&1", $output, $returnCode);
+
+            array_map('unlink', glob("{$tempDir}/*"));
+            @rmdir($tempDir);
+
+            $zipCreated = ($returnCode === 0 && file_exists($tempZipFile) && filesize($tempZipFile) > 0);
+        }
+    }
+
+    if (!$zipCreated) {
+        die('Erreur : L\'extension PHP ZipArchive est indisponible et l\'archivage ZIP système a échoué.');
     }
 
     $downloadFilename = "devoirs_fichiers_" . date('Y-m-d_H-i') . ".zip";
