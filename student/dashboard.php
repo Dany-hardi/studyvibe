@@ -420,6 +420,8 @@ try {
         <!-- Main Workspace Area -->
         <main class="flex-grow p-6 md:p-10 lg:p-12 space-y-10 max-w-7xl w-full mx-auto">
 
+        <!-- 1. Onglet CATALOGUE -->
+        <div id="tab-catalogue" class="tab-content space-y-12">
             <?php if ($continueCourse): ?>
             <div class="border border-[#004B23] dark:border-[#34C759] bg-[#f8fcf9] dark:bg-[#1a2e22] p-5 rounded-xl flex flex-wrap items-center justify-between gap-4 shadow-sm hover:shadow transition-shadow duration-300">
                 <div>
@@ -500,9 +502,6 @@ try {
                 <?php endforeach; ?>
             </div>
             <?php endif; ?>
-
-        <!-- 1. Onglet CATALOGUE -->
-        <div id="tab-catalogue" class="tab-content space-y-12">
             <div class="space-y-3">
                 <h2 class="font-serif text-3xl font-light">Catalogue des Enseignements</h2>
                 <p class="text-sm font-light text-[#555555] max-w-xl">
@@ -1754,7 +1753,16 @@ try {
          * @param {number} courseId - The course identifier to read.
          * @return {void}
          */
-        function studyCourse(courseId) {
+        let currentCourseLessons = [];
+        let currentNextLesson = null;
+
+        /**
+         * Loads and presents the study course modal layout with chapter hierarchy.
+         * @param {number} courseId - The course identifier to read.
+         * @param {number|null} stayOnLessonId - Optional lesson ID to remain focused on.
+         * @return {void}
+         */
+        function studyCourse(courseId, stayOnLessonId = null) {
             studyCourseIdGlobal = courseId;
             fetch(`/student/get-course-details.php?course_id=${courseId}`)
             .then(res => res.json())
@@ -1764,6 +1772,7 @@ try {
                     document.getElementById('study-course-title').textContent = data.course.title;
                     
                     // Render Chapters and Lessons
+                    const allLessons = [];
                     const container = document.getElementById('study-chapters-container');
                     container.innerHTML = '';
                     
@@ -1772,12 +1781,12 @@ try {
                         chapterDiv.className = 'space-y-2';
                         
                         const titleEl = document.createElement('h4');
-                        titleEl.className = 'text-xs font-semibold uppercase tracking-wider text-[#555555]';
+                        titleEl.className = 'text-xs font-semibold uppercase tracking-wider text-[#555555] dark:text-[#AAAAAA]';
                         titleEl.textContent = ch.title;
                         chapterDiv.appendChild(titleEl);
                         
                         const lessonsList = document.createElement('div');
-                        lessonsList.className = 'space-y-1.5 pl-2 border-l border-[#E5E5E7]';
+                        lessonsList.className = 'space-y-1.5 pl-2 border-l border-[#E5E5E7] dark:border-[#2C2C2C]';
                         
                         ch.lessons.forEach(les => {
                             let isExpired = false;
@@ -1787,6 +1796,10 @@ try {
                                 }
                             }
 
+                            if (!isExpired) {
+                                allLessons.push(les);
+                            }
+
                             const lessonBtn = document.createElement('button');
                             if (isExpired) {
                                 lessonBtn.className = `w-full text-left text-xs py-1 px-2 text-[#888888] cursor-not-allowed flex justify-between items-center opacity-60`;
@@ -1794,7 +1807,9 @@ try {
                                     Toast.error("Le délai d'accès à cette leçon/quiz a expiré.");
                                 };
                             } else {
-                                lessonBtn.className = `w-full text-left text-xs py-1 px-2 transition-all hover:bg-[#E5E5E7] rounded-sm flex justify-between items-center ${parseInt(les.completed) === 1 ? 'text-[#004B23] font-medium' : 'text-[#555555]'}`;
+                                const isCurrent = currentLessonId && currentLessonId == les.id;
+                                const isDone = parseInt(les.completed) === 1;
+                                lessonBtn.className = `w-full text-left text-xs py-1.5 px-2.5 transition-all hover:bg-[#E5E5E7] dark:hover:bg-[#252525] rounded-lg flex justify-between items-center ${isCurrent ? 'bg-[#004B23]/10 dark:bg-[#34C759]/10 font-bold text-[#004B23] dark:text-[#34C759]' : (isDone ? 'text-[#004B23] dark:text-[#34C759] font-medium' : 'text-[#555555] dark:text-[#AAAAAA]')}`;
                                 lessonBtn.onclick = () => loadLesson(les.id);
                             }
                             
@@ -1805,7 +1820,7 @@ try {
                             if (parseInt(les.completed) === 1) {
                                 const checkSpan = document.createElement('span');
                                 checkSpan.textContent = '✓';
-                                checkSpan.className = 'font-bold';
+                                checkSpan.className = 'font-bold text-[#004B23] dark:text-[#34C759]';
                                 lessonBtn.appendChild(checkSpan);
                             }
                             
@@ -1815,36 +1830,29 @@ try {
                         chapterDiv.appendChild(lessonsList);
                         container.appendChild(chapterDiv);
                     });
+
+                    currentCourseLessons = allLessons;
                     
                     // Open study modal
-                    document.getElementById('study-modal').classList.remove('hidden');
-                    
-                    // Auto-load first non-expired lesson if available
-                    let firstNonExpiredLesson = null;
-                    for (const ch of data.chapters) {
-                        for (const les of ch.lessons) {
-                            let isExpired = false;
-                            if (les.quiz_deadline && parseInt(les.completed) === 0) {
-                                if (new Date() > new Date(les.quiz_deadline)) {
-                                    isExpired = true;
-                                }
-                            }
-                            if (!isExpired) {
-                                firstNonExpiredLesson = les;
-                                break;
-                            }
-                        }
-                        if (firstNonExpiredLesson) break;
-                    }
+                    const modal = document.getElementById('study-modal');
+                    if (modal) modal.classList.remove('hidden');
 
-                    if (firstNonExpiredLesson) {
-                        loadLesson(firstNonExpiredLesson.id);
-                    } else if (data.chapters.length > 0 && data.chapters[0].lessons.length > 0) {
-                        document.getElementById('lesson-viewer-header').classList.add('hidden');
-                        document.getElementById('study-media-container').innerHTML = '<p class="text-sm italic text-[#888888]">Toutes les leçons de ce cours ont expiré.</p>';
+                    if (stayOnLessonId) {
+                        const curIdx = currentCourseLessons.findIndex(l => l.id == stayOnLessonId);
+                        currentNextLesson = (curIdx !== -1 && curIdx + 1 < currentCourseLessons.length) ? currentCourseLessons[curIdx + 1] : null;
+                        updateLessonCompleteBar(true, true, false);
                     } else {
-                        document.getElementById('lesson-viewer-header').classList.add('hidden');
-                        document.getElementById('study-media-container').innerHTML = '<p class="text-sm italic text-[#888888]">Aucune leçon disponible.</p>';
+                        let firstNonExpiredLesson = currentCourseLessons.length > 0 ? currentCourseLessons[0] : null;
+
+                        if (firstNonExpiredLesson) {
+                            loadLesson(firstNonExpiredLesson.id);
+                        } else if (data.chapters.length > 0 && data.chapters[0].lessons.length > 0) {
+                            document.getElementById('lesson-viewer-header').classList.add('hidden');
+                            document.getElementById('study-media-container').innerHTML = '<p class="text-sm italic text-[#888888]">Toutes les leçons de ce cours ont expiré.</p>';
+                        } else {
+                            document.getElementById('lesson-viewer-header').classList.add('hidden');
+                            document.getElementById('study-media-container').innerHTML = '<p class="text-sm italic text-[#888888]">Aucune leçon disponible.</p>';
+                        }
                     }
                 } else {
                     Toast.error('Erreur: ' + data.message);
@@ -2197,7 +2205,6 @@ try {
                 quizBox.classList.remove('hidden');
                 renderLessonQuestion(pendingLessonQuiz.questions[0], pendingLessonQuiz.questions.length);
                 Toast.success('Félicitations ! Le contenu de la leçon a été entièrement lu/visionné. La leçon est achevée, l\'évaluation est maintenant débloquée.');
-                quizBox.scrollIntoView({ behavior: 'smooth', block: 'start' });
                 // On s'assure que la barre de complétion est masquée pendant le quiz
                 updateLessonCompleteBar(isCompleted, true, true);
             } else {
@@ -2237,6 +2244,17 @@ try {
             LessonContentGate.reset();
             pendingLessonQuiz = null;
             lessonContentConsumed = false;
+
+            // Reset scroll positions to top when loading a lesson
+            const viewerContent = document.getElementById('study-viewer-content');
+            if (viewerContent) viewerContent.scrollTop = 0;
+            const modalScrollRoot = document.querySelector('#study-modal .flex-grow.overflow-y-auto');
+            if (modalScrollRoot) modalScrollRoot.scrollTop = 0;
+
+            if (currentCourseLessons && Array.isArray(currentCourseLessons)) {
+                const curIdx = currentCourseLessons.findIndex(l => l.id == lessonId);
+                currentNextLesson = (curIdx !== -1 && curIdx + 1 < currentCourseLessons.length) ? currentCourseLessons[curIdx + 1] : null;
+            }
 
             // Reinitialiser le chat IA de l'etudiant a chaque changement de lecon
             const chatMsgs = document.getElementById('ai-chat-messages');
@@ -2802,10 +2820,25 @@ try {
             }
 
             bar.classList.remove('hidden');
+
+            const oldNextBtn = document.getElementById('next-lesson-btn');
+            if (oldNextBtn) oldNextBtn.remove();
+
             if (isCompleted) {
                 btn.classList.add('hidden');
                 status.classList.remove('hidden');
                 if (hint) hint.classList.add('hidden');
+
+                if (currentNextLesson) {
+                    const nextBtn = document.createElement('button');
+                    nextBtn.type = 'button';
+                    nextBtn.id = 'next-lesson-btn';
+                    nextBtn.className = 'px-5 py-2.5 bg-[#004B23] dark:bg-[#34C759] hover:bg-[#003619] dark:hover:bg-[#28a148] text-white text-xs font-semibold uppercase tracking-wider transition-colors rounded-lg flex items-center gap-2 shadow-sm cursor-pointer ml-auto';
+                    nextBtn.innerHTML = `<span>Continuer vers la leçon suivante : <strong>${escapeHtml(currentNextLesson.title)}</strong></span> →`;
+                    const nextId = currentNextLesson.id;
+                    nextBtn.onclick = () => loadLesson(nextId);
+                    bar.appendChild(nextBtn);
+                }
             } else {
                 btn.classList.remove('hidden');
                 status.classList.add('hidden');
@@ -2845,9 +2878,8 @@ try {
             .then(data => {
                 if (data.success && data.lesson_complete) {
                     Toast.success('Leçon marquée comme terminée !');
-                    updateLessonCompleteBar(true, true, false);
                     document.getElementById('lesson-quiz-container').classList.add('hidden');
-                    studyCourse(studyCourseIdGlobal);
+                    studyCourse(studyCourseIdGlobal, lessonId);
                 } else {
                     Toast.error(data.message || 'Impossible de valider la leçon.');
                     if (btn) {
@@ -2939,8 +2971,7 @@ try {
                 setTimeout(() => {
                     if (data.lesson_complete) {
                         hideLessonQuizComplete();
-                        updateLessonCompleteBar(true, true, false);
-                        studyCourse(studyCourseIdGlobal);
+                        studyCourse(studyCourseIdGlobal, lessonId);
                         Toast.success(data.correct ? 'Leçon validée avec succès !' : 'Évaluation terminée.');
                     } else {
                         fetch(`/student/get-lesson-details.php?lesson_id=${lessonId}`)
@@ -2951,7 +2982,7 @@ try {
                                 feedback.textContent = '';
                             } else {
                                 hideLessonQuizComplete();
-                                studyCourse(studyCourseIdGlobal);
+                                studyCourse(studyCourseIdGlobal, lessonId);
                             }
                         });
                     }
