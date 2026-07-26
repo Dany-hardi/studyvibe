@@ -88,17 +88,22 @@ try {
     }
     $allBadgesConfig = BadgeHelper::getAllBadgesConfig();
 
-    // --- Course Library Items for student ---
-    $libraryStmt = $pdo->prepare("
-        SELECT cli.*, c.title AS course_title
-        FROM course_library_items cli
-        JOIN courses c ON cli.course_id = c.id
-        JOIN enrollments e ON e.course_id = c.id
-        WHERE e.student_id = :sid
-        ORDER BY cli.created_at DESC
-    ");
-    $libraryStmt->execute(['sid' => (int)$user['id']]);
-    $studentLibraryItems = $libraryStmt->fetchAll();
+    // --- Course Library Items for student (isolated — self-healing if table is missing) ---
+    $studentLibraryItems = [];
+    try {
+        $libraryStmt = $pdo->prepare("
+            SELECT cli.*, c.title AS course_title
+            FROM course_library_items cli
+            JOIN courses c ON cli.course_id = c.id
+            JOIN enrollments e ON e.course_id = c.id
+            WHERE e.student_id = :sid
+            ORDER BY cli.created_at DESC
+        ");
+        $libraryStmt->execute(['sid' => (int)$user['id']]);
+        $studentLibraryItems = $libraryStmt->fetchAll();
+    } catch (Throwable $libEx) {
+        $studentLibraryItems = [];
+    }
 
     // 4. Récupérer les téléévaluations de l'étudiant
     $stmt = $pdo->prepare("

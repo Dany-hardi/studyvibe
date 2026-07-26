@@ -105,11 +105,16 @@ try {
         };
 
     } elseif ($type === 'library') {
-        $stmt = $pdo->prepare("SELECT id FROM course_library_items WHERE file_path = :file LIMIT 1");
-        $stmt->execute(['file' => $file]);
-        if (!$stmt->fetch()) {
+        try {
+            $stmt = $pdo->prepare("SELECT id FROM course_library_items WHERE file_path = :file LIMIT 1");
+            $stmt->execute(['file' => $file]);
+            if (!$stmt->fetch()) {
+                http_response_code(404);
+                exit('Fichier introuvable.');
+            }
+        } catch (Throwable $e) {
             http_response_code(404);
-            exit('Fichier introuvable.');
+            exit('Fichier introuvable ou table non disponible.');
         }
 
         $path = __DIR__ . '/uploads/library/' . $file;
