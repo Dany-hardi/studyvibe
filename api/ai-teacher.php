@@ -58,7 +58,7 @@ try {
         $db->commit();
 
         require_once __DIR__ . '/../lib/LessonProgressionHelper.php';
-        LessonProgressionHelper::handleLessonUpdate($db->getPdo(), $lessonId);
+        LessonProgressionHelper::handleLessonUpdate($db, $lessonId);
 
         echo json_encode(['success' => true]);
         exit;
