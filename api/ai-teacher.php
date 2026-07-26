@@ -19,6 +19,8 @@ header('Content-Type: application/json; charset=utf-8');
 $data = json_decode(file_get_contents('php://input'), true);
 $action = $data['action'] ?? 'generate';
 $lessonId = isset($data['lesson_id']) ? (int)$data['lesson_id'] : 0;
+$numQuestions = min(25, max(1, (int)($data['num_questions'] ?? 5)));
+$difficulty = trim((string)($data['difficulty_level'] ?? 'Moyen'));
 
 if ($lessonId <= 0) {
     echo json_encode(['success' => false, 'error' => 'ID de lecon invalide.']);
@@ -145,18 +147,19 @@ try {
     $client = new GeminiClient(GEMINI_API_KEY);
 
     // Prompt systeme strict pour la creation d'evaluations (sans emojis)
-    $systemInstruction = "Vous etes un ingenieur pedagogique specialise dans la conception d'evaluations academiques.\n"
-                       . "Votre unique mission est de concevoir un questionnaire de 3 questions QCM a choix unique basées strictement sur la lecon suivante.\n\n"
+    $systemInstruction = "Vous etes un ingenieur pedagogique méthodique et expert dans la conception d'evaluations academiques.\n"
+                       . "Votre unique mission est de concevoir un questionnaire de {$numQuestions} questions QCM a choix unique, de niveau de difficulte \"{$difficulty}\", basées strictly sur la lecon suivante.\n\n"
                        . "Voici le contexte et les documents associes a la lecon :\n"
                        . "=========================================\n"
                        . $contextDescription
                        . "=========================================\n\n"
                        . "INSTRUCTIONS RIGOUREUSES DE CONCEPTION :\n"
-                       . "1. Les questions doivent etre claires, objectives et testables.\n"
-                       . "2. Il doit y avoir exactement 4 options (A, B, C, D).\n"
-                       . "3. N'utilisez JAMAIS d'emojis ni de fioritures dans le texte de la question ou des options.\n"
-                       . "4. Vous avez acces a la recherche Google pour analyser le contenu des videos listees si necessaire afin de formuler des questions pertinentes sur leur contenu.\n"
-                       . "5. Vous devez renvoyer EXCLUSIVEMENT un objet JSON respectant strictement cette structure :\n"
+                       . "1. Le questionnaire DOIT contenir exactement {$numQuestions} questions distinctes.\n"
+                       . "2. Le niveau de difficulte global des questions doit repondre aux exigences du niveau \"{$difficulty}\".\n"
+                       . "3. Il doit y avoir exactement 4 options (A, B, C, D) par question.\n"
+                       . "4. N'utilisez JAMAIS d'emojis ni de fioritures dans the text de la question ou des options.\n"
+                       . "5. Vous avez acces a la recherche Google pour analyser le contenu des videos listees si necessaire afin de formuler des questions pertinentes.\n"
+                       . "6. Vous devez renvoyer EXCLUSIVEMENT un objet JSON respectant strictement cette structure :\n"
                        . "{\n"
                        . "  \"questions\": [\n"
                        . "    {\n"
@@ -173,7 +176,7 @@ try {
                        . "}\n"
                        . "Important: Pas de code markdown (comme ```json), pas de texte explicatif avant ou apres. Juste l'objet JSON brut.";
 
-    $prompt = "Genere un QCM de 3 questions academiques basées sur les concepts et supports de cette lecon.";
+    $prompt = "Génère un QCM de {$numQuestions} questions académiques de niveau {$difficulty} basées sur les concepts et supports de cette leçon.";
     $response = $client->generate($prompt, $systemInstruction, true, true);
 
     $response = trim($response);

@@ -100,7 +100,7 @@ try {
     $hasQuiz      = $totalQuestions > 0;
     $questions    = [];
 
-    if ($hasQuiz && ($contentConsumed || $completed)) {
+    if ($hasQuiz) {
         // Questions du quiz — exclure celles déjà répondues (correctes ou incorrectes)
         $qStmt = $pdo->prepare("
             SELECT lq.id, lq.question_text, lq.option_a, lq.option_b, lq.option_c, lq.option_d
@@ -116,7 +116,7 @@ try {
         $questions = $qStmt->fetchAll();
     }
 
-    $quizComplete = $completed || ($hasQuiz && ($contentConsumed || $completed) && empty($questions));
+    $quizComplete = $completed || ($hasQuiz && empty($questions));
 
     // Récupérer le dépôt de devoir éventuel de cet étudiant pour cette leçon
     $submission = null;

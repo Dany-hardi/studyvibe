@@ -3346,6 +3346,53 @@ $successMsg = $successMessages[$successKey] ?? null;
     </div>
 </div>
 
+<!-- ── Modal : Configuration Génération Quiz IA ───────────────────────── -->
+<div id="ai-quiz-config-modal" class="hidden fixed inset-0 bg-black/40 backdrop-blur-sm z-50 flex items-center justify-center p-6">
+    <div class="bg-white p-8 max-w-md w-full border border-[#E5E5E7] space-y-6 modal-inner">
+        <div class="flex justify-between items-center pb-3 border-b border-[#E5E5E7]">
+            <div>
+                <h3 class="font-serif text-xl font-light">Génération de Quiz IA</h3>
+                <p id="ai-config-lesson-title" class="text-xs font-light text-[#888888] mt-1">Configuration du questionnaire</p>
+            </div>
+            <button type="button" onclick="toggleModal('ai-quiz-config-modal')" class="text-[#888888] hover:text-[#D32F2F]">
+                ✕
+            </button>
+        </div>
+
+        <form onsubmit="submitAiQuizConfig(event)" class="space-y-5">
+            <input type="hidden" id="ai-config-lesson-id" value="">
+            <input type="hidden" id="ai-config-lesson-name" value="">
+
+            <div>
+                <label class="block text-xs font-semibold uppercase tracking-wider text-[#555555] mb-2">
+                    Nombre de questions (Max 25)
+                </label>
+                <input type="number" id="ai-config-num-questions" min="1" max="25" value="5" required
+                    class="w-full p-2.5 bg-[#F9F9FB] border border-[#E5E5E7] text-sm text-[#111111] font-mono focus:border-[#004B23] outline-none rounded-sm">
+                <p class="text-[11px] text-[#888888] mt-1">Choisissez entre 1 et 25 questions par leçon (limite max : 25).</p>
+            </div>
+
+            <div>
+                <label class="block text-xs font-semibold uppercase tracking-wider text-[#555555] mb-2">
+                    Niveau de difficulté
+                </label>
+                <select id="ai-config-difficulty" required
+                    class="w-full p-2.5 bg-[#F9F9FB] border border-[#E5E5E7] text-sm text-[#111111] focus:border-[#004B23] outline-none rounded-sm">
+                    <option value="Facile">Facile (Notions fondamentales & questions directes)</option>
+                    <option value="Moyen" selected>Moyen (Compréhension & application pratique)</option>
+                    <option value="Difficile">Difficile (Analyse approfondie & cas pratiques)</option>
+                    <option value="Expert / Piège">Expert / Piège (Réflexion critique & détails avancés)</option>
+                </select>
+            </div>
+
+            <div class="flex justify-end gap-3 pt-4 border-t border-[#E5E5E7]">
+                <button type="button" onclick="toggleModal('ai-quiz-config-modal')" class="sv-btn-ms-outline">Annuler</button>
+                <button type="submit" class="sv-btn-ms">Générer avec l'IA</button>
+            </div>
+        </form>
+    </div>
+</div>
+
 <!-- ── Modal : Génération de Quiz IA (Gemini) ───────────────────────── -->
 <div id="ai-quiz-modal" class="hidden fixed inset-0 bg-black/40 backdrop-blur-sm z-50 flex items-center justify-center p-6">
     <div class="bg-white p-8 max-w-2xl w-full border border-[#E5E5E7] flex flex-col max-h-[85vh] modal-inner">
@@ -4301,11 +4348,32 @@ function addResourceRow() {
 let aiQuizLessonId = null;
 let aiGeneratedQuestions = [];
 
-function generateAiQuiz(lessonId, lessonTitle) {
+function openAiQuizConfigModal(lessonId, lessonTitle) {
+    document.getElementById('ai-config-lesson-id').value = lessonId;
+    document.getElementById('ai-config-lesson-name').value = lessonTitle;
+    document.getElementById('ai-config-lesson-title').textContent = 'Leçon : ' + lessonTitle;
+    document.getElementById('ai-config-num-questions').value = 5;
+    document.getElementById('ai-config-difficulty').value = 'Moyen';
+    toggleModal('ai-quiz-config-modal');
+}
+
+function submitAiQuizConfig(e) {
+    e.preventDefault();
+    const lessonId = document.getElementById('ai-config-lesson-id').value;
+    const lessonTitle = document.getElementById('ai-config-lesson-name').value;
+    let numQuestions = parseInt(document.getElementById('ai-config-num-questions').value, 10) || 5;
+    numQuestions = Math.min(25, Math.max(1, numQuestions));
+    const difficulty = document.getElementById('ai-config-difficulty').value || 'Moyen';
+
+    toggleModal('ai-quiz-config-modal');
+    generateAiQuiz(lessonId, lessonTitle, numQuestions, difficulty);
+}
+
+function generateAiQuiz(lessonId, lessonTitle, numQuestions = 5, difficulty = 'Moyen') {
     aiQuizLessonId = lessonId;
     aiGeneratedQuestions = [];
     
-    document.getElementById('ai-quiz-lesson-title').textContent = 'Leçon : ' + lessonTitle;
+    document.getElementById('ai-quiz-lesson-title').textContent = `Leçon : ${lessonTitle} (${numQuestions} questions — Niveau ${difficulty})`;
     
     // Configurer l'affichage modal initial
     document.getElementById('ai-quiz-loading').classList.remove('hidden');
@@ -4317,7 +4385,12 @@ function generateAiQuiz(lessonId, lessonTitle) {
     fetch('/api/ai-teacher.php', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ lesson_id: lessonId, action: 'generate' })
+        body: JSON.stringify({
+            lesson_id: lessonId,
+            num_questions: numQuestions,
+            difficulty_level: difficulty,
+            action: 'generate'
+        })
     })
     .then(res => res.json())
     .then(data => {
