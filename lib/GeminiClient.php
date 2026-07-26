@@ -143,7 +143,8 @@ class GeminiClient
         curl_setopt($ch, CURLOPT_HTTPHEADER, [
             'Content-Type: application/json'
         ]);
-        curl_setopt($ch, CURLOPT_TIMEOUT, 30);
+        curl_setopt($ch, CURLOPT_CONNECTTIMEOUT, 15);
+        curl_setopt($ch, CURLOPT_TIMEOUT, 120);
         // Desactiver temporairement la verification SSL locale si necessaire (optionnel, mais conseille de laisser actif pour la securite)
         curl_setopt($ch, CURLOPT_SSL_VERIFYPEER, true);
 
