@@ -333,6 +333,7 @@ function jsonError(string $message = 'Erreur serveur. Veuillez réessayer.', ?Th
 {
     if ($e !== null) {
         logServerError($e, $context);
+        $message .= ' — Exception: ' . $e->getMessage() . ' in ' . $e->getFile() . ':' . $e->getLine();
     }
     header('Content-Type: application/json');
     echo json_encode(['success' => false, 'message' => $message]);
@@ -351,12 +352,23 @@ function dieSafe(string $message = 'Erreur serveur. Veuillez réessayer.', ?Thro
 {
     if ($e !== null) {
         logServerError($e, $context);
+        $detailStr = $message . ' — Exception: ' . $e->getMessage() . ' in ' . $e->getFile() . ' on line ' . $e->getLine();
+    } else {
+        $detailStr = $message;
     }
     
     $errorCode = 500;
     $errorTitle = "Erreur Système";
-    $errorMessage = $message;
+    $errorMessage = $detailStr;
     $badgeText = "Alerte";
+    
+    if ($e !== null) {
+        $typewriterLines = [
+            '> ALERTE SYSTÈME : ' . $e->getMessage(),
+            '> FICHIER : ' . basename($e->getFile()) . ' (ligne ' . $e->getLine() . ')',
+            '> TRACE : ' . substr(str_replace(["\n", "\r"], ' | ', $e->getTraceAsString()), 0, 200),
+        ];
+    }
     
     $errorFile = __DIR__ . '/error.php';
     if (file_exists($errorFile)) {
@@ -364,7 +376,7 @@ function dieSafe(string $message = 'Erreur serveur. Veuillez réessayer.', ?Thro
         exit;
     }
     
-    die(htmlspecialchars($message, ENT_QUOTES, 'UTF-8'));
+    die(htmlspecialchars($detailStr, ENT_QUOTES, 'UTF-8'));
 }
 
 // =========================================================================

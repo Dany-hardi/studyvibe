@@ -1,9 +1,10 @@
 <?php
 declare(strict_types=1);
 
-// =========================================================================
-// SECTION 1: GLOBAL SYSTEM SETTINGS
-// =========================================================================
+// Active l'affichage direct des erreurs PHP dans le navigateur
+@ini_set('display_errors', '1');
+@ini_set('display_startup_errors', '1');
+error_reporting(E_ALL);
 
 // Configure default server timezone for consistent timestamping
 date_default_timezone_set('Africa/Douala');
