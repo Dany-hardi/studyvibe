@@ -225,6 +225,7 @@ class Database
                 try { self::$instance->exec("ALTER TABLE `lesson_progress` ADD COLUMN `score` DECIMAL(5,2) DEFAULT NULL"); } catch (PDOException $ex) {}
                 try { self::$instance->exec("ALTER TABLE `lesson_progress` ADD COLUMN `completed_at` DATETIME DEFAULT NULL"); } catch (PDOException $ex) {}
             }
+            try { self::$instance->exec("ALTER TABLE `lesson_progress` MODIFY COLUMN `completed_at` DATETIME NULL DEFAULT NULL"); } catch (PDOException $ex) {}
 
             // Migration 2.12: users — lang column for localization preferences
             try {
