@@ -1050,6 +1050,16 @@ try {
         ");
         $stmt->execute(['cid' => $selectedCourse['id']]);
         $courseComments = $stmt->fetchAll();
+
+        // Charger les éléments de la bibliothèque du cours
+        $courseLibraryItems = [];
+        try {
+            $stmt = $pdo->prepare("SELECT * FROM course_library_items WHERE course_id = :cid ORDER BY created_at DESC");
+            $stmt->execute(['cid' => $selectedCourse['id']]);
+            $courseLibraryItems = $stmt->fetchAll();
+        } catch (Throwable $e) {
+            $courseLibraryItems = [];
+        }
     }
 
     // Charger toutes les leçons ayant la fonctionnalité de devoir activée (has_assignment = 1)
@@ -1355,6 +1365,10 @@ $successMsg = $successMessages[$successKey] ?? null;
                             class="sidebar-tab-btn w-full flex items-center gap-3 px-4 py-3 rounded-lg text-left text-sm transition-all duration-200 <?= $selectedCourse ? 'text-white hover:bg-white/10' : 'opacity-40 cursor-not-allowed text-white/40' ?>">
                         Plan &amp; Contenu
                     </button>
+                    <button onclick="switchDashboardTab('tab-library'); toggleMobileDrawer();" data-tab-target="tab-library" 
+                            class="sidebar-tab-btn w-full flex items-center gap-3 px-4 py-3 rounded-lg text-left text-sm transition-all duration-200 <?= $selectedCourse ? 'text-white hover:bg-white/10' : 'opacity-40 cursor-not-allowed text-white/40' ?>">
+                        Bibliothèque (Ressources)
+                    </button>
                     <button onclick="switchDashboardTab('tab-live-eval'); toggleMobileDrawer();" data-tab-target="tab-live-eval" 
                             class="sidebar-tab-btn w-full flex items-center gap-3 px-4 py-3 rounded-lg text-left text-sm transition-all duration-200 <?= $selectedCourse ? 'text-white hover:bg-white/10' : 'opacity-40 cursor-not-allowed text-white/40' ?>">
                         Téléévaluations (Live)
@@ -1451,6 +1465,12 @@ $successMsg = $successMessages[$successKey] ?? null;
                         class="sidebar-tab-btn w-full flex items-center gap-3 px-4 py-3 rounded-lg text-left text-sm transition-all duration-200 <?= $selectedCourse ? 'text-white/70 hover:text-white hover:bg-white/10' : 'opacity-40 cursor-not-allowed text-white/40' ?>">
                     <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 6.253v13m0-13C10.832 5.477 9.246 5 7.5 5S4.168 5.477 3 6.253v13C4.168 18.477 5.754 18 7.5 18s3.332.477 4.5 1.253m0-13C13.168 5.477 14.754 5 16.5 5c1.747 0 3.332.477 4.5 1.253v13C19.832 18.477 18.247 18 16.5 18c-1.746 0-3.332.477-4.5 1.253"/></svg>
                     Plan &amp; Contenu
+                </button>
+
+                <button onclick="switchDashboardTab('tab-library')" data-tab-target="tab-library" 
+                        class="sidebar-tab-btn w-full flex items-center gap-3 px-4 py-3 rounded-lg text-left text-sm transition-all duration-200 <?= $selectedCourse ? 'text-white/70 hover:text-white hover:bg-white/10' : 'opacity-40 cursor-not-allowed text-white/40' ?>">
+                    <svg class="w-4 h-4 text-amber-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 6.253v13m0-13C10.832 5.477 9.246 5 7.5 5S4.168 5.477 3 6.253v13C4.168 18.477 5.754 18 7.5 18s3.332.477 4.5 1.253m0-13C13.168 5.477 14.754 5 16.5 5c1.747 0 3.332.477 4.5 1.253v13C19.832 18.477 18.247 18 16.5 18c-1.746 0-3.332.477-4.5 1.253"/></svg>
+                    Bibliothèque (Ressources)
                 </button>
 
                 <button onclick="switchDashboardTab('tab-live-eval')" data-tab-target="tab-live-eval" 
@@ -2075,6 +2095,97 @@ $successMsg = $successMessages[$successKey] ?? null;
                         <?php endforeach; ?>
                     <?php endif; ?>
                 </div>
+            </div>
+
+            <!-- 2b. BIBLIOTHÈQUE DU COURS (tab-library) -->
+            <div id="tab-library" class="tab-content hidden space-y-8 animate-fade-in">
+                <div class="flex flex-col md:flex-row md:items-center justify-between gap-4 border-b border-[#E5E5E7] dark:border-[#2C2C2C] pb-6">
+                    <div>
+                        <div class="inline-flex items-center gap-2 px-3 py-1 bg-amber-500/10 text-amber-700 dark:text-amber-400 text-xs font-semibold uppercase tracking-wider rounded-full mb-2">
+                            <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 6.253v13m0-13C10.832 5.477 9.246 5 7.5 5S4.168 5.477 3 6.253v13C4.168 18.477 5.754 18 7.5 18s3.332.477 4.5 1.253m0-13C13.168 5.477 14.754 5 16.5 5c1.747 0 3.332.477 4.5 1.253v13C19.832 18.477 18.247 18 16.5 18c-1.746 0-3.332.477-4.5 1.253"/></svg>
+                            Ressources Académiques &amp; Syllabi
+                        </div>
+                        <h2 class="font-serif text-3xl font-light text-[#111111] dark:text-white">Bibliothèque de Cours</h2>
+                        <p class="text-sm text-[#555555] dark:text-[#AAAAAA] mt-1">Déposez et gérez les documents (PDF jusqu'à 64Mo), vidéos, syllabi et cours rédigés au format Markdown/LaTeX pour vos étudiants.</p>
+                    </div>
+
+                    <?php if ($selectedCourse): ?>
+                        <button type="button" onclick="openAddLibraryModal()"
+                                class="px-4 py-2.5 bg-[#004B23] text-white text-xs font-semibold uppercase tracking-wider rounded-lg hover:bg-[#003d1c] transition-all flex items-center gap-2 shadow-sm flex-shrink-0">
+                            <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 4v16m8-8H4"/></svg>
+                            + Ajouter une ressource
+                        </button>
+                    <?php endif; ?>
+                </div>
+
+                <?php if (empty($courseLibraryItems)): ?>
+                    <div class="p-12 text-center border border-dashed border-[#E5E5E7] dark:border-[#333333] rounded-xl bg-gray-50/50 dark:bg-[#1A1A1A]/50">
+                        <svg class="w-12 h-12 text-gray-400 mx-auto mb-3" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M12 6.253v13m0-13C10.832 5.477 9.246 5 7.5 5S4.168 5.477 3 6.253v13C4.168 18.477 5.754 18 7.5 18s3.332.477 4.5 1.253m0-13C13.168 5.477 14.754 5 16.5 5c1.747 0 3.332.477 4.5 1.253v13C19.832 18.477 18.247 18 16.5 18c-1.746 0-3.332.477-4.5 1.253"/></svg>
+                        <h3 class="text-sm font-semibold text-[#111111] dark:text-white mb-1">Aucune ressource dans la bibliothèque pour ce cours</h3>
+                        <p class="text-xs text-[#888888] dark:text-[#AAAAAA] mb-4">Publiez le programme du cours, les fichiers PDF d'exercices ou les cours rédigés pour vos étudiants.</p>
+                        <?php if ($selectedCourse): ?>
+                            <button type="button" onclick="openAddLibraryModal()"
+                                    class="inline-flex items-center gap-2 px-4 py-2 bg-[#111111] text-white text-xs font-semibold uppercase tracking-wider rounded-md hover:bg-[#004B23] transition-colors">
+                                Ajouter un premier document
+                            </button>
+                        <?php endif; ?>
+                    </div>
+                <?php else: ?>
+                    <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+                        <?php foreach ($courseLibraryItems as $item): ?>
+                            <div class="bg-white dark:bg-[#1E1E1E] border border-[#E5E5E7] dark:border-[#2C2C2C] p-5 rounded-xl flex flex-col justify-between hover:shadow-md transition-all space-y-4">
+                                <div class="space-y-3">
+                                    <div class="flex items-center justify-between gap-2">
+                                        <span class="px-2.5 py-0.5 text-[10px] font-bold uppercase tracking-wider bg-amber-500/10 text-amber-800 dark:text-amber-300 rounded-sm">
+                                            <?= htmlspecialchars(strtoupper($item['category'])) ?>
+                                        </span>
+                                        <span class="text-[11px] text-[#888888] font-mono">
+                                            <?= date('d/m/Y', strtotime($item['created_at'])) ?>
+                                        </span>
+                                    </div>
+                                    <h4 class="text-base font-semibold text-[#111111] dark:text-white line-clamp-2">
+                                        <?= htmlspecialchars($item['title']) ?>
+                                    </h4>
+                                    <?php if (!empty($item['description'])): ?>
+                                        <p class="text-xs text-[#555555] dark:text-[#AAAAAA] line-clamp-2">
+                                            <?= htmlspecialchars($item['description']) ?>
+                                        </p>
+                                    <?php endif; ?>
+                                </div>
+
+                                <div class="pt-3 border-t border-[#E5E5E7] dark:border-[#2C2C2C] flex items-center justify-between gap-2">
+                                    <div class="flex items-center gap-2">
+                                        <?php if (!empty($item['file_path'])): ?>
+                                            <a href="/download.php?type=library&file=<?= urlencode(basename($item['file_path'])) ?>" target="_blank"
+                                               class="px-3 py-1.5 bg-[#004B23] text-white text-[11px] font-semibold uppercase tracking-wider rounded-md hover:bg-[#003d1c] transition-colors inline-flex items-center gap-1.5">
+                                                <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4"/></svg>
+                                                PDF / Fichier
+                                            </a>
+                                        <?php elseif (!empty($item['video_url'])): ?>
+                                            <a href="<?= htmlspecialchars($item['video_url']) ?>" target="_blank"
+                                               class="px-3 py-1.5 bg-red-700 text-white text-[11px] font-semibold uppercase tracking-wider rounded-md hover:bg-red-800 transition-colors inline-flex items-center gap-1.5">
+                                                <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M14.752 11.168l-3.197-2.132A1 1 0 0010 9.87v4.263a1 1 0 001.555.832l3.197-2.132a1 1 0 000-1.664z"/></svg>
+                                                Vidéo
+                                            </a>
+                                        <?php elseif (!empty($item['content_markdown'])): ?>
+                                            <span class="px-2.5 py-1 bg-gray-100 dark:bg-gray-800 text-gray-700 dark:text-gray-300 text-[10px] font-mono rounded-md">
+                                                Texte LaTeX / Markdown
+                                            </span>
+                                        <?php endif; ?>
+                                    </div>
+
+                                    <form method="POST" onsubmit="return confirm('Voulez-vous vraiment supprimer cette ressource ?');">
+                                        <input type="hidden" name="action" value="delete_library_item">
+                                        <input type="hidden" name="library_item_id" value="<?= $item['id'] ?>">
+                                        <button type="submit" class="p-1.5 text-red-600 hover:text-red-800 hover:bg-red-50 dark:hover:bg-red-900/30 rounded-md transition-colors" title="Supprimer">
+                                            <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16"/></svg>
+                                        </button>
+                                    </form>
+                                </div>
+                            </div>
+                        <?php endforeach; ?>
+                    </div>
+                <?php endif; ?>
             </div>
 
             <!-- 3. TÉLÉÉVALUATIONS (tab-live-eval) -->
@@ -3775,10 +3886,87 @@ $successMsg = $successMessages[$successKey] ?? null;
     <div>Console Professeur</div>
 </footer>
 
+<!-- ── Modal : Ajouter une ressource à la bibliothèque ───── -->
+<div id="add-library-modal" class="fixed inset-0 z-50 bg-black/60 backdrop-blur-sm hidden items-center justify-center p-4">
+    <div class="bg-white dark:bg-[#1E1E1E] w-full max-w-2xl rounded-2xl shadow-2xl border border-[#E5E5E7] dark:border-[#2C2C2C] overflow-hidden flex flex-col max-h-[90vh]">
+        <div class="p-6 border-b border-[#E5E5E7] dark:border-[#2C2C2C] flex items-center justify-between bg-gray-50/50 dark:bg-[#1A1A1A]/50">
+            <div>
+                <h3 class="text-lg font-bold text-[#111111] dark:text-white flex items-center gap-2">
+                    <svg class="w-5 h-5 text-amber-500" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 6.253v13m0-13C10.832 5.477 9.246 5 7.5 5S4.168 5.477 3 6.253v13C4.168 18.477 5.754 18 7.5 18s3.332.477 4.5 1.253m0-13C13.168 5.477 14.754 5 16.5 5c1.747 0 3.332.477 4.5 1.253v13C19.832 18.477 18.247 18 16.5 18c-1.746 0-3.332.477-4.5 1.253"/></svg>
+                    Ajouter une ressource à la bibliothèque
+                </h3>
+                <p class="text-xs text-[#666666] dark:text-[#AAAAAA] mt-0.5">Partagez un document PDF (max 64Mo), une vidéo, ou du contenu Markdown/LaTeX.</p>
+            </div>
+            <button type="button" onclick="toggleModal('add-library-modal')" class="text-gray-400 hover:text-gray-600 dark:hover:text-white text-xl font-bold p-1">&times;</button>
+        </div>
+
+        <form method="POST" enctype="multipart/form-data" class="p-6 space-y-4 overflow-y-auto flex-1">
+            <input type="hidden" name="action" value="add_library_item">
+
+            <div>
+                <label class="block text-xs font-semibold uppercase tracking-wider text-[#333333] dark:text-[#CCCCCC] mb-1">Titre de la ressource *</label>
+                <input type="text" name="library_title" required placeholder="Ex: Syllabus du cours, Support PDF Chapitre 1..."
+                       class="w-full px-4 py-2.5 bg-[#F5F5F7] dark:bg-[#2A2A2A] border border-[#E5E5E7] dark:border-[#333333] rounded-lg text-sm focus:outline-none focus:border-[#004B23]">
+            </div>
+
+            <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+                <div>
+                    <label class="block text-xs font-semibold uppercase tracking-wider text-[#333333] dark:text-[#CCCCCC] mb-1">Catégorie *</label>
+                    <select name="library_category" class="w-full px-4 py-2.5 bg-[#F5F5F7] dark:bg-[#2A2A2A] border border-[#E5E5E7] dark:border-[#333333] rounded-lg text-sm focus:outline-none focus:border-[#004B23]">
+                        <option value="pdf">Fichier PDF (jusqu'à 64Mo)</option>
+                        <option value="syllabus">Syllabus officiel</option>
+                        <option value="video">Lien Vidéo (YouTube / MP4)</option>
+                        <option value="text_markdown">Texte Rédigé (Markdown / LaTeX)</option>
+                        <option value="guide">Guide d'étude / Fiche</option>
+                        <option value="other">Autre format</option>
+                    </select>
+                </div>
+                <div>
+                    <label class="block text-xs font-semibold uppercase tracking-wider text-[#333333] dark:text-[#CCCCCC] mb-1">Fichier à joindre (PDF, DOCX, ZIP max 64Mo)</label>
+                    <input type="file" name="library_file" accept=".pdf,.docx,.doc,.zip,.png,.jpg,.jpeg"
+                           class="w-full px-3 py-1.5 bg-[#F5F5F7] dark:bg-[#2A2A2A] border border-[#E5E5E7] dark:border-[#333333] rounded-lg text-xs focus:outline-none focus:border-[#004B23]">
+                </div>
+            </div>
+
+            <div>
+                <label class="block text-xs font-semibold uppercase tracking-wider text-[#333333] dark:text-[#CCCCCC] mb-1">Description courte</label>
+                <input type="text" name="library_description" placeholder="Aperçu des thèmes abordés ou consignes..."
+                       class="w-full px-4 py-2.5 bg-[#F5F5F7] dark:bg-[#2A2A2A] border border-[#E5E5E7] dark:border-[#333333] rounded-lg text-sm focus:outline-none focus:border-[#004B23]">
+            </div>
+
+            <div>
+                <label class="block text-xs font-semibold uppercase tracking-wider text-[#333333] dark:text-[#CCCCCC] mb-1">URL de vidéo (optionnel)</label>
+                <input type="url" name="library_video_url" placeholder="https://www.youtube.com/watch?v=..."
+                       class="w-full px-4 py-2.5 bg-[#F5F5F7] dark:bg-[#2A2A2A] border border-[#E5E5E7] dark:border-[#333333] rounded-lg text-sm focus:outline-none focus:border-[#004B23]">
+            </div>
+
+            <div>
+                <label class="block text-xs font-semibold uppercase tracking-wider text-[#333333] dark:text-[#CCCCCC] mb-1">Contenu Rédigé / Formules LaTeX (Markdown & LaTeX supportés)</label>
+                <textarea name="library_content_markdown" rows="4" placeholder="Insérez ici votre texte avec équations LaTeX $E=mc^2$ ou du Markdown..."
+                          class="w-full px-4 py-2.5 bg-[#F5F5F7] dark:bg-[#2A2A2A] border border-[#E5E5E7] dark:border-[#333333] rounded-lg text-sm font-mono focus:outline-none focus:border-[#004B23]"></textarea>
+            </div>
+
+            <div class="pt-4 border-t border-[#E5E5E7] dark:border-[#2C2C2C] flex items-center justify-end gap-3">
+                <button type="button" onclick="toggleModal('add-library-modal')"
+                        class="px-4 py-2 bg-gray-100 dark:bg-[#2A2A2A] text-gray-700 dark:text-gray-300 text-xs font-semibold uppercase tracking-wider rounded-lg hover:bg-gray-200">
+                    Annuler
+                </button>
+                <button type="submit"
+                        class="px-5 py-2 bg-[#004B23] text-white text-xs font-semibold uppercase tracking-wider rounded-lg hover:bg-[#003d1c] transition-colors shadow-sm">
+                    Publier dans la bibliothèque
+                </button>
+            </div>
+        </form>
+    </div>
+</div>
+
 <!-- ══════════════════════════════════════════════════════════
      SCRIPTS
 ══════════════════════════════════════════════════════════ -->
 <script>
+function openAddLibraryModal() {
+    toggleModal('add-library-modal');
+}
 /**
  * SECTION 5: CLIENT-SIDE DASHBOARD BEHAVIOR & INTERACTION LOGIC
  *
