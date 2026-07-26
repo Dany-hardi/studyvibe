@@ -299,6 +299,9 @@ try {
                 // Ressources initiales
                 this_processNewResources($pdo, $lessonId, $_POST);
 
+                require_once __DIR__ . '/../lib/LessonProgressionHelper.php';
+                LessonProgressionHelper::handleLessonUpdate($pdo, $lessonId, true);
+
                 header("Location: /teacher/dashboard.php?course_id={$selectedCourse['id']}&success=lesson_added#tab-course"); exit;
             }
         }

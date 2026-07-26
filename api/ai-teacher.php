@@ -56,6 +56,10 @@ try {
             ]);
         }
         $db->commit();
+
+        require_once __DIR__ . '/../lib/LessonProgressionHelper.php';
+        LessonProgressionHelper::handleLessonUpdate($db->getPdo(), $lessonId);
+
         echo json_encode(['success' => true]);
         exit;
     }

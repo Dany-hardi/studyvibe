@@ -17,6 +17,9 @@ class Mailer
     /** @var string|null Tracks description of the last failed SMTP transaction error */
     private static ?string $lastError = null;
 
+    /** @var bool Disables SMTP attempts for current request after a connection failure to avoid cumulative timeouts */
+    private static bool $smtpDisabled = false;
+
     /**
      * Retrieves the description error log from the last failed transaction.
      * 
@@ -51,13 +54,14 @@ class Mailer
         $from     = defined('SMTP_FROM') ? SMTP_FROM : 'noreply@studyvibe.edu';
         $fromName = defined('SMTP_FROM_NAME') ? SMTP_FROM_NAME : 'StudyVibe';
 
-        // Route using native SMTP sockets if credentials are valid
-        if (self::isConfigured()) {
+        // Route using native SMTP sockets if credentials are valid and not disabled
+        if (!self::$smtpDisabled && self::isConfigured()) {
             $ok = self::sendSmtp($to, $subject, $htmlBody, $from, $fromName);
-            if (!$ok && self::$lastError === null) {
-                self::$lastError = 'Échec de connexion ou d\'envoi SMTP.';
+            if ($ok) {
+                return true;
             }
-            return $ok;
+            // Mark SMTP disabled for remainder of script execution to prevent cumulative timeouts
+            self::$smtpDisabled = true;
         }
 
         // Fallback: system mail() function
@@ -500,6 +504,77 @@ class Mailer
         return self::send($to, "Vos clés d'inscription aux cours - StudyVibe", $body);
     }
 
+    /**
+     * Sends a notification email to students when a lesson content is updated or added.
+     * 
+     * @param string $to           Student email.
+     * @param string $studentName  Student name.
+     * @param string $courseTitle  Parent course title.
+     * @param string $lessonTitle  Target lesson title.
+     * @param int    $courseId     Course ID to build link.
+     * @param bool   $isNewLesson  Whether it's a new lesson or an update to an existing lesson.
+     * @return bool True if sent successfully.
+     */
+    public static function sendLessonContentUpdated(
+        string $to,
+        string $studentName,
+        string $courseTitle,
+        string $lessonTitle,
+        int $courseId,
+        bool $isNewLesson = false
+    ): bool {
+        $appUrl = defined('APP_URL') ? APP_URL : 'https://studyvibe.edu';
+        $lessonUrl = rtrim($appUrl, '/') . '/student/dashboard.php?course_id=' . $courseId;
+
+        $badgeLabel = $isNewLesson ? 'Nouvelle leçon ajoutée' : 'Mise à jour de cours';
+        $heading = $isNewLesson ? 'Une nouvelle leçon est disponible !' : 'Contenu de cours mis à jour !';
+
+        $introText = $isNewLesson
+            ? "Une nouvelle leçon intitulée <strong>" . htmlspecialchars($lessonTitle) . "</strong> a été ajoutée au cours <strong>" . htmlspecialchars($courseTitle) . "</strong>."
+            : "L'enseignant a mis à jour le contenu de la leçon <strong>" . htmlspecialchars($lessonTitle) . "</strong> dans le cours <strong>" . htmlspecialchars($courseTitle) . "</strong>.";
+
+        $infoBox = "
+            <div style='background-color:#EFF6FF; border-left:4px solid #2563EB; padding:16px 20px; margin:24px 0; border-radius:0 8px 8px 0;'>
+                <div style='font-weight:700; color:#1E40AF; font-size:13px; margin-bottom:4px; text-transform:uppercase; letter-spacing:0.5px;'>Information importante :</div>
+                <div style='color:#1E3A8A; font-size:13px; line-height:1.5;'>
+                    Afin de vous permettre d'assimiler les nouveaux éléments ajoutés par l'enseignant, la progression de cette leçon a été réinitialisée. Votre pourcentage d'avancement global sur ce cours a été ajusté sur votre tableau de bord.
+                </div>
+            </div>
+        ";
+
+        $body = self::wrap("
+            <div style='margin-bottom:16px;'>
+                <span style='display:inline-block; padding:4px 12px; background-color:#DBEAFE; color:#1E40AF; font-size:11px; font-weight:700; text-transform:uppercase; letter-spacing:0.5px; border-radius:20px;'>
+                    {$badgeLabel}
+                </span>
+            </div>
+            <h2 style='font-size:22px; font-weight:800; color:#0F172A; margin:0 0 16px 0; letter-spacing:-0.5px;'>{$heading}</h2>
+            <p style='margin:0 0 16px 0;'>Bonjour <strong>" . htmlspecialchars($studentName) . "</strong>,</p>
+            <p style='margin:0 0 16px 0;'>{$introText}</p>
+            
+            {$infoBox}
+
+            <p style='margin:28px 0 20px 0;'>
+                <a href='{$lessonUrl}' style='display:inline-block; padding:14px 28px; background-color:#2563EB; color:#FFFFFF; text-decoration:none; font-size:14px; font-weight:700; border-radius:8px; box-shadow:0 4px 12px rgba(37,99,235,0.25); text-align:center;'>
+                    Accéder au cours &amp; Découvrir les nouveautés &rarr;
+                </a>
+            </p>
+
+            <p style='font-size:13px; color:#64748B; margin-top:24px;'>
+                Si vous avez des questions concernant cette mise à jour, vous pouvez directement échanger avec l'enseignant ou contacter l'assistance StudyVibe.
+            </p>
+            <p style='font-size:13px; color:#334155; margin-top:24px; font-weight:600;'>
+                Cordialement,<br>L'équipe pédagogique StudyVibe
+            </p>
+        ");
+
+        $subject = $isNewLesson 
+            ? "StudyVibe — Nouvelle leçon disponible : {$courseTitle}"
+            : "StudyVibe — Mise à jour de leçon : {$courseTitle}";
+
+        return self::send($to, $subject, $body);
+    }
+
     // =========================================================================
     // SECTION 4: TEMPLATE STYLE WRAPPERS
     // =========================================================================
@@ -512,7 +587,66 @@ class Mailer
      */
     private static function wrap(string $content): string
     {
-        return "<!DOCTYPE html><html><body style='font-family:Inter,Arial,sans-serif;color:#111;max-width:560px;margin:0 auto;padding:32px'>{$content}<hr style='border:none;border-top:1px solid #eee;margin-top:32px'><p style='font-size:11px;color:#888'>StudyVibe — Plateforme Académique</p></body></html>";
+        $appUrl = defined('APP_URL') ? APP_URL : 'https://studyvibe.edu';
+        $logoPath = __DIR__ . '/assets/img/studyvibe-logo.png';
+        if (file_exists($logoPath)) {
+            $logoSrc = 'data:image/png;base64,' . base64_encode(file_get_contents($logoPath));
+        } else {
+            $logoSrc = rtrim($appUrl, '/') . '/assets/img/studyvibe-logo.png';
+        }
+
+        return "
+        <!DOCTYPE html>
+        <html lang='fr'>
+        <head>
+            <meta charset='UTF-8'>
+            <meta name='viewport' content='width=device-width, initial-scale=1.0'>
+            <title>StudyVibe</title>
+        </head>
+        <body style='margin:0; padding:0; background-color:#F4F6F8; font-family:-apple-system, BlinkMacSystemFont, \"Segoe UI\", Roboto, Helvetica, Arial, sans-serif; -webkit-font-smoothing:antialiased;'>
+            <table border='0' cellpadding='0' cellspacing='0' width='100%' style='background-color:#F4F6F8; padding: 40px 16px;'>
+                <tr>
+                    <td align='center'>
+                        <table border='0' cellpadding='0' cellspacing='0' width='100%' style='max-width:580px; background-color:#FFFFFF; border-radius:12px; border:1px solid #E5E7EB; box-shadow:0 4px 20px rgba(0,0,0,0.05); overflow:hidden;'>
+                            <!-- Header Banner with Logo -->
+                            <tr>
+                                <td style='background-color:#0A1128; padding:28px 36px; text-align:left; border-bottom:3px solid #2563EB;'>
+                                    <table border='0' cellpadding='0' cellspacing='0' width='100%'>
+                                        <tr>
+                                            <td>
+                                                <img src='{$logoSrc}' alt='StudyVibe Technologies' style='height:36px; width:auto; display:block; border:0;'>
+                                            </td>
+                                            <td align='right' style='color:#94A3B8; font-size:11px; text-transform:uppercase; letter-spacing:1px; font-weight:600;'>
+                                                Plateforme Académique
+                                            </td>
+                                        </tr>
+                                    </table>
+                                </td>
+                            </tr>
+                            <!-- Main Content Area -->
+                            <tr>
+                                <td style='padding:36px; color:#1E293B; font-size:14px; line-height:1.6;'>
+                                    {$content}
+                                </td>
+                            </tr>
+                            <!-- Footer -->
+                            <tr>
+                                <td style='background-color:#F8FAFC; padding:24px 36px; border-top:1px solid #E2E8F0; text-align:center; color:#64748B; font-size:12px;'>
+                                    <p style='margin:0 0 8px 0; font-weight:600; color:#334155;'>StudyVibe Technologies — Excellence &amp; Innovation Académique</p>
+                                    <p style='margin:0 0 12px 0;'>Vous recevez cette notification automatique car vous êtes inscrit sur la plateforme StudyVibe.</p>
+                                    <p style='margin:0;'>
+                                        <a href='{$appUrl}' style='color:#2563EB; text-decoration:none; font-weight:500;'>Accéder au portail</a> &bull; 
+                                        <a href='{$appUrl}/student/dashboard.php' style='color:#2563EB; text-decoration:none; font-weight:500;'>Mon Espace Étudiant</a>
+                                    </p>
+                                </td>
+                            </tr>
+                        </table>
+                    </td>
+                </tr>
+            </table>
+        </body>
+        </html>
+        ";
     }
 
     // =========================================================================
@@ -551,18 +685,22 @@ class Mailer
         ]);
 
         $remoteSocketAddress = ($port === 465 ? 'ssl://' : 'tcp://') . $host . ':' . $port;
-        $socket = @stream_socket_client($remoteSocketAddress, $errno, $errstr, 10, STREAM_CLIENT_CONNECT, $context);
+        $socket = @stream_socket_client($remoteSocketAddress, $errno, $errstr, 3, STREAM_CLIENT_CONNECT, $context);
         
         if (!$socket) {
             self::$lastError = "Connexion impossible à {$remoteSocketAddress} : [{$errno}] {$errstr}";
             return false;
         }
 
+        stream_set_timeout($socket, 5);
+
         // Socket stream readers
         $read = static function () use ($socket): string {
             $data = '';
-            while ($line = fgets($socket, 515)) {
+            while (!feof($socket) && ($line = fgets($socket, 515)) !== false) {
                 $data .= $line;
+                $info = stream_get_meta_data($socket);
+                if (!empty($info['timed_out'])) break;
                 if (isset($line[3]) && $line[3] === ' ') break;
             }
             return $data;
