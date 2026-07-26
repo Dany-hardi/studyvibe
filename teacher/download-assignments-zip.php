@@ -71,14 +71,31 @@ try {
     $filesToAdd = [];
 
     foreach ($fileSubmissions as $s) {
-        $filePath = $assignmentsDir . $s['submitted_file_path'];
-        if (file_exists($filePath) && is_file($filePath)) {
+        $rawPath  = (string)($s['submitted_file_path'] ?? '');
+        $fileName = basename($rawPath);
+
+        $candidates = array_unique(array_filter([
+            $assignmentsDir . $fileName,
+            $assignmentsDir . $rawPath,
+            __DIR__ . '/../' . ltrim($rawPath, '/'),
+            $rawPath
+        ]));
+
+        $resolvedPath = null;
+        foreach ($candidates as $cand) {
+            if (file_exists($cand) && is_file($cand)) {
+                $resolvedPath = $cand;
+                break;
+            }
+        }
+
+        if ($resolvedPath) {
             $studentSlug = preg_replace('/[^a-zA-Z0-9_-]/', '_', $s['student_name'] ?? 'Etudiant');
             $lessonSlug  = preg_replace('/[^a-zA-Z0-9_-]/', '_', $s['lesson_title'] ?? 'Lecon');
             $origName    = preg_replace('/[^a-zA-Z0-9_.-]/', '_', $s['submitted_file_name'] ?? 'document');
             
             $zipEntryName = "{$studentSlug}_{$lessonSlug}_{$origName}";
-            $filesToAdd[$filePath] = $zipEntryName;
+            $filesToAdd[$resolvedPath] = $zipEntryName;
         }
     }
 

@@ -96,7 +96,7 @@ try {
 
     // Data rows
     foreach ($submissions as $s) {
-        $fileDownloadUrl = !empty($s['submitted_file_path']) ? $appUrl . '/download.php?type=assignment&file=' . rawurlencode($s['submitted_file_path']) : '';
+        $fileDownloadUrl = !empty($s['submitted_file_path']) ? $appUrl . '/download.php?type=assignment&file=' . rawurlencode(basename($s['submitted_file_path'])) : '';
         $typeLabel = match ($s['submission_type']) {
             'both' => 'Fichier & Lien',
             'link' => 'Lien uniquement',
