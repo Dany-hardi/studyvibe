@@ -1840,12 +1840,37 @@ try {
                     if (stayOnLessonId) {
                         const curIdx = currentCourseLessons.findIndex(l => l.id == stayOnLessonId);
                         currentNextLesson = (curIdx !== -1 && curIdx + 1 < currentCourseLessons.length) ? currentCourseLessons[curIdx + 1] : null;
-                        updateLessonCompleteBar(true, true, false);
+                        loadLesson(stayOnLessonId);
                     } else {
-                        let firstNonExpiredLesson = currentCourseLessons.length > 0 ? currentCourseLessons[0] : null;
+                        let targetLesson = null;
+                        if (data.course.last_lesson_id) {
+                            const lastIdx = currentCourseLessons.findIndex(l => l.id == data.course.last_lesson_id);
+                            if (lastIdx !== -1) {
+                                const lastLes = currentCourseLessons[lastIdx];
+                                if (parseInt(lastLes.completed) === 0) {
+                                    // Student was working on this lesson, not finished -> return to this lesson
+                                    targetLesson = lastLes;
+                                } else if (lastIdx + 1 < currentCourseLessons.length) {
+                                    // Student finished this lesson -> move to the NEXT lesson
+                                    targetLesson = currentCourseLessons[lastIdx + 1];
+                                } else {
+                                    targetLesson = lastLes;
+                                }
+                            }
+                        }
 
-                        if (firstNonExpiredLesson) {
-                            loadLesson(firstNonExpiredLesson.id);
+                        if (!targetLesson) {
+                            // Pick first uncompleted lesson in the course
+                            targetLesson = currentCourseLessons.find(l => parseInt(l.completed) === 0);
+                        }
+
+                        if (!targetLesson && currentCourseLessons.length > 0) {
+                            // All lessons completed -> load last lesson
+                            targetLesson = currentCourseLessons[currentCourseLessons.length - 1];
+                        }
+
+                        if (targetLesson) {
+                            loadLesson(targetLesson.id);
                         } else if (data.chapters.length > 0 && data.chapters[0].lessons.length > 0) {
                             document.getElementById('lesson-viewer-header').classList.add('hidden');
                             document.getElementById('study-media-container').innerHTML = '<p class="text-sm italic text-[#888888]">Toutes les leçons de ce cours ont expiré.</p>';
@@ -3107,8 +3132,7 @@ try {
          * @return {void}
          */
         function resumeCourse(courseId, lessonId) {
-            studyCourse(courseId);
-            setTimeout(() => loadLesson(lessonId), 700);
+            studyCourse(courseId, lessonId || null);
         }
 
         /**

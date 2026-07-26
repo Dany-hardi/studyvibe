@@ -62,14 +62,15 @@ try {
         exit;
     }
 
-    // Fetch Course details
+    // Fetch Course details & enrollment last_lesson_id
     $courseStmt = $pdo->prepare("
-        SELECT c.id, c.title, m.title AS module_title 
+        SELECT c.id, c.title, m.title AS module_title, e.last_lesson_id
         FROM courses c
         JOIN modules m ON c.module_id = m.id
+        LEFT JOIN enrollments e ON e.course_id = c.id AND e.student_id = :student_id
         WHERE c.id = :id
     ");
-    $courseStmt->execute(['id' => $courseId]);
+    $courseStmt->execute(['id' => $courseId, 'student_id' => $studentId]);
     $course = $courseStmt->fetch();
 
     // Fetch Chapters
