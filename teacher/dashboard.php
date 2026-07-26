@@ -5159,6 +5159,30 @@ function populateLessonGrades() {
         </div>`;
     });
     container.innerHTML = accordionHtml;
+function exportTableToExcel(tableId, filename) {
+    const table = document.getElementById(tableId);
+    if (!table) {
+        if (typeof Toast !== 'undefined') Toast.error('Tableau introuvable.');
+        else alert('Tableau introuvable.');
+        return;
+    }
+    const cleanFilename = (filename || 'export').replace(/[^a-zA-Z0-9_-]/g, '_');
+    
+    if (typeof XLSX !== 'undefined' && XLSX.utils && XLSX.writeFile) {
+        const wb = XLSX.utils.table_to_book(table, { sheet: 'Notes' });
+        XLSX.writeFile(wb, cleanFilename + '.xlsx');
+    } else {
+        const html = table.outerHTML;
+        const blob = new Blob(['\ufeff' + html], { type: 'application/vnd.ms-excel;charset=utf-8' });
+        const url = URL.createObjectURL(blob);
+        const a = document.createElement('a');
+        a.href = url;
+        a.download = cleanFilename + '.xls';
+        document.body.appendChild(a);
+        a.click();
+        document.body.removeChild(a);
+        URL.revokeObjectURL(url);
+    }
 }
 
 function toggleGradeAccordion(id, btn) {
