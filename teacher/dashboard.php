@@ -5159,6 +5159,8 @@ function populateLessonGrades() {
         </div>`;
     });
     container.innerHTML = accordionHtml;
+}
+
 function exportTableToExcel(tableId, filename) {
     const table = document.getElementById(tableId);
     if (!table) {
