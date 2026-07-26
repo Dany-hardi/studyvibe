@@ -1825,7 +1825,7 @@ $successMsg = $successMessages[$successKey] ?? null;
                                                     + Question
                                                 </button>
                                                 <?php if (!empty(trim($les['text_content'] ?? ''))): ?>
-                                                    <button onclick="generateAiQuiz(<?= $les['id']; ?>, <?= htmlspecialchars(json_encode($les['title'])); ?>)"
+                                                    <button onclick="openAiQuizConfigModal(<?= $les['id']; ?>, <?= htmlspecialchars(json_encode($les['title'])); ?>)"
                                                         class="px-3 py-1 bg-[#111111] text-[#FFFFFF] text-[11px] font-semibold uppercase tracking-wider hover:bg-[#004B23] rounded-sm">
                                                         Quiz IA
                                                     </button>
