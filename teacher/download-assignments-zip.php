@@ -57,14 +57,14 @@ try {
     $stmt->execute($params);
     $submissions = $stmt->fetchAll(PDO::FETCH_ASSOC);
 
-    // Filter only PDF files
-    $pdfSubmissions = array_filter($submissions, function($s) {
+    // Filter all submitted files
+    $fileSubmissions = array_filter($submissions, function($s) {
         $ext = strtolower(pathinfo($s['submitted_file_path'] ?? '', PATHINFO_EXTENSION));
-        return $ext === 'pdf';
+        return !empty($ext);
     });
 
-    if (empty($pdfSubmissions)) {
-        die('Aucun fichier PDF n\'a été trouvé pour le filtre sélectionné.');
+    if (empty($fileSubmissions)) {
+        die('Aucun fichier déposé n\'a été trouvé pour le filtre sélectionné.');
     }
 
     if (!class_exists('ZipArchive')) {
@@ -81,12 +81,12 @@ try {
     $assignmentsDir = __DIR__ . '/../uploads/assignments/';
     $addedCount = 0;
 
-    foreach ($pdfSubmissions as $s) {
+    foreach ($fileSubmissions as $s) {
         $filePath = $assignmentsDir . $s['submitted_file_path'];
         if (file_exists($filePath) && is_file($filePath)) {
             $studentSlug = preg_replace('/[^a-zA-Z0-9_-]/', '_', $s['student_name'] ?? 'Etudiant');
             $lessonSlug  = preg_replace('/[^a-zA-Z0-9_-]/', '_', $s['lesson_title'] ?? 'Lecon');
-            $origName    = preg_replace('/[^a-zA-Z0-9_.-]/', '_', $s['submitted_file_name'] ?? 'document.pdf');
+            $origName    = preg_replace('/[^a-zA-Z0-9_.-]/', '_', $s['submitted_file_name'] ?? 'document');
             
             $zipEntryName = "{$studentSlug}_{$lessonSlug}_{$origName}";
             $zip->addFile($filePath, $zipEntryName);
@@ -97,10 +97,10 @@ try {
     $zip->close();
 
     if ($addedCount === 0 || !file_exists($tempZipFile)) {
-        die('Les fichiers PDF physiques spécifiés sont introuvables sur le serveur.');
+        die('Les fichiers physiques spécifiés sont introuvables sur le serveur.');
     }
 
-    $downloadFilename = "devoirs_pdf_" . date('Y-m-d_H-i') . ".zip";
+    $downloadFilename = "devoirs_fichiers_" . date('Y-m-d_H-i') . ".zip";
 
     header('Content-Type: application/zip');
     header('Content-Disposition: attachment; filename="' . $downloadFilename . '"');

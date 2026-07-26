@@ -886,7 +886,7 @@ try {
         $chapters = $stmt->fetchAll();
 
         foreach ($chapters as &$chapter) {
-            $stmt = $pdo->prepare("SELECT id, chapter_id, title, content_type, text_content, pdf_path, video_url, sort_order, quiz_deadline FROM lessons WHERE chapter_id=:cid ORDER BY sort_order ASC,id ASC");
+            $stmt = $pdo->prepare("SELECT * FROM lessons WHERE chapter_id=:cid ORDER BY sort_order ASC,id ASC");
             $stmt->execute(['cid' => $chapter['id']]);
             $chapter['lessons'] = $stmt->fetchAll();
 
@@ -979,36 +979,58 @@ try {
         $courseComments = $stmt->fetchAll();
     }
 
-    // Charger tous les devoirs déposés par les étudiants pour les cours de cet enseignant
-    $assignmentsStmt = $pdo->prepare("
+    // Charger toutes les leçons ayant la fonctionnalité de devoir activée (has_assignment = 1)
+    // ainsi que toutes les soumissions associées, ordonnées par Chapitre -> Leçon -> Date de soumission
+    $asgLessonsStmt = $pdo->prepare("
         SELECT 
-            las.id,
-            las.lesson_id,
-            las.student_id,
-            las.student_name AS declared_student_name,
-            las.student_matricule,
-            las.submission_type,
-            las.submitted_file_path,
-            las.submitted_file_name,
-            las.submitted_link,
-            las.student_comment,
-            las.submitted_at,
-            u.name AS student_name,
-            u.email AS student_email,
-            u.avatar_path AS student_avatar,
-            l.title AS lesson_title,
+            l.*,
+            ch.id AS chapter_id,
+            ch.title AS chapter_title,
+            ch.sort_order AS chapter_sort,
             c.id AS course_id,
             c.title AS course_title
-        FROM lesson_assignment_submissions las
-        JOIN users u ON u.id = las.student_id
-        JOIN lessons l ON l.id = las.lesson_id
+        FROM lessons l
         JOIN chapters ch ON ch.id = l.chapter_id
         JOIN courses c ON c.id = ch.course_id
-        WHERE c.teacher_id = :tid " . ($selectedCourse ? " AND c.id = " . (int)$selectedCourse['id'] : "") . "
-        ORDER BY las.submitted_at DESC
+        WHERE l.has_assignment = 1 
+          AND c.teacher_id = :tid " . ($selectedCourse ? " AND c.id = " . (int)$selectedCourse['id'] : "") . "
+        ORDER BY ch.sort_order ASC, ch.id ASC, l.sort_order ASC, l.id ASC
     ");
-    $assignmentsStmt->execute(['tid' => $teacherId]);
-    $teacherAssignments = $assignmentsStmt->fetchAll(PDO::FETCH_ASSOC);
+    $asgLessonsStmt->execute(['tid' => $teacherId]);
+    $configuredAssignmentLessons = $asgLessonsStmt->fetchAll(PDO::FETCH_ASSOC);
+
+    $teacherAssignments = [];
+    foreach ($configuredAssignmentLessons as &$asgLes) {
+        $subStmt = $pdo->prepare("
+            SELECT 
+                las.id,
+                las.lesson_id,
+                las.student_id,
+                las.student_name AS declared_student_name,
+                las.student_matricule,
+                las.submission_type,
+                las.submitted_file_path,
+                las.submitted_file_name,
+                las.submitted_link,
+                las.student_comment,
+                las.submitted_at,
+                u.name AS student_name,
+                u.email AS student_email,
+                u.avatar_path AS student_avatar
+            FROM lesson_assignment_submissions las
+            JOIN users u ON u.id = las.student_id
+            WHERE las.lesson_id = :lid
+            ORDER BY las.submitted_at DESC
+        ");
+        $subStmt->execute(['lid' => $asgLes['id']]);
+        $asgLes['submissions'] = $subStmt->fetchAll(PDO::FETCH_ASSOC);
+        foreach ($asgLes['submissions'] as $sItem) {
+            $sItem['lesson_title'] = $asgLes['title'];
+            $sItem['course_title'] = $asgLes['course_title'];
+            $teacherAssignments[] = $sItem;
+        }
+    }
+    unset($asgLes);
 
 } catch (PDOException $e) {
     dieSafe('Erreur serveur. Veuillez réessayer.', $e, 'teacher/dashboard');
@@ -2598,19 +2620,19 @@ $successMsg = $successMessages[$successKey] ?? null;
                             <h3 class="font-serif text-2xl font-light text-[#111111] dark:text-white">Devoirs &amp; Travaux d'Élèves</h3>
                         </div>
                         <p class="text-xs text-[#666666] dark:text-[#AAAAAA] mt-1">
-                            Gérez les soumissions des étudiants (PDF, Word DOCX max 20Mo, dépôts GitHub &amp; liens externes).
+                            Consultez et gérez l'ensemble des devoirs configurés par cours, chapitre et leçon.
                         </p>
                     </div>
                     <div class="flex flex-wrap items-center gap-3">
                         <a href="/teacher/download-assignments-excel.php?course_id=<?= $selectedCourseId; ?>" 
                            class="inline-flex items-center gap-2 px-4 py-2 bg-[#004B23] text-white hover:bg-[#003619] transition-colors text-xs font-semibold uppercase tracking-wider rounded-md shadow-sm">
                             <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 10v6m0 0l-3-3m3 3l3-3m2 8H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"/></svg>
-                            Exporter en Excel (.csv)
+                            Exporter Tout en Excel (.csv)
                         </a>
                         <a href="/teacher/download-assignments-zip.php?course_id=<?= $selectedCourseId; ?>" 
                            class="inline-flex items-center gap-2 px-4 py-2 border border-[#004B23] text-[#004B23] dark:text-[#34C759] dark:border-[#34C759] hover:bg-[#004B23]/10 transition-colors text-xs font-semibold uppercase tracking-wider rounded-md shadow-sm">
                             <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4"/></svg>
-                            Télécharger les PDF (.zip)
+                            Télécharger Tous les Fichiers (.zip)
                         </a>
                     </div>
                 </div>
@@ -2618,11 +2640,15 @@ $successMsg = $successMessages[$successKey] ?? null;
                 <!-- Stats summary -->
                 <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
                     <div class="bg-white dark:bg-[#1E1E1E] border border-[#E5E5E7] dark:border-[#2C2C2C] p-5 rounded-lg">
-                        <div class="text-xs font-semibold text-[#888888] dark:text-[#AAAAAA] uppercase tracking-wider">Total Devoirs Déposés</div>
-                        <div class="text-2xl font-serif font-bold text-[#111111] dark:text-white mt-1"><?= count($teacherAssignments); ?></div>
+                        <div class="text-xs font-semibold text-[#888888] dark:text-[#AAAAAA] uppercase tracking-wider">Devoirs Configurés</div>
+                        <div class="text-2xl font-serif font-bold text-[#111111] dark:text-white mt-1"><?= count($configuredAssignmentLessons); ?></div>
                     </div>
                     <div class="bg-white dark:bg-[#1E1E1E] border border-[#E5E5E7] dark:border-[#2C2C2C] p-5 rounded-lg">
-                        <div class="text-xs font-semibold text-[#888888] dark:text-[#AAAAAA] uppercase tracking-wider">Fichiers Déposés</div>
+                        <div class="text-xs font-semibold text-[#888888] dark:text-[#AAAAAA] uppercase tracking-wider">Total Travaux Déposés</div>
+                        <div class="text-2xl font-serif font-bold text-[#004B23] dark:text-[#34C759] mt-1"><?= count($teacherAssignments); ?></div>
+                    </div>
+                    <div class="bg-white dark:bg-[#1E1E1E] border border-[#E5E5E7] dark:border-[#2C2C2C] p-5 rounded-lg">
+                        <div class="text-xs font-semibold text-[#888888] dark:text-[#AAAAAA] uppercase tracking-wider">Fichiers Rendus</div>
                         <div class="text-2xl font-serif font-bold text-emerald-600 dark:text-emerald-400 mt-1">
                             <?= count(array_filter($teacherAssignments, fn($a) => !empty($a['submitted_file_path']))); ?>
                         </div>
@@ -2633,99 +2659,159 @@ $successMsg = $successMessages[$successKey] ?? null;
                             <?= count(array_filter($teacherAssignments, fn($a) => !empty($a['submitted_link']))); ?>
                         </div>
                     </div>
-                    <div class="bg-white dark:bg-[#1E1E1E] border border-[#E5E5E7] dark:border-[#2C2C2C] p-5 rounded-lg">
-                        <div class="text-xs font-semibold text-[#888888] dark:text-[#AAAAAA] uppercase tracking-wider">Fichiers PDF</div>
-                        <div class="text-2xl font-serif font-bold text-red-600 dark:text-red-400 mt-1">
-                            <?= count(array_filter($teacherAssignments, fn($a) => strtolower(pathinfo($a['submitted_file_path'] ?? '', PATHINFO_EXTENSION)) === 'pdf')); ?>
-                        </div>
-                    </div>
                 </div>
 
-                <!-- Submissions Table -->
-                <div class="bg-white dark:bg-[#1E1E1E] border border-[#E5E5E7] dark:border-[#2C2C2C] rounded-lg overflow-hidden shadow-sm">
-                    <?php if (empty($teacherAssignments)): ?>
-                        <div class="p-12 text-center text-[#888888] dark:text-[#AAAAAA]">
-                            <svg class="w-12 h-12 mx-auto text-gray-300 dark:text-gray-600 mb-3" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"/></svg>
-                            <p class="font-semibold text-sm">Aucun devoir n'a encore été déposé par les étudiants.</p>
-                            <p class="text-xs text-[#999999] mt-1">Activez le dépôt de devoirs dans le formulaire d'une leçon pour autoriser les étudiants à rendre leurs travaux.</p>
-                        </div>
-                    <?php else: ?>
-                        <div class="overflow-x-auto">
-                            <table class="w-full text-left border-collapse">
-                                <thead>
-                                    <tr class="bg-[#F5F5F7] dark:bg-[#252525] border-b border-[#E5E5E7] dark:border-[#2C2C2C] text-[11px] font-semibold uppercase tracking-wider text-[#555555] dark:text-[#AAAAAA]">
-                                        <th class="py-3 px-4">Élève</th>
-                                        <th class="py-3 px-4">Cours / Leçon</th>
-                                        <th class="py-3 px-4">Lien Projet / App</th>
-                                        <th class="py-3 px-4">Fichier Rendu</th>
-                                        <th class="py-3 px-4">Date de Dépôt</th>
-                                        <th class="py-3 px-4">Note / Commentaire</th>
-                                    </tr>
-                                </thead>
-                                <tbody class="divide-y divide-[#E5E5E7] dark:divide-[#2C2C2C] text-xs">
-                                    <?php foreach ($teacherAssignments as $asg): ?>
-                                        <tr class="hover:bg-[#FAF9F6] dark:hover:bg-[#252525]/50 transition-colors">
-                                            <td class="py-3.5 px-4">
-                                                <div class="flex items-center gap-3">
-                                                    <div class="w-8 h-8 rounded-full bg-[#004B23] text-white font-bold flex items-center justify-center text-xs flex-shrink-0">
-                                                        <?= strtoupper(substr($asg['student_name'] ?? 'E', 0, 1)); ?>
-                                                    </div>
-                                                    <div>
-                                                        <div class="font-semibold text-[#111111] dark:text-white">
-                                                            <?= htmlspecialchars($asg['declared_student_name'] ?: $asg['student_name']); ?>
-                                                        </div>
-                                                        <?php if (!empty($asg['student_matricule'])): ?>
-                                                            <div class="text-[10px] font-mono font-bold text-[#004B23] dark:text-[#34C759]">
-                                                                Matricule : <?= htmlspecialchars($asg['student_matricule']); ?>
+                <!-- Assignment Lessons Grouped by Chapter & Lesson -->
+                <?php if (empty($configuredAssignmentLessons)): ?>
+                    <div class="bg-white dark:bg-[#1E1E1E] border border-[#E5E5E7] dark:border-[#2C2C2C] rounded-lg p-12 text-center text-[#888888] dark:text-[#AAAAAA]">
+                        <svg class="w-12 h-12 mx-auto text-gray-300 dark:text-gray-600 mb-3" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"/></svg>
+                        <p class="font-semibold text-sm">Aucune leçon n'a encore de soumission de devoir configurée.</p>
+                        <p class="text-xs text-[#999999] mt-1">Cochez "Activer le dépôt de devoirs" dans le formulaire de création/édition d'une leçon pour autoriser les étudiants à déposer leurs travaux.</p>
+                    </div>
+                <?php else: ?>
+                    <div class="space-y-6">
+                        <?php foreach ($configuredAssignmentLessons as $lesAsg): 
+                            $subs = $lesAsg['submissions'] ?? [];
+                            $asgType = $lesAsg['assignment_type'] ?? 'both';
+                            $allowedFmts = strtoupper($lesAsg['allowed_file_types'] ?? 'pdf, docx');
+                        ?>
+                            <div class="bg-white dark:bg-[#1E1E1E] border border-[#E5E5E7] dark:border-[#2C2C2C] rounded-lg overflow-hidden shadow-sm">
+                                <!-- En-tête de la Leçon (Chapitre > Leçon) -->
+                                <div class="bg-[#FAF9F6] dark:bg-[#252525] p-4 border-b border-[#E5E5E7] dark:border-[#2C2C2C] flex flex-col md:flex-row md:items-center justify-between gap-3">
+                                    <div>
+                                        <div class="flex items-center gap-2 flex-wrap">
+                                            <span class="px-2 py-0.5 text-[10px] font-mono uppercase bg-[#004B23]/10 text-[#004B23] dark:bg-[#34C759]/20 dark:text-[#34C759] font-bold rounded">
+                                                <?= htmlspecialchars($lesAsg['chapter_title']); ?>
+                                            </span>
+                                            <h4 class="font-semibold text-sm text-[#111111] dark:text-white">
+                                                <?= htmlspecialchars($lesAsg['title']); ?>
+                                            </h4>
+                                            <?php if (!empty($lesAsg['assignment_title'])): ?>
+                                                <span class="text-xs italic text-[#666666] dark:text-[#AAAAAA]">
+                                                    — "<?= htmlspecialchars($lesAsg['assignment_title']); ?>"
+                                                </span>
+                                            <?php endif; ?>
+                                        </div>
+                                        <div class="flex items-center gap-2 mt-1.5 flex-wrap text-[11px] text-[#666666] dark:text-[#AAAAAA]">
+                                            <span class="font-medium">Modalité :</span>
+                                            <?php if ($asgType === 'file'): ?>
+                                                <span class="px-1.5 py-0.5 bg-emerald-50 text-emerald-700 dark:bg-emerald-900/40 dark:text-emerald-300 rounded font-semibold text-[10px]">Document Obligatoire</span>
+                                            <?php elseif ($asgType === 'link'): ?>
+                                                <span class="px-1.5 py-0.5 bg-blue-50 text-blue-700 dark:bg-blue-900/40 dark:text-blue-300 rounded font-semibold text-[10px]">Lien Web Obligatoire</span>
+                                            <?php else: ?>
+                                                <span class="px-1.5 py-0.5 bg-purple-50 text-purple-700 dark:bg-purple-900/40 dark:text-purple-300 rounded font-semibold text-[10px]">Document ou Lien</span>
+                                            <?php endif; ?>
+
+                                            <span class="text-gray-300 dark:text-gray-600">•</span>
+                                            <span>Formats : <strong class="font-mono text-[#111111] dark:text-white"><?= htmlspecialchars($allowedFmts); ?></strong></span>
+
+                                            <?php if (!empty($lesAsg['assignment_deadline'])): ?>
+                                                <span class="text-gray-300 dark:text-gray-600">•</span>
+                                                <span>Limite : <strong class="font-mono text-amber-600 dark:text-amber-400"><?= date('d/m/Y H:i', strtotime($lesAsg['assignment_deadline'])); ?></strong></span>
+                                            <?php endif; ?>
+                                        </div>
+                                    </div>
+                                    <div class="flex items-center gap-2 flex-shrink-0">
+                                        <a href="/teacher/download-assignments-excel.php?lesson_id=<?= $lesAsg['id']; ?>" 
+                                           class="inline-flex items-center gap-1.5 px-3 py-1.5 bg-[#004B23] text-white hover:bg-[#003619] text-[11px] font-semibold uppercase tracking-wider rounded transition-colors" title="Exporter cette leçon en Excel">
+                                            <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 10v6m0 0l-3-3m3 3l3-3m2 8H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"/></svg>
+                                            Excel (.csv)
+                                        </a>
+                                        <a href="/teacher/download-assignments-zip.php?lesson_id=<?= $lesAsg['id']; ?>" 
+                                           class="inline-flex items-center gap-1.5 px-3 py-1.5 border border-[#004B23] text-[#004B23] dark:text-[#34C759] dark:border-[#34C759] hover:bg-[#004B23]/10 text-[11px] font-semibold uppercase tracking-wider rounded transition-colors" title="Télécharger tous les fichiers de cette leçon en ZIP">
+                                            <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4"/></svg>
+                                            Fichiers (.zip)
+                                        </a>
+                                    </div>
+                                </div>
+
+                                <?php if (!empty($lesAsg['assignment_instructions'])): ?>
+                                    <div class="px-5 py-3 bg-amber-50/50 dark:bg-amber-900/10 border-b border-[#E5E5E7] dark:border-[#2C2C2C] text-xs text-[#555555] dark:text-[#CCCCCC]">
+                                        <strong class="font-semibold text-[#111111] dark:text-white">Consigne du devoir :</strong>
+                                        <?= nl2br(htmlspecialchars($lesAsg['assignment_instructions'])); ?>
+                                    </div>
+                                <?php endif; ?>
+
+                                <!-- Tableau des soumissions pour cette leçon -->
+                                <?php if (empty($subs)): ?>
+                                    <div class="p-6 text-center text-xs text-[#888888] dark:text-[#AAAAAA] italic">
+                                        Aucune soumission d'étudiant enregistrée pour le moment pour cette leçon.
+                                    </div>
+                                <?php else: ?>
+                                    <div class="overflow-x-auto">
+                                        <table class="w-full text-left border-collapse">
+                                            <thead>
+                                                <tr class="bg-[#F5F5F7]/50 dark:bg-[#252525]/50 border-b border-[#E5E5E7] dark:border-[#2C2C2C] text-[10px] font-semibold uppercase tracking-wider text-[#555555] dark:text-[#AAAAAA]">
+                                                    <th class="py-2.5 px-4">Élève</th>
+                                                    <th class="py-2.5 px-4">Lien Projet / App</th>
+                                                    <th class="py-2.5 px-4">Fichier Rendu</th>
+                                                    <th class="py-2.5 px-4">Date de Dépôt</th>
+                                                    <th class="py-2.5 px-4">Commentaire Élève</th>
+                                                </tr>
+                                            </thead>
+                                            <tbody class="divide-y divide-[#E5E5E7] dark:divide-[#2C2C2C] text-xs">
+                                                <?php foreach ($subs as $asg): ?>
+                                                    <tr class="hover:bg-[#FAF9F6] dark:hover:bg-[#252525]/50 transition-colors">
+                                                        <td class="py-3 px-4">
+                                                            <div class="flex items-center gap-3">
+                                                                <div class="w-7 h-7 rounded-full bg-[#004B23] text-white font-bold flex items-center justify-center text-xs flex-shrink-0">
+                                                                    <?= strtoupper(substr($asg['student_name'] ?? 'E', 0, 1)); ?>
+                                                                </div>
+                                                                <div>
+                                                                    <div class="font-semibold text-[#111111] dark:text-white">
+                                                                        <?= htmlspecialchars($asg['declared_student_name'] ?: $asg['student_name']); ?>
+                                                                    </div>
+                                                                    <?php if (!empty($asg['student_matricule'])): ?>
+                                                                        <div class="text-[10px] font-mono font-bold text-[#004B23] dark:text-[#34C759]">
+                                                                            Matricule : <?= htmlspecialchars($asg['student_matricule']); ?>
+                                                                        </div>
+                                                                    <?php endif; ?>
+                                                                    <div class="text-[10px] text-[#888888] dark:text-[#AAAAAA]"><?= htmlspecialchars($asg['student_email']); ?></div>
+                                                                </div>
                                                             </div>
-                                                        <?php endif; ?>
-                                                        <div class="text-[10px] text-[#888888] dark:text-[#AAAAAA]"><?= htmlspecialchars($asg['student_email']); ?></div>
-                                                    </div>
-                                                </div>
-                                            </td>
-                                            <td class="py-3.5 px-4">
-                                                <div class="font-medium text-[#111111] dark:text-white"><?= htmlspecialchars($asg['lesson_title']); ?></div>
-                                                <div class="text-[10px] text-[#004B23] dark:text-[#34C759]"><?= htmlspecialchars($asg['course_title']); ?></div>
-                                            </td>
-                                            <td class="py-3.5 px-4">
-                                                <?php if (!empty($asg['submitted_link'])): ?>
-                                                    <a href="<?= htmlspecialchars($asg['submitted_link']); ?>" target="_blank" rel="noopener noreferrer" 
-                                                       class="inline-flex items-center gap-1.5 px-2.5 py-1 bg-blue-50 dark:bg-blue-900/30 text-blue-700 dark:text-blue-300 hover:underline rounded font-mono text-[11px]">
-                                                        <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10 6H6a2 2 0 00-2 2v10a2 2 0 002 2h10a2 2 0 002-2v-4M14 4h6m0 0v6m0-6L10 14"/></svg>
-                                                        Consulter le lien
-                                                    </a>
-                                                <?php else: ?>
-                                                    <span class="text-[#999999] italic">—</span>
-                                                <?php endif; ?>
-                                            </td>
-                                            <td class="py-3.5 px-4">
-                                                <?php if (!empty($asg['submitted_file_path'])): 
-                                                    $ext = strtolower(pathinfo($asg['submitted_file_path'], PATHINFO_EXTENSION));
-                                                    $isPdf = $ext === 'pdf';
-                                                ?>
-                                                    <a href="/download.php?type=assignment&file=<?= rawurlencode($asg['submitted_file_path']); ?>" 
-                                                       target="_blank" 
-                                                       class="inline-flex items-center gap-1.5 px-2.5 py-1 <?= $isPdf ? 'bg-red-50 text-red-700 dark:bg-red-900/30 dark:text-red-300' : 'bg-emerald-50 text-emerald-700 dark:bg-emerald-900/30 dark:text-emerald-300' ?> hover:underline rounded text-[11px] font-medium">
-                                                        <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4"/></svg>
-                                                        <?= htmlspecialchars($asg['submitted_file_name'] ?: 'Fichier ' . strtoupper($ext)); ?>
-                                                    </a>
-                                                <?php else: ?>
-                                                    <span class="text-[#999999] italic">—</span>
-                                                <?php endif; ?>
-                                            </td>
-                                            <td class="py-3.5 px-4 text-[11px] text-[#666666] dark:text-[#AAAAAA] font-mono">
-                                                <?= date('d/m/Y H:i', strtotime($asg['submitted_at'])); ?>
-                                            </td>
-                                            <td class="py-3.5 px-4 max-w-xs truncate text-[#555555] dark:text-[#CCCCCC]" title="<?= htmlspecialchars($asg['student_comment'] ?? ''); ?>">
-                                                <?= !empty($asg['student_comment']) ? htmlspecialchars($asg['student_comment']) : '<span class="text-[#999999] italic">—</span>'; ?>
-                                            </td>
-                                        </tr>
-                                    <?php endforeach; ?>
-                                </tbody>
-                            </table>
-                        </div>
-                    <?php endif; ?>
-                </div>
+                                                        </td>
+                                                        <td class="py-3 px-4">
+                                                            <?php if (!empty($asg['submitted_link'])): ?>
+                                                                <a href="<?= htmlspecialchars($asg['submitted_link']); ?>" target="_blank" rel="noopener noreferrer" 
+                                                                   class="inline-flex items-center gap-1.5 px-2.5 py-1 bg-blue-50 dark:bg-blue-900/30 text-blue-700 dark:text-blue-300 hover:underline rounded font-mono text-[11px]">
+                                                                    <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10 6H6a2 2 0 00-2 2v10a2 2 0 002 2h10a2 2 0 002-2v-4M14 4h6m0 0v6m0-6L10 14"/></svg>
+                                                                    Consulter le lien
+                                                                </a>
+                                                            <?php else: ?>
+                                                                <span class="text-[#999999] italic">—</span>
+                                                            <?php endif; ?>
+                                                        </td>
+                                                        <td class="py-3 px-4">
+                                                            <?php if (!empty($asg['submitted_file_path'])): 
+                                                                $ext = strtolower(pathinfo($asg['submitted_file_path'], PATHINFO_EXTENSION));
+                                                                $isPdf = $ext === 'pdf';
+                                                            ?>
+                                                                <a href="/download.php?type=assignment&file=<?= rawurlencode($asg['submitted_file_path']); ?>" 
+                                                                   target="_blank" 
+                                                                   class="inline-flex items-center gap-1.5 px-2.5 py-1 <?= $isPdf ? 'bg-red-50 text-red-700 dark:bg-red-900/30 dark:text-red-300' : 'bg-emerald-50 text-emerald-700 dark:bg-emerald-900/30 dark:text-emerald-300' ?> hover:underline rounded text-[11px] font-medium">
+                                                                    <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4"/></svg>
+                                                                    <?= htmlspecialchars($asg['submitted_file_name'] ?: 'Fichier ' . strtoupper($ext)); ?>
+                                                                </a>
+                                                            <?php else: ?>
+                                                                <span class="text-[#999999] italic">—</span>
+                                                            <?php endif; ?>
+                                                        </td>
+                                                        <td class="py-3 px-4 text-[11px] text-[#666666] dark:text-[#AAAAAA] font-mono">
+                                                            <?= date('d/m/Y H:i', strtotime($asg['submitted_at'])); ?>
+                                                        </td>
+                                                        <td class="py-3 px-4 max-w-xs truncate text-[#555555] dark:text-[#CCCCCC]" title="<?= htmlspecialchars($asg['student_comment'] ?? ''); ?>">
+                                                            <?= !empty($asg['student_comment']) ? htmlspecialchars($asg['student_comment']) : '<span class="text-[#999999] italic">—</span>'; ?>
+                                                        </td>
+                                                    </tr>
+                                                <?php endforeach; ?>
+                                            </tbody>
+                                        </table>
+                                    </div>
+                                <?php endif; ?>
+                            </div>
+                        <?php endforeach; ?>
+                    </div>
+                <?php endif; ?>
             </div>
 
             <!-- 6. COMMUNAUTÉ & Q&R (tab-comments) -->
@@ -4020,7 +4106,7 @@ function openEditLessonModal(lesson) {
     document.getElementById('lesson-quiz-deadline-input').value = lesson.quiz_deadline ? lesson.quiz_deadline.substring(0, 16).replace(' ', 'T') : '';
 
     // Devoirs / Exercice à rendre
-    const hasAsg = (parseInt(lesson.has_assignment) === 1);
+    const hasAsg = (lesson.has_assignment == 1 || lesson.has_assignment === true || lesson.has_assignment === '1');
     const chkAsg = document.getElementById('lesson-has-assignment');
     if (chkAsg) {
         chkAsg.checked = hasAsg;
