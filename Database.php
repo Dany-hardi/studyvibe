@@ -252,6 +252,37 @@ class Database
                     self::$instance->exec("ALTER TABLE `certificates` ADD CONSTRAINT `fk_certificates_course` FOREIGN KEY (`course_id`) REFERENCES `courses` (`id`) ON DELETE CASCADE");
                 } catch (PDOException $ex) {}
             }
+
+            // Migration 2.14: Automatic creation of lesson assignment submissions depot & lesson config columns
+            try {
+                self::$instance->query("SELECT id FROM lesson_assignment_submissions LIMIT 1");
+            } catch (PDOException $e) {
+                try {
+                    self::$instance->exec("
+                        CREATE TABLE IF NOT EXISTS `lesson_assignment_submissions` (
+                            `id`                  INT AUTO_INCREMENT PRIMARY KEY,
+                            `lesson_id`           INT NOT NULL,
+                            `student_id`          INT NOT NULL,
+                            `submission_type`     VARCHAR(32) NOT NULL DEFAULT 'file',
+                            `submitted_file_path` VARCHAR(255) DEFAULT NULL,
+                            `submitted_file_name` VARCHAR(255) DEFAULT NULL,
+                            `submitted_link`      VARCHAR(512) DEFAULT NULL,
+                            `student_comment`     TEXT DEFAULT NULL,
+                            `submitted_at`        TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                            KEY `idx_sub_lesson` (`lesson_id`),
+                            KEY `idx_sub_student` (`student_id`)
+                        ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4
+                    ");
+                } catch (PDOException $ex) {}
+            }
+
+            try {
+                self::$instance->query("SELECT has_assignment, assignment_type, assignment_instructions FROM lessons LIMIT 1");
+            } catch (PDOException $e) {
+                try { self::$instance->exec("ALTER TABLE `lessons` ADD COLUMN `has_assignment` TINYINT(1) NOT NULL DEFAULT 0"); } catch (PDOException $ex) {}
+                try { self::$instance->exec("ALTER TABLE `lessons` ADD COLUMN `assignment_type` VARCHAR(32) NOT NULL DEFAULT 'both'"); } catch (PDOException $ex) {}
+                try { self::$instance->exec("ALTER TABLE `lessons` ADD COLUMN `assignment_instructions` TEXT DEFAULT NULL"); } catch (PDOException $ex) {}
+            }
         }
         
         return self::$instance;
