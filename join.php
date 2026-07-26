@@ -182,9 +182,9 @@ if ($isStudent) {
                 <div class="join-meta">
                     <span class="join-badge">Enseignant : <?= htmlspecialchars($course['teacher_name']) ?></span>
                     <?php if ($hasKey): ?>
-                        <span class="join-badge">🔒 Clé d'inscription requise</span>
+                        <span class="join-badge">Clé d'inscription requise</span>
                     <?php else: ?>
-                        <span class="join-badge">🔓 Accès libre</span>
+                        <span class="join-badge">Accès libre</span>
                     <?php endif; ?>
                 </div>
             </div>

@@ -1573,7 +1573,7 @@ $successMsg = $successMessages[$successKey] ?? null;
                             </button>
                             <button onclick="openEditCourseModal()"
                                 class="px-3 py-1.5 bg-[#F5F5F7] dark:bg-[#2C2C2E] border border-[#E5E5E7] dark:border-[#2C2C2C] text-[#555555] dark:text-[#AAAAAA] text-[11px] font-semibold uppercase tracking-wider hover:border-[#004B23] dark:hover:border-[#34C759] rounded-lg transition-colors">
-                                ✎ Éditer le cours
+                                Éditer le cours
                             </button>
                         </div>
                     </div>
@@ -3079,10 +3079,10 @@ $successMsg = $successMessages[$successKey] ?? null;
                 <div class="space-y-2">
                     <div class="flex border-b border-[#E5E5E7] dark:border-[#2C2C2C]">
                         <button type="button" id="btn-lesson-tab-edit" onclick="switchLessonTextTab('edit')" class="px-3 py-1.5 text-xs font-semibold border-b-2 border-[#004B23] text-[#004B23] dark:border-[#34C759] dark:text-[#34C759]">
-                            ✍️ Édition Texte
+                            Édition Texte
                         </button>
                         <button type="button" id="btn-lesson-tab-preview" onclick="switchLessonTextTab('preview')" class="px-3 py-1.5 text-xs font-semibold text-[#888888] hover:text-[#111111] dark:hover:text-white border-b-2 border-transparent">
-                            👁️ Aperçu en direct (Markdown &amp; LaTeX)
+                            Aperçu en direct (Markdown &amp; LaTeX)
                         </button>
                     </div>
 
@@ -3100,7 +3100,7 @@ $successMsg = $successMessages[$successKey] ?? null;
                     </div>
                 </div>
                 <p class="text-[10px] text-[#888888] dark:text-[#AAAAAA]">
-                    💡 Rédigez en Markdown (<code># Titre</code>, <code>**Gras**</code>, listes) et insérez vos équations LaTeX (<code>$ ... $</code> ou <code>$$ ... $$</code>). Elles seront automatiquement composées et affichées pour l'étudiant.
+                    Rédigez en Markdown (<code># Titre</code>, <code>**Gras**</code>, listes) et insérez vos équations LaTeX (<code>$ ... $</code> ou <code>$$ ... $$</code>). Elles seront automatiquement composées et affichées pour l'étudiant.
                 </p>
             </div>
 

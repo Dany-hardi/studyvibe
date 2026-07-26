@@ -1616,7 +1616,7 @@ if (!$error) {
                                 <!-- Podium & Leaderboard visual graphics -->
                                 <div id="live-leaderboard-container" class="hidden" style="margin: 2rem 0; padding: 1.5rem; background: #FFFFFF; border: 1px solid #E5E5E7; border-radius: 4px; box-shadow: 0 4px 12px rgba(0,0,0,0.02); text-align: left;">
                                     <h3 style="font-family:'Plus Jakarta Sans',sans-serif; font-size:1.15rem; font-weight:600; color:var(--ink); margin-bottom:1.5rem; display:flex; align-items:center; gap:8px;">
-                                        <span>🏆</span> Tableau d'Honneur (Classement Live)
+                                        <span>Tableau d'Honneur</span> (Classement Live)
                                     </h3>
                                     
                                     <div id="podium-wrapper">
@@ -1624,7 +1624,7 @@ if (!$error) {
                                         <div id="podium-2" class="podium-bar">
                                             <div id="podium-name-2" class="podium-name" style="color:var(--muted);">--</div>
                                             <div class="podium-box podium-silver" style="height:60px;">
-                                                <span class="podium-rank-icon">🥈</span>
+                                                <span class="podium-rank-icon">#2</span>
                                             </div>
                                             <div id="podium-score-2" class="podium-score" style="color:var(--muted);">--%</div>
                                         </div>
@@ -1633,7 +1633,7 @@ if (!$error) {
                                         <div id="podium-1" class="podium-bar">
                                             <div id="podium-name-1" class="podium-name" style="color:#854D0E;">--</div>
                                             <div class="podium-box podium-gold" style="height:90px;">
-                                                <span class="podium-rank-icon">🥇</span>
+                                                <span class="podium-rank-icon">#1</span>
                                             </div>
                                             <div id="podium-score-1" class="podium-score" style="color:#854D0E;">--%</div>
                                         </div>
@@ -1642,7 +1642,7 @@ if (!$error) {
                                         <div id="podium-3" class="podium-bar">
                                             <div id="podium-name-3" class="podium-name" style="color:#C2410C;">--</div>
                                             <div class="podium-box podium-bronze" style="height:45px;">
-                                                <span class="podium-rank-icon">🥉</span>
+                                                <span class="podium-rank-icon">#3</span>
                                             </div>
                                             <div id="podium-score-3" class="podium-score" style="color:#C2410C;">--%</div>
                                         </div>
@@ -2016,7 +2016,7 @@ if (!$error) {
                                 if (idx < 3) tr.classList.add('top-three-row');
                                 tr.innerHTML = `
                                     <td style="font-weight: ${idx < 3 ? '700' : 'normal'};">
-                                        ${idx + 1} ${idx === 0 ? '🥇' : idx === 1 ? '🥈' : idx === 2 ? '🥉' : ''}
+                                        ${idx + 1} ${idx === 0 ? '#1' : idx === 1 ? '#2' : idx === 2 ? '#3' : ''}
                                     </td>
                                     <td style="font-weight: ${idx < 3 ? '600' : 'normal'};">
                                         ${player.name}
@@ -2479,7 +2479,7 @@ if (!$error) {
                 } else {
                     console.error(data.message);
                     if (statusEl) {
-                        statusEl.innerHTML = '⚠️ Erreur: ' + data.message;
+                        statusEl.innerHTML = 'Erreur: ' + data.message;
                         statusEl.style.borderColor = '#EF4444';
                         statusEl.style.background = '#FEF2F2';
                         statusEl.style.color = '#991B1B';
@@ -2489,7 +2489,7 @@ if (!$error) {
             .catch(err => {
                 console.error("Erreur de soumission :", err);
                 if (statusEl) {
-                    statusEl.innerHTML = '⚠️ Connexion instable — Réponse mise en attente (synchronisation automatique...)';
+                    statusEl.innerHTML = 'Connexion instable — Réponse mise en attente (synchronisation automatique...)';
                     statusEl.style.borderColor = '#F59E0B';
                     statusEl.style.background = '#FEF3C7';
                     statusEl.style.color = '#92400E';

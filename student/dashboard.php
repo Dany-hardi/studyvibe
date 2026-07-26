@@ -629,7 +629,7 @@ try {
                                 <div class="absolute inset-0 opacity-20 bg-[radial-gradient(#ffffff_1.5px,transparent_1.5px)] [background-size:16px_16px]"></div>
                                 <div class="absolute bottom-4 left-4 right-4 flex items-center justify-between">
                                     <div class="h-10 w-10 bg-white/10 backdrop-blur-md flex items-center justify-center rounded-lg text-white">
-                                        🎓
+                                        <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M12 14l9-5-9-5-9 5 9 5z"/><path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M12 14l6.16-3.422a12.083 12.083 0 01.665 6.479A11.952 11.952 0 0112 20.055a11.952 11.952 0 01-6.824-2.998 12.078 12.078 0 01.665-6.479L12 14z"/></svg>
                                     </div>
                                 </div>
                             <?php endif; ?>
@@ -661,7 +661,7 @@ try {
                                     </button>
                                 <?php else: ?>
                                     <span class="text-xs font-mono text-[#888888]">
-                                        <?= $c['enrollment_key'] ? '🔒 Clé requise' : '🔓 Libre'; ?>
+                                        <?= $c['enrollment_key'] ? 'Clé requise' : 'Accès Libre'; ?>
                                     </span>
                                     <button onclick="attemptEnroll(<?= $c['id']; ?>, <?= $c['enrollment_key'] ? 'true' : 'false'; ?>)"
                                         class="px-4 py-2 bg-[#111111] hover:bg-[#004B23] text-[#FFFFFF] text-xs font-semibold uppercase tracking-wider transition-colors rounded-sm">
@@ -1822,7 +1822,7 @@ try {
                             }
                             
                             const titleSpan = document.createElement('span');
-                            titleSpan.textContent = les.title + (isExpired ? ' (Expiré) 🔒' : '');
+                            titleSpan.textContent = les.title + (isExpired ? ' (Expiré)' : '');
                             lessonBtn.appendChild(titleSpan);
                             
                             if (parseInt(les.completed) === 1) {
@@ -2491,7 +2491,7 @@ try {
 
             const deadlineBox = document.getElementById('assignment-display-deadline');
             if (lesson.assignment_deadline) {
-                deadlineBox.textContent = '⏱ Date limite : ' + new Date(lesson.assignment_deadline).toLocaleString('fr-FR');
+                deadlineBox.textContent = 'Date limite : ' + new Date(lesson.assignment_deadline).toLocaleString('fr-FR');
             } else {
                 deadlineBox.textContent = '';
             }
@@ -2509,10 +2509,10 @@ try {
                 statusBox.classList.remove('hidden');
                 let detailsHtml = `Dépôt enregistré le ${new Date(submission.submitted_at).toLocaleString('fr-FR')}<br>`;
                 if (submission.submitted_file_name) {
-                    detailsHtml += `📄 Fichier : <a href="/download.php?type=assignment&file=${encodeURIComponent(submission.submitted_file_path)}" target="_blank" class="underline text-emerald-800 dark:text-emerald-300 font-bold">${escapeHtml(submission.submitted_file_name)}</a><br>`;
+                    detailsHtml += `Fichier : <a href="/download.php?type=assignment&file=${encodeURIComponent(submission.submitted_file_path)}" target="_blank" class="underline text-emerald-800 dark:text-emerald-300 font-bold">${escapeHtml(submission.submitted_file_name)}</a><br>`;
                 }
                 if (submission.submitted_link) {
-                    detailsHtml += `🔗 Lien : <a href="${escapeHtml(submission.submitted_link)}" target="_blank" rel="noopener noreferrer" class="underline text-blue-700 dark:text-blue-300 font-bold">${escapeHtml(submission.submitted_link)}</a>`;
+                    detailsHtml += `Lien : <a href="${escapeHtml(submission.submitted_link)}" target="_blank" rel="noopener noreferrer" class="underline text-blue-700 dark:text-blue-300 font-bold">${escapeHtml(submission.submitted_link)}</a>`;
                 }
                 statusDetails.innerHTML = detailsHtml;
                 if (submitBtnSpan) submitBtnSpan.textContent = 'Mettre à jour mon devoir';
@@ -3059,11 +3059,11 @@ try {
                 });
 
                 const iconMap = {
-                    certification: '🏆',
-                    quiz: '📝',
-                    course_created: '📚',
-                    grade: '💯',
-                    general: '🔔'
+                    certification: '<svg class="w-4 h-4 text-amber-500 inline-block" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12l2 2 4-4M7.835 4.697a3.42 3.42 0 001.946-.806 3.42 3.42 0 014.438 0 3.42 3.42 0 001.946.806 3.42 3.42 0 013.138 3.138 3.42 3.42 0 00.806 1.946 3.42 3.42 0 010 4.438 3.42 3.42 0 00-.806 1.946 3.42 3.42 0 01-3.138 3.138 3.42 3.42 0 00-1.946.806 3.42 3.42 0 01-4.438 0 3.42 3.42 0 00-1.946-.806 3.42 3.42 0 01-3.138-3.138 3.42 3.42 0 00-.806-1.946 3.42 3.42 0 010-4.438 3.42 3.42 0 00.806-1.946 3.42 3.42 0 013.138-3.138z"/></svg>',
+                    quiz: '<svg class="w-4 h-4 text-emerald-500 inline-block" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2"/></svg>',
+                    course_created: '<svg class="w-4 h-4 text-blue-500 inline-block" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 6.253v13m0-13C10.832 5.477 9.246 5 7.5 5S4.168 5.477 3 6.253v13C4.168 18.477 5.754 18 7.5 18s3.332.477 4.5 1.253m0-13C13.168 5.477 14.754 5 16.5 5c1.747 0 3.332.477 4.5 1.253v13C19.832 18.477 18.247 18 16.5 18c-1.746 0-3.332.477-4.5 1.253"/></svg>',
+                    grade: '<svg class="w-4 h-4 text-indigo-500 inline-block" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z"/></svg>',
+                    general: '<svg class="w-4 h-4 text-gray-400 inline-block" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 17h5l-1.405-1.405A2.032 2.032 0 0118 14.158V11a6.002 6.002 0 00-4-5.659V5a2 2 0 10-4 0v.341C7.67 6.165 6 8.388 6 11v3.159c0 .538-.214 1.055-.595 1.436L4 17h5m6 0v1a3 3 0 11-6 0v-1m6 0H9"/></svg>'
                 };
 
                 const panels = [document.getElementById('notif-panel'), document.getElementById('mobile-notif-panel')];
@@ -3084,7 +3084,7 @@ try {
                     }).join('')
                     : `
                         <div class="p-8 text-center space-y-2 select-none">
-                            <div class="text-2xl opacity-40">🔔</div>
+                            <div class="w-8 h-8 mx-auto text-gray-400 opacity-40"><svg class="w-full h-full" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M15 17h5l-1.405-1.405A2.032 2.032 0 0118 14.158V11a6.002 6.002 0 00-4-5.659V5a2 2 0 10-4 0v.341C7.67 6.165 6 8.388 6 11v3.159c0 .538-.214 1.055-.595 1.436L4 17h5m6 0v1a3 3 0 11-6 0v-1m6 0H9"/></svg></div>
                             <div class="text-xs font-semibold text-[#111111] dark:text-white">Tout est calme ici</div>
                             <div class="text-[11px] text-[#888888] dark:text-[#AAAAAA] font-light">Aucune nouvelle notification pour le moment.</div>
                         </div>

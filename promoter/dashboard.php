@@ -837,7 +837,7 @@ try {
                             <div class="flex items-center gap-4">
                                 <button type="button" id="send-keys-btn" onclick="broadcastEnrollmentKeys()"
                                     class="px-6 py-2.5 bg-[#004B23] text-white text-xs font-semibold uppercase tracking-widest hover:bg-[#111111] transition-colors rounded-sm flex items-center gap-2">
-                                    <span>🔑 Diffuser les Clés d'Inscription</span>
+                                    <span>Diffuser les Clés d'Inscription</span>
                                 </button>
                                 <span id="keys-broadcast-status" class="text-xs font-medium text-gray-500 hidden"></span>
                             </div>
@@ -1200,7 +1200,7 @@ try {
                                     <?php if ($isApproved): ?>
                                         <span class="px-2 py-0.5 rounded-full font-semibold bg-[#DCFCE7] text-[#15803D]">✓ Validé</span>
                                     <?php else: ?>
-                                        <span class="px-2 py-0.5 rounded-full font-semibold bg-[#FEF3C7] text-[#D97706] animate-pulse">⚡ En attente</span>
+                                        <span class="px-2 py-0.5 rounded-full font-semibold bg-[#FEF3C7] text-[#D97706] animate-pulse">En attente</span>
                                     <?php endif; ?>
 
                                     <?php if ($isActive): ?>
