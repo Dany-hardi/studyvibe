@@ -25,6 +25,8 @@ try {
     $sql = "
         SELECT 
             u.name AS student_name,
+            las.student_name AS declared_student_name,
+            las.student_matricule,
             u.email AS student_email,
             c.title AS course_title,
             l.title AS lesson_title,
@@ -79,8 +81,9 @@ try {
 
     // Headers
     fputcsv($output, [
-        'Nom Élève',
-        'Email',
+        'Nom & Prénom',
+        'Matricule',
+        'Email Compte',
         'Cours',
         'Leçon',
         'Date & Heure de Dépôt',
@@ -101,7 +104,8 @@ try {
         };
 
         fputcsv($output, [
-            $s['student_name'] ?? 'Élève inconnu',
+            !empty($s['declared_student_name']) ? $s['declared_student_name'] : ($s['student_name'] ?? 'Élève inconnu'),
+            $s['student_matricule'] ?? '',
             $s['student_email'] ?? '',
             $s['course_title'] ?? '',
             $s['lesson_title'] ?? '',

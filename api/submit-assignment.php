@@ -18,6 +18,8 @@ if (!isLoggedIn() || $_SESSION['user_role'] !== 'student') {
 
 $studentId = (int)$_SESSION['user_id'];
 $lessonId  = (int)($_POST['lesson_id'] ?? 0);
+$studentName = trim((string)($_POST['student_name'] ?? ''));
+$studentMatricule = trim((string)($_POST['student_matricule'] ?? ''));
 $link      = trim((string)($_POST['submitted_link'] ?? ''));
 $comment   = trim((string)($_POST['student_comment'] ?? ''));
 
@@ -26,12 +28,17 @@ if ($lessonId <= 0) {
     exit;
 }
 
+if (empty($studentName) || empty($studentMatricule)) {
+    echo json_encode(['success' => false, 'message' => 'Veuillez préciser votre Nom complet et votre Matricule étudiant.']);
+    exit;
+}
+
 try {
     $pdo = Database::getInstance();
 
     // Verify lesson exists and has assignments enabled
     $stmt = $pdo->prepare("
-        SELECT l.id, l.has_assignment, l.assignment_deadline, ch.course_id 
+        SELECT l.id, l.has_assignment, l.assignment_type, l.allowed_file_types, l.assignment_deadline, ch.course_id 
         FROM lessons l
         JOIN chapters ch ON l.chapter_id = ch.id
         WHERE l.id = :id
@@ -44,17 +51,16 @@ try {
         exit;
     }
 
+    $asgType = $lesson['assignment_type'] ?? 'both';
+    $rawAllowed = $lesson['allowed_file_types'] ?? 'pdf,docx';
+    $allowedExts = array_map('trim', array_map('strtolower', explode(',', $rawAllowed)));
+
     // Verify student enrollment
     $enrollStmt = $pdo->prepare("SELECT id FROM enrollments WHERE student_id = :sid AND course_id = :cid");
     $enrollStmt->execute(['sid' => $studentId, 'cid' => $lesson['course_id']]);
     if (!$enrollStmt->fetch()) {
         echo json_encode(['success' => false, 'message' => 'Vous n\'êtes pas inscrit au cours correspondant.']);
         exit;
-    }
-
-    // Check optional deadline
-    if (!empty($lesson['assignment_deadline']) && strtotime($lesson['assignment_deadline']) < time()) {
-        // We still allow teacher review, but issue warning if requested or allow deposit
     }
 
     // Fetch existing submission if any
@@ -70,13 +76,14 @@ try {
         $file = $_FILES['assignment_file'];
         $ext = strtolower(pathinfo($file['name'], PATHINFO_EXTENSION));
 
-        // Allowed extensions: pdf, docx, doc
-        if (!in_array($ext, ['pdf', 'docx', 'doc'], true)) {
-            echo json_encode(['success' => false, 'message' => 'Format de fichier non supporté. Seuls les fichiers PDF et Word (.docx, .doc) sont acceptés.']);
+        // Allowed extensions verification
+        if (!in_array($ext, $allowedExts, true)) {
+            $allowedDisplay = implode(', ', array_map('strtoupper', $allowedExts));
+            echo json_encode(['success' => false, 'message' => "Format de fichier non supporté. Formats acceptés par l'enseignant : {$allowedDisplay}."]);
             exit;
         }
 
-        // Limit size: 20 MB (20 * 1024 * 1024 bytes)
+        // Limit size: 20 MB
         if ($file['size'] > 20 * 1024 * 1024) {
             echo json_encode(['success' => false, 'message' => 'Taille de fichier trop grande. Le fichier ne doit pas dépasser 20 Mo.']);
             exit;
@@ -111,8 +118,18 @@ try {
         }
     }
 
+    if ($asgType === 'file' && empty($filePath)) {
+        echo json_encode(['success' => false, 'message' => 'L\'enseignant exige la soumission d\'un document/fichier.']);
+        exit;
+    }
+
+    if ($asgType === 'link' && empty($link)) {
+        echo json_encode(['success' => false, 'message' => 'L\'enseignant exige la soumission d\'un lien web.']);
+        exit;
+    }
+
     if (empty($filePath) && empty($link)) {
-        echo json_encode(['success' => false, 'message' => 'Veuillez déposer un fichier (PDF ou DOCX) ou renseigner un lien d\'accès.']);
+        echo json_encode(['success' => false, 'message' => 'Veuillez déposer un document ou renseigner un lien de projet.']);
         exit;
     }
 
@@ -127,10 +144,12 @@ try {
     // Save to database
     $upsertStmt = $pdo->prepare("
         INSERT INTO lesson_assignment_submissions 
-            (lesson_id, student_id, submission_type, submitted_file_path, submitted_file_name, submitted_link, student_comment, submitted_at)
+            (lesson_id, student_id, student_name, student_matricule, submission_type, submitted_file_path, submitted_file_name, submitted_link, student_comment, submitted_at)
         VALUES 
-            (:lid, :sid, :stype, :fpath, :fname, :slink, :scomm, NOW())
+            (:lid, :sid, :sname, :smat, :stype, :fpath, :fname, :slink, :scomm, NOW())
         ON DUPLICATE KEY UPDATE
+            student_name = VALUES(student_name),
+            student_matricule = VALUES(student_matricule),
             submission_type = VALUES(submission_type),
             submitted_file_path = VALUES(submitted_file_path),
             submitted_file_name = VALUES(submitted_file_name),
@@ -142,6 +161,8 @@ try {
     $upsertStmt->execute([
         'lid'   => $lessonId,
         'sid'   => $studentId,
+        'sname' => $studentName,
+        'smat'  => $studentMatricule,
         'stype' => $subType,
         'fpath' => $filePath,
         'fname' => $fileName,

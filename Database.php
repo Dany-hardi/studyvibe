@@ -279,8 +279,13 @@ class Database
             try { self::$instance->exec("ALTER TABLE `lessons` ADD COLUMN `has_assignment` TINYINT(1) NOT NULL DEFAULT 0"); } catch (PDOException $ex) {}
             try { self::$instance->exec("ALTER TABLE `lessons` ADD COLUMN `assignment_title` VARCHAR(255) DEFAULT NULL"); } catch (PDOException $ex) {}
             try { self::$instance->exec("ALTER TABLE `lessons` ADD COLUMN `assignment_type` VARCHAR(32) NOT NULL DEFAULT 'both'"); } catch (PDOException $ex) {}
+            try { self::$instance->exec("ALTER TABLE `lessons` ADD COLUMN `allowed_file_types` VARCHAR(255) NOT NULL DEFAULT 'pdf,docx'"); } catch (PDOException $ex) {}
             try { self::$instance->exec("ALTER TABLE `lessons` ADD COLUMN `assignment_instructions` TEXT DEFAULT NULL"); } catch (PDOException $ex) {}
             try { self::$instance->exec("ALTER TABLE `lessons` ADD COLUMN `assignment_deadline` DATETIME DEFAULT NULL"); } catch (PDOException $ex) {}
+
+            // Migration 2.15: Student name & matricule tracking on assignment submissions
+            try { self::$instance->exec("ALTER TABLE `lesson_assignment_submissions` ADD COLUMN `student_name` VARCHAR(255) DEFAULT NULL"); } catch (PDOException $ex) {}
+            try { self::$instance->exec("ALTER TABLE `lesson_assignment_submissions` ADD COLUMN `student_matricule` VARCHAR(64) DEFAULT NULL"); } catch (PDOException $ex) {}
         }
         
         return self::$instance;

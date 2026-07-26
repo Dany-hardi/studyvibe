@@ -46,7 +46,7 @@ try {
     $pdo = Database::getInstance();
 
     $stmt = $pdo->prepare("
-        SELECT l.id, l.chapter_id, l.title, l.content_type, l.text_content, l.pdf_path, l.video_url, l.sort_order, l.quiz_deadline, l.has_assignment, l.assignment_title, l.assignment_instructions, l.assignment_deadline, c.id AS course_id
+        SELECT l.id, l.chapter_id, l.title, l.content_type, l.text_content, l.pdf_path, l.video_url, l.sort_order, l.quiz_deadline, l.has_assignment, l.assignment_title, l.assignment_type, l.allowed_file_types, l.assignment_instructions, l.assignment_deadline, c.id AS course_id
         FROM lessons l
         JOIN chapters ch ON l.chapter_id = ch.id
         JOIN courses c ON ch.course_id = c.id

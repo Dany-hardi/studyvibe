@@ -1204,16 +1204,28 @@ try {
                             <div id="assignment-existing-details" class="space-y-1 text-[11px] font-mono mt-1 text-emerald-700 dark:text-emerald-400"></div>
                         </div>
 
+                        <!-- Informations Obligatoires de l'Étudiant -->
+                        <div class="grid grid-cols-1 md:grid-cols-2 gap-4 pb-2 border-b border-[#E5E5E7] dark:border-[#2C2C2C]">
+                            <div class="space-y-1.5">
+                                <label class="block text-xs font-semibold text-[#555555] dark:text-[#AAAAAA]">Nom &amp; Prénom de l'Étudiant <span class="text-red-500">*</span></label>
+                                <input type="text" id="assignment-student-name" required value="<?= htmlspecialchars($user['name'] ?? '') ?>" placeholder="ex: Dany Hardy" class="w-full px-3 py-2 bg-[#F5F5F7] dark:bg-[#252525] border border-[#E5E5E7] dark:border-[#333333] text-xs focus:outline-none focus:border-[#004B23] rounded-lg dark:text-white font-medium">
+                            </div>
+                            <div class="space-y-1.5">
+                                <label class="block text-xs font-semibold text-[#555555] dark:text-[#AAAAAA]">Matricule Étudiant <span class="text-red-500">*</span></label>
+                                <input type="text" id="assignment-student-matricule" required placeholder="ex: 21U2458" class="w-full px-3 py-2 bg-[#F5F5F7] dark:bg-[#252525] border border-[#E5E5E7] dark:border-[#333333] text-xs focus:outline-none focus:border-[#004B23] rounded-lg dark:text-white font-mono uppercase">
+                            </div>
+                        </div>
+
                         <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
                             <!-- Input Fichier -->
-                            <div class="space-y-1.5">
-                                <label class="block text-xs font-semibold text-[#555555] dark:text-[#AAAAAA]">Document Rendu (PDF ou DOCX &le; 20 Mo)</label>
+                            <div id="assignment-file-wrapper" class="space-y-1.5">
+                                <label class="block text-xs font-semibold text-[#555555] dark:text-[#AAAAAA]">Document Rendu (&le; 20 Mo)</label>
                                 <input type="file" id="assignment-file-input" accept=".pdf,.docx,.doc" class="w-full text-xs text-[#555555] dark:text-[#AAAAAA] file:mr-3 file:py-2 file:px-3 file:rounded-lg file:border-0 file:text-xs file:font-semibold file:bg-[#004B23] file:text-white hover:file:bg-[#003619] cursor-pointer">
-                                <p class="text-[10px] text-gray-400">Format accepté : PDF ou Microsoft Word (.docx)</p>
+                                <p id="assignment-allowed-types-label" class="text-[10px] text-gray-400">Formats acceptés : PDF, DOCX</p>
                             </div>
 
                             <!-- Input Lien -->
-                            <div class="space-y-1.5">
+                            <div id="assignment-link-wrapper" class="space-y-1.5">
                                 <label class="block text-xs font-semibold text-[#555555] dark:text-[#AAAAAA]">Lien du Projet / Application (GitHub, Drive...)</label>
                                 <input type="url" id="assignment-link-input" placeholder="https://github.com/... ou https://drive.google.com/..." class="w-full px-3 py-2 bg-[#F5F5F7] dark:bg-[#252525] border border-[#E5E5E7] dark:border-[#333333] text-xs focus:outline-none focus:border-[#004B23] rounded-lg dark:text-white">
                                 <p class="text-[10px] text-gray-400">Lien externe direct vers votre travail</p>
@@ -2469,6 +2481,34 @@ try {
             document.getElementById('assignment-lesson-id').value = lesson.id;
             document.getElementById('assignment-display-title').textContent = lesson.assignment_title || 'Devoir de la Leçon';
             
+            // Dynamic submission types and file extensions
+            const allowedTypes = lesson.allowed_file_types || 'pdf,docx';
+            const fileTypesList = allowedTypes.split(',').map(t => t.trim().toLowerCase()).filter(Boolean);
+            const acceptAttr = fileTypesList.map(t => '.' + t).join(',');
+            
+            const fileInputEl = document.getElementById('assignment-file-input');
+            if (fileInputEl) fileInputEl.setAttribute('accept', acceptAttr);
+            
+            const typesLabel = document.getElementById('assignment-allowed-types-label');
+            if (typesLabel) {
+                typesLabel.textContent = 'Formats acceptés : ' + fileTypesList.map(t => t.toUpperCase()).join(', ');
+            }
+
+            const asgType = lesson.assignment_type || 'both';
+            const fileWrapper = document.getElementById('assignment-file-wrapper');
+            const linkWrapper = document.getElementById('assignment-link-wrapper');
+
+            if (asgType === 'file') {
+                if (fileWrapper) fileWrapper.classList.remove('hidden');
+                if (linkWrapper) linkWrapper.classList.add('hidden');
+            } else if (asgType === 'link') {
+                if (fileWrapper) fileWrapper.classList.add('hidden');
+                if (linkWrapper) linkWrapper.classList.remove('hidden');
+            } else {
+                if (fileWrapper) fileWrapper.classList.remove('hidden');
+                if (linkWrapper) linkWrapper.classList.remove('hidden');
+            }
+
             // Instructions avec Markdown et KaTeX
             const instrBox = document.getElementById('assignment-display-instructions');
             if (lesson.assignment_instructions) {
@@ -2500,6 +2540,16 @@ try {
             const statusDetails = document.getElementById('assignment-existing-details');
             const submitBtnSpan = document.querySelector('#assignment-submit-btn span');
             
+            // Pre-fill Name and Matricule if submission exists
+            if (submission) {
+                if (submission.student_name) {
+                    document.getElementById('assignment-student-name').value = submission.student_name;
+                }
+                if (submission.student_matricule) {
+                    document.getElementById('assignment-student-matricule').value = submission.student_matricule;
+                }
+            }
+
             // Form fields reset
             document.getElementById('assignment-file-input').value = '';
             document.getElementById('assignment-link-input').value = submission ? (submission.submitted_link || '') : '';
@@ -2508,6 +2558,9 @@ try {
             if (submission) {
                 statusBox.classList.remove('hidden');
                 let detailsHtml = `Dépôt enregistré le ${new Date(submission.submitted_at).toLocaleString('fr-FR')}<br>`;
+                if (submission.student_name && submission.student_matricule) {
+                    detailsHtml += `Soumissionnaire : <b>${escapeHtml(submission.student_name)}</b> (Matricule: <code>${escapeHtml(submission.student_matricule)}</code>)<br>`;
+                }
                 if (submission.submitted_file_name) {
                     detailsHtml += `Fichier : <a href="/download.php?type=assignment&file=${encodeURIComponent(submission.submitted_file_path)}" target="_blank" class="underline text-emerald-800 dark:text-emerald-300 font-bold">${escapeHtml(submission.submitted_file_name)}</a><br>`;
                 }
@@ -2526,15 +2579,23 @@ try {
         function submitStudentAssignment(e) {
             e.preventDefault();
             const lessonId = document.getElementById('assignment-lesson-id').value;
+            const studentName = document.getElementById('assignment-student-name').value.trim();
+            const studentMatricule = document.getElementById('assignment-student-matricule').value.trim();
             const fileInput = document.getElementById('assignment-file-input');
             const linkInput = document.getElementById('assignment-link-input');
             const commentInput = document.getElementById('assignment-comment-input');
             const msgBox = document.getElementById('assignment-form-message');
             const btn = document.getElementById('assignment-submit-btn');
 
+            if (!studentName || !studentMatricule) {
+                msgBox.className = 'text-xs text-red-600 dark:text-red-400 font-semibold';
+                msgBox.textContent = 'Veuillez remplir obligatoirement votre Nom complet et votre Matricule.';
+                return;
+            }
+
             if (!fileInput.files[0] && !linkInput.value.trim()) {
                 msgBox.className = 'text-xs text-red-600 dark:text-red-400 font-semibold';
-                msgBox.textContent = 'Veuillez joindre un fichier (PDF/DOCX) ou spécifier un lien de projet.';
+                msgBox.textContent = 'Veuillez joindre un fichier ou spécifier un lien de projet.';
                 return;
             }
 
@@ -2546,6 +2607,8 @@ try {
 
             const formData = new FormData();
             formData.append('lesson_id', lessonId);
+            formData.append('student_name', studentName);
+            formData.append('student_matricule', studentMatricule);
             if (fileInput.files[0]) {
                 formData.append('assignment_file', fileInput.files[0]);
             }

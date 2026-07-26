@@ -260,6 +260,8 @@ try {
             $quizDeadline = !empty($_POST['quiz_deadline']) ? $_POST['quiz_deadline'] : null;
             $hasAssignment = !empty($_POST['has_assignment']) ? 1 : 0;
             $assignmentTitle = trim((string)($_POST['assignment_title'] ?? '')) ?: null;
+            $assignmentType = (string)($_POST['assignment_type'] ?? 'both');
+            $allowedFileTypes = trim((string)($_POST['allowed_file_types'] ?? 'pdf,docx')) ?: 'pdf,docx';
             $assignmentInstructions = trim((string)($_POST['assignment_instructions'] ?? '')) ?: null;
             $assignmentDeadline = !empty($_POST['assignment_deadline']) ? $_POST['assignment_deadline'] : null;
             $pdfPath     = null;
@@ -279,13 +281,14 @@ try {
                 $maxSort = (int)$stmt->fetchColumn();
 
                 $stmt = $pdo->prepare("
-                    INSERT INTO lessons (chapter_id,title,content_type,text_content,pdf_path,pdf_data,video_url,sort_order,quiz_deadline,has_assignment,assignment_title,assignment_instructions,assignment_deadline)
-                    VALUES (:cid,:title,:ct,:tc,:pp,:pd,NULL,:so,:qd,:ha,:at,:ai,:ad)
+                    INSERT INTO lessons (chapter_id,title,content_type,text_content,pdf_path,pdf_data,video_url,sort_order,quiz_deadline,has_assignment,assignment_title,assignment_type,allowed_file_types,assignment_instructions,assignment_deadline)
+                    VALUES (:cid,:title,:ct,:tc,:pp,:pd,NULL,:so,:qd,:ha,:at,:atype,:aft,:ai,:ad)
                 ");
                 $stmt->execute([
                     'cid' => $chapterId, 'title' => $title, 'ct' => $contentType,
                     'tc'  => $textContent, 'pp' => $pdfPath, 'pd' => $pdfData, 'so' => $maxSort + 1,
                     'qd'  => $quizDeadline, 'ha' => $hasAssignment, 'at' => $assignmentTitle,
+                    'atype' => $assignmentType, 'aft' => $allowedFileTypes,
                     'ai'  => $assignmentInstructions, 'ad' => $assignmentDeadline,
                 ]);
                 $lessonId = (int)$pdo->lastInsertId();
@@ -309,6 +312,8 @@ try {
             $quizDeadline = !empty($_POST['quiz_deadline']) ? $_POST['quiz_deadline'] : null;
             $hasAssignment = !empty($_POST['has_assignment']) ? 1 : 0;
             $assignmentTitle = trim((string)($_POST['assignment_title'] ?? '')) ?: null;
+            $assignmentType = (string)($_POST['assignment_type'] ?? 'both');
+            $allowedFileTypes = trim((string)($_POST['allowed_file_types'] ?? 'pdf,docx')) ?: 'pdf,docx';
             $assignmentInstructions = trim((string)($_POST['assignment_instructions'] ?? '')) ?: null;
             $assignmentDeadline = !empty($_POST['assignment_deadline']) ? $_POST['assignment_deadline'] : null;
             $deletePdf   = !empty($_POST['delete_pdf']) && $_POST['delete_pdf'] === '1';
@@ -352,21 +357,21 @@ try {
 
                     if ($updatePdfData) {
                         $stmt = $pdo->prepare("
-                            UPDATE lessons SET title=:t,content_type=:ct,text_content=:tc,pdf_path=:pp,pdf_data=:pd,quiz_deadline=:qd,has_assignment=:ha,assignment_title=:at,assignment_instructions=:ai,assignment_deadline=:ad
+                            UPDATE lessons SET title=:t,content_type=:ct,text_content=:tc,pdf_path=:pp,pdf_data=:pd,quiz_deadline=:qd,has_assignment=:ha,assignment_title=:at,assignment_type=:atype,allowed_file_types=:aft,assignment_instructions=:ai,assignment_deadline=:ad
                             WHERE id=:id
                         ");
                         $stmt->execute([
                             't'=>$title,'ct'=>$contentType,'tc'=>$textContent,'pp'=>$finalPdf,'pd'=>$pdfData,'qd'=>$quizDeadline,
-                            'ha'=>$hasAssignment,'at'=>$assignmentTitle,'ai'=>$assignmentInstructions,'ad'=>$assignmentDeadline,'id'=>$lessonId
+                            'ha'=>$hasAssignment,'at'=>$assignmentTitle,'atype'=>$assignmentType,'aft'=>$allowedFileTypes,'ai'=>$assignmentInstructions,'ad'=>$assignmentDeadline,'id'=>$lessonId
                         ]);
                     } else {
                         $stmt = $pdo->prepare("
-                            UPDATE lessons SET title=:t,content_type=:ct,text_content=:tc,quiz_deadline=:qd,has_assignment=:ha,assignment_title=:at,assignment_instructions=:ai,assignment_deadline=:ad
+                            UPDATE lessons SET title=:t,content_type=:ct,text_content=:tc,quiz_deadline=:qd,has_assignment=:ha,assignment_title=:at,assignment_type=:atype,allowed_file_types=:aft,assignment_instructions=:ai,assignment_deadline=:ad
                             WHERE id=:id
                         ");
                         $stmt->execute([
                             't'=>$title,'ct'=>$contentType,'tc'=>$textContent,'qd'=>$quizDeadline,
-                            'ha'=>$hasAssignment,'at'=>$assignmentTitle,'ai'=>$assignmentInstructions,'ad'=>$assignmentDeadline,'id'=>$lessonId
+                            'ha'=>$hasAssignment,'at'=>$assignmentTitle,'atype'=>$assignmentType,'aft'=>$allowedFileTypes,'ai'=>$assignmentInstructions,'ad'=>$assignmentDeadline,'id'=>$lessonId
                         ]);
                     }
 
@@ -980,6 +985,8 @@ try {
             las.id,
             las.lesson_id,
             las.student_id,
+            las.student_name AS declared_student_name,
+            las.student_matricule,
             las.submission_type,
             las.submitted_file_path,
             las.submitted_file_name,
@@ -2664,7 +2671,14 @@ $successMsg = $successMessages[$successKey] ?? null;
                                                         <?= strtoupper(substr($asg['student_name'] ?? 'E', 0, 1)); ?>
                                                     </div>
                                                     <div>
-                                                        <div class="font-semibold text-[#111111] dark:text-white"><?= htmlspecialchars($asg['student_name']); ?></div>
+                                                        <div class="font-semibold text-[#111111] dark:text-white">
+                                                            <?= htmlspecialchars($asg['declared_student_name'] ?: $asg['student_name']); ?>
+                                                        </div>
+                                                        <?php if (!empty($asg['student_matricule'])): ?>
+                                                            <div class="text-[10px] font-mono font-bold text-[#004B23] dark:text-[#34C759]">
+                                                                Matricule : <?= htmlspecialchars($asg['student_matricule']); ?>
+                                                            </div>
+                                                        <?php endif; ?>
                                                         <div class="text-[10px] text-[#888888] dark:text-[#AAAAAA]"><?= htmlspecialchars($asg['student_email']); ?></div>
                                                     </div>
                                                 </div>
@@ -3199,9 +3213,24 @@ $successMsg = $successMessages[$successKey] ?? null;
                         <label class="block text-[11px] font-semibold text-[#555555] dark:text-[#AAAAAA] mb-1">Titre / Consigne rapide du devoir</label>
                         <input type="text" name="assignment_title" id="lesson-assignment-title" placeholder="ex: Exercice pratique 1 - Application web ou rapport PDF" class="w-full px-3 py-1.5 bg-[#F5F5F7] dark:bg-[#1E1E1E] border border-[#E5E5E7] dark:border-[#2C2C2C] text-xs focus:outline-none focus:border-[#004B23] rounded-sm dark:text-white">
                     </div>
+                    <div class="grid grid-cols-1 md:grid-cols-2 gap-3">
+                        <div>
+                            <label class="block text-[11px] font-semibold text-[#555555] dark:text-[#AAAAAA] mb-1">Type de rendu exigé</label>
+                            <select name="assignment_type" id="lesson-assignment-type" class="w-full px-3 py-1.5 bg-[#F5F5F7] dark:bg-[#1E1E1E] border border-[#E5E5E7] dark:border-[#2C2C2C] text-xs focus:outline-none focus:border-[#004B23] rounded-sm dark:text-white">
+                                <option value="both">Document (Fichier) OU Lien web (Défaut)</option>
+                                <option value="file">Document / Fichier uniquement</option>
+                                <option value="link">Lien URL uniquement (GitHub, Drive, etc.)</option>
+                            </select>
+                        </div>
+                        <div>
+                            <label class="block text-[11px] font-semibold text-[#555555] dark:text-[#AAAAAA] mb-1">Formats de document acceptés</label>
+                            <input type="text" name="allowed_file_types" id="lesson-allowed-file-types" value="pdf,docx" placeholder="ex: pdf, docx, md, zip" class="w-full px-3 py-1.5 bg-[#F5F5F7] dark:bg-[#1E1E1E] border border-[#E5E5E7] dark:border-[#2C2C2C] text-xs focus:outline-none focus:border-[#004B23] rounded-sm font-mono dark:text-white">
+                            <p class="text-[9px] text-gray-400 mt-0.5">Extensions séparées par des virgules (ex: pdf, docx, md, zip, txt)</p>
+                        </div>
+                    </div>
                     <div>
                         <label class="block text-[11px] font-semibold text-[#555555] dark:text-[#AAAAAA] mb-1">Instructions détaillées &amp; Modalités de rendu</label>
-                        <textarea name="assignment_instructions" id="lesson-assignment-instructions" rows="3" placeholder="Expliquez l'exercice à accomplir (Markdown &amp; LaTeX supportés), la nature des fichiers (PDF/DOCX) ou liens attendus..." class="w-full px-3 py-1.5 bg-[#F5F5F7] dark:bg-[#1E1E1E] border border-[#E5E5E7] dark:border-[#2C2C2C] text-xs focus:outline-none focus:border-[#004B23] rounded-sm font-mono dark:text-white"></textarea>
+                        <textarea name="assignment_instructions" id="lesson-assignment-instructions" rows="3" placeholder="Expliquez l'exercice à accomplir (Markdown &amp; LaTeX supportés), la nature des fichiers ou liens attendus..." class="w-full px-3 py-1.5 bg-[#F5F5F7] dark:bg-[#1E1E1E] border border-[#E5E5E7] dark:border-[#2C2C2C] text-xs focus:outline-none focus:border-[#004B23] rounded-sm font-mono dark:text-white"></textarea>
                     </div>
                     <div>
                         <label class="block text-[11px] font-semibold text-[#555555] dark:text-[#AAAAAA] mb-1">Date limite de rendu (Optionnelle)</label>
@@ -3998,6 +4027,12 @@ function openEditLessonModal(lesson) {
         toggleAssignmentFields(hasAsg);
     }
     document.getElementById('lesson-assignment-title').value = lesson.assignment_title || '';
+    if (document.getElementById('lesson-assignment-type')) {
+        document.getElementById('lesson-assignment-type').value = lesson.assignment_type || 'both';
+    }
+    if (document.getElementById('lesson-allowed-file-types')) {
+        document.getElementById('lesson-allowed-file-types').value = lesson.allowed_file_types || 'pdf,docx';
+    }
     document.getElementById('lesson-assignment-instructions').value = lesson.assignment_instructions || '';
     document.getElementById('lesson-assignment-deadline').value = lesson.assignment_deadline ? lesson.assignment_deadline.substring(0, 16).replace(' ', 'T') : '';
 
