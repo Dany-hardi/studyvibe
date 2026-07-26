@@ -104,6 +104,26 @@ try {
             default => 'application/octet-stream',
         };
 
+    } elseif ($type === 'library') {
+        $stmt = $pdo->prepare("SELECT id FROM course_library_items WHERE file_path = :file LIMIT 1");
+        $stmt->execute(['file' => $file]);
+        if (!$stmt->fetch()) {
+            http_response_code(404);
+            exit('Fichier introuvable.');
+        }
+
+        $path = __DIR__ . '/uploads/library/' . $file;
+        $ext  = strtolower(pathinfo($file, PATHINFO_EXTENSION));
+        $mime = match ($ext) {
+            'pdf'  => 'application/pdf',
+            'docx' => 'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
+            'doc'  => 'application/msword',
+            'zip'  => 'application/zip',
+            'png'  => 'image/png',
+            'jpg', 'jpeg' => 'image/jpeg',
+            default => 'application/octet-stream',
+        };
+
     } else {
         http_response_code(400);
         exit('Type de fichier non supporté.');

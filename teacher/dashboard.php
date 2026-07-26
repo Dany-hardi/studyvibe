@@ -257,6 +257,7 @@ try {
             $title       = trim((string)($_POST['lesson_title'] ?? ''));
             $contentType = (string)($_POST['content_type'] ?? 'text');
             $textContent = trim((string)($_POST['text_content'] ?? '')) ?: null;
+            $isCompulsory = isset($_POST['is_compulsory']) ? (int)$_POST['is_compulsory'] : 1;
             $quizDeadline = !empty($_POST['quiz_deadline']) ? $_POST['quiz_deadline'] : null;
             $hasAssignment = !empty($_POST['has_assignment']) ? 1 : 0;
             $assignmentTitle = trim((string)($_POST['assignment_title'] ?? '')) ?: null;
@@ -281,12 +282,13 @@ try {
                 $maxSort = (int)$stmt->fetchColumn();
 
                 $stmt = $pdo->prepare("
-                    INSERT INTO lessons (chapter_id,title,content_type,text_content,pdf_path,pdf_data,video_url,sort_order,quiz_deadline,has_assignment,assignment_title,assignment_type,allowed_file_types,assignment_instructions,assignment_deadline)
-                    VALUES (:cid,:title,:ct,:tc,:pp,:pd,NULL,:so,:qd,:ha,:at,:atype,:aft,:ai,:ad)
+                    INSERT INTO lessons (chapter_id,title,content_type,text_content,pdf_path,pdf_data,video_url,sort_order,is_compulsory,quiz_deadline,has_assignment,assignment_title,assignment_type,allowed_file_types,assignment_instructions,assignment_deadline)
+                    VALUES (:cid,:title,:ct,:tc,:pp,:pd,NULL,:so,:ic,:qd,:ha,:at,:atype,:aft,:ai,:ad)
                 ");
                 $stmt->execute([
                     'cid' => $chapterId, 'title' => $title, 'ct' => $contentType,
                     'tc'  => $textContent, 'pp' => $pdfPath, 'pd' => $pdfData, 'so' => $maxSort + 1,
+                    'ic'  => $isCompulsory,
                     'qd'  => $quizDeadline, 'ha' => $hasAssignment, 'at' => $assignmentTitle,
                     'atype' => $assignmentType, 'aft' => $allowedFileTypes,
                     'ai'  => $assignmentInstructions, 'ad' => $assignmentDeadline,
@@ -312,6 +314,7 @@ try {
             $title       = trim((string)($_POST['lesson_title'] ?? ''));
             $contentType = (string)($_POST['content_type'] ?? 'text');
             $textContent = trim((string)($_POST['text_content'] ?? '')) ?: null;
+            $isCompulsory = isset($_POST['is_compulsory']) ? (int)$_POST['is_compulsory'] : 1;
             $quizDeadline = !empty($_POST['quiz_deadline']) ? $_POST['quiz_deadline'] : null;
             $hasAssignment = !empty($_POST['has_assignment']) ? 1 : 0;
             $assignmentTitle = trim((string)($_POST['assignment_title'] ?? '')) ?: null;
@@ -360,20 +363,20 @@ try {
 
                     if ($updatePdfData) {
                         $stmt = $pdo->prepare("
-                            UPDATE lessons SET title=:t,content_type=:ct,text_content=:tc,pdf_path=:pp,pdf_data=:pd,quiz_deadline=:qd,has_assignment=:ha,assignment_title=:at,assignment_type=:atype,allowed_file_types=:aft,assignment_instructions=:ai,assignment_deadline=:ad
+                            UPDATE lessons SET title=:t,content_type=:ct,text_content=:tc,pdf_path=:pp,pdf_data=:pd,is_compulsory=:ic,quiz_deadline=:qd,has_assignment=:ha,assignment_title=:at,assignment_type=:atype,allowed_file_types=:aft,assignment_instructions=:ai,assignment_deadline=:ad
                             WHERE id=:id
                         ");
                         $stmt->execute([
-                            't'=>$title,'ct'=>$contentType,'tc'=>$textContent,'pp'=>$finalPdf,'pd'=>$pdfData,'qd'=>$quizDeadline,
+                            't'=>$title,'ct'=>$contentType,'tc'=>$textContent,'pp'=>$finalPdf,'pd'=>$pdfData,'ic'=>$isCompulsory,'qd'=>$quizDeadline,
                             'ha'=>$hasAssignment,'at'=>$assignmentTitle,'atype'=>$assignmentType,'aft'=>$allowedFileTypes,'ai'=>$assignmentInstructions,'ad'=>$assignmentDeadline,'id'=>$lessonId
                         ]);
                     } else {
                         $stmt = $pdo->prepare("
-                            UPDATE lessons SET title=:t,content_type=:ct,text_content=:tc,quiz_deadline=:qd,has_assignment=:ha,assignment_title=:at,assignment_type=:atype,allowed_file_types=:aft,assignment_instructions=:ai,assignment_deadline=:ad
+                            UPDATE lessons SET title=:t,content_type=:ct,text_content=:tc,is_compulsory=:ic,quiz_deadline=:qd,has_assignment=:ha,assignment_title=:at,assignment_type=:atype,allowed_file_types=:aft,assignment_instructions=:ai,assignment_deadline=:ad
                             WHERE id=:id
                         ");
                         $stmt->execute([
-                            't'=>$title,'ct'=>$contentType,'tc'=>$textContent,'qd'=>$quizDeadline,
+                            't'=>$title,'ct'=>$contentType,'tc'=>$textContent,'ic'=>$isCompulsory,'qd'=>$quizDeadline,
                             'ha'=>$hasAssignment,'at'=>$assignmentTitle,'atype'=>$assignmentType,'aft'=>$allowedFileTypes,'ai'=>$assignmentInstructions,'ad'=>$assignmentDeadline,'id'=>$lessonId
                         ]);
                     }
@@ -450,6 +453,73 @@ try {
                     }
                 }
                 header("Location: /teacher/dashboard.php?course_id={$selectedCourse['id']}&open_lesson={$lessonId}&success=resource_deleted#tab-course"); exit;
+            }
+        }
+
+        // ── H2. Bibliothèque du Cours : Ajouter une ressource ──────────
+        if ($action === 'add_library_item') {
+            $title       = trim((string)($_POST['library_title'] ?? ''));
+            $category    = (string)($_POST['library_category'] ?? 'pdf');
+            $description = trim((string)($_POST['library_description'] ?? '')) ?: null;
+            $markdown    = trim((string)($_POST['library_content_markdown'] ?? '')) ?: null;
+            $videoUrl    = trim((string)($_POST['library_video_url'] ?? '')) ?: null;
+            $filePath    = null;
+            $fileSize    = null;
+
+            $allowedCategories = ['syllabus', 'pdf', 'video', 'guide', 'text_markdown', 'other'];
+            if (!in_array($category, $allowedCategories, true)) {
+                $category = 'pdf';
+            }
+
+            if (!empty($_FILES['library_file']['name']) && $_FILES['library_file']['error'] === UPLOAD_ERR_OK) {
+                if ($_FILES['library_file']['size'] <= 67108864) { // Max 64MB
+                    $ext = strtolower(pathinfo($_FILES['library_file']['name'], PATHINFO_EXTENSION));
+                    $allowedExts = ['pdf', 'docx', 'doc', 'zip', 'png', 'jpg', 'jpeg'];
+                    if (in_array($ext, $allowedExts, true)) {
+                        $filename = uniqid('lib_') . '.' . $ext;
+                        $targetDir = __DIR__ . '/../uploads/library/';
+                        @mkdir($targetDir, 0777, true);
+                        if (move_uploaded_file($_FILES['library_file']['tmp_name'], $targetDir . $filename)) {
+                            $filePath = $filename;
+                            $fileSize = (int)$_FILES['library_file']['size'];
+                        }
+                    }
+                }
+            }
+
+            if (!empty($title)) {
+                $stmt = $pdo->prepare("
+                    INSERT INTO course_library_items (course_id, title, category, description, content_markdown, file_path, file_size, video_url)
+                    VALUES (:cid, :t, :cat, :d, :m, :fp, :fs, :vu)
+                ");
+                $stmt->execute([
+                    'cid' => $selectedCourse['id'],
+                    't'   => $title,
+                    'cat' => $category,
+                    'd'   => $description,
+                    'm'   => $markdown,
+                    'fp'  => $filePath,
+                    'fs'  => $fileSize,
+                    'vu'  => $videoUrl,
+                ]);
+                header("Location: /teacher/dashboard.php?course_id={$selectedCourse['id']}&success=library_added#tab-library"); exit;
+            }
+        }
+
+        // ── H3. Bibliothèque du Cours : Supprimer une ressource ────────
+        if ($action === 'delete_library_item') {
+            $itemId = (int)($_POST['library_item_id'] ?? 0);
+            if ($itemId > 0) {
+                $stmt = $pdo->prepare("SELECT file_path FROM course_library_items WHERE id = :id AND course_id = :cid");
+                $stmt->execute(['id' => $itemId, 'cid' => $selectedCourse['id']]);
+                $item = $stmt->fetch();
+                if ($item) {
+                    if (!empty($item['file_path'])) {
+                        @unlink(__DIR__ . '/../uploads/library/' . $item['file_path']);
+                    }
+                    $pdo->prepare("DELETE FROM course_library_items WHERE id = :id")->execute(['id' => $itemId]);
+                }
+                header("Location: /teacher/dashboard.php?course_id={$selectedCourse['id']}&success=library_deleted#tab-library"); exit;
             }
         }
 
@@ -1790,6 +1860,15 @@ $successMsg = $successMessages[$successKey] ?? null;
                                                 <div class="min-w-0">
                                                     <div class="font-medium text-sm text-[#111111] flex items-center gap-2 flex-wrap">
                                                         <?= htmlspecialchars($les['title']); ?>
+                                                        <?php if ((int)($les['is_compulsory'] ?? 1) === 1): ?>
+                                                            <span class="text-[10px] font-semibold bg-[#E8F5E9] border border-[#004B23]/20 text-[#004B23] px-1.5 py-0.5 rounded">
+                                                                Obligatoire
+                                                            </span>
+                                                        <?php else: ?>
+                                                            <span class="text-[10px] font-semibold bg-gray-100 border border-gray-300 text-gray-600 px-1.5 py-0.5 rounded">
+                                                                Optionnelle
+                                                            </span>
+                                                        <?php endif; ?>
                                                         <span class="text-[10px] font-mono uppercase tracking-widest bg-[#F5F5F7] border border-[#E5E5E7] px-1.5 py-0.5 text-[#555555]">
                                                             <?= htmlspecialchars($les['content_type']); ?>
                                                         </span>
@@ -2152,6 +2231,11 @@ $successMsg = $successMessages[$successKey] ?? null;
                                         <a href="/teacher/export-live-pdf.php?session_id=<?= $ls['id'] ?>" class="px-3 py-1.5 border border-[#E5E5E7] text-[11px] font-semibold uppercase tracking-wider rounded-sm hover:bg-gray-50 bg-white text-[#111111] flex items-center gap-1.5">
                                             <svg class="w-3.5 h-3.5 text-red-700" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M7 21h10a2 2 0 002-2V9.414a1 1 0 00-.293-.707l-5.414-5.414A1 1 0 0012.586 3H7a2 2 0 00-2 2v14a2 2 0 002 2z"/></svg>
                                             Rapport PDF
+                                        </a>
+
+                                        <a href="/teacher/export-live-grades-latex.php?session_id=<?= $ls['id'] ?>" class="px-3 py-1.5 border border-[#E5E5E7] text-[11px] font-semibold uppercase tracking-wider rounded-sm hover:bg-gray-50 bg-white text-[#111111] flex items-center gap-1.5" title="Télécharger le rapport de notes compilé via LaTeX">
+                                            <svg class="w-3.5 h-3.5 text-purple-700" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"/></svg>
+                                            Rapport LaTeX
                                         </a>
 
                                         <a href="/teacher/export-live-questions-latex.php?session_id=<?= $ls['id'] ?>&mode=subject" class="px-3 py-1.5 border border-[#E5E5E7] text-[11px] font-semibold uppercase tracking-wider rounded-sm hover:bg-gray-50 bg-white text-[#111111] flex items-center gap-1.5">
@@ -3145,6 +3229,30 @@ $successMsg = $successMessages[$successKey] ?? null;
                 </select>
             </div>
 
+            <!-- Caractère Obligatoire ou Optionnel -->
+            <div>
+                <label class="block text-xs font-semibold uppercase tracking-wider text-[#555555] dark:text-[#AAAAAA] mb-2">Caractère de la leçon</label>
+                <div class="grid grid-cols-2 gap-3">
+                    <label class="relative flex items-center justify-between p-3 border border-[#E5E5E7] dark:border-[#2C2C2C] rounded-sm cursor-pointer hover:bg-[#F5F5F7] dark:hover:bg-[#252525] transition-colors">
+                        <div class="flex items-center gap-2">
+                            <input type="radio" name="is_compulsory" id="lesson-compulsory-1" value="1" checked class="text-[#004B23] focus:ring-0">
+                            <span class="text-xs font-semibold text-[#111111] dark:text-white">Leçon Obligatoire</span>
+                        </div>
+                        <span class="text-[10px] bg-[#E8F5E9] text-[#004B23] px-2 py-0.5 rounded font-bold">Requise</span>
+                    </label>
+                    <label class="relative flex items-center justify-between p-3 border border-[#E5E5E7] dark:border-[#2C2C2C] rounded-sm cursor-pointer hover:bg-[#F5F5F7] dark:hover:bg-[#252525] transition-colors">
+                        <div class="flex items-center gap-2">
+                            <input type="radio" name="is_compulsory" id="lesson-compulsory-0" value="0" class="text-[#004B23] focus:ring-0">
+                            <span class="text-xs font-semibold text-[#111111] dark:text-white">Leçon Optionnelle</span>
+                        </div>
+                        <span class="text-[10px] bg-gray-100 text-gray-600 px-2 py-0.5 rounded font-bold">Facultative</span>
+                    </label>
+                </div>
+                <p class="text-[10px] text-[#888888] dark:text-[#AAAAAA] mt-1.5">
+                    Une leçon obligatoire doit être complétée par l'étudiant avant de pouvoir tenter l'évaluation finale de certification.
+                </p>
+            </div>
+
             <!-- Date Limite d'Évaluation (Quiz) -->
             <div>
                 <label class="block text-xs font-semibold uppercase tracking-wider text-[#555555] mb-2">Date limite d'évaluation / quiz (optionnelle)</label>
@@ -4131,6 +4239,9 @@ function openLessonModal(chapterId) {
     document.getElementById('lesson-form-action').value        = 'add_lesson';
     document.getElementById('lesson-chapter-id').value        = chapterId;
     document.getElementById('lesson-submit-btn').textContent   = 'Ajouter';
+    if (document.getElementById('lesson-compulsory-1')) {
+        document.getElementById('lesson-compulsory-1').checked = true;
+    }
     toggleModal('lesson-modal');
 }
 
@@ -4154,6 +4265,14 @@ function openEditLessonModal(lesson) {
     document.getElementById('lesson-chapter-id').value        = '';
     document.getElementById('lesson-title-input').value        = lesson.title || '';
     document.getElementById('lesson-submit-btn').textContent   = 'Mettre à jour';
+
+    // Caractère obligatoire
+    const isComp = (lesson.is_compulsory == 1 || lesson.is_compulsory === undefined || lesson.is_compulsory === null);
+    if (isComp && document.getElementById('lesson-compulsory-1')) {
+        document.getElementById('lesson-compulsory-1').checked = true;
+    } else if (document.getElementById('lesson-compulsory-0')) {
+        document.getElementById('lesson-compulsory-0').checked = true;
+    }
 
     // Type de contenu
     const ct = document.getElementById('content_type');

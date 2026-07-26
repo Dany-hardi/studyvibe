@@ -77,10 +77,10 @@ try {
         exit;
     }
 
-    if ((int)$enrollment['progress_percent'] < 100 || !hasCompletedAllLessons($studentId, $courseId)) {
+    if (!hasCompletedAllLessons($studentId, $courseId)) {
         echo json_encode([
             'success' => false,
-            'message' => 'Vous devez terminer le cours à 100% (toutes les leçons validées) pour passer la certification.'
+            'message' => 'Vous devez valider toutes les leçons obligatoires du cours avant de passer la certification.'
         ]);
         exit;
     }

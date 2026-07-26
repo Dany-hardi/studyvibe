@@ -79,138 +79,26 @@ try {
     $continueCourse = $continueStmt->fetch() ?: null;
 
     $deadlineAlerts = CourseSchedule::deadlineAlerts($pdo, (int)$user['id']);
-
-    // --- Dynamic Self-Healing Badges Logic (isolated — never crashes dashboard) ---
-    $sid = (int)$user['id'];
-    $earnedTypes   = [];
-    $myBadges      = [];
+    // --- Gamification Badges Logic ---
+    require_once __DIR__ . '/../lib/BadgeHelper.php';
+    $myBadges = BadgeHelper::evaluateBadges($pdo, (int)$user['id']);
     $earnedBadgesLookup = [];
-    try {
-        // Check first_lesson
-        $checkFirst = $pdo->prepare("SELECT COUNT(*) FROM lesson_progress WHERE student_id = :sid AND completed = 1");
-        $checkFirst->execute(['sid' => $sid]);
-        if ((int)$checkFirst->fetchColumn() > 0) { $earnedTypes[] = 'first_lesson'; }
-
-        // Check study_hour
-        $checkStudy = $pdo->prepare("SELECT COALESCE(SUM(seconds_spent), 0) FROM study_sessions WHERE student_id = :sid");
-        $checkStudy->execute(['sid' => $sid]);
-        if ((int)$checkStudy->fetchColumn() >= 3600) { $earnedTypes[] = 'study_hour'; }
-
-        // Check course_complete
-        $checkComplete = $pdo->prepare("SELECT COUNT(*) FROM enrollments WHERE student_id = :sid AND progress_percent = 100");
-        $checkComplete->execute(['sid' => $sid]);
-        if ((int)$checkComplete->fetchColumn() > 0) { $earnedTypes[] = 'course_complete'; }
-
-        // Check certified
-        $checkCert = $pdo->prepare("SELECT COUNT(*) FROM certificates WHERE student_id = :sid");
-        $checkCert->execute(['sid' => $sid]);
-        if ((int)$checkCert->fetchColumn() > 0) { $earnedTypes[] = 'certified'; }
-
-        // Check perfect_score
-        $checkPerfectQuiz = $pdo->prepare("SELECT COUNT(*) FROM lesson_progress WHERE student_id = :sid AND score = 100");
-        $checkPerfectQuiz->execute(['sid' => $sid]);
-        $checkPerfectExam = $pdo->prepare("SELECT COUNT(*) FROM certification_attempts WHERE student_id = :sid AND score = 100");
-        $checkPerfectExam->execute(['sid' => $sid]);
-        if ((int)$checkPerfectQuiz->fetchColumn() > 0 || (int)$checkPerfectExam->fetchColumn() > 0) { $earnedTypes[] = 'perfect_score'; }
-
-        // Check multitasker
-        $checkMulti = $pdo->prepare("SELECT COUNT(*) FROM enrollments WHERE student_id = :sid");
-        $checkMulti->execute(['sid' => $sid]);
-        if ((int)$checkMulti->fetchColumn() >= 3) { $earnedTypes[] = 'multitasker'; }
-
-        // Check night_owl
-        $checkNightQuiz = $pdo->prepare("SELECT COUNT(*) FROM lesson_progress WHERE student_id = :sid AND (HOUR(completed_at) >= 22 OR HOUR(completed_at) < 4)");
-        $checkNightQuiz->execute(['sid' => $sid]);
-        $checkNightExam = $pdo->prepare("SELECT COUNT(*) FROM certification_attempts WHERE student_id = :sid AND (HOUR(attempted_at) >= 22 OR HOUR(attempted_at) < 4)");
-        $checkNightExam->execute(['sid' => $sid]);
-        if ((int)$checkNightQuiz->fetchColumn() > 0 || (int)$checkNightExam->fetchColumn() > 0) { $earnedTypes[] = 'night_owl'; }
-
-        // Check note_taker
-        $checkNote = $pdo->prepare("SELECT COUNT(*) FROM video_notes WHERE student_id = :sid");
-        $checkNote->execute(['sid' => $sid]);
-        if ((int)$checkNote->fetchColumn() > 0) { $earnedTypes[] = 'note_taker'; }
-
-        // Insert earned badges (INSERT IGNORE is idempotent — safe to re-run)
-        if (!empty($earnedTypes)) {
-            $insertBadge = $pdo->prepare("INSERT IGNORE INTO student_badges (student_id, badge_type) VALUES (:sid, :type)");
-            foreach ($earnedTypes as $type) {
-                $insertBadge->execute(['sid' => $sid, 'type' => $type]);
-            }
-        }
-
-        // Fetch all earned badges for display
-        $stmt = $pdo->prepare("SELECT badge_type, earned_at FROM student_badges WHERE student_id = :sid ORDER BY earned_at DESC");
-        $stmt->execute(['sid' => $user['id']]);
-        $myBadges = $stmt->fetchAll();
-
-        foreach ($myBadges as $b) {
-            $earnedBadgesLookup[$b['badge_type']] = $b['earned_at'];
-        }
-    } catch (Throwable $badgeEx) {
-        // Badge system degraded silently — dashboard still loads normally
-        // Production schema may differ; badges will show as locked until migration is applied
-        $myBadges           = [];
-        $earnedBadgesLookup = [];
+    foreach ($myBadges as $b) {
+        $earnedBadgesLookup[$b['badge_type']] = $b['earned_at'];
     }
+    $allBadgesConfig = BadgeHelper::getAllBadgesConfig();
 
-    $allBadgesConfig = [
-        'first_lesson' => [
-            'title' => 'Pionnier',
-            'desc' => 'Compléter votre toute première leçon sur la plateforme.',
-            'icon' => '<svg class="w-10 h-10" fill="none" stroke="currentColor" stroke-width="1.5" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M12 6.042A8.967 8.967 0 006 3.75c-1.052 0-2.062.18-3 .512v14.25A8.987 8.987 0 016 18c2.305 0 4.408.867 6 2.292m0-14.25a8.966 8.966 0 016-2.292c1.052 0 2.062.18 3 .512v14.25A8.987 8.987 0 0018 18a8.967 8.967 0 00-6 2.292m0-14.25v14.25" /></svg>',
-            'color' => 'from-blue-500 to-indigo-600',
-            'border' => 'border-blue-200'
-        ],
-        'study_hour' => [
-            'title' => 'Apprenant Assidu',
-            'desc' => 'Cumuler plus d\'une heure de temps d\'étude sur StudyVibe.',
-            'icon' => '<svg class="w-10 h-10" fill="none" stroke="currentColor" stroke-width="1.5" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M12 6v6h4.5m4.5 0a9 9 0 11-18 0 9 9 0 0118 0z" /></svg>',
-            'color' => 'from-amber-500 to-orange-600',
-            'border' => 'border-amber-200'
-        ],
-        'course_complete' => [
-            'title' => 'Finisseur d\'Élite',
-            'desc' => 'Compléter à 100% au moins un cours de votre programme.',
-            'icon' => '<svg class="w-10 h-10" fill="none" stroke="currentColor" stroke-width="1.5" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M9 12.75L11.25 15 15 9.75M21 12c0 1.268-.63 2.39-1.593 3.068a3.745 3.745 0 01-1.043 3.296 3.745 3.745 0 01-3.296 1.043A3.745 3.745 0 0110 21a3.745 3.745 0 01-3.296-1.043 3.745 3.745 0 01-1.043-3.296A3.745 3.745 0 013 12c0-1.268.63-2.39 1.593-3.068a3.746 3.746 0 011.043-3.296 3.746 3.746 0 013.296-1.043A3.746 3.746 0 0112 3c1.268 0 2.39.63 3.068 1.593a3.746 3.746 0 013.296 1.043 3.746 3.746 0 011.043 3.296A3.745 3.745 0 0121 12z" /></svg>',
-            'color' => 'from-emerald-500 to-teal-600',
-            'border' => 'border-emerald-200'
-        ],
-        'certified' => [
-            'title' => 'Diplômé Officiel',
-            'desc' => 'Obtenir votre premier certificat de réussite académique.',
-            'icon' => '<svg class="w-10 h-10" fill="none" stroke="currentColor" stroke-width="1.5" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M4.26 10.147a60.436 60.436 0 00-.491 6.347A48.62 48.62 0 0112 20.904a48.62 48.62 0 018.232-4.41 60.46 60.46 0 00-.491-6.347m-15.482 0a50.57 50.57 0 00-2.658-.813A59.905 59.905 0 0112 3.493a59.902 59.902 0 0110.399 5.84a50.58 50.58 0 00-2.658.814m-15.482 0A50.697 50.697 0 0112 13.489a50.702 50.702 0 017.74-3.342M6.75 15a.75.75 0 100-1.5.75.75 0 000 1.5zm0 0v-3.675A55.378 55.378 0 0112 8.443m-7.007 11.55A5.981 5.981 0 006.75 15.75v-1.5" /></svg>',
-            'color' => 'from-purple-500 to-fuchsia-600',
-            'border' => 'border-purple-200'
-        ],
-        'perfect_score' => [
-            'title' => 'Major de Promo',
-            'desc' => 'Obtenir un score parfait de 100% à un quiz de leçon ou examen final.',
-            'icon' => '<svg class="w-10 h-10" fill="none" stroke="currentColor" stroke-width="1.5" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M11.48 3.499c.195-.558.976-.558 1.17 0l2.36 6.816a1 1 0 00.95.69h7.162c.582 0 .822.748.35 1.14l-5.797 4.837a1 1 0 00-.364 1.118l2.36 6.816c.196.558-.432 1.016-.906.69l-5.797-4.837a1 1 0 00-1.17 0l-5.797 4.837c-.474.326-1.102-.132-.906-.69l2.36-6.816a1 1 0 00-.364-1.118L2.05 12.139c-.472-.392-.232-1.14.35-1.14h7.162a1 1 0 00.95-.69l2.36-6.82z" /></svg>',
-            'color' => 'from-yellow-500 to-rose-600',
-            'border' => 'border-yellow-200'
-        ],
-        'multitasker' => [
-            'title' => 'Esprit Polyvalent',
-            'desc' => 'S\'inscrire activement à au moins 3 cours différents.',
-            'icon' => '<svg class="w-10 h-10" fill="none" stroke="currentColor" stroke-width="1.5" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M3.75 6A2.25 2.25 0 016 3.75h2.25A2.25 2.25 0 0110.5 6v2.25a2.25 2.25 0 01-2.25 2.25H6a2.25 2.25 0 01-2.25-2.25V6zM3.75 15.75A2.25 2.25 0 016 13.5h2.25a2.25 2.25 0 012.25 2.25V18a2.25 2.25 0 01-2.25 2.25H6A2.25 2.25 0 013.75 18v-2.25zM13.5 6a2.25 2.25 0 012.25-2.25H18A2.25 2.25 0 0120.25 6v2.25A2.25 2.25 0 0118 10.5h-2.25A2.25 2.25 0 0113.5 8.25V6zM13.5 15.75a2.25 2.25 0 012.25-2.25H18a2.25 2.25 0 012.25 2.25V18A2.25 2.25 0 0118 20.25h-2.25A2.25 2.25 0 0113.5 18v-2.25z" /></svg>',
-            'color' => 'from-cyan-500 to-sky-600',
-            'border' => 'border-cyan-200'
-        ],
-        'night_owl' => [
-            'title' => 'Hibou Académique',
-            'desc' => 'Valider une leçon ou un examen entre 22h et 4h du matin.',
-            'icon' => '<svg class="w-10 h-10" fill="none" stroke="currentColor" stroke-width="1.5" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M21.752 15.002A9.718 9.718 0 0118 15.75c-5.385 0-9.75-4.365-9.75-9.75 0-1.33.266-2.597.748-3.752A9.753 9.753 0 003 11.25C3 16.635 7.365 21 12.75 21a9.753 9.753 0 009.002-5.998z" /></svg>',
-            'color' => 'from-zinc-700 to-slate-900',
-            'border' => 'border-zinc-500'
-        ],
-        'note_taker' => [
-            'title' => 'Greffier Assidu',
-            'desc' => 'Prendre votre première note d\'étude sur une vidéo de cours.',
-            'icon' => '<svg class="w-10 h-10" fill="none" stroke="currentColor" stroke-width="1.5" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M16.862 4.487l1.687-1.688a1.875 1.875 0 112.652 2.652L6.83 18.3 3 19.305l1.012-3.83 12.85-12.853zm0 0L19.5 7.125M18 14v4.75A2.25 2.25 0 0115.75 21H5.25A2.25 2.25 0 013 18.75V8.25A2.25 2.25 0 015.25 6H10" /></svg>',
-            'color' => 'from-pink-500 to-rose-600',
-            'border' => 'border-pink-200'
-        ]
-    ];
+    // --- Course Library Items for student ---
+    $libraryStmt = $pdo->prepare("
+        SELECT cli.*, c.title AS course_title
+        FROM course_library_items cli
+        JOIN courses c ON cli.course_id = c.id
+        JOIN enrollments e ON e.course_id = c.id
+        WHERE e.student_id = :sid
+        ORDER BY cli.created_at DESC
+    ");
+    $libraryStmt->execute(['sid' => (int)$user['id']]);
+    $studentLibraryItems = $libraryStmt->fetchAll();
 
     // 4. Récupérer les téléévaluations de l'étudiant
     $stmt = $pdo->prepare("
@@ -377,6 +265,9 @@ try {
                     <button onclick="switchTab('mes-cours'); toggleMobileDrawer();" id="mobile-tab-btn-mes-cours" class="w-full flex items-center gap-3 px-4 py-3 rounded-lg text-sm font-medium transition-all text-white/70 hover:text-white hover:bg-white/10 text-left">
                         Mes Études
                     </button>
+                    <button onclick="switchTab('bibliotheque'); toggleMobileDrawer();" id="mobile-tab-btn-bibliotheque" class="w-full flex items-center gap-3 px-4 py-3 rounded-lg text-sm font-medium transition-all text-white/70 hover:text-white hover:bg-white/10 text-left">
+                        Bibliothèque
+                    </button>
                     <button onclick="switchTab('releve'); toggleMobileDrawer();" id="mobile-tab-btn-releve" class="w-full flex items-center gap-3 px-4 py-3 rounded-lg text-sm font-medium transition-all text-white/70 hover:text-white hover:bg-white/10 text-left">
                         Relevé de Notes
                     </button>
@@ -442,6 +333,9 @@ try {
             </button>
             <button onclick="switchTab('mes-cours')" id="tab-btn-mes-cours" class="w-full flex items-center gap-3 px-4 py-3 rounded-lg text-sm font-medium transition-all text-white/70 hover:text-white hover:bg-white/10 text-left">
                 Mes Études
+            </button>
+            <button onclick="switchTab('bibliotheque')" id="tab-btn-bibliotheque" class="w-full flex items-center gap-3 px-4 py-3 rounded-lg text-sm font-medium transition-all text-white/70 hover:text-white hover:bg-white/10 text-left">
+                Bibliothèque
             </button>
             <button onclick="switchTab('releve')" id="tab-btn-releve" class="w-full flex items-center gap-3 px-4 py-3 rounded-lg text-sm font-medium transition-all text-white/70 hover:text-white hover:bg-white/10 text-left">
                 Relevé de Notes
@@ -758,7 +652,73 @@ try {
             </div>
         </div>
 
-        <!-- 2b. Onglet RELEVÉ DE NOTES -->
+        <!-- 2b. Onglet BIBLIOTHÈQUE DE COURS -->
+        <div id="tab-bibliotheque" class="tab-content hidden space-y-8">
+            <div class="flex flex-col md:flex-row md:items-end justify-between gap-4 border-b border-[#E5E5E7] pb-6">
+                <div class="space-y-2">
+                    <div class="inline-flex items-center gap-2 px-3 py-1 bg-[#004B23]/10 text-[#004B23] text-xs font-semibold uppercase tracking-wider rounded-full">
+                        <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 6.253v13m0-13C10.832 5.477 9.246 5 7.5 5S4.168 5.477 3 6.253v13C4.168 18.477 5.754 18 7.5 18s3.332.477 4.5 1.253m0-13C13.168 5.477 14.754 5 16.5 5c1.747 0 3.332.477 4.5 1.253v13C19.832 18.477 18.247 18 16.5 18c-1.746 0-3.332.477-4.5 1.253"/></svg>
+                        Ressources Pédagogiques
+                    </div>
+                    <h2 class="font-serif text-3xl font-light">Bibliothèque du Cours</h2>
+                    <p class="text-sm text-[#555555]">Consultez et téléchargez tous les supports d'étude, syllabi officiels, fichiers PDF (jusqu'à 64Mo), vidéos et notes de cours rédigées par vos enseignants.</p>
+                </div>
+            </div>
+
+            <?php if (empty($studentLibraryItems)): ?>
+                <div class="p-12 text-center border border-dashed border-[#E5E5E7] rounded-sm bg-gray-50/50">
+                    <svg class="w-12 h-12 text-gray-300 mx-auto mb-3" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M12 6.253v13m0-13C10.832 5.477 9.246 5 7.5 5S4.168 5.477 3 6.253v13C4.168 18.477 5.754 18 7.5 18s3.332.477 4.5 1.253m0-13C13.168 5.477 14.754 5 16.5 5c1.747 0 3.332.477 4.5 1.253v13C19.832 18.477 18.247 18 16.5 18c-1.746 0-3.332.477-4.5 1.253"/></svg>
+                    <h3 class="text-sm font-semibold text-[#111111] mb-1">Aucune ressource disponible pour l'instant</h3>
+                    <p class="text-xs text-[#888888]">Vos enseignants publieront ici les documents PDF, corrigés et guides au fil de votre progression.</p>
+                </div>
+            <?php else: ?>
+                <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+                    <?php foreach ($studentLibraryItems as $item): ?>
+                        <div class="p-5 border border-[#E5E5E7] bg-white rounded-sm hover:shadow-md transition-all flex flex-col justify-between space-y-4">
+                            <div class="space-y-2">
+                                <div class="flex items-center justify-between gap-2">
+                                    <span class="px-2.5 py-0.5 text-[10px] font-bold uppercase tracking-wider bg-gray-100 text-[#111111] rounded-sm">
+                                        <?= htmlspecialchars(strtoupper($item['item_type'])) ?>
+                                    </span>
+                                    <span class="text-[11px] text-[#888888] font-mono">
+                                        <?= date('d/m/Y', strtotime($item['created_at'])) ?>
+                                    </span>
+                                </div>
+                                <h3 class="text-base font-semibold text-[#111111] line-clamp-1"><?= htmlspecialchars($item['title']) ?></h3>
+                                <p class="text-xs text-[#004B23] font-medium"><?= htmlspecialchars($item['course_title']) ?></p>
+                                <?php if (!empty($item['description'])): ?>
+                                    <p class="text-xs text-[#555555] line-clamp-2"><?= htmlspecialchars($item['description']) ?></p>
+                                <?php endif; ?>
+                            </div>
+
+                            <div class="pt-3 border-t border-[#E5E5E7] flex items-center justify-between gap-3">
+                                <?php if ($item['item_type'] === 'file' && !empty($item['file_path'])): ?>
+                                    <a href="/download.php?type=library&file=<?= urlencode(basename($item['file_path'])) ?>" target="_blank"
+                                        class="px-4 py-2 bg-[#004B23] text-white text-xs font-semibold uppercase tracking-wider rounded-sm hover:bg-[#003d1c] transition-colors inline-flex items-center gap-2">
+                                        <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4"/></svg>
+                                        Télécharger (PDF)
+                                    </a>
+                                <?php elseif ($item['item_type'] === 'text'): ?>
+                                    <button type="button" onclick="viewLibraryTextModal(<?= htmlspecialchars(json_encode($item)) ?>)"
+                                        class="px-4 py-2 bg-[#111111] text-white text-xs font-semibold uppercase tracking-wider rounded-sm hover:bg-[#004B23] transition-colors inline-flex items-center gap-2">
+                                        <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z"/><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M2.458 12C3.732 7.943 7.523 5 12 5c4.478 0 8.268 2.943 9.542 7-1.274 4.057-5.064 7-9.542 7-4.477 0-8.268-2.943-9.542-7z"/></svg>
+                                        Consulter Texte (LaTeX)
+                                    </button>
+                                <?php elseif ($item['item_type'] === 'video' && !empty($item['external_url'])): ?>
+                                    <a href="<?= htmlspecialchars($item['external_url']) ?>" target="_blank"
+                                        class="px-4 py-2 bg-red-700 text-white text-xs font-semibold uppercase tracking-wider rounded-sm hover:bg-red-800 transition-colors inline-flex items-center gap-2">
+                                        <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M14.752 11.168l-3.197-2.132A1 1 0 0010 9.87v4.263a1 1 0 001.555.832l3.197-2.132a1 1 0 000-1.664z"/></svg>
+                                        Visionner Vidéo
+                                    </a>
+                                <?php endif; ?>
+                            </div>
+                        </div>
+                    <?php endforeach; ?>
+                </div>
+            <?php endif; ?>
+        </div>
+
+        <!-- 2c. Onglet RELEVÉ DE NOTES -->
         <div id="tab-releve" class="tab-content hidden space-y-8">
             <div class="flex flex-col md:flex-row md:items-end justify-between gap-4">
                 <div class="space-y-3">
@@ -1507,7 +1467,7 @@ try {
                 }
             }
         }
-        const STUDENT_TABS = ['catalogue', 'mes-cours', 'releve', 'certifications', 'achievements', 'profil', 'tele-evaluations', 'webinaires'];
+        const STUDENT_TABS = ['catalogue', 'mes-cours', 'bibliotheque', 'releve', 'certifications', 'achievements', 'profil', 'tele-evaluations', 'webinaires'];
 
         document.addEventListener('DOMContentLoaded', () => {
             initCourseSearch('course-search', 'course-grid');

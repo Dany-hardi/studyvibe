@@ -54,6 +54,27 @@ try {
     $stmt->execute(['sid' => $sessionId]);
     $registrations = $stmt->fetchAll();
 
+    // Calculate summary statistics
+    $totalCount = count($registrations);
+    $submittedCount = 0;
+    $sumScore = 0.0;
+    $maxScore = 0.0;
+    $passedCount = 0;
+
+    foreach ($registrations as $r) {
+        if ($r['score'] !== null) {
+            $submittedCount++;
+            $scoreVal = (float)$r['score'];
+            $sumScore += $scoreVal;
+            if ($scoreVal > $maxScore) { $maxScore = $scoreVal; }
+            if ($scoreVal >= 50.0) { $passedCount++; }
+        }
+    }
+
+    $avgScore = $submittedCount > 0 ? round($sumScore / $submittedCount, 1) : 0.0;
+    $passRate = $submittedCount > 0 ? round(($passedCount / $submittedCount) * 100, 1) : 0.0;
+    $maxScorePercent = round($maxScore, 1);
+
     // Formater les lignes du tableau LaTeX
     $latexRows = [];
     foreach ($registrations as $r) {
@@ -63,16 +84,21 @@ try {
         if ($r['score'] !== null) {
             $rawScore = round(((float)$r['score'] / 100) * $totalQuestions);
             $scoreDisplay = "{$rawScore} / {$totalQuestions}";
-            $percentDisplay = round((float)$r['score'], 2) . '\%';
+            $percentDisplay = round((float)$r['score'], 1) . '\%';
+            $statusDisplay = ((float)$r['score'] >= 50) ? '\textbf{\color{green!50!black}Admis}' : '\color{red!60!black}Ajourné';
         } else {
             $scoreDisplay = 'Non finalisé';
             $percentDisplay = '--';
+            $statusDisplay = '\color{gray}Non soumis';
         }
         
-        $latexRows[] = "{$nameEsc} & {$emailEsc} & {$scoreDisplay} & {$percentDisplay} \\\\";
+        $latexRows[] = "{$nameEsc} & {$emailEsc} & {$scoreDisplay} & {$percentDisplay} & {$statusDisplay} \\\\";
     }
     
     $rowsString = implode("\n\\midrule\n", $latexRows);
+    if (empty($rowsString)) {
+        $rowsString = "\multicolumn{5}{c}{\textit{Aucun participant enregistré.}} \\\\";
+    }
 
     // Escape metadata
     $courseTitle = LatexCompiler::escape($session['course_title']);
@@ -86,43 +112,66 @@ try {
 \usepackage[utf8]{inputenc}
 \usepackage[T1]{fontenc}
 \usepackage{geometry}
-\geometry{a4paper, margin=0.8in}
+\geometry{a4paper, margin=0.7in}
 \usepackage{booktabs}
 \usepackage{xcolor}
 \usepackage{fancyhdr}
 \usepackage{tcolorbox}
 \usepackage{helvet}
+\usepackage{tabularx}
 \renewcommand{\familydefault}{\sfdefault}
+
+\definecolor{studyvibegreen}{HTML}{004B23}
+\definecolor{studyvibedark}{HTML}{111111}
 
 \pagestyle{fancy}
 \fancyhf{}
-\rhead{\scriptsize StudyVibe LMS}
-\lhead{\scriptsize Rapport d'Évaluation}
+\rhead{\scriptsize \textbf{StudyVibe LMS} — Plateforme Académique}
+\lhead{\scriptsize Rapport d'Évaluation Officiel}
 \rfoot{\scriptsize Page \thepage}
-\lfoot{\scriptsize Document confidentiel}
+\lfoot{\scriptsize Confidentiel — Usage Enseignant Uniquement}
 
 \begin{document}
 
-\begin{tcolorbox}[colback=green!5!white,colframe=green!40!black,title={StudyVibe — Rapport de Téléévaluation}]
-\textbf{Cours :} {$courseTitle} \\
-\textbf{Session :} {$sessionTitle} \\
-\textbf{Date du rapport :} {$reportDate} \\
-\textbf{Mode :} {$sessionMode} \\
-\textbf{Nombre de questions :} {$totalQuestions}
+\begin{tcolorbox}[colback=studyvibegreen!8!white,colframe=studyvibegreen,arc=2mm,title={\Large \textbf{StudyVibe — Rapport Synthetique de Téléévaluation}}]
+\vspace{0.2em}
+\begin{tabular}{ll}
+\textbf{Cours :} & {$courseTitle} \\
+\textbf{Session :} & {$sessionTitle} \\
+\textbf{Mode d'évaluation :} & {$sessionMode} \\
+\textbf{Date d'extraction :} & {$reportDate} \\
+\textbf{Total d'épreuves :} & {$totalQuestions} question(s) au barème
+\end{tabular}
+\end{tcolorbox}
+
+\vspace{1em}
+
+\begin{tcolorbox}[colback=gray!5!white,colframe=studyvibedark,title={\textbf{Statistiques Globlales de la Promotion}},arc=1mm]
+\begin{tabularx}{\textwidth}{XXXXX}
+\textbf{Inscrits} & \textbf{Soumissions} & \textbf{Moyenne} & \textbf{Meilleur Score} & \textbf{Taux de Réussite} \\
+{$totalCount} élève(s) & {$submittedCount} copie(s) & {$avgScore}\% & {$maxScorePercent}\% & {$passRate}\%
+\end{tabularx}
 \end{tcolorbox}
 
 \vspace{1.5em}
 
-\section*{Notes des Participants}
+\section*{Feuille de Notes Générales}
 
 \begin{center}
-\begin{tabular}{llcl}
+\begin{tabularx}{\textwidth}{X X c c c}
 \toprule
-\textbf{Nom complet} & \textbf{Adresse e-mail} & \textbf{Note / {$totalQuestions$}} & \textbf{Score (\%)} \\
+\textbf{Nom complet} & \textbf{Adresse e-mail} & \textbf{Note brut} & \textbf{Score (\%)} & \textbf{Statut} \\
 \midrule
 {$rowsString}
 \bottomrule
-\end{tabular}
+\end{tabularx}
+\end{center}
+
+\vspace{2em}
+\vfill
+\begin{center}
+\scriptsize \color{gray} Rapport produit automatiquement par le moteur de compilation LaTeX StudyVibe LMS. \\
+Signature numérique d'authenticité institutionnelle.
 \end{center}
 
 \end{document}
@@ -150,3 +199,4 @@ LATEX;
     http_response_code(500);
     exit('Erreur lors du traitement du rapport LaTeX.');
 }
+

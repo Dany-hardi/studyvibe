@@ -408,21 +408,22 @@ function hasCompletedAllLessons(int $studentId, int $courseId): bool
     try {
         $pdo = Database::getInstance();
         
-        // Count total lessons in the course
+        // Count total compulsory lessons in the course
         $stmt = $pdo->prepare("
             SELECT COUNT(*) 
             FROM lessons l
             JOIN chapters ch ON l.chapter_id = ch.id
             WHERE ch.course_id = :course_id
+              AND l.is_compulsory = 1
         ");
         $stmt->execute(['course_id' => $courseId]);
-        $totalLessons = (int)$stmt->fetchColumn();
+        $totalCompulsory = (int)$stmt->fetchColumn();
         
-        if ($totalLessons === 0) {
+        if ($totalCompulsory === 0) {
             return true;
         }
         
-        // Count completed lessons by this student in this course
+        // Count completed compulsory lessons by this student in this course
         $stmt = $pdo->prepare("
             SELECT COUNT(DISTINCT lp.lesson_id)
             FROM lesson_progress lp
@@ -430,15 +431,16 @@ function hasCompletedAllLessons(int $studentId, int $courseId): bool
             JOIN chapters ch ON l.chapter_id = ch.id
             WHERE lp.student_id = :student_id 
               AND ch.course_id = :course_id 
+              AND l.is_compulsory = 1
               AND lp.completed = 1
         ");
         $stmt->execute([
             'student_id' => $studentId,
             'course_id' => $courseId
         ]);
-        $completedLessons = (int)$stmt->fetchColumn();
+        $completedCompulsory = (int)$stmt->fetchColumn();
         
-        return $completedLessons >= $totalLessons;
+        return $completedCompulsory >= $totalCompulsory;
     } catch (PDOException $e) {
         return false;
     }
