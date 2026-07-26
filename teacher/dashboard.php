@@ -2727,8 +2727,10 @@ $successMsg = $successMessages[$successKey] ?? null;
 
                                 <?php if (!empty($lesAsg['assignment_instructions'])): ?>
                                     <div class="px-5 py-3 bg-amber-50/50 dark:bg-amber-900/10 border-b border-[#E5E5E7] dark:border-[#2C2C2C] text-xs text-[#555555] dark:text-[#CCCCCC]">
-                                        <strong class="font-semibold text-[#111111] dark:text-white">Consigne du devoir :</strong>
-                                        <?= nl2br(htmlspecialchars($lesAsg['assignment_instructions'])); ?>
+                                        <strong class="font-semibold text-[#111111] dark:text-white block mb-1">Consigne du devoir :</strong>
+                                        <div class="assignment-instructions-render math-render space-y-1" data-instructions="<?= htmlspecialchars($lesAsg['assignment_instructions']); ?>">
+                                            <?= nl2br(htmlspecialchars($lesAsg['assignment_instructions'])); ?>
+                                        </div>
                                     </div>
                                 <?php endif; ?>
 
@@ -3316,7 +3318,13 @@ $successMsg = $successMessages[$successKey] ?? null;
                     </div>
                     <div>
                         <label class="block text-[11px] font-semibold text-[#555555] dark:text-[#AAAAAA] mb-1">Instructions détaillées &amp; Modalités de rendu</label>
-                        <textarea name="assignment_instructions" id="lesson-assignment-instructions" rows="3" placeholder="Expliquez l'exercice à accomplir (Markdown &amp; LaTeX supportés), la nature des fichiers ou liens attendus..." class="w-full px-3 py-1.5 bg-[#F5F5F7] dark:bg-[#1E1E1E] border border-[#E5E5E7] dark:border-[#2C2C2C] text-xs focus:outline-none focus:border-[#004B23] rounded-sm font-mono dark:text-white"></textarea>
+                        <textarea name="assignment_instructions" id="lesson-assignment-instructions" rows="4" placeholder="Expliquez l'exercice à accomplir (Markdown &amp; LaTeX supportés, ex: $E = mc^2$ ou **Consignes**), la nature des fichiers ou liens attendus..." class="w-full px-3 py-1.5 bg-[#F5F5F7] dark:bg-[#1E1E1E] border border-[#E5E5E7] dark:border-[#2C2C2C] text-xs focus:outline-none focus:border-[#004B23] rounded-sm font-mono dark:text-white"></textarea>
+                        
+                        <!-- Zone d'aperçu en direct (Markdown & LaTeX) -->
+                        <div id="assignment-instructions-preview-wrapper" class="hidden mt-2 p-3 bg-[#F9F9FB] dark:bg-[#1A1A1A] border border-[#E5E5E7] dark:border-[#2C2C2C] rounded-sm">
+                            <div class="text-[10px] font-semibold uppercase tracking-widest text-[#888888] mb-1">Aperçu en direct (Markdown &amp; LaTeX) :</div>
+                            <div id="assignment-instructions-preview" class="text-xs text-[#333333] dark:text-[#E0E0E0] leading-relaxed space-y-2 math-render"></div>
+                        </div>
                     </div>
                     <div>
                         <label class="block text-[11px] font-semibold text-[#555555] dark:text-[#AAAAAA] mb-1">Date limite de rendu (Optionnelle)</label>
@@ -4168,6 +4176,7 @@ function openEditLessonModal(lesson) {
     }
     document.getElementById('lesson-assignment-instructions').value = lesson.assignment_instructions || '';
     document.getElementById('lesson-assignment-deadline').value = lesson.assignment_deadline ? lesson.assignment_deadline.substring(0, 16).replace(' ', 'T') : '';
+    updateAssignmentInstructionsPreview();
 
     // Texte
     document.getElementById('lesson-text-input').value = lesson.text_content || '';
@@ -4204,6 +4213,7 @@ function resetLessonModal() {
     document.getElementById('lesson-assignment-title').value = '';
     document.getElementById('lesson-assignment-instructions').value = '';
     document.getElementById('lesson-assignment-deadline').value = '';
+    updateAssignmentInstructionsPreview();
     document.getElementById('video-rows').innerHTML    = '';
     document.getElementById('resource-rows').innerHTML = '';
     switchLessonTextTab('edit');
@@ -5499,6 +5509,62 @@ function insertFormatIntoLesson(type) {
     input.setSelectionRange(start + cursorOffset, start + cursorOffset);
     updateLessonLivePreview();
 }
+
+function updateAssignmentInstructionsPreview() {
+    const textarea = document.getElementById('lesson-assignment-instructions');
+    const wrapper = document.getElementById('assignment-instructions-preview-wrapper');
+    const preview = document.getElementById('assignment-instructions-preview');
+    if (!textarea || !wrapper || !preview) return;
+
+    const val = textarea.value.trim();
+    if (val.length > 0) {
+        wrapper.classList.remove('hidden');
+        preview.innerHTML = typeof renderMarkdownAndMath === 'function' ? renderMarkdownAndMath(val) : val.replace(/\n/g, '<br>');
+        if (typeof renderMathInElement === 'function') {
+            renderMathInElement(preview, {
+                delimiters: [
+                    {left: '$$', right: '$$', display: true},
+                    {left: '$', right: '$', display: false},
+                    {left: '\\(', right: '\\)', display: false},
+                    {left: '\\[', right: '\\]', display: true}
+                ],
+                throwOnError: false
+            });
+        }
+    } else {
+        wrapper.classList.add('hidden');
+        preview.innerHTML = '';
+    }
+}
+
+document.addEventListener('DOMContentLoaded', function() {
+    const asgInput = document.getElementById('lesson-assignment-instructions');
+    if (asgInput) {
+        asgInput.addEventListener('input', updateAssignmentInstructionsPreview);
+        asgInput.addEventListener('keyup', updateAssignmentInstructionsPreview);
+        asgInput.addEventListener('paste', function() {
+            setTimeout(updateAssignmentInstructionsPreview, 50);
+        });
+    }
+
+    document.querySelectorAll('.assignment-instructions-render[data-instructions]').forEach(function(el) {
+        const raw = el.getAttribute('data-instructions');
+        if (raw && typeof renderMarkdownAndMath === 'function') {
+            el.innerHTML = renderMarkdownAndMath(raw);
+            if (typeof renderMathInElement === 'function') {
+                renderMathInElement(el, {
+                    delimiters: [
+                        {left: '$$', right: '$$', display: true},
+                        {left: '$', right: '$', display: false},
+                        {left: '\\(', right: '\\)', display: false},
+                        {left: '\\[', right: '\\]', display: true}
+                    ],
+                    throwOnError: false
+                });
+            }
+        }
+    });
+});
 </script>
 
 <!-- Modal d'aperçu et de validation de QCM (CSV / Excel) -->
