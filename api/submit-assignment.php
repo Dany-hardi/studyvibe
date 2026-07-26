@@ -20,7 +20,7 @@ $studentId = (int)$_SESSION['user_id'];
 $lessonId  = (int)($_POST['lesson_id'] ?? 0);
 $studentName = trim((string)($_POST['student_name'] ?? ''));
 $studentMatricule = trim((string)($_POST['student_matricule'] ?? ''));
-$link      = trim((string)($_POST['submitted_link'] ?? ''));
+$link      = trim((string)($_POST['assignment_link'] ?? $_POST['submitted_link'] ?? ''));
 $comment   = trim((string)($_POST['student_comment'] ?? ''));
 
 if ($lessonId <= 0) {
@@ -111,9 +111,9 @@ try {
         $fileName = $file['name'];
     }
 
-    // Validate link if provided
+    // Format link if provided
     if (!empty($link)) {
-        if (!filter_var($link, FILTER_VALIDATE_URL) && !str_starts_with($link, 'http://') && !str_starts_with($link, 'https://')) {
+        if (!preg_match('~^https?://~i', $link)) {
             $link = 'https://' . $link;
         }
     }
