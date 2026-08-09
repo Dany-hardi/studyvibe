@@ -287,6 +287,15 @@ class Database
             // Migration 2.15: Student name & matricule tracking on assignment submissions
             try { self::$instance->exec("ALTER TABLE `lesson_assignment_submissions` ADD COLUMN `student_name` VARCHAR(255) DEFAULT NULL"); } catch (PDOException $ex) {}
             try { self::$instance->exec("ALTER TABLE `lesson_assignment_submissions` ADD COLUMN `student_matricule` VARCHAR(64) DEFAULT NULL"); } catch (PDOException $ex) {}
+
+            // Migration 2.16: Student matricule column in users table
+            try {
+                self::$instance->query("SELECT matricule FROM users LIMIT 1");
+            } catch (PDOException $e) {
+                try {
+                    self::$instance->exec("ALTER TABLE `users` ADD COLUMN `matricule` VARCHAR(64) DEFAULT NULL AFTER `name`");
+                } catch (PDOException $ex) {}
+            }
         }
         
         return self::$instance;

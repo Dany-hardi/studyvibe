@@ -38,25 +38,43 @@ $pdo = Database::getInstance();
 
 try {
     // =========================================================================
-    // SECTION 2: NAME UPDATE CONTROLLER
+    // SECTION 2: NAME AND MATRICULE UPDATE CONTROLLER
     // =========================================================================
-    if (isset($_POST['name'])) {
-        $name = trim((string)$_POST['name']);
-        
-        if (empty($name)) {
-            echo json_encode([
-                'success' => false,
-                'message' => 'Le nom complet ne peut pas être vide.'
-            ]);
-            exit;
+    if (isset($_POST['name']) || isset($_POST['matricule'])) {
+        $updates = [];
+        $params  = ['id' => $studentId];
+
+        if (isset($_POST['name'])) {
+            $name = trim((string)$_POST['name']);
+            if (empty($name)) {
+                echo json_encode(['success' => false, 'message' => 'Le nom complet ne peut pas être vide.']);
+                exit;
+            }
+            $updates[] = 'name = :name';
+            $params['name'] = $name;
         }
 
-        $stmt = $pdo->prepare("UPDATE users SET name = :name WHERE id = :id");
-        $stmt->execute(['name' => $name, 'id' => $studentId]);
+        if (isset($_POST['matricule'])) {
+            $matricule = trim((string)$_POST['matricule']);
+            if (empty($matricule)) {
+                echo json_encode(['success' => false, 'message' => 'Le numéro de matricule ne peut pas être vide.']);
+                exit;
+            }
+            $updates[] = 'matricule = :matricule';
+            $params['matricule'] = strtoupper($matricule);
+            $_SESSION['user_matricule'] = strtoupper($matricule);
+        }
+
+        if (!empty($updates)) {
+            $sql = "UPDATE users SET " . implode(', ', $updates) . " WHERE id = :id";
+            $stmt = $pdo->prepare($sql);
+            $stmt->execute($params);
+        }
 
         echo json_encode([
             'success' => true,
-            'message' => 'Nom mis à jour avec succès.'
+            'message' => 'Profil mis à jour avec succès.',
+            'matricule' => $_SESSION['user_matricule'] ?? ''
         ]);
         exit;
     }

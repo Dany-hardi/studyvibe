@@ -5958,5 +5958,162 @@ document.addEventListener('DOMContentLoaded', function() {
         </div>
     </div>
 </div>
+
+<!-- MODAL: CONVERSION DE BAREME ET PREVISUALISATION DU RAPPORT CSV -->
+<div id="modal-score-converter" class="fixed inset-0 bg-black/60 backdrop-blur-sm z-[9999] hidden flex items-center justify-center p-4">
+    <div class="bg-white dark:bg-[#1E1E1E] max-w-2xl w-full border border-[#E5E5E7] dark:border-[#2C2C2C] rounded-lg shadow-2xl overflow-hidden flex flex-col max-h-[90vh]">
+        <!-- En-tête -->
+        <div class="px-6 py-4 border-b border-[#E5E5E7] dark:border-[#2C2C2C] flex justify-between items-center bg-[#F5F5F7] dark:bg-[#252525]">
+            <div>
+                <h3 class="font-serif text-lg font-bold text-[#111111] dark:text-white" id="converter-session-title">Conversion du Barème &amp; Export CSV</h3>
+                <p class="text-xs text-[#888888]">Ajustez la note maximale et prévisualisez avant téléchargement</p>
+            </div>
+            <button onclick="closeScoreConverterModal()" class="text-gray-400 hover:text-gray-600 dark:hover:text-white text-xl font-bold p-1">&times;</button>
+        </div>
+
+        <!-- Corps du Modal -->
+        <div class="p-6 space-y-6 overflow-y-auto flex-1">
+            <!-- Contrôle du barème -->
+            <div class="grid grid-cols-1 md:grid-cols-2 gap-4 bg-emerald-50/50 dark:bg-emerald-950/20 p-4 border border-emerald-200 dark:border-emerald-900/40 rounded-lg items-center">
+                <div>
+                    <label class="block text-xs font-bold uppercase tracking-wider text-[#555555] dark:text-[#AAAAAA] mb-1">Barème d'Origine</label>
+                    <div class="text-sm font-semibold text-[#111111] dark:text-white" id="converter-orig-scale">... points</div>
+                    <span class="text-[10px] text-gray-500">Calculé d'après le nombre de questions de l'évaluation</span>
+                </div>
+                <div>
+                    <label for="converter-target-input" class="block text-xs font-bold uppercase tracking-wider text-[#004B23] dark:text-[#34C759] mb-1">Convertir la note sur :</label>
+                    <div class="flex items-center gap-2">
+                        <input type="number" id="converter-target-input" min="1" max="1000" step="0.5" value="30" oninput="updateScorePreviewLive()"
+                            class="w-full px-3 py-2 bg-white dark:bg-[#2C2C2E] border border-emerald-300 dark:border-emerald-700 text-sm font-bold text-[#004B23] dark:text-[#34C759] focus:outline-none focus:ring-2 focus:ring-[#004B23] rounded-sm">
+                        <span class="text-xs font-bold text-gray-600 dark:text-gray-300">pts</span>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Tableau de prévisualisation -->
+            <div>
+                <div class="flex justify-between items-center mb-2">
+                    <h4 class="text-xs font-bold uppercase tracking-wider text-[#555555] dark:text-[#AAAAAA]">Aperçu du Rapport CSV</h4>
+                    <span id="converter-student-count" class="text-[11px] font-medium text-gray-500">0 étudiant(s)</span>
+                </div>
+                
+                <div class="border border-[#E5E5E7] dark:border-[#2C2C2C] rounded-sm overflow-hidden max-h-64 overflow-y-auto">
+                    <table class="w-full text-xs text-left">
+                        <thead class="bg-gray-100 dark:bg-[#252525] text-gray-700 dark:text-gray-300 font-semibold border-b border-[#E5E5E7] dark:border-[#2C2C2C] sticky top-0">
+                            <tr>
+                                <th class="p-2.5 font-mono">matricule</th>
+                                <th class="p-2.5">nom_prenom</th>
+                                <th class="p-2.5 text-right text-gray-400 font-normal">Originale</th>
+                                <th class="p-2.5 text-right font-bold text-[#004B23] dark:text-[#34C759]">note</th>
+                            </tr>
+                        </thead>
+                        <tbody id="converter-preview-tbody" class="divide-y divide-gray-100 dark:divide-[#2C2C2C] bg-white dark:bg-[#1E1E1E]">
+                            <!-- Generated rows -->
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+        </div>
+
+        <!-- Pied du Modal -->
+        <div class="px-6 py-4 border-t border-[#E5E5E7] dark:border-[#2C2C2C] bg-[#F5F5F7] dark:bg-[#252525] flex justify-between items-center">
+            <button type="button" onclick="closeScoreConverterModal()" class="px-4 py-2 border border-gray-300 text-xs font-semibold uppercase tracking-wider rounded-sm hover:bg-gray-100">
+                Annuler
+            </button>
+            <button type="button" onclick="downloadConvertedCsv()" class="px-6 py-2.5 bg-[#004B23] text-white text-xs font-semibold uppercase tracking-widest hover:bg-[#003d1c] transition-all rounded-sm shadow-md flex items-center gap-2">
+                <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4"/></svg>
+                Télécharger le CSV
+            </button>
+        </div>
+    </div>
+</div>
+
+<script>
+let currentConverterSessionId = 0;
+let currentConverterData = null;
+
+function openScoreConverterModal(sessionId) {
+    currentConverterSessionId = sessionId;
+    const modal = document.getElementById('modal-score-converter');
+    modal.classList.remove('hidden');
+    
+    // Fetch preview data
+    fetchScorePreview();
+}
+
+function closeScoreConverterModal() {
+    document.getElementById('modal-score-converter').classList.add('hidden');
+}
+
+function fetchScorePreview() {
+    const targetScaleInput = document.getElementById('converter-target-input');
+    const targetScale = targetScaleInput ? targetScaleInput.value : 30;
+    const tbody = document.getElementById('converter-preview-tbody');
+    tbody.innerHTML = `<tr><td colspan="4" class="p-4 text-center text-gray-400 italic">Chargement de l'aperçu...</td></tr>`;
+
+    fetch(`/teacher/export-live-csv.php?session_id=${currentConverterSessionId}&target_scale=${targetScale}&preview=1`)
+    .then(r => r.json())
+    .then(data => {
+        if (data.success) {
+            currentConverterData = data;
+            document.getElementById('converter-session-title').textContent = data.session_title;
+            document.getElementById('converter-orig-scale').textContent = `${data.original_scale} points`;
+            document.getElementById('converter-student-count').textContent = `${data.students.length} étudiant(s)`;
+            
+            if (targetScaleInput && (!targetScaleInput.value || targetScaleInput.value == 30)) {
+                targetScaleInput.value = data.target_scale;
+            }
+
+            renderPreviewTable(data.students);
+        } else {
+            tbody.innerHTML = `<tr><td colspan="4" class="p-4 text-center text-red-500 font-semibold">${data.message}</td></tr>`;
+        }
+    })
+    .catch(err => {
+        tbody.innerHTML = `<tr><td colspan="4" class="p-4 text-center text-red-500 font-semibold">Erreur réseau : ${err.message}</td></tr>`;
+    });
+}
+
+function updateScorePreviewLive() {
+    if (!currentConverterData) return;
+    const targetScale = parseFloat(document.getElementById('converter-target-input').value) || currentConverterData.original_scale;
+    const origScale = currentConverterData.original_scale;
+
+    currentConverterData.students.forEach(s => {
+        const rawPct = (origScale > 0) ? (s.raw_score / origScale) : 0;
+        const conv = Math.round(rawPct * targetScale * 100) / 100;
+        s.converted_score = conv;
+        s.note = (conv % 1 === 0) ? String(Math.round(conv)) : String(conv);
+    });
+
+    renderPreviewTable(currentConverterData.students);
+}
+
+function renderPreviewTable(students) {
+    const tbody = document.getElementById('converter-preview-tbody');
+    if (!students || students.length === 0) {
+        tbody.innerHTML = `<tr><td colspan="4" class="p-4 text-center text-gray-400 italic">Aucun participant enregistré dans cette évaluation.</td></tr>`;
+        return;
+    }
+
+    let html = '';
+    students.forEach(s => {
+        html += `
+        <tr class="hover:bg-gray-50 dark:hover:bg-[#252525]">
+            <td class="p-2.5 font-mono text-gray-600 dark:text-gray-300 font-bold">${escapeHTML(s.matricule)}</td>
+            <td class="p-2.5 font-medium text-gray-900 dark:text-white">${escapeHTML(s.nom_prenom)}</td>
+            <td class="p-2.5 text-right text-gray-400 font-mono">${s.raw_score} / ${currentConverterData.original_scale}</td>
+            <td class="p-2.5 text-right font-bold font-mono text-[#004B23] dark:text-[#34C759] text-sm">${s.note}</td>
+        </tr>`;
+    });
+    tbody.innerHTML = html;
+}
+
+function downloadConvertedCsv() {
+    const targetScale = document.getElementById('converter-target-input').value;
+    window.location.href = `/teacher/export-live-csv.php?session_id=${currentConverterSessionId}&target_scale=${targetScale}`;
+    closeScoreConverterModal();
+}
+</script>
 </body>
 </html>

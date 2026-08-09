@@ -52,7 +52,7 @@ function getCurrentUser(): ?array
     if (!isLoggedIn()) return null;
     try {
         $pdo  = Database::getInstance();
-        $stmt = $pdo->prepare("SELECT id, name, email, role, avatar_path, email_verified_at, is_active FROM users WHERE id = :id");
+        $stmt = $pdo->prepare("SELECT id, name, email, role, avatar_path, email_verified_at, is_active, matricule FROM users WHERE id = :id");
         $stmt->execute(['id' => $_SESSION['user_id']]);
         return $stmt->fetch() ?: null;
     } catch (PDOException $e) {

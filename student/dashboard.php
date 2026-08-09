@@ -1021,6 +1021,12 @@ try {
                         <input type="text" id="profile-name" value="<?= htmlspecialchars($user['name']); ?>"
                             class="w-full px-4 py-2 bg-[#F5F5F7] border border-[#E5E5E7] text-sm focus:outline-none focus:border-[#004B23] focus:bg-[#FFFFFF] transition-all rounded-sm">
                     </div>
+
+                    <div>
+                        <label for="profile-matricule" class="block text-xs font-semibold uppercase tracking-wider text-[#555555] mb-2">Matricule Académique</label>
+                        <input type="text" id="profile-matricule" value="<?= htmlspecialchars($user['matricule'] ?? ''); ?>" placeholder="ex: 24U0123"
+                            class="w-full px-4 py-2 bg-[#F5F5F7] border border-[#E5E5E7] text-sm focus:outline-none focus:border-[#004B23] focus:bg-[#FFFFFF] transition-all rounded-sm font-mono uppercase tracking-wider">
+                    </div>
                     
                     <button onclick="updateProfileName()"
                         class="px-6 py-2.5 bg-[#111111] text-[#FFFFFF] text-xs font-semibold uppercase tracking-widest hover:bg-[#004B23] transition-all rounded-sm">
@@ -1682,12 +1688,14 @@ try {
          */
         function updateProfileName() {
             const newName = document.getElementById('profile-name').value.trim();
+            const newMatricule = document.getElementById('profile-matricule')?.value.trim() || '';
             const statusLabel = document.getElementById('profile-status');
             
             if (newName === '') return;
 
             const formData = new FormData();
             formData.append('name', newName);
+            formData.append('matricule', newMatricule);
 
             fetch('/student/update-profile.php', {
                 method: 'POST',
@@ -1702,6 +1710,12 @@ try {
                     document.querySelectorAll('.id-student-name').forEach(el => {
                         el.textContent = newName;
                     });
+
+                    // Hide prompt modal if present
+                    const alertModal = document.getElementById('matricule-alert-modal');
+                    if (alertModal && newMatricule !== '') {
+                        alertModal.remove();
+                    }
                     
                     setTimeout(() => statusLabel.classList.add('hidden'), 3000);
                 } else {
@@ -3526,5 +3540,62 @@ try {
             </button>
         </div>
     </div>
+
+    <!-- MODAL ALERT AUTOMATIQUE: SAISIE DU MATRICULE OBLIGATOIRE -->
+    <?php if (empty($user['matricule'])): ?>
+    <div id="matricule-alert-modal" class="fixed inset-0 bg-black/75 backdrop-blur-md z-[9999] flex items-center justify-center p-4">
+        <div class="bg-white dark:bg-[#1E1E1E] p-6 md:p-8 max-w-md w-full border border-[#E5E5E7] dark:border-[#2C2C2C] shadow-2xl space-y-6 rounded-lg">
+            <div class="flex items-center gap-3 border-b border-[#E5E5E7] dark:border-[#2C2C2C] pb-4">
+                <div class="p-3 bg-amber-100 dark:bg-amber-900/40 text-amber-800 dark:text-amber-300 rounded-lg flex-shrink-0">
+                    <svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z"/>
+                    </svg>
+                </div>
+                <div>
+                    <h3 class="font-serif text-lg font-bold text-[#111111] dark:text-white">Matricule Académique Requis</h3>
+                    <p class="text-xs text-[#888888]">Configuration obligatoire de votre compte</p>
+                </div>
+            </div>
+            
+            <p class="text-xs text-[#555555] dark:text-[#CCCCCC] leading-relaxed">
+                Afin d'enregistrer vos notes d'évaluations et de générer vos rapports et relevés académiques, vous devez renseigner votre <strong>Numéro de Matricule</strong>.
+            </p>
+
+            <form id="matricule-alert-form" class="space-y-4" onsubmit="submitQuickMatricule(event)">
+                <div>
+                    <label class="block text-xs font-semibold uppercase tracking-wider text-[#555555] dark:text-[#AAAAAA] mb-1.5">Saisissez votre Matricule</label>
+                    <input type="text" id="quick-matricule-input" required placeholder="ex: 24U0123"
+                        class="w-full px-4 py-2.5 bg-[#F5F5F7] dark:bg-[#2C2C2E] border border-[#E5E5E7] dark:border-[#3C3C3E] text-sm focus:outline-none focus:border-[#004B23] dark:focus:border-[#34C759] rounded-sm uppercase tracking-wider font-mono">
+                </div>
+                <div id="quick-matricule-error" class="hidden text-xs text-[#D32F2F] font-medium"></div>
+                <button type="submit" class="w-full py-3 bg-[#004B23] text-white text-xs font-semibold uppercase tracking-widest hover:bg-[#003d1c] transition-all rounded-sm shadow-md">
+                    Enregistrer et Continuer
+                </button>
+            </form>
+        </div>
+    </div>
+    <script>
+    function submitQuickMatricule(e) {
+        e.preventDefault();
+        const val = document.getElementById('quick-matricule-input').value.trim();
+        if (!val) return;
+        const formData = new FormData();
+        formData.append('matricule', val);
+        fetch('/student/update-profile.php', { method: 'POST', body: formData })
+        .then(r => r.json())
+        .then(d => {
+            if (d.success) {
+                document.getElementById('matricule-alert-modal')?.remove();
+                const profMat = document.getElementById('profile-matricule');
+                if (profMat) profMat.value = val.toUpperCase();
+                if (window.Toast) Toast.success("Matricule enregistré avec succès !");
+            } else {
+                const err = document.getElementById('quick-matricule-error');
+                if (err) { err.textContent = d.message; err.classList.remove('hidden'); }
+            }
+        });
+    }
+    </script>
+    <?php endif; ?>
 </body>
 </html>
