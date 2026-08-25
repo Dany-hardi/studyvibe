@@ -129,6 +129,17 @@ try {
             default => 'application/octet-stream',
         };
 
+    } elseif ($type === 'live_question') {
+        $path = __DIR__ . '/uploads/live_questions/' . $file;
+        $ext  = strtolower(pathinfo($file, PATHINFO_EXTENSION));
+        $mime = match ($ext) {
+            'jpg', 'jpeg' => 'image/jpeg',
+            'png'         => 'image/png',
+            'webp'        => 'image/webp',
+            'gif'         => 'image/gif',
+            default       => 'image/jpeg',
+        };
+
     } else {
         http_response_code(400);
         exit('Type de fichier non supporté.');

@@ -2190,48 +2190,59 @@ $successMsg = $successMessages[$successKey] ?? null;
 
             <!-- 3. TÉLÉÉVALUATIONS (tab-live-eval) -->
             <div id="tab-live-eval" class="tab-content hidden space-y-12 animate-fade-in">
-                <div class="flex justify-between items-center mb-6">
-                    <div class="flex items-center gap-2">
-                        <span class="w-2.5 h-2.5 rounded-full bg-red-500 animate-pulse"></span>
-                        <h3 class="font-serif text-2xl font-light">Téléévaluations Synchrones (Live)</h3>
+                <div class="flex flex-col md:flex-row md:items-center justify-between gap-4 border-b border-[#E5E5E7] dark:border-[#2C2C2C] pb-6">
+                    <div>
+                        <div class="inline-flex items-center gap-2 px-3 py-1 bg-red-500/10 text-red-700 dark:text-red-400 text-xs font-semibold uppercase tracking-wider rounded-full mb-2">
+                            <span class="w-2 h-2 rounded-full bg-red-500 animate-pulse"></span>
+                            Téléévaluations Synchrones (Live QuizBox)
+                        </div>
+                        <h2 class="font-serif text-3xl font-light text-[#111111] dark:text-white">Gestion des Séances Live</h2>
+                        <p class="text-sm text-[#555555] dark:text-[#AAAAAA] mt-1">Créez, superviser en direct et configurez les modalités de passage des évaluations interactives.</p>
                     </div>
+
+                    <?php if ($selectedCourse): ?>
+                        <button type="button" onclick="toggleModal('add-live-session-modal')"
+                                class="px-4 py-2.5 bg-[#004B23] text-white text-xs font-semibold uppercase tracking-wider rounded-lg hover:bg-[#003d1c] transition-all flex items-center gap-2 shadow-sm flex-shrink-0">
+                            <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 4v16m8-8H4"/></svg>
+                            + Nouvelle séance
+                        </button>
+                    <?php endif; ?>
                 </div>
 
-                <!-- Section 1 : Bouton / Formulaire de création de séance -->
-                <div class="mb-8 border-b border-[#E5E5E7] pb-6 bg-white p-6 border border-[#E5E5E7] rounded-sm">
-                    <button onclick="toggleAccordion('add-live-session-form')" class="px-4 py-2 bg-[#004B23] text-white text-xs font-semibold uppercase tracking-wider rounded-sm hover:bg-[#003d1c] transition-colors flex items-center gap-2">
-                        <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 4v16m8-8H4"/></svg>
-                        Créer une nouvelle séance
-                    </button>
-
-                    <form id="add-live-session-form" method="POST" action="/teacher/dashboard.php?course_id=<?= $selectedCourse['id'] ?>&action=add_live_session" class="hidden mt-4 p-5 bg-[#F5F5F7] border border-[#E5E5E7] rounded-sm space-y-4">
-                        <?= csrfInput(); ?>
-                        <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
-                            <div>
-                                <label class="block text-xs font-semibold text-[#555555] uppercase tracking-wider mb-2">Titre de la Séance</label>
-                                <input type="text" name="live_title" required placeholder="Ex: Examen Intra-semestriel" class="w-full px-3 py-2 border border-[#E5E5E7] rounded-sm focus:outline-none focus:border-[#004B23] text-sm bg-white">
+                <!-- Banner : Lobby d'inscriptions et monitoring en temps réel -->
+                <?php 
+                $hasActiveSession = false;
+                foreach ($liveSessions as $_ls) {
+                    if ((int)$_ls['status'] === 1 && !$_ls['is_finished']) {
+                        $hasActiveSession = true;
+                        break;
+                    }
+                }
+                ?>
+                <?php if ($hasActiveSession): ?>
+                    <div class="p-6 bg-gradient-to-r from-[#004B23]/10 via-emerald-500/5 to-transparent border border-[#004B23]/20 rounded-xl flex flex-col md:flex-row items-start md:items-center justify-between gap-6 shadow-sm">
+                        <div class="space-y-1">
+                            <div class="flex items-center gap-2">
+                                <span class="relative flex h-3 w-3">
+                                  <span class="animate-ping absolute inline-flex h-full w-full rounded-full bg-green-400 opacity-75"></span>
+                                  <span class="relative inline-flex rounded-full h-3 w-3 bg-green-500"></span>
+                                </span>
+                                <h4 class="text-base font-semibold text-[#004B23] dark:text-[#34C759]">Salle d'Attente Active (Lobby de Télé-Évaluation)</h4>
                             </div>
-                            <div>
-                                <label class="block text-xs font-semibold text-[#555555] uppercase tracking-wider mb-2">Temps par question (secondes)</label>
-                                <input type="number" name="default_time_limit" required value="30" min="5" class="w-full px-3 py-2 border border-[#E5E5E7] rounded-sm focus:outline-none focus:border-[#004B23] text-sm bg-white">
-                            </div>
+                            <p class="text-xs text-[#555555] dark:text-[#AAAAAA]">Les inscriptions des apprenants et leurs présences en direct sont actualisées automatiquement.</p>
                         </div>
-                        <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
-                            <div>
-                                <label class="block text-xs font-semibold text-[#555555] uppercase tracking-wider mb-2">Date/Heure de Début</label>
-                                <input type="datetime-local" name="live_start_time" required class="w-full px-3 py-2 border border-[#E5E5E7] rounded-sm focus:outline-none focus:border-[#004B23] text-sm bg-white">
+                        <div class="flex items-center gap-6 text-xs">
+                            <div class="text-center px-4 py-2 bg-white dark:bg-[#1E1E1E] border border-[#E5E5E7] dark:border-[#2C2C2C] rounded-lg shadow-xs">
+                                <span class="block text-[10px] text-[#888888] uppercase font-bold tracking-wider">Supervision</span>
+                                <span class="font-bold text-[#004B23] dark:text-[#34C759] text-sm">Temps Réel</span>
                             </div>
-                            <div>
-                                <label class="block text-xs font-semibold text-[#555555] uppercase tracking-wider mb-2">Date/Heure de Fin</label>
-                                <input type="datetime-local" name="live_end_time" required class="w-full px-3 py-2 border border-[#E5E5E7] rounded-sm focus:outline-none focus:border-[#004B23] text-sm bg-white">
-                            </div>
+                            <button type="button" onclick="pollTeacherLiveStats()" class="px-3 py-2 bg-[#111111] dark:bg-white text-white dark:text-[#111111] text-[11px] font-semibold uppercase tracking-wider rounded-lg hover:opacity-90 transition-opacity flex items-center gap-1.5">
+                                <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 4v5h.582m15.356 2A8.001 8.001 0 1121.21 7.89M9 11l3-3 3 3m-3-3v12"/></svg>
+                                Actualiser
+                            </button>
                         </div>
-                        <div class="flex justify-end gap-3 pt-2">
-                            <button type="button" onclick="toggleAccordion('add-live-session-form')" class="px-4 py-2 border border-[#E5E5E7] text-xs font-semibold uppercase tracking-wider rounded-sm text-[#555555] hover:bg-gray-50 bg-white">Annuler</button>
-                            <button type="submit" class="px-4 py-2 bg-[#111111] text-white text-xs font-semibold uppercase tracking-wider rounded-sm hover:bg-black">Enregistrer</button>
-                        </div>
-                    </form>
-                </div>
+                    </div>
+                <?php endif; ?>
 
                 <!-- Section 2 : Liste des séances existantes -->
                 <h4 class="text-xs font-semibold text-[#555555] uppercase tracking-wider mb-4">Séances configurées</h4>
@@ -3812,6 +3823,64 @@ $successMsg = $successMessages[$successKey] ?? null;
 </div>
 <?php endif; ?>
 
+<!-- ── Modal : Créer une séance de téléévaluation ────────── -->
+<div id="add-live-session-modal" class="hidden fixed inset-0 bg-black/40 backdrop-blur-sm z-[60] flex items-center justify-center p-6">
+    <div class="bg-white dark:bg-[#1E1E1E] p-8 max-w-lg w-full border border-[#E5E5E7] dark:border-[#2C2C2C] rounded-xl modal-inner shadow-2xl">
+        <div class="flex justify-between items-center mb-6">
+            <div class="flex items-center gap-2">
+                <div class="w-8 h-8 rounded-full bg-[#004B23]/10 text-[#004B23] dark:text-[#34C759] flex items-center justify-center">
+                    <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 4v16m8-8H4"/></svg>
+                </div>
+                <h3 class="font-serif text-2xl font-light text-[#111111] dark:text-white">Créer une Séance Live</h3>
+            </div>
+            <button type="button" onclick="toggleModal('add-live-session-modal')" class="text-[#888888] hover:text-[#D32F2F]">
+                <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"/>
+                </svg>
+            </button>
+        </div>
+
+        <form method="POST" action="/teacher/dashboard.php?course_id=<?= $selectedCourse['id'] ?? 0 ?>&action=add_live_session" class="space-y-4">
+            <?= csrfInput(); ?>
+            <div>
+                <label class="block text-xs font-semibold text-[#555555] dark:text-[#AAAAAA] uppercase tracking-wider mb-2">Titre de la Séance</label>
+                <input type="text" name="live_title" required placeholder="Ex: Examen Intra-semestriel" class="w-full px-3 py-2 border border-[#E5E5E7] dark:border-[#333333] rounded-lg focus:outline-none focus:border-[#004B23] text-sm bg-white dark:bg-[#121212] dark:text-white">
+            </div>
+            
+            <div>
+                <label class="block text-xs font-semibold text-[#555555] dark:text-[#AAAAAA] uppercase tracking-wider mb-2">Temps par question (secondes)</label>
+                <input type="number" name="default_time_limit" required value="30" min="5" class="w-full px-3 py-2 border border-[#E5E5E7] dark:border-[#333333] rounded-lg focus:outline-none focus:border-[#004B23] text-sm bg-white dark:bg-[#121212] dark:text-white">
+            </div>
+            
+            <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+                <div>
+                    <label class="block text-xs font-semibold text-[#555555] dark:text-[#AAAAAA] uppercase tracking-wider mb-2">Date/Heure Début</label>
+                    <input type="datetime-local" name="live_start_time" required class="w-full px-3 py-2 border border-[#E5E5E7] dark:border-[#333333] rounded-lg focus:outline-none focus:border-[#004B23] text-sm bg-white dark:bg-[#121212] dark:text-white">
+                </div>
+                <div>
+                    <label class="block text-xs font-semibold text-[#555555] dark:text-[#AAAAAA] uppercase tracking-wider mb-2">Date/Heure Fin</label>
+                    <input type="datetime-local" name="live_end_time" required class="w-full px-3 py-2 border border-[#E5E5E7] dark:border-[#333333] rounded-lg focus:outline-none focus:border-[#004B23] text-sm bg-white dark:bg-[#121212] dark:text-white">
+                </div>
+            </div>
+
+            <div class="flex items-center gap-2 py-1">
+                <input type="checkbox" name="is_async" id="add-live-is-async" value="1" onchange="document.getElementById('add-async-deadline-container').classList.toggle('hidden', !this.checked)" class="w-4 h-4 text-[#004B23] border-[#E5E5E7] rounded focus:ring-0">
+                <label for="add-live-is-async" class="text-xs font-semibold text-[#555555] dark:text-[#AAAAAA] uppercase tracking-wider cursor-pointer">Activer Mode Asynchrone (Devoir Libre)</label>
+            </div>
+            
+            <div id="add-async-deadline-container" class="hidden">
+                <label class="block text-xs font-semibold text-[#555555] dark:text-[#AAAAAA] uppercase tracking-wider mb-2">Date Limite Asynchrone</label>
+                <input type="datetime-local" name="async_deadline" class="w-full px-3 py-2 border border-[#E5E5E7] dark:border-[#333333] rounded-lg focus:outline-none focus:border-[#004B23] text-sm bg-white dark:bg-[#121212] dark:text-white">
+            </div>
+            
+            <div class="flex justify-end gap-3 pt-4 border-t border-[#E5E5E7] dark:border-[#2C2C2C]">
+                <button type="button" onclick="toggleModal('add-live-session-modal')" class="px-4 py-2 border border-[#E5E5E7] dark:border-[#3A3A3A] text-xs font-semibold uppercase tracking-wider rounded-lg text-[#555555] dark:text-[#AAAAAA] hover:bg-gray-50 bg-white dark:bg-[#252525]">Annuler</button>
+                <button type="submit" class="px-4 py-2 bg-[#004B23] text-white text-xs font-semibold uppercase tracking-wider rounded-lg hover:bg-[#003d1c]">Créer la séance</button>
+            </div>
+        </form>
+    </div>
+</div>
+
 <!-- ── Modal : Import questions CSV/Excel ─────────────── -->
 <div id="import-questions-modal" class="hidden fixed inset-0 bg-black/40 backdrop-blur-sm z-50 flex items-center justify-center p-6">
     <div class="bg-white p-8 max-w-md w-full border border-[#E5E5E7] space-y-5 modal-inner">
@@ -4285,10 +4354,12 @@ function escapeHtml(str) {
     return s;
 }
 
-// Polling temps réel des séances de téléévaluation côté enseignant
-function pollLiveStats() {
+function pollTeacherLiveStats() {
+    const liveTab = document.getElementById('tab-live-eval');
     const modal = document.getElementById('live-evaluation-modal');
-    if (!modal || modal.classList.contains('hidden')) {
+    const isTabActive = liveTab && !liveTab.classList.contains('hidden');
+    const isModalOpen = modal && !modal.classList.contains('hidden');
+    if (!isTabActive && !isModalOpen) {
         return;
     }
     const params = new URLSearchParams(window.location.search);
@@ -4338,9 +4409,10 @@ function pollLiveStats() {
                 });
             }
         })
-        .catch(err => console.error("Erreur de synchronisation en direct :", err));
+        .catch(err => console.debug("Erreur de synchronisation en direct :", err));
 }
-setInterval(pollLiveStats, 3000);
+function pollLiveStats() { pollTeacherLiveStats(); }
+setInterval(pollTeacherLiveStats, 3000);
 
 // Close modal on backdrop click
 document.querySelectorAll('[id$="-modal"]').forEach(modal => {
@@ -5114,42 +5186,31 @@ function populateLessonGrades() {
                     <table class="w-full text-xs text-left border border-[#E5E5E7] rounded-sm" id="${tableId}">
                         <thead>
                             <tr class="bg-[#F5F5F7] border-b border-[#E5E5E7]">
-                                <th class="px-4 py-3 font-semibold uppercase tracking-wider text-[#555555] text-[10px]">Apprenant</th>
+                                <th class="px-4 py-3 font-semibold uppercase tracking-wider text-[#555555] text-[10px]">Nom de l'apprenant</th>
                                 <th class="px-4 py-3 font-semibold uppercase tracking-wider text-[#555555] text-[10px]">Email</th>
-                                <th class="px-4 py-3 font-semibold uppercase tracking-wider text-[#555555] text-[10px] text-center">Note</th>
-                                <th class="px-4 py-3 font-semibold uppercase tracking-wider text-[#555555] text-[10px] text-center">Bonnes rép.</th>
+                                <th class="px-4 py-3 font-semibold uppercase tracking-wider text-[#555555] text-[10px] text-center">Note finale</th>
                                 <th class="px-4 py-3 font-semibold uppercase tracking-wider text-[#555555] text-[10px] text-center">Statut</th>
-                                <th class="px-4 py-3 font-semibold uppercase tracking-wider text-[#555555] text-[10px] text-right">Date</th>
                             </tr>
                         </thead>
                         <tbody class="divide-y divide-[#E5E5E7]">
                             ${lesson.students.map(s => {
                                 const done_s    = s.status === 'Terminé';
-                                const score     = parseFloat(s.score_percent) || 0;
                                 const correct   = parseInt(s.correct_count) || 0;
-                                const total_q   = parseInt(s.total_questions) || 0;
-                                const date      = s.completed_at ? new Date(s.completed_at).toLocaleDateString('fr-FR', {day:'2-digit',month:'2-digit',year:'numeric'}) : '—';
-                                const barColor  = !done_s ? '#E5E5E7' : score >= 70 ? '#004B23' : score >= 40 ? '#F59E0B' : '#D32F2F';
-                                const barWidth  = done_s ? score : 0;
+                                const total_q   = parseInt(s.total_questions) || parseInt(lesson.total_questions) || 0;
                                 return `<tr class="hover:bg-[#F9F9F9] transition-colors">
                                     <td class="px-4 py-3 font-semibold text-[#111111] whitespace-nowrap">${escHtml(s.student_name)}</td>
                                     <td class="px-4 py-3 text-[#555555] font-light">${escHtml(s.student_email)}</td>
                                     <td class="px-4 py-3 text-center">
-                                        <div class="flex items-center justify-center gap-2">
-                                            <div class="w-16 bg-[#E5E5E7] h-2 rounded-full overflow-hidden flex-shrink-0">
-                                                <div class="h-full rounded-full transition-all" style="width:${barWidth}%;background:${barColor}"></div>
-                                            </div>
-                                            <span class="font-bold text-xs" style="color:${done_s ? barColor : '#888888'}">${done_s ? score.toFixed(1) + '%' : '0%'}</span>
-                                        </div>
+                                        <span class="font-bold text-xs font-mono ${done_s ? 'text-[#004B23]' : 'text-[#888888]'}">
+                                            ${done_s ? `${correct} / ${total_q}` : `0 / ${total_q}`}
+                                        </span>
                                     </td>
-                                    <td class="px-4 py-3 text-center font-mono text-[#555555]">${done_s ? correct + ' / ' + total_q : '—'}</td>
                                     <td class="px-4 py-3 text-center">
                                         ${done_s
                                             ? `<span class="inline-flex items-center gap-1 px-2.5 py-1 rounded-full text-[10px] font-semibold bg-[#DCFCE7] text-[#15803D]">✓ Terminé</span>`
                                             : `<span class="inline-flex items-center gap-1 px-2.5 py-1 rounded-full text-[10px] font-semibold bg-[#F5F5F7] text-[#888888]">○ Non terminé</span>`
                                         }
                                     </td>
-                                    <td class="px-4 py-3 text-right font-mono text-[#888888]">${date}</td>
                                 </tr>`;
                             }).join('')}
                         </tbody>

@@ -677,43 +677,48 @@ try {
                 </div>
             <?php else: ?>
                 <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
-                    <?php foreach ($studentLibraryItems as $item): ?>
-                        <div class="p-5 border border-[#E5E5E7] bg-white rounded-sm hover:shadow-md transition-all flex flex-col justify-between space-y-4">
+                    <?php foreach ($studentLibraryItems as $item): 
+                        $cat = !empty($item['category']) ? $item['category'] : (!empty($item['item_type']) ? $item['item_type'] : 'document');
+                        $vUrl = !empty($item['video_url']) ? $item['video_url'] : (!empty($item['external_url']) ? $item['external_url'] : '');
+                    ?>
+                        <div class="p-5 border border-[#E5E5E7] dark:border-[#2C2C2C] bg-white dark:bg-[#1E1E1E] rounded-sm hover:shadow-md transition-all flex flex-col justify-between space-y-4">
                             <div class="space-y-2">
                                 <div class="flex items-center justify-between gap-2">
-                                    <span class="px-2.5 py-0.5 text-[10px] font-bold uppercase tracking-wider bg-gray-100 text-[#111111] rounded-sm">
-                                        <?= htmlspecialchars(strtoupper($item['item_type'])) ?>
+                                    <span class="px-2.5 py-0.5 text-[10px] font-bold uppercase tracking-wider bg-gray-100 dark:bg-gray-800 text-[#111111] dark:text-white rounded-sm">
+                                        <?= htmlspecialchars(strtoupper((string)$cat)) ?>
                                     </span>
                                     <span class="text-[11px] text-[#888888] font-mono">
                                         <?= date('d/m/Y', strtotime($item['created_at'])) ?>
                                     </span>
                                 </div>
-                                <h3 class="text-base font-semibold text-[#111111] line-clamp-1"><?= htmlspecialchars($item['title']) ?></h3>
-                                <p class="text-xs text-[#004B23] font-medium"><?= htmlspecialchars($item['course_title']) ?></p>
+                                <h3 class="text-base font-semibold text-[#111111] dark:text-white line-clamp-1"><?= htmlspecialchars($item['title']) ?></h3>
+                                <p class="text-xs text-[#004B23] dark:text-[#34C759] font-medium"><?= htmlspecialchars($item['course_title'] ?? '') ?></p>
                                 <?php if (!empty($item['description'])): ?>
-                                    <p class="text-xs text-[#555555] line-clamp-2"><?= htmlspecialchars($item['description']) ?></p>
+                                    <p class="text-xs text-[#555555] dark:text-[#AAAAAA] line-clamp-2"><?= htmlspecialchars($item['description']) ?></p>
                                 <?php endif; ?>
                             </div>
 
-                            <div class="pt-3 border-t border-[#E5E5E7] flex items-center justify-between gap-3">
-                                <?php if ($item['item_type'] === 'file' && !empty($item['file_path'])): ?>
+                            <div class="pt-3 border-t border-[#E5E5E7] dark:border-[#2C2C2C] flex items-center justify-between gap-3">
+                                <?php if (!empty($item['file_path'])): ?>
                                     <a href="/download.php?type=library&file=<?= urlencode(basename($item['file_path'])) ?>" target="_blank"
                                         class="px-4 py-2 bg-[#004B23] text-white text-xs font-semibold uppercase tracking-wider rounded-sm hover:bg-[#003d1c] transition-colors inline-flex items-center gap-2">
                                         <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4"/></svg>
-                                        Télécharger (PDF)
+                                        Télécharger (PDF / Fichier)
                                     </a>
-                                <?php elseif ($item['item_type'] === 'text'): ?>
+                                <?php elseif (!empty($vUrl)): ?>
+                                    <a href="<?= htmlspecialchars($vUrl) ?>" target="_blank"
+                                        class="px-4 py-2 bg-red-700 text-white text-xs font-semibold uppercase tracking-wider rounded-sm hover:bg-red-800 transition-colors inline-flex items-center gap-2">
+                                        <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M14.752 11.168l-3.197-2.132A1 1 0 0010 9.87v4.263a1 1 0 001.555.832l3.197-2.132a1 1 0 000-1.664z"/></svg>
+                                        Visionner Vidéo
+                                    </a>
+                                <?php elseif (!empty($item['content_markdown'])): ?>
                                     <button type="button" onclick="viewLibraryTextModal(<?= htmlspecialchars(json_encode($item)) ?>)"
                                         class="px-4 py-2 bg-[#111111] text-white text-xs font-semibold uppercase tracking-wider rounded-sm hover:bg-[#004B23] transition-colors inline-flex items-center gap-2">
                                         <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z"/><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M2.458 12C3.732 7.943 7.523 5 12 5c4.478 0 8.268 2.943 9.542 7-1.274 4.057-5.064 7-9.542 7-4.477 0-8.268-2.943-9.542-7z"/></svg>
                                         Consulter Texte (LaTeX)
                                     </button>
-                                <?php elseif ($item['item_type'] === 'video' && !empty($item['external_url'])): ?>
-                                    <a href="<?= htmlspecialchars($item['external_url']) ?>" target="_blank"
-                                        class="px-4 py-2 bg-red-700 text-white text-xs font-semibold uppercase tracking-wider rounded-sm hover:bg-red-800 transition-colors inline-flex items-center gap-2">
-                                        <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M14.752 11.168l-3.197-2.132A1 1 0 0010 9.87v4.263a1 1 0 001.555.832l3.197-2.132a1 1 0 000-1.664z"/></svg>
-                                        Visionner Vidéo
-                                    </a>
+                                <?php else: ?>
+                                    <span class="text-xs text-[#888888] italic">Ressource en ligne</span>
                                 <?php endif; ?>
                             </div>
                         </div>

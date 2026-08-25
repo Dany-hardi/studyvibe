@@ -420,7 +420,7 @@ try {
                 'option_b'      => $activeQ['option_b'],
                 'option_c'      => $activeQ['option_c'],
                 'option_d'      => $activeQ['option_d'],
-                'image_path'    => $activeQ['image_path'] ? '/uploads/live_questions/' . $activeQ['image_path'] : null,
+                'image_path'    => !empty($activeQ['image_path']) ? '/download.php?type=live_question&file=' . urlencode(basename($activeQ['image_path'])) : null,
                 'seconds_left'  => $secondsLeft,
                 'question_type' => $activeQ['question_type'] ?? 'mcq',
             ],

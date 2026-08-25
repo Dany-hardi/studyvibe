@@ -2362,6 +2362,16 @@ if (!$error) {
             const imgContainer = document.getElementById('quiz-image-container');
             const imgEl = document.getElementById('quiz-image');
             if (q.image_path) {
+                imgEl.onerror = function() {
+                    const fileOnly = q.image_path.split('file=').pop().split('/').pop();
+                    if (!imgEl.dataset.fallbackTried && fileOnly) {
+                        imgEl.dataset.fallbackTried = 'true';
+                        imgEl.src = '/uploads/live_questions/' + fileOnly;
+                    } else {
+                        imgContainer.classList.add('hidden');
+                    }
+                };
+                imgEl.dataset.fallbackTried = '';
                 imgEl.src = q.image_path;
                 imgContainer.classList.remove('hidden');
             } else {
