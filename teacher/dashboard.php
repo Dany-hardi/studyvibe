@@ -3760,6 +3760,21 @@ try {
         </div>
     </div>
 </div>
+<div id="rv-contest" class="rv-overlay" role="dialog" aria-modal="true" aria-labelledby="rv-contest-title" style="z-index:9100">
+    <div class="rv-card rv-confirm">
+        <h2 class="rv-h" id="rv-contest-title" style="font-size:1.35rem"></h2>
+        <label><?= tde('rv_contest_msg') ?></label>
+        <p id="rv-contest-msg" style="white-space:pre-wrap;background:var(--paper);border-radius:12px;padding:.7rem .9rem;margin:.25rem 0 0"></p>
+        <label class="rv-check" style="margin-top:.9rem"><input type="radio" name="rv-dec" id="rv-dec-accept" checked> <?= tde('rv_dec_accept') ?></label>
+        <label class="rv-check" style="margin-top:.4rem"><input type="radio" name="rv-dec" id="rv-dec-reject"> <?= tde('rv_dec_reject') ?></label>
+        <label for="rv-contest-resp"><?= tde('rv_resp') ?></label>
+        <textarea id="rv-contest-resp" maxlength="1000"></textarea>
+        <div class="rv-row">
+            <button type="button" class="rv-btn" id="rv-contest-no"><?= tde('rv_close') ?></button>
+            <button type="button" class="rv-btn primary" id="rv-contest-ok"><?= tde('rv_send') ?></button>
+        </div>
+    </div>
+</div>
 <script src="/assets/js/results-review.js" defer></script>
 
 <!-- ── Modal : Créer une séance de téléévaluation ────────── -->

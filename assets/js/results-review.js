@@ -72,7 +72,7 @@
     var d = state.data;
     $('rv-title').textContent = d.session.title;
     var s = d.summary;
-    $('rv-sub').textContent = d.session.course + ' · ' + t('rv_summary', { total: s.total, attention: s.attention, suspect: s.suspect, cancelled: s.cancelled });
+    $('rv-sub').textContent = d.session.course + ' · ' + t('rv_summary', { total: s.total, attention: s.attention, suspect: s.suspect, cancelled: s.cancelled, contested: s.contested || 0 });
     var body = $('rv-body');
     body.textContent = '';
     var q = state.q.trim().toLowerCase();
@@ -91,15 +91,28 @@
     rows.forEach(function (r) {
       var tr = el('tr', r.cancelled ? 'is-cancelled' : '');
       tr.appendChild(el('td', 'rv-mat', r.matricule || '—'));
-      tr.appendChild(el('td', '', '')).appendChild(el('span', 'rv-name', r.name));
+      var nameCell = tr.appendChild(el('td', ''));
+      nameCell.appendChild(el('span', 'rv-name', r.name));
+      if (r.contest) {
+        var cc = r.contest.status === 'open' ? 'look' : (r.contest.status === 'accepted' ? 'ok' : 'muted');
+        nameCell.appendChild(document.createElement('br'));
+        nameCell.appendChild(el('span', 'rv-chip ' + cc, r.contest.status === 'open' ? t('rv_contest_chip') : t('rv_cs_' + r.contest.status)));
+      }
       tr.appendChild(el('td', '', r.email));
       tr.appendChild(el('td', 'rv-num', r.mark === null ? '—' : r.mark + ' / ' + r.total));
       tr.appendChild(integrityCell(r));
       var act = el('td');
-      var b = el('button', 'rv-btn sm' + (r.cancelled ? '' : ' danger'), r.cancelled ? t('rv_restore') : t('rv_cancel'));
-      b.type = 'button';
-      b.addEventListener('click', function () { r.cancelled ? restore(r) : askCancel(r); });
-      act.appendChild(b);
+      if (r.contest && r.contest.status === 'open') {
+        var ans = el('button', 'rv-btn sm primary', t('rv_contest_answer'));
+        ans.type = 'button';
+        ans.addEventListener('click', function () { askContest(r); });
+        act.appendChild(ans);
+      } else {
+        var b = el('button', 'rv-btn sm' + (r.cancelled ? '' : ' danger'), r.cancelled ? t('rv_restore') : t('rv_cancel'));
+        b.type = 'button';
+        b.addEventListener('click', function () { r.cancelled ? restore(r) : askCancel(r); });
+        act.appendChild(b);
+      }
       tr.appendChild(act);
       tb.appendChild(tr);
     });
@@ -139,6 +152,27 @@
       close(ov); toast('success', t('rv_cancelled_ok')); load(state.sid);
     });
   }
+  // ---------------------------------------------------------------------------------------------- answering a contestation
+  function askContest(row) {
+    var ov = $('rv-contest');
+    $('rv-contest-title').textContent = t('rv_contest_title', { name: row.name });
+    $('rv-contest-msg').textContent = row.contest.message;
+    $('rv-contest-resp').value = '';
+    $('rv-dec-accept').checked = true;
+    ov.dataset.cid = row.contest.id;
+    open(ov);
+  }
+  function doContest() {
+    var ov = $('rv-contest'), btn = $('rv-contest-ok');
+    var accept = $('rv-dec-accept').checked, resp = $('rv-contest-resp').value.trim();
+    if (!accept && resp.length < 10) { toast('error', t('rv_reason_needed')); return; }
+    btn.disabled = true;
+    post({ action: 'resolve_contest', contest_id: ov.dataset.cid, decision: accept ? 'accept' : 'reject', response: resp }).then(function (res) {
+      btn.disabled = false;
+      if (!res.success) { toast('error', res.error === 'reason_needed' ? t('rv_reason_needed') : t('rv_err')); return; }
+      close(ov); toast('success', t('rv_contest_ok')); load(state.sid);
+    });
+  }
   function restore(row) {
     post({ action: 'restore', registration_id: row.id }).then(function (res) {
       if (!res.success) { toast('error', t('rv_err')); return; }
@@ -165,9 +199,11 @@
     $('rv-search').addEventListener('input', function (e) { state.q = e.target.value; render(); });
     $('rv-confirm-ok').addEventListener('click', doCancel);
     $('rv-confirm-no').addEventListener('click', function () { close($('rv-confirm')); });
+    $('rv-contest-ok').addEventListener('click', doContest);
+    $('rv-contest-no').addEventListener('click', function () { close($('rv-contest')); });
     document.addEventListener('keydown', function (e) {
       if (e.key !== 'Escape') return;
-      ['rv-confirm', 'rv-modal-overlay', 'rv-prompt-overlay'].some(function (id) {
+      ['rv-contest', 'rv-confirm', 'rv-modal-overlay', 'rv-prompt-overlay'].some(function (id) {
         var o = $(id); if (o && o.classList.contains('is-open')) { close(o); return true; } return false;
       });
     });

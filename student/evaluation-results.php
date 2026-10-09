@@ -99,13 +99,10 @@ if ($currentUser['role'] === 'student' && (int)$registration['student_id'] !== $
 }
 
 
-// A result the teacher cancelled is not shown as a score
+// A result the teacher cancelled is not shown as a score: the student is taken to the page where they can read their copy and contest
 if (!empty($registration['cancelled_at'])) {
-    $errorCode = 403;
-    $errorTitle = 'Résultat annulé';
-    $errorMessage = "Votre enseignant a annulé votre résultat pour cette évaluation" . (!empty($registration['cancelled_reason']) ? ' : ' . $registration['cancelled_reason'] : '.') . " Si vous pensez qu'il s'agit d'une erreur, parlez-en à votre enseignant.";
-    $badgeText = 'Annulé';
-    include __DIR__ . '/../error.php';
+    require_once __DIR__ . '/../lib/Contests.php';
+    header('Location: ' . Contests::url((int)$regId));
     exit;
 }
 

@@ -273,14 +273,14 @@ class Mailer
         $isWritten = ($qa['question_type'] ?? 'mcq') === 'written';
         $ok = !empty($qa['answered_correctly']);
         $status = $ok ? ['#E8F2EA', '#24402F', 'Correct (+1)'] : ['#FCE9E6', '#9C2B1F', 'Incorrect (0)'];
-        $out = "<table role='presentation' border='0' cellpadding='0' cellspacing='0' width='100%' style='margin:0 0 14px 0;'><tr><td style=\"background-color:#FAF8F4;border:1px solid #EFEAE0;border-radius:18px;padding:16px 18px;font-family:'Hanken Grotesk',-apple-system,'Segoe UI',Helvetica,Arial,sans-serif;\">"
+        $out = "<table role='presentation' border='0' cellpadding='0' cellspacing='0' width='100%' style='margin:0 0 14px 0;'><tr><td style=\"background-color:#FAF8F4;border:1px solid #EFEAE0;border-radius:16px;padding:12px 14px;font-family:'Hanken Grotesk',-apple-system,'Segoe UI',Helvetica,Arial,sans-serif;\">"
              . "<table role='presentation' width='100%' cellpadding='0' cellspacing='0' border='0'><tr>"
              . "<td style='font-size:12px;font-weight:700;letter-spacing:.06em;text-transform:uppercase;color:#7A7467;'>Question {$num}</td>"
              . "<td align='right'><span style=\"display:inline-block;background-color:{$status[0]};color:{$status[1]};border-radius:999px;padding:3px 10px;font-size:12px;font-weight:700;\">{$status[2]}</span></td></tr></table>"
-             . "<div style='font-size:15px;font-weight:600;color:#2B2722;line-height:1.5;margin:8px 0 10px 0;'>" . self::h($question) . '</div>';
+             . "<div style='font-size:14px;font-weight:600;color:#2B2722;line-height:1.45;margin:6px 0 8px 0;'>" . self::h($question) . '</div>';
         if ($isWritten) {
-            $out .= "<div style='font-size:14px;color:#4E483F;margin:2px 0;'>Votre réponse : <strong>" . self::h((string)($qa['selected_option'] ?? '') !== '' ? (string)$qa['selected_option'] : 'aucune') . '</strong></div>'
-                  . "<div style='font-size:14px;color:#24402F;margin:2px 0;'>Réponse correcte : <strong>" . self::h((string)($qa['correct_option'] ?? '')) . '</strong></div>';
+            $out .= "<div style='font-size:13px;color:#4E483F;margin:2px 0;'>Votre réponse : <strong>" . self::h((string)($qa['selected_option'] ?? '') !== '' ? (string)$qa['selected_option'] : 'aucune') . '</strong></div>'
+                  . "<div style='font-size:13px;color:#24402F;margin:2px 0;'>Réponse correcte : <strong>" . self::h((string)($qa['correct_option'] ?? '')) . '</strong></div>';
         } else {
             foreach (['A', 'B', 'C', 'D'] as $opt) {
                 $text = trim((string)($qa['option_' . strtolower($opt)] ?? ''));
@@ -291,7 +291,7 @@ class Mailer
                 $picked = $opt === ($qa['selected_option'] ?? '');
                 [$bg, $fg, $bd] = $right ? ['#E8F2EA', '#24402F', '#CFE3D3'] : ($picked ? ['#FCE9E6', '#9C2B1F', '#F5CFC9'] : ['#FFFFFF', '#4E483F', '#EFEAE0']);
                 $tag = $picked && $right ? ' · votre réponse, correcte' : ($picked ? ' · votre réponse' : ($right ? ' · réponse correcte' : ''));
-                $out .= "<div style=\"background-color:{$bg};color:{$fg};border:1px solid {$bd};border-radius:12px;padding:9px 13px;margin:0 0 6px 0;font-size:14px;line-height:1.45;\"><strong>{$opt}.</strong> " . self::h($text)
+                $out .= "<div style=\"background-color:{$bg};color:{$fg};border:1px solid {$bd};border-radius:12px;padding:7px 11px;margin:0 0 5px 0;font-size:13px;line-height:1.4;\"><strong>{$opt}.</strong> " . self::h($text)
                       . ($tag !== '' ? "<span style='font-size:12px;font-weight:700;'>" . self::h($tag) . '</span>' : '') . '</div>';
             }
         }
@@ -352,7 +352,8 @@ class Mailer
     // =========================================================================
 
     /**
-     * Tells a student that a live evaluation is scheduled: when, how long, how to take part, and the link.
+     * Tells a student that a live evaluation is scheduled. First the schedule and the link, then how to take part, then the rules
+     * of conduct (what to do, what not to do, what follows).
      *
      * @param array{title:string,course_title:string,start_time:string,is_async?:int,async_deadline?:?string,n_questions?:int,minutes?:int,integrity_watch?:int,teacher_name?:string} $s
      */
@@ -360,54 +361,89 @@ class Mailer
     {
         $en = $lang === 'en';
         $async = !empty($s['is_async']);
+        $watch = !empty($s['integrity_watch']);
         $title = (string)$s['title'];
         $course = (string)$s['course_title'];
         $n = (int)($s['n_questions'] ?? 0);
         $min = (int)($s['minutes'] ?? 0);
         $ts = strtotime((string)$s['start_time']);
+        $hm = fn(int $t) => date($en ? 'H:i' : 'H \\h i', $t);
 
+        // 1. The schedule
         $rows = [[$en ? 'Course' : 'Cours', self::h($course)], [$en ? 'Evaluation' : 'Évaluation', self::h($title)]];
         if ($async) {
             $deadline = !empty($s['async_deadline']) ? strtotime((string)$s['async_deadline']) : null;
-            $rows[] = [$en ? 'Open until' : 'Ouvert jusqu’au', $deadline ? self::h(self::longDate($deadline, $lang) . ($en ? ' at ' : ' à ') . date($en ? 'H:i' : 'H \h i', $deadline)) : ($en ? 'See your teacher' : 'Voir votre enseignant')];
+            $rows[] = [$en ? 'Open until' : 'Ouvert jusqu’au', $deadline ? self::h(self::longDate($deadline, $lang) . ($en ? ' at ' : ' à ') . $hm($deadline)) : ($en ? 'See your teacher' : 'Voir votre enseignant')];
         } else {
             $rows[] = ['Date', self::h(self::longDate($ts, $lang))];
-            $rows[] = [$en ? 'Start' : 'Début', self::h(date($en ? 'H:i' : 'H \h i', $ts)) . ($en ? ' (everyone starts together)' : ' (tout le monde démarre ensemble)')];
+            $rows[] = [$en ? 'Start' : 'Début', self::h($hm($ts)) . ($en ? ' · everyone starts together' : ' · tout le monde démarre ensemble')];
+            $rows[] = [$en ? 'Waiting room opens' : 'Salle d’attente', $en ? 'as soon as you open the link' : 'dès que vous ouvrez le lien'];
         }
-        if ($min > 0) {
-            $rows[] = [$en ? 'Duration' : 'Durée', self::h($min . ' min')];
-        }
-        if ($n > 0) {
-            $rows[] = ['Questions', (string)$n];
-        }
+        $detail = [];
+        if ($min > 0) { $detail[] = $min . ' min'; }
+        if ($n > 0) { $detail[] = $n . ' questions'; }
+        if ($detail) { $rows[] = [$en ? 'Format' : 'Format', self::h(implode(' · ', $detail))]; }
 
-        $steps = $async
+        // 2. How to join, step by step
+        $join = $async
             ? ($en ? [
-                ['Open the link', 'Use the button below, on a computer or a phone.'],
-                ['Sign in', 'Use your StudyVibe account, or enter your name and email.'],
-                ['Start when you are ready', 'Each question has its own timer. Once you answer, you move on.'],
-                ['Finish before the deadline', 'Your result arrives by email.'],
+                ['Open the link', 'Use the button at the top of this email, on a computer or a phone.'],
+                ['Identify yourself', 'Sign in with your StudyVibe account, or enter your full name and email exactly as your teacher knows them.'],
+                ['Start when you are ready', 'Each question has its own timer. When you answer, the next one appears. You cannot go back.'],
+                ['Finish before the deadline', 'Your result is emailed to you when you are done.'],
             ] : [
-                ['Ouvrez le lien', 'Avec le bouton ci-dessous, sur ordinateur ou téléphone.'],
-                ['Connectez-vous', 'Avec votre compte StudyVibe, ou saisissez votre nom et votre e-mail.'],
-                ['Commencez quand vous êtes prêt', 'Chaque question a son propre chrono. Une fois répondu, vous passez à la suivante.'],
-                ['Terminez avant la date limite', 'Votre résultat vous est envoyé par e-mail.'],
+                ['Ouvrez le lien', 'Avec le bouton en haut de ce message, sur ordinateur ou téléphone.'],
+                ['Identifiez-vous', 'Connectez-vous avec votre compte StudyVibe, ou saisissez votre nom complet et votre e-mail tels que votre enseignant les connaît.'],
+                ['Commencez quand vous êtes prêt', 'Chaque question a son propre chrono. Quand vous répondez, la suivante apparaît. On ne revient pas en arrière.'],
+                ['Terminez avant la date limite', 'Votre résultat vous est envoyé par e-mail à la fin.'],
             ])
             : ($en ? [
-                ['Be ready 10 minutes early', 'Charged device, stable connection, a quiet place.'],
-                ['Open the link', 'Use the button below. Sign in with your StudyVibe account, or enter your name and email.'],
-                ['Wait in the lobby', 'You will see how many classmates are there and a countdown to the start.'],
-                ['Everyone starts on the same second', 'Questions follow one another on a timer. Answer before the time runs out, you cannot go back.'],
-                ['Stay on the page', !empty($s['integrity_watch']) ? 'Leaving the exam tab is recorded and your teacher can see it.' : 'Do not close the page until the end screen.'],
-                ['Get your result by email', 'It arrives right after the exam.'],
+                ['10 minutes before', 'Charge your device, check your connection, find a quiet place and close other apps and tabs.'],
+                ['Open the link', 'Use the button at the top. You arrive in the waiting room.'],
+                ['Identify yourself', 'Sign in with your StudyVibe account, or enter your full name and email exactly as your teacher knows them, so your result is attached to you.'],
+                ['Wait for the start', 'You see how many classmates are there and a countdown. It follows the server clock, not your phone, so there is no need to refresh.'],
+                ['Answer on the clock', 'At the start second, the first question appears. Click your answer: it is saved at once. Each question has its timer; unanswered means 0. No going back.'],
+                ['The end', 'An end screen confirms you are done, and your result arrives by email.'],
             ] : [
-                ['Soyez prêt 10 minutes avant', 'Appareil chargé, connexion stable, un endroit calme.'],
-                ['Ouvrez le lien', 'Avec le bouton ci-dessous. Connectez-vous avec votre compte StudyVibe, ou saisissez votre nom et votre e-mail.'],
-                ['Patientez dans la salle d’attente', 'Vous verrez combien de camarades sont présents et un compte à rebours jusqu’au début.'],
-                ['Tout le monde démarre à la même seconde', 'Les questions s’enchaînent avec un chrono. Répondez avant la fin du temps, on ne revient pas en arrière.'],
-                ['Restez sur la page', !empty($s['integrity_watch']) ? 'Quitter l’onglet de l’examen est enregistré et visible par votre enseignant.' : 'Ne fermez pas la page avant l’écran de fin.'],
-                ['Recevez votre résultat par e-mail', 'Il arrive juste après l’examen.'],
+                ['10 minutes avant', 'Chargez votre appareil, vérifiez votre connexion, installez-vous au calme, fermez les autres applications et onglets.'],
+                ['Ouvrez le lien', 'Avec le bouton en haut de ce message. Vous arrivez dans la salle d’attente.'],
+                ['Identifiez-vous', 'Connectez-vous avec votre compte StudyVibe, ou saisissez votre nom complet et votre e-mail tels que votre enseignant les connaît, pour que le résultat vous soit bien attribué.'],
+                ['Patientez jusqu’au départ', 'Vous voyez combien de camarades sont là et un compte à rebours. Il suit l’horloge du serveur, pas votre téléphone : inutile de rafraîchir.'],
+                ['Répondez dans le temps', 'À la seconde du départ, la première question apparaît. Cliquez votre réponse : elle est enregistrée aussitôt. Chaque question a son chrono ; sans réponse, 0. On ne revient pas en arrière.'],
+                ['La fin', 'Un écran de fin confirme que vous avez terminé, et votre résultat arrive par e-mail.'],
             ]);
+
+        // 3. Rules of conduct
+        $do = $en ? [
+            'Stay on the exam page from start to end, ideally full screen.',
+            'Take the exam yourself, on one device only.',
+            'Read each question to the end before answering.',
+            'If your connection drops, reopen <strong>the same link</strong>: answers already given are kept and waiting ones are sent when you are back. Do not register a second time.',
+        ] : [
+            'Restez sur la page de l’examen du début à la fin, de préférence en plein écran.',
+            'Passez l’examen vous-même, sur un seul appareil.',
+            'Lisez chaque question jusqu’au bout avant de répondre.',
+            'Si votre connexion tombe, rouvrez <strong>le même lien</strong> : les réponses données sont conservées et celles en attente partent au retour. Ne vous inscrivez pas une seconde fois.',
+        ];
+        $dont = $en ? [
+            'Leave the exam tab or window, or open other sites and apps' . ($watch ? ' (your teacher has turned on tab-exit tracking)' : '') . '.',
+            'Use notes, books, a second device or an AI assistant, unless your teacher explicitly allows it.',
+            'Talk, message or share questions, answers or screenshots with anyone, during or right after the exam.',
+            'Take the exam for someone else, or let someone take yours; use another person’s name or email.',
+            'Open the exam in several tabs or devices, or refresh again and again.',
+        ] : [
+            'Quitter l’onglet ou la fenêtre de l’examen, ou ouvrir d’autres sites et applications' . ($watch ? ' (votre enseignant a activé le suivi des sorties d’onglet)' : '') . '.',
+            'Utiliser des notes, des livres, un second appareil ou un assistant IA, sauf autorisation expresse de votre enseignant.',
+            'Parler, écrire ou partager des questions, réponses ou captures d’écran avec quiconque, pendant ou juste après l’examen.',
+            'Passer l’examen à la place d’un autre, ou laisser quelqu’un passer le vôtre ; utiliser le nom ou l’e-mail d’une autre personne.',
+            'Ouvrir l’examen sur plusieurs onglets ou appareils, ou rafraîchir sans cesse.',
+        ];
+        $after = $en
+            ? 'After the exam your teacher reviews the results.' . ($watch ? ' Tab exits are counted and visible to them.' : '') . ' Copies that look suspicious (many exits, the same wrong answers as other students) can be examined, and a result can be <strong>cancelled</strong>. You would be told by email and could contest it from your StudyVibe space. Any further measure follows your institution’s rules.'
+            : 'Après l’examen, votre enseignant examine les résultats.' . ($watch ? ' Les sorties d’onglet sont comptées et visibles pour lui.' : '') . ' Les copies qui paraissent suspectes (nombreuses sorties, mêmes mauvaises réponses que d’autres étudiants) peuvent être examinées, et un résultat peut être <strong>annulé</strong>. Vous en seriez informé par e-mail et pourriez le contester depuis votre espace StudyVibe. Toute autre mesure relève du règlement de votre établissement.';
+        $problem = $en
+            ? 'A technical problem during the exam? Note the time, stay calm and tell your teacher straight after: you can also explain it from your StudyVibe space.'
+            : 'Un problème technique pendant l’examen ? Notez l’heure, restez calme et prévenez votre enseignant tout de suite après : vous pouvez aussi l’expliquer depuis votre espace StudyVibe.';
 
         $headline = $rescheduled
             ? ($en ? 'The evaluation has moved' : 'L’évaluation a changé de créneau')
@@ -416,22 +452,28 @@ class Mailer
             EmailTheme::badge($rescheduled ? ($en ? 'New schedule' : 'Nouveau créneau') : ($en ? 'Evaluation' : 'Évaluation'), $rescheduled ? 'ochre' : 'clay')
             . EmailTheme::title($headline)
             . self::hello($name, $lang)
-            . EmailTheme::lede($en
-                ? 'Your teacher has ' . ($rescheduled ? 'updated' : 'scheduled') . ' an evaluation for the course <strong>' . self::h($course) . '</strong>. Here is everything you need.'
-                : 'Votre enseignant a ' . ($rescheduled ? 'modifié' : 'programmé') . ' une évaluation pour le cours <strong>' . self::h($course) . '</strong>. Voici tout ce qu’il faut savoir.')
+            . EmailTheme::p($en
+                ? 'Your teacher has ' . ($rescheduled ? 'updated' : 'scheduled') . ' an evaluation for <strong>' . self::h($course) . '</strong>.'
+                : 'Votre enseignant a ' . ($rescheduled ? 'modifié' : 'programmé') . ' une évaluation pour <strong>' . self::h($course) . '</strong>.')
             . EmailTheme::facts($rows)
-            . EmailTheme::sectionTitle($en ? 'How it works' : 'Comment ça se passe')
-            . EmailTheme::steps($steps)
             . EmailTheme::button($link, $async ? ($en ? 'Open the evaluation' : 'Ouvrir l’évaluation') : ($en ? 'Join the waiting room' : 'Rejoindre la salle d’attente'))
             . EmailTheme::linkFallback($link, $lang)
+            . EmailTheme::divider()
+            . EmailTheme::sectionTitle($en ? 'How to join, step by step' : 'Comment rejoindre l’examen, pas à pas')
+            . EmailTheme::steps($join)
+            . EmailTheme::sectionTitle($en ? 'Rules of conduct' : 'Règles de conduite')
+            . EmailTheme::rules($en ? 'What to do' : 'À faire', $do, 'pine')
+            . EmailTheme::rules($en ? 'What not to do' : 'À ne pas faire', $dont, 'red')
+            . EmailTheme::callout($after, 'ochre', $en ? 'What follows' : 'Ce qui suit')
+            . EmailTheme::small($problem)
             . EmailTheme::small($en ? 'Good luck!' : 'Bonne chance !'),
-            ['preheader' => $async ? $title : ($title . ' · ' . self::longDate($ts, $lang) . ' ' . date($en ? 'H:i' : 'H \h i', $ts)), 'lang' => $lang]
+            ['preheader' => $async ? $title : ($title . ' · ' . self::longDate($ts, $lang) . ' ' . $hm($ts)), 'lang' => $lang]
         );
         return self::send($to, ($rescheduled ? ($en ? 'New time: ' : 'Nouveau créneau : ') : ($en ? 'Evaluation scheduled: ' : 'Évaluation programmée : ')) . $title . ' — StudyVibe', $html);
     }
 
     /** Tells a student that their result of an evaluation was cancelled by the teacher (or restored). */
-    public static function liveResultCancelled(string $to, string $name, string $sessionTitle, string $courseTitle, string $reason = '', string $teacherName = '', string $lang = 'fr', bool $restored = false): bool
+    public static function liveResultCancelled(string $to, string $name, string $sessionTitle, string $courseTitle, string $reason = '', string $teacherName = '', string $lang = 'fr', bool $restored = false, string $contestUrl = ''): bool
     {
         $en = $lang === 'en';
         if ($restored) {
@@ -461,11 +503,54 @@ class Mailer
             . EmailTheme::p($en
                 ? 'If you think this is a mistake, speak to your teacher: they can restore the result.'
                 : 'Si vous pensez qu’il s’agit d’une erreur, parlez-en à votre enseignant : il peut rétablir le résultat.')
-            . EmailTheme::button(self::app() . '/student/dashboard.php', $en ? 'Open my space' : 'Ouvrir mon espace', 'ghost')
+            . EmailTheme::p($en ? 'You can <strong>contest this decision</strong>: read your copy and explain your side. Your teacher will answer, and the answer is final.' : 'Vous pouvez <strong>contester cette décision</strong> : consultez votre copie et expliquez votre point de vue. Votre enseignant répondra, et sa réponse est définitive.')
+            . ($contestUrl !== '' ? EmailTheme::button($contestUrl, $en ? 'Contest this result' : 'Contester ce résultat') : '')
             . EmailTheme::signature($lang, $teacherName),
             ['preheader' => $sessionTitle, 'lang' => $lang]
         );
         return self::send($to, ($en ? 'Result cancelled: ' : 'Résultat annulé : ') . $sessionTitle . ' — StudyVibe', $html);
+    }
+
+
+    /** Tells a teacher that a student contested a cancelled result. */
+    public static function liveContestReceived(string $to, string $teacherName, string $studentName, string $sessionTitle, string $message, string $lang = 'fr'): bool
+    {
+        $en = $lang === 'en';
+        $html = EmailTheme::layout(
+            EmailTheme::badge($en ? 'Contestation' : 'Contestation', 'ochre')
+            . EmailTheme::title($en ? 'A student contests a cancelled result' : 'Un étudiant conteste un résultat annulé')
+            . self::hello($teacherName, $lang)
+            . EmailTheme::p($en
+                ? '<strong>' . self::h($studentName) . '</strong> contests the cancellation of the result for <strong>' . self::h($sessionTitle) . '</strong>:'
+                : '<strong>' . self::h($studentName) . '</strong> conteste l’annulation de son résultat pour <strong>' . self::h($sessionTitle) . '</strong> :')
+            . EmailTheme::quote($message)
+            . EmailTheme::p($en ? 'Open the results review to restore the result or keep the cancellation, with a written answer.' : 'Ouvrez la revue des résultats pour rétablir le résultat ou maintenir l’annulation, avec une réponse écrite.')
+            . EmailTheme::button(self::app() . '/teacher/dashboard.php', $en ? 'Open my space' : 'Ouvrir mon espace'),
+            ['preheader' => $studentName . ' · ' . $sessionTitle, 'lang' => $lang]
+        );
+        return self::send($to, ($en ? 'Contestation: ' : 'Contestation : ') . $sessionTitle . ' — StudyVibe', $html);
+    }
+
+    /** The teacher's final answer to a contestation, sent to the student. */
+    public static function liveContestDecision(string $to, string $name, string $sessionTitle, string $courseTitle, bool $accepted, string $response, string $teacherName, string $lang, string $contestUrl): bool
+    {
+        $en = $lang === 'en';
+        $html = EmailTheme::layout(
+            EmailTheme::badge($accepted ? ($en ? 'Contestation accepted' : 'Contestation acceptée') : ($en ? 'Final decision' : 'Décision définitive'), $accepted ? 'pine' : 'ink')
+            . EmailTheme::title($accepted ? ($en ? 'Your result is restored' : 'Votre résultat est rétabli') : ($en ? 'The cancellation is maintained' : 'L’annulation est maintenue'))
+            . self::hello($name, $lang)
+            . EmailTheme::p($accepted
+                ? ($en ? 'After reviewing your explanation, your teacher has restored your result for <strong>' . self::h($sessionTitle) . '</strong>. It counts again.'
+                       : 'Après examen de votre explication, votre enseignant a rétabli votre résultat pour <strong>' . self::h($sessionTitle) . '</strong>. Il est de nouveau pris en compte.')
+                : ($en ? 'After reviewing your explanation, your teacher keeps the cancellation of your result for <strong>' . self::h($sessionTitle) . '</strong>. This decision is final.'
+                       : 'Après examen de votre explication, votre enseignant maintient l’annulation de votre résultat pour <strong>' . self::h($sessionTitle) . '</strong>. Cette décision est définitive.'))
+            . EmailTheme::facts([[$en ? 'Course' : 'Cours', self::h($courseTitle)], [$en ? 'Evaluation' : 'Évaluation', self::h($sessionTitle)]])
+            . ($response !== '' ? EmailTheme::callout(self::h($response), $accepted ? 'pine' : 'ochre', $en ? 'Your teacher’s answer' : 'La réponse de votre enseignant') : '')
+            . EmailTheme::button($contestUrl, $accepted ? ($en ? 'See my result' : 'Voir mon résultat') : ($en ? 'See the decision' : 'Voir la décision'))
+            . EmailTheme::signature($lang, $teacherName),
+            ['preheader' => $sessionTitle, 'lang' => $lang]
+        );
+        return self::send($to, ($accepted ? ($en ? 'Contestation accepted: ' : 'Contestation acceptée : ') : ($en ? 'Final decision: ' : 'Décision définitive : ')) . $sessionTitle . ' — StudyVibe', $html);
     }
 
     // =========================================================================

@@ -86,7 +86,7 @@ body{margin:0;padding:0;background:" . self::PAGE . ";}
 a{color:" . self::CLAY . ";}
 @media only screen and (max-width:620px){
   .sv-pad{padding-left:22px!important;padding-right:22px!important;}
-  .sv-title{font-size:25px!important;}
+  .sv-title{font-size:21px!important;}
   .sv-btn a{display:block!important;}
 }
 </style>
@@ -101,7 +101,7 @@ a{color:" . self::CLAY . ";}
    </td></tr>
    <tr><td style='background-color:#FFFFFF;border:1px solid " . self::LINE . ";border-radius:24px;'>
      <table role='presentation' border='0' cellpadding='0' cellspacing='0' width='100%'><tr>
-       <td class='sv-pad' style=\"padding:38px 40px 36px 40px;font-family:{$bd};font-size:15px;line-height:1.65;color:" . self::SOFT . ";\">
+       <td class='sv-pad' style=\"padding:28px 32px 28px 32px;font-family:{$bd};font-size:14px;line-height:1.55;color:" . self::SOFT . ";\">
 {$content}
        </td></tr></table>
    </td></tr>
@@ -125,28 +125,28 @@ a{color:" . self::CLAY . ";}
     public static function badge(string $text, string $tone = 'clay'): string
     {
         [$bg, $fg] = self::TONES[$tone] ?? self::TONES['clay'];
-        return "<table role='presentation' border='0' cellpadding='0' cellspacing='0' style='margin:0 0 16px 0;'><tr><td style=\"background-color:{$bg};color:{$fg};border-radius:999px;padding:6px 14px;font-family:" . self::BODY . ";font-size:12px;font-weight:700;letter-spacing:.04em;text-transform:uppercase;line-height:1;\">" . self::h($text) . '</td></tr></table>';
+        return "<table role='presentation' border='0' cellpadding='0' cellspacing='0' style='margin:0 0 12px 0;'><tr><td style=\"background-color:{$bg};color:{$fg};border-radius:999px;padding:5px 12px;font-family:" . self::BODY . ";font-size:11px;font-weight:700;letter-spacing:.04em;text-transform:uppercase;line-height:1;\">" . self::h($text) . '</td></tr></table>';
     }
 
     public static function title(string $text): string
     {
-        return "<h1 class='sv-title' style=\"margin:0 0 14px 0;font-family:" . self::DISPLAY . ";font-weight:500;font-size:30px;line-height:1.18;letter-spacing:-.02em;color:" . self::INK . ";\">" . self::h($text) . '</h1>';
+        return "<h1 class='sv-title' style=\"margin:0 0 10px 0;font-family:" . self::DISPLAY . ";font-weight:500;font-size:24px;line-height:1.2;letter-spacing:-.02em;color:" . self::INK . ";\">" . self::h($text) . '</h1>';
     }
 
     /** Opening sentence, a little larger and softer than body text. */
     public static function lede(string $html): string
     {
-        return "<p style=\"margin:0 0 20px 0;font-size:17px;line-height:1.6;color:" . self::SOFT . ";\">{$html}</p>";
+        return "<p style=\"margin:0 0 14px 0;font-size:15px;line-height:1.55;color:" . self::SOFT . ";\">{$html}</p>";
     }
 
     public static function p(string $html, string $style = ''): string
     {
-        return "<p style=\"margin:0 0 14px 0;font-size:15px;line-height:1.65;color:" . self::SOFT . ";{$style}\">{$html}</p>";
+        return "<p style=\"margin:0 0 10px 0;font-size:14px;line-height:1.55;color:" . self::SOFT . ";{$style}\">{$html}</p>";
     }
 
     public static function small(string $html): string
     {
-        return "<p style=\"margin:18px 0 0 0;font-size:12.5px;line-height:1.6;color:" . self::MUTED . ";\">{$html}</p>";
+        return "<p style=\"margin:14px 0 0 0;font-size:12px;line-height:1.55;color:" . self::MUTED . ";\">{$html}</p>";
     }
 
     /** Rounded call-to-action. $kind: 'primary' (filled) or 'ghost' (outlined). */
@@ -157,9 +157,9 @@ a{color:" . self::CLAY . ";}
         $bg = $filled ? self::CLAY : '#FFFFFF';
         $fg = $filled ? '#FFFFFF' : self::CLAY;
         $bd = $filled ? self::CLAY : '#E4D9CB';
-        return "<table role='presentation' class='sv-btn' border='0' cellpadding='0' cellspacing='0' style='margin:8px 12px 8px 0;display:inline-block;'><tr>"
+        return "<table role='presentation' class='sv-btn' border='0' cellpadding='0' cellspacing='0' style='margin:6px 10px 6px 0;display:inline-block;'><tr>"
             . "<td align='center' bgcolor='{$bg}' style=\"border-radius:14px;background-color:{$bg};border:1.5px solid {$bd};\">"
-            . "<a href='{$u}' target='_blank' style=\"display:inline-block;padding:14px 28px;font-family:" . self::BODY . ";font-size:15px;font-weight:700;line-height:1;color:{$fg};text-decoration:none;border-radius:14px;\">" . self::h($label) . '</a>'
+            . "<a href='{$u}' target='_blank' style=\"display:inline-block;padding:12px 24px;font-family:" . self::BODY . ";font-size:14px;font-weight:700;line-height:1;color:{$fg};text-decoration:none;border-radius:14px;\">" . self::h($label) . '</a>'
             . '</td></tr></table>';
     }
 
@@ -168,8 +168,8 @@ a{color:" . self::CLAY . ";}
     {
         [$bg, $fg] = self::TONES[$tone] ?? self::TONES['clay'];
         $t = $title !== null ? "<div style=\"font-weight:700;color:{$fg};margin:0 0 4px 0;\">" . self::h($title) . '</div>' : '';
-        return "<table role='presentation' border='0' cellpadding='0' cellspacing='0' width='100%' style='margin:18px 0;'><tr>"
-            . "<td style=\"background-color:{$bg};border-radius:16px;padding:16px 20px;font-family:" . self::BODY . ";font-size:14px;line-height:1.6;color:" . self::SOFT . ";\">{$t}{$html}</td></tr></table>";
+        return "<table role='presentation' border='0' cellpadding='0' cellspacing='0' width='100%' style='margin:12px 0;'><tr>"
+            . "<td style=\"background-color:{$bg};border-radius:14px;padding:12px 16px;font-family:" . self::BODY . ";font-size:13px;line-height:1.5;color:" . self::SOFT . ";\">{$t}{$html}</td></tr></table>";
     }
 
     /**
@@ -179,13 +179,13 @@ a{color:" . self::CLAY . ";}
      */
     public static function facts(array $rows): string
     {
-        $out = "<table role='presentation' border='0' cellpadding='0' cellspacing='0' width='100%' style='margin:18px 0;'><tr><td style=\"background-color:" . self::CARD2 . ";border:1px solid " . self::LINE . ";border-radius:18px;padding:6px 20px;\">"
+        $out = "<table role='presentation' border='0' cellpadding='0' cellspacing='0' width='100%' style='margin:12px 0;'><tr><td style=\"background-color:" . self::CARD2 . ";border:1px solid " . self::LINE . ";border-radius:16px;padding:2px 16px;\">"
              . "<table role='presentation' border='0' cellpadding='0' cellspacing='0' width='100%'>";
         $n = count($rows);
         foreach ($rows as $i => [$label, $value]) {
             $line = $i < $n - 1 ? 'border-bottom:1px solid ' . self::LINE . ';' : '';
-            $out .= "<tr><td valign='top' style=\"padding:12px 12px 12px 0;{$line}font-family:" . self::BODY . ";font-size:13px;color:" . self::MUTED . ";width:38%;\">" . self::h($label) . '</td>'
-                  . "<td valign='top' style=\"padding:12px 0;{$line}font-family:" . self::BODY . ";font-size:15px;font-weight:600;color:" . self::INK . ";\">{$value}</td></tr>";
+            $out .= "<tr><td valign='top' style=\"padding:8px 10px 8px 0;{$line}font-family:" . self::BODY . ";font-size:12px;color:" . self::MUTED . ";width:38%;\">" . self::h($label) . '</td>'
+                  . "<td valign='top' style=\"padding:8px 0;{$line}font-family:" . self::BODY . ";font-size:14px;font-weight:600;color:" . self::INK . ";\">{$value}</td></tr>";
         }
         return $out . '</table></td></tr></table>';
     }
@@ -194,10 +194,10 @@ a{color:" . self::CLAY . ";}
     public static function stat(string $label, string $value, string $sub = '', string $tone = 'pine'): string
     {
         [$bg, $fg] = self::TONES[$tone] ?? self::TONES['pine'];
-        $subHtml = $sub !== '' ? "<div style=\"font-size:13px;color:{$fg};margin-top:6px;\">" . self::h($sub) . '</div>' : '';
-        return "<table role='presentation' border='0' cellpadding='0' cellspacing='0' width='100%' style='margin:18px 0;'><tr><td align='center' style=\"background-color:{$bg};border-radius:20px;padding:24px 16px;font-family:" . self::BODY . ";\">"
-            . "<div style=\"font-size:12px;font-weight:700;letter-spacing:.08em;text-transform:uppercase;color:{$fg};\">" . self::h($label) . '</div>'
-            . "<div style=\"font-family:" . self::DISPLAY . ";font-size:46px;line-height:1.1;font-weight:500;color:{$fg};margin-top:6px;\">" . self::h($value) . '</div>'
+        $subHtml = $sub !== '' ? "<div style=\"font-size:12px;color:{$fg};margin-top:4px;\">" . self::h($sub) . '</div>' : '';
+        return "<table role='presentation' border='0' cellpadding='0' cellspacing='0' width='100%' style='margin:12px 0;'><tr><td align='center' style=\"background-color:{$bg};border-radius:18px;padding:16px 14px;font-family:" . self::BODY . ";\">"
+            . "<div style=\"font-size:11px;font-weight:700;letter-spacing:.08em;text-transform:uppercase;color:{$fg};\">" . self::h($label) . '</div>'
+            . "<div style=\"font-family:" . self::DISPLAY . ";font-size:34px;line-height:1.1;font-weight:500;color:{$fg};margin-top:4px;\">" . self::h($value) . '</div>'
             . $subHtml . '</td></tr></table>';
     }
 
@@ -208,52 +208,72 @@ a{color:" . self::CLAY . ";}
      */
     public static function steps(array $items): string
     {
-        $out = "<table role='presentation' border='0' cellpadding='0' cellspacing='0' width='100%' style='margin:14px 0 6px 0;'>";
+        $out = "<table role='presentation' border='0' cellpadding='0' cellspacing='0' width='100%' style='margin:8px 0 2px 0;'>";
         foreach ($items as $i => $it) {
             [$head, $text] = is_array($it) ? $it : ['', $it];
             $n = $i + 1;
-            $out .= "<tr><td valign='top' width='44' style='padding:0 0 14px 0;'>"
-                  . "<table role='presentation' border='0' cellpadding='0' cellspacing='0'><tr><td align='center' width='30' height='30' style=\"width:30px;height:30px;border-radius:15px;background-color:#FBEDE6;color:#96391E;font-family:" . self::BODY . ";font-size:14px;font-weight:700;line-height:30px;\">{$n}</td></tr></table>"
-                  . "</td><td valign='top' style=\"padding:3px 0 14px 0;font-family:" . self::BODY . ";font-size:15px;line-height:1.55;color:" . self::SOFT . ";\">"
+            $out .= "<tr><td valign='top' width='36' style='padding:0 0 9px 0;'>"
+                  . "<table role='presentation' border='0' cellpadding='0' cellspacing='0'><tr><td align='center' width='24' height='24' style=\"width:24px;height:24px;border-radius:12px;background-color:#FBEDE6;color:#96391E;font-family:" . self::BODY . ";font-size:12px;font-weight:700;line-height:24px;\">{$n}</td></tr></table>"
+                  . "</td><td valign='top' style=\"padding:2px 0 9px 0;font-family:" . self::BODY . ";font-size:13.5px;line-height:1.5;color:" . self::SOFT . ";\">"
                   . ($head !== '' ? "<strong style='color:" . self::INK . ";'>" . self::h($head) . '</strong><br>' : '') . $text . '</td></tr>';
         }
         return $out . '</table>';
     }
 
+    /**
+     * A rounded box with a small heading and a compact list: "to do" (pine) and "not to do" (red) lists of rules.
+     *
+     * @param string[] $items HTML
+     */
+    public static function rules(string $heading, array $items, string $tone = 'pine'): string
+    {
+        [$bg, $fg] = self::TONES[$tone] ?? self::TONES['pine'];
+        $mark = $tone === 'red' ? '&times;' : '&#10003;';
+        $rows = '';
+        foreach ($items as $it) {
+            $rows .= "<tr><td valign='top' width='20' style=\"padding:2px 0 5px 0;font-family:" . self::BODY . ";font-size:13px;font-weight:700;color:{$fg};\">{$mark}</td>"
+                   . "<td valign='top' style=\"padding:2px 0 5px 0;font-family:" . self::BODY . ";font-size:13px;line-height:1.5;color:" . self::SOFT . ";\">{$it}</td></tr>";
+        }
+        return "<table role='presentation' border='0' cellpadding='0' cellspacing='0' width='100%' style='margin:10px 0;'><tr>"
+            . "<td style=\"background-color:{$bg};border-radius:14px;padding:12px 16px;\">"
+            . "<div style=\"font-family:" . self::BODY . ";font-size:12px;font-weight:700;letter-spacing:.06em;text-transform:uppercase;color:{$fg};margin:0 0 6px 0;\">" . self::h($heading) . '</div>'
+            . "<table role='presentation' border='0' cellpadding='0' cellspacing='0' width='100%'>{$rows}</table></td></tr></table>";
+    }
+
     /** A code or key in a rounded chip. */
     public static function code(string $text): string
     {
-        return "<span style=\"display:inline-block;background-color:#F1EEE7;border-radius:8px;padding:3px 9px;font-family:'SFMono-Regular',Menlo,Consolas,monospace;font-size:13px;font-weight:700;color:" . self::INK . ";letter-spacing:.03em;\">" . self::h($text) . '</span>';
+        return "<span style=\"display:inline-block;background-color:#F1EEE7;border-radius:8px;padding:2px 8px;font-family:'SFMono-Regular',Menlo,Consolas,monospace;font-size:12px;font-weight:700;color:" . self::INK . ";letter-spacing:.03em;\">" . self::h($text) . '</span>';
     }
 
     /** A message written by a person (direct message), in a soft rounded quote. */
     public static function quote(string $plainText): string
     {
-        return "<table role='presentation' border='0' cellpadding='0' cellspacing='0' width='100%' style='margin:16px 0;'><tr><td style=\"background-color:" . self::CARD2 . ";border-radius:16px;padding:18px 22px;font-family:" . self::BODY . ";font-size:15px;line-height:1.7;color:" . self::INK . ";white-space:pre-wrap;\">" . self::h($plainText) . '</td></tr></table>';
+        return "<table role='presentation' border='0' cellpadding='0' cellspacing='0' width='100%' style='margin:12px 0;'><tr><td style=\"background-color:" . self::CARD2 . ";border-radius:14px;padding:14px 18px;font-family:" . self::BODY . ";font-size:14px;line-height:1.6;color:" . self::INK . ";white-space:pre-wrap;\">" . self::h($plainText) . '</td></tr></table>';
     }
 
     public static function divider(): string
     {
-        return "<div style='height:1px;line-height:1px;font-size:0;background-color:" . self::LINE . ";margin:22px 0;'>&nbsp;</div>";
+        return "<div style='height:1px;line-height:1px;font-size:0;background-color:" . self::LINE . ";margin:16px 0;'>&nbsp;</div>";
     }
 
     public static function sectionTitle(string $text): string
     {
-        return "<h2 style=\"margin:26px 0 10px 0;font-family:" . self::DISPLAY . ";font-weight:500;font-size:20px;line-height:1.25;color:" . self::INK . ";\">" . self::h($text) . '</h2>';
+        return "<h2 style=\"margin:18px 0 8px 0;font-family:" . self::DISPLAY . ";font-weight:500;font-size:17px;line-height:1.25;color:" . self::INK . ";\">" . self::h($text) . '</h2>';
     }
 
     /** The link written out, for clients that hide buttons. */
     public static function linkFallback(string $url, string $lang = 'fr'): string
     {
         $lead = $lang === 'en' ? 'The button does not show? Copy this link into your browser:' : 'Le bouton ne s’affiche pas ? Copiez ce lien dans votre navigateur :';
-        return "<p style=\"margin:18px 0 2px 0;font-size:12.5px;color:" . self::MUTED . ";\">" . self::h($lead) . "</p><p style='margin:0;font-size:12.5px;word-break:break-all;'><a href='" . self::h($url) . "' style='color:" . self::CLAY . ";'>" . self::h($url) . '</a></p>';
+        return "<p style=\"margin:12px 0 2px 0;font-size:12px;color:" . self::MUTED . ";\">" . self::h($lead) . "</p><p style='margin:0;font-size:12px;word-break:break-all;'><a href='" . self::h($url) . "' style='color:" . self::CLAY . ";'>" . self::h($url) . '</a></p>';
     }
 
     public static function signature(string $lang = 'fr', string $who = ''): string
     {
         $who = $who !== '' ? $who : ($lang === 'en' ? 'The StudyVibe team' : 'L’équipe StudyVibe');
         $bye = $lang === 'en' ? 'Warm regards,' : 'Chaleureusement,';
-        return "<p style=\"margin:26px 0 0 0;font-size:15px;line-height:1.6;color:" . self::SOFT . ";\">" . self::h($bye) . '<br><strong style="color:' . self::INK . ';">' . self::h($who) . '</strong></p>';
+        return "<p style=\"margin:16px 0 0 0;font-size:14px;line-height:1.55;color:" . self::SOFT . ";\">" . self::h($bye) . '<br><strong style="color:' . self::INK . ';">' . self::h($who) . '</strong></p>';
     }
 
     // ---------------------------------------------------------------------------------------------------------------

@@ -53,6 +53,20 @@ final class LiveResults
             $answers[(int)$a['registration_id']][(int)$a['question_id']] = (string)$a['selected_option'];
         }
 
+        // Contestations of cancelled results
+        $contests = [];
+        $cs = $pdo->prepare(
+            "SELECT k.id, k.registration_id, k.status, k.message, k.teacher_response, k.created_at
+             FROM result_contests k JOIN live_eval_registrations r ON r.id = k.registration_id WHERE r.session_id = :s"
+        );
+        $cs->execute(['s' => $sid]);
+        foreach ($cs->fetchAll(PDO::FETCH_ASSOC) as $k) {
+            $contests[(int)$k['registration_id']] = [
+                'id' => (int)$k['id'], 'status' => (string)$k['status'], 'message' => (string)$k['message'],
+                'response' => (string)($k['teacher_response'] ?? ''), 'created_at' => (string)$k['created_at'],
+            ];
+        }
+
         // Mark and wrong answers per student
         $info = [];
         foreach ($regs as $r) {
@@ -95,7 +109,7 @@ final class LiveResults
         $names = array_column($regs, 'name', 'id');
 
         $rows = [];
-        $summary = ['total' => count($regs), 'cancelled' => 0, 'attention' => 0, 'suspect' => 0, 'not_submitted' => 0];
+        $summary = ['total' => count($regs), 'cancelled' => 0, 'attention' => 0, 'suspect' => 0, 'not_submitted' => 0, 'contested' => 0];
         foreach ($regs as $r) {
             $rid = (int)$r['id'];
             $cancelled = $r['cancelled_at'] !== null;
@@ -120,6 +134,9 @@ final class LiveResults
             if (!$submitted) {
                 $summary['not_submitted']++;
             }
+            if (($contests[$rid]['status'] ?? '') === 'open') {
+                $summary['contested']++;
+            }
             if ($cancelled) {
                 $summary['cancelled']++;
             } elseif ($level === 2) {
@@ -139,6 +156,7 @@ final class LiveResults
                 'integrity'  => ['watched' => $watch, 'level' => $level, 'notes' => $notes],
                 'cancelled'  => $cancelled,
                 'cancel_reason' => (string)($r['cancelled_reason'] ?? ''),
+                'contest'    => $contests[$rid] ?? null,
             ];
         }
         return ['rows' => $rows, 'total_questions' => $total, 'summary' => $summary];
@@ -170,11 +188,15 @@ final class LiveResults
         )->execute(['r' => $reason !== '' ? $reason : null, 'id' => $registrationId]);
         self::forgetCaches((int)$row['session_id']);
         self::tell($pdo, $row, $reason, false);
+        if (!empty($row['student_id'])) {
+            require_once __DIR__ . '/Notifications.php';
+            Notifications::send($pdo, (int)$row['student_id'], 'result_cancelled', 'Résultat annulé', (string)$row['session_title'], '/student/dashboard.php');
+        }
         return ['ok' => true];
     }
 
     /** Puts a cancelled result back. A student who never finished gets their score computed again when the exam is viewed. */
-    public static function restore(PDO $pdo, int $registrationId, int $teacherId): array
+    public static function restore(PDO $pdo, int $registrationId, int $teacherId, bool $notify = true): array
     {
         $row = self::ownedRegistration($pdo, $registrationId, $teacherId);
         if ($row === null) {
@@ -188,7 +210,9 @@ final class LiveResults
              WHERE id = :id AND cancelled_at IS NOT NULL"
         )->execute(['id' => $registrationId]);
         self::forgetCaches((int)$row['session_id']);
-        self::tell($pdo, $row, '', true);
+        if ($notify) {
+            self::tell($pdo, $row, '', true);
+        }
         return ['ok' => true];
     }
 
@@ -215,8 +239,14 @@ final class LiveResults
         EmailQueue::enqueue($pdo, $row['student_id'] !== null ? (int)$row['student_id'] : null, (string)$row['email'], 'result_cancelled', [
             'name' => (string)$row['name'], 'session_title' => (string)$row['session_title'], 'course_title' => (string)$row['course_title'],
             'reason' => $reason, 'teacher' => (string)($row['teacher_name'] ?? ''), 'lang' => ($row['lang'] ?? 'fr') === 'en' ? 'en' : 'fr', 'restored' => $restored,
+            'contest_url' => $restored ? '' : self::contestUrl((int)$row['id']),
         ], 'result:' . $row['id'] . ':' . ($restored ? 'restored' : 'cancelled') . ':' . bin2hex(random_bytes(3)));
         EmailQueue::kick();
+    }
+
+    private static function contestUrl(int $registrationId): string
+    {
+        return rtrim((string)APP_URL, '/') . '/student/contest-result.php?registration_id=' . $registrationId . '&token=' . hash_hmac('sha256', 'contest:' . $registrationId, APP_SECRET);
     }
 
     /** The exam room caches the leaderboard for a few seconds; a cancelled result must leave it at once. */

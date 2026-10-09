@@ -16,7 +16,7 @@ final class EmailQueue
     private const BATCH = 20;
 
     /** Templates the queue knows how to send, and the Mailer method each one calls. */
-    private const TEMPLATES = ['live_scheduled', 'result_cancelled'];
+    private const TEMPLATES = ['live_scheduled', 'result_cancelled', 'contest_received', 'contest_decision'];
 
     /** @return int|null the row id, or null when this dedupe_key was already queued */
     public static function enqueue(PDO $pdo, ?int $userId, string $toEmail, string $template, array $args, ?string $dedupeKey = null): ?int
@@ -119,7 +119,9 @@ final class EmailQueue
     {
         return match ($template) {
             'live_scheduled'   => Mailer::liveEvalScheduled($to, (string)$a['name'], (array)$a['session'], (string)$a['link'], (string)($a['lang'] ?? 'fr'), !empty($a['rescheduled'])),
-            'result_cancelled' => Mailer::liveResultCancelled($to, (string)$a['name'], (string)$a['session_title'], (string)$a['course_title'], (string)($a['reason'] ?? ''), (string)($a['teacher'] ?? ''), (string)($a['lang'] ?? 'fr'), !empty($a['restored'])),
+            'result_cancelled' => Mailer::liveResultCancelled($to, (string)$a['name'], (string)$a['session_title'], (string)$a['course_title'], (string)($a['reason'] ?? ''), (string)($a['teacher'] ?? ''), (string)($a['lang'] ?? 'fr'), !empty($a['restored']), (string)($a['contest_url'] ?? '')),
+            'contest_received' => Mailer::liveContestReceived($to, (string)$a['teacher'], (string)$a['student'], (string)$a['session_title'], (string)$a['message'], (string)($a['lang'] ?? 'fr')),
+            'contest_decision' => Mailer::liveContestDecision($to, (string)$a['name'], (string)$a['session_title'], (string)$a['course_title'], !empty($a['accepted']), (string)($a['response'] ?? ''), (string)($a['teacher'] ?? ''), (string)($a['lang'] ?? 'fr'), (string)$a['url']),
             default            => false,
         };
     }

@@ -11,6 +11,7 @@ declare(strict_types=1);
 putenv('SV_NO_BACKGROUND_MAIL=1');
 require_once __DIR__ . '/../../Database.php';
 require_once __DIR__ . '/../../lib/LiveResults.php';
+require_once __DIR__ . '/../../lib/Contests.php';
 
 $pdo = Database::getInstance();
 $passed = 0; $failed = [];
@@ -96,12 +97,53 @@ check('email carries the reason, the logo and the session', $mail !== null && st
 $pdo->exec("UPDATE live_eval_registrations SET score = NULL WHERE id = $carl");   // as it is while cancelled
 check('a cancelled registration is recognised by the poll guard', (int)$pdo->query("SELECT COUNT(*) FROM live_eval_registrations WHERE id = $carl AND score IS NULL AND cancelled_at IS NOT NULL")->fetchColumn() === 1);
 
+// ---- contesting
+$carlReg = Contests::registration($pdo, $carl);
+$carlUser = $pdo->query("SELECT * FROM users WHERE id = " . (int)$carlReg['student_id'])->fetch(PDO::FETCH_ASSOC);
+$daraUser = $pdo->query("SELECT * FROM users WHERE id = " . (int)$pdo->query("SELECT student_id FROM live_eval_registrations WHERE id = " . $regs['Dora'])->fetchColumn())->fetch(PDO::FETCH_ASSOC);
+check('the student owner may open the contest page', Contests::mayAccess($carlReg, $carlUser, ''));
+check('another student may not', !Contests::mayAccess($carlReg, $daraUser, ''));
+check('the signed link works without an account', Contests::mayAccess($carlReg, null, Contests::token($carl)));
+check('a wrong token is refused', !Contests::mayAccess($carlReg, null, Contests::token($carl + 1)));
+check('the student copy has no answer key', !isset(Contests::copy($pdo, $carlReg)[0]['correct_option']) && count(Contests::copy($pdo, $carlReg)) === 8);
+check('only a cancelled result can be contested', (Contests::submit($pdo, $regs['Dora'], str_repeat('x', 40))['error'] ?? '') === 'not_cancelled');
+check('a short message is refused', (Contests::submit($pdo, $carl, 'trop court')['error'] ?? '') === 'too_short');
+check('a long message is refused', (Contests::submit($pdo, $carl, str_repeat('x', Contests::MAX + 1))['error'] ?? '') === 'too_long');
+check('the contestation is recorded', Contests::submit($pdo, $carl, 'Ma connexion a coupé plusieurs fois, j\'ai rouvert la page à chaque fois.')['ok'] === true);
+check('only one contestation per result', (Contests::submit($pdo, $carl, str_repeat('y', 40))['error'] ?? '') === 'already');
+check('the teacher is told (notification + email queued)', (int)$pdo->query("SELECT COUNT(*) FROM notifications WHERE user_id = $teacher AND type = 'contest'")->fetchColumn() === 1
+    && (int)$pdo->query("SELECT COUNT(*) FROM email_outbox WHERE template = 'contest_received' AND to_email LIKE '" . $tag . "%'")->fetchColumn() === 1);
+$rv = LiveResults::review($pdo, $session);
+$by = array_column($rv['rows'], null, 'name');
+check('the review shows the open contestation', ($by['Carl Essomba']['contest']['status'] ?? '') === 'open' && $rv['summary']['contested'] === 1);
+$cid = (int)$by['Carl Essomba']['contest']['id'];
+check('another teacher cannot answer', (Contests::resolve($pdo, $cid, $other, true, '')['error'] ?? '') === 'not_found');
+check('keeping the cancellation needs a written reason', (Contests::resolve($pdo, $cid, $teacher, false, 'non')['error'] ?? '') === 'reason_needed');
+$res = Contests::resolve($pdo, $cid, $teacher, true, 'Vos explications sont crédibles, le résultat est rétabli.');
+$row = $pdo->query("SELECT score, cancelled_at FROM live_eval_registrations WHERE id = $carl")->fetch(PDO::FETCH_ASSOC);
+check('accepting restores the result', $res['ok'] === true && $row['cancelled_at'] === null && (float)$row['score'] === 87.5);
+check('the answer is final', (Contests::resolve($pdo, $cid, $teacher, false, str_repeat('z', 20))['error'] ?? '') === 'already_resolved');
+$sent = []; EmailQueue::work($pdo);
+$dec = array_values(array_filter($sent, fn($m) => str_contains($m['subject'], 'Contestation acceptée')))[0] ?? null;
+check('the student gets the decision email with the answer and the link', $dec !== null && str_contains($dec['html'], 'crédibles') && str_contains($dec['html'], 'contest-result.php?registration_id=' . $carl));
+check('the contestation email to the teacher quotes the student', (bool)array_filter($sent, fn($m) => str_contains($m['subject'], 'Contestation :') && str_contains($m['html'], 'connexion a coupé')));
+// a rejected contestation stays cancelled
+LiveResults::cancel($pdo, $regs['Alice'], $teacher, 'Réponses identiques');
+Contests::submit($pdo, $regs['Alice'], str_repeat('Je conteste cette décision. ', 3));
+$aid = (int)$pdo->query("SELECT id FROM result_contests WHERE registration_id = " . $regs['Alice'])->fetchColumn();
+$rej = Contests::resolve($pdo, $aid, $teacher, false, 'Les réponses sont identiques sur six questions.');
+check('rejecting keeps the result cancelled', $rej['ok'] === true && $pdo->query("SELECT cancelled_at IS NOT NULL FROM live_eval_registrations WHERE id = " . $regs['Alice'])->fetchColumn() == 1);
+LiveResults::restore($pdo, $regs['Alice'], $teacher, false);
+$pdo->exec("DELETE FROM result_contests WHERE registration_id = " . $regs['Alice']);
+
 // ---- restoring
+
+LiveResults::cancel($pdo, $carl, $teacher, 'again');
 $res = LiveResults::restore($pdo, $carl, $teacher);
 $row = $pdo->query("SELECT score, cancelled_at FROM live_eval_registrations WHERE id = $carl")->fetch(PDO::FETCH_ASSOC);
 check('restore puts the mark back', $res['ok'] === true && $row['cancelled_at'] === null);
 check('restoring something not cancelled is refused', (LiveResults::restore($pdo, $carl, $teacher)['error'] ?? '') === 'not_cancelled');
-check('the student is told about the restore too', $pdo->query("SELECT COUNT(*) FROM email_outbox WHERE template='result_cancelled' AND to_email LIKE '" . $tag . "%carl%'")->fetchColumn() == 2);
+check('the student is told about the restore too', $pdo->query("SELECT COUNT(*) FROM email_outbox WHERE template='result_cancelled' AND to_email LIKE '" . $tag . "%carl%'")->fetchColumn() == 3);
 
 // ---- announcement emails
 $pdo->prepare("INSERT INTO enrollments (student_id,course_id) SELECT student_id, ? FROM live_eval_registrations WHERE session_id = ? AND student_id IS NOT NULL")->execute([$course, $sid]);
@@ -114,7 +156,7 @@ $sent = [];
 EmailQueue::work($pdo);
 $ann = array_values(array_filter($sent, fn($m) => str_contains($m['subject'], 'programmée')));
 check('five announcement emails go out', count($ann) === 5);
-check('announcement has date, steps, link and logo', str_contains($ann[0]['html'] ?? '', 'Comment ça se passe') && str_contains($ann[0]['html'] ?? '', '/live-session.php?code=') && str_contains($ann[0]['html'] ?? '', 'cid:svlogo@studyvibe'));
+check('announcement has the schedule first, then steps and the rules of conduct, the link and the logo', str_contains($ann[0]['html'] ?? '', 'Règles de conduite') && str_contains($ann[0]['html'] ?? '', 'À ne pas faire') && str_contains($ann[0]['html'] ?? '', '/live-session.php?code=') && str_contains($ann[0]['html'] ?? '', 'cid:svlogo@studyvibe'));
 $pdo->exec("UPDATE live_eval_sessions SET start_time = NOW() + INTERVAL 3 DAY WHERE id = $sid");
 $b = LiveMailNotifier::notify($pdo, $sid);
 $sent = []; EmailQueue::work($pdo);

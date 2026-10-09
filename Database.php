@@ -434,6 +434,29 @@ class Database
             } catch (PDOException $ex) {}
         }
 
+        // Migration 2.6h: a student can contest a cancelled result once; the teacher answers (restore or keep) and the answer is final.
+        try {
+            $pdo->query("SELECT 1 FROM result_contests LIMIT 1");
+        } catch (PDOException $e) {
+            try {
+                $pdo->exec("
+                    CREATE TABLE IF NOT EXISTS `result_contests` (
+                        `id`               INT AUTO_INCREMENT PRIMARY KEY,
+                        `registration_id`  INT NOT NULL,
+                        `message`          TEXT NOT NULL,
+                        `status`           ENUM('open','accepted','rejected') NOT NULL DEFAULT 'open',
+                        `teacher_response` TEXT DEFAULT NULL,
+                        `created_at`       TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                        `resolved_at`      DATETIME DEFAULT NULL,
+                        `resolved_by`      INT DEFAULT NULL,
+                        UNIQUE KEY `uq_contest_registration` (`registration_id`),
+                        KEY `idx_contest_status` (`status`),
+                        FOREIGN KEY (`registration_id`) REFERENCES `live_eval_registrations`(`id`) ON DELETE CASCADE
+                    ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4
+                ");
+            } catch (PDOException $ex) {}
+        }
+
         // Migration 2.7: Support binary storage backups for course cover images and lesson PDFs
         try {
             $pdo->query("SELECT cover_image_data FROM courses LIMIT 1");

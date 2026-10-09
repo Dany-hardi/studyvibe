@@ -196,7 +196,8 @@ try {
 
     // 8. The student's tele-evaluations
     $stmt = $pdo->prepare("
-        SELECT r.id AS registration_id, r.score, r.registered_at, s.id AS session_id, s.title AS session_title, s.session_code, s.status AS session_status, s.is_async, c.title AS course_title
+        SELECT r.id AS registration_id, r.score, r.registered_at, r.cancelled_at,
+               (SELECT k.status FROM result_contests k WHERE k.registration_id = r.id) AS contest_status, s.id AS session_id, s.title AS session_title, s.session_code, s.status AS session_status, s.is_async, c.title AS course_title
         FROM live_eval_registrations r
         JOIN live_eval_sessions s ON r.session_id = s.id
         JOIN courses c ON s.course_id = c.id
@@ -701,6 +702,8 @@ $nav = [
         <ul class="sd-list">
             <?php foreach ($myEvaluations as $eval):
                 $isFinished = $eval['score'] !== null;
+                $isCancelled = !empty($eval['cancelled_at']);
+                $hasContest = !empty($eval['contest_status']);
                 $token = $isFinished ? hash_hmac('sha256', (string)$eval['registration_id'], APP_SECRET) : '';
                 $pass = $isFinished && (float)$eval['score'] >= 50;
             ?>
@@ -714,7 +717,9 @@ $nav = [
                     <p class="sd-meta"><?= sdH($eval['course_title']) ?> · <?= sdH($eval['is_async'] ? sd('async') : sd('live')) ?></p>
                 </div>
                 <div class="sd-ev-score">
-                    <?php if ($isFinished): ?>
+                    <?php if ($isCancelled): ?>
+                        <span class="sd-verdict is-fail"><?= sdIcon('x', 14) ?><?= sdH(sd('ev_cancelled')) ?></span>
+                    <?php elseif ($isFinished): ?>
                         <span class="num sd-score"><?= sdH(sdScore($eval['score'])) ?> %</span>
                         <span class="sd-verdict <?= $pass ? 'is-pass' : 'is-fail' ?>"><?= sdIcon($pass ? 'check' : 'x', 14) ?><?= sdH($pass ? sd('passed') : sd('not_passed')) ?></span>
                     <?php else: ?>
@@ -722,7 +727,9 @@ $nav = [
                     <?php endif; ?>
                 </div>
                 <div class="sd-ev-act">
-                    <?php if ($isFinished): ?>
+                    <?php if ($isCancelled || ($hasContest && !$isFinished)): ?>
+                        <a class="btn btn-primary btn-sm" href="/student/contest-result.php?registration_id=<?= (int)$eval['registration_id'] ?>&amp;token=<?= sdH(hash_hmac('sha256', 'contest:' . $eval['registration_id'], APP_SECRET)) ?>"><?= sdH(sd(!$hasContest ? 'ev_contest' : ($eval['contest_status'] === 'open' ? 'ev_contest_open' : 'ev_contest_final'))) ?></a>
+                    <?php elseif ($isFinished): ?>
                         <a class="btn btn-ghost btn-sm" href="/student/evaluation-results.php?registration_id=<?= (int)$eval['registration_id'] ?>&amp;token=<?= $token ?>"><?= sdH(sd('see_report')) ?></a>
                     <?php else: ?>
                         <a class="btn btn-primary btn-sm" href="/live-session.php?code=<?= urlencode($eval['session_code']) ?>"><?= sdH(sd('join')) ?></a>

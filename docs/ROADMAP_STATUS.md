@@ -82,3 +82,14 @@ Tests: `php tests/integration/exports_compile.php [folder]` compiles every docum
 | Announcement email to every enrolled student when a session is activated or moved: date, time, duration, numbered instructions, link to the waiting room | `lib/LiveMailNotifier.php`, `lib/EmailQueue.php`, `lib/email-worker.php` |
 | All emails redesigned: light, rounded cards, pill badges, soft callouts, fact cards, numbered steps, big mark block; Fraunces and Hanken Grotesk with safe fallbacks; the logo is attached inside each message; plain-text part; proper MIME (quoted-printable, dot-stuffing, Message-ID) | `lib/EmailTheme.php`, `Mailer.php` |
 | Tests | `tests/integration/results_review.php` (26), unit tests (69) |
+
+
+## Contestation of cancelled results and shorter emails (9 October 2026)
+
+| Item | Where |
+|---|---|
+| Email text smaller and tighter (less scrolling); the announcement now opens with the schedule and the link, then step-by-step joining instructions, rules of conduct (what to do, what not to do) and what follows an exam | `lib/EmailTheme.php`, `Mailer.php` (`liveEvalScheduled`) |
+| A student can contest a cancelled result once: page with the reason, their own copy (answers only, no key) and a form; opened from the email (signed link) or from the evaluations list of the dashboard, which now shows "Résultat annulé" and a Contest button instead of "Join" | `student/contest-result.php`, `api/contest.php`, `lib/Contests.php`, `student/dashboard.php` |
+| The teacher is told (notification + email) and answers from the review table: restore the result, or keep the cancellation with a written reason; the answer is final and goes to the student by email and notification | `teacher/live-results.php`, `assets/js/results-review.js`, `result_contests` table |
+| The old results link of a cancelled result now leads to the contest page instead of an error | `student/evaluation-results.php` |
+| Tests | `tests/integration/results_review.php` (45) |

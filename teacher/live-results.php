@@ -12,6 +12,7 @@ declare(strict_types=1);
 
 require_once __DIR__ . '/../auth.php';
 require_once __DIR__ . '/../lib/LiveResults.php';
+require_once __DIR__ . '/../lib/Contests.php';
 require_once __DIR__ . '/../lib/Security.php';
 
 header('Content-Type: application/json');
@@ -37,6 +38,14 @@ try {
                 : LiveResults::restore($pdo, $rid, $teacherId);
             if ($res['ok']) {
                 auditLog('live_result_' . $action, "Registration #{$rid}");
+            }
+            echo json_encode($res + ['success' => $res['ok']]);
+            exit;
+        }
+        if ($action === 'resolve_contest') {
+            $res = Contests::resolve($pdo, (int)($_POST['contest_id'] ?? 0), $teacherId, ($_POST['decision'] ?? '') === 'accept', (string)($_POST['response'] ?? ''));
+            if ($res['ok']) {
+                auditLog('live_contest_' . (($_POST['decision'] ?? '') === 'accept' ? 'accepted' : 'rejected'), 'Contest #' . (int)$_POST['contest_id']);
             }
             echo json_encode($res + ['success' => $res['ok']]);
             exit;
