@@ -284,6 +284,22 @@ t('sms: async announcement mentions the deadline', function () {
     eq(str_contains($m, '25/10/2026 23:00'), true);
 });
 
+t('bulk import FAQ: both languages render with the real limits and every item', function () {
+    require_once __DIR__ . '/../../lib/BulkPackage.php';
+    foreach (['fr', 'en'] as $lang) {
+        $tdLang = $lang;
+        ob_start(); include __DIR__ . '/../../teacher/partials/live-import-faq.php'; $h = ob_get_clean();
+        eq(substr_count($h, '<details'), 13);
+        eq(str_contains($h, '__IMG__') || str_contains($h, '__ZIP__') || str_contains($h, '__Q__'), false);
+        eq(str_contains($h, BulkPackage::label(BulkPackage::MAX_IMAGE)), true);
+        eq(str_contains($h, 'q01_'), true);
+    }
+});
+t('bulk package: size labels are readable', function () {
+    eq(BulkPackage::label(26214400), '25 Mo');
+    eq(BulkPackage::label(1610612736), '1,5 Go');
+});
+
 echo "$passed passed, " . count($failed) . " failed\n";
 foreach ($failed as $f) {
     echo "  FAIL  $f\n";

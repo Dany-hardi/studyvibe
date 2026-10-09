@@ -468,7 +468,7 @@ class QuestionImporter
                 'line'           => $line,
             ];
             if ($timeRaw !== '' && $questions[array_key_last($questions)]['time_limit'] === null) {
-                $errors[] = "Ligne {$line} : temps invalide (un nombre de secondes entre 5 et 3600) : ignoré.";
+                $errors[] = "Ligne {$line} : temps invalide « {$timeRaw} » (un nombre entier de secondes entre 5 et 3600, ou laissez la case vide).";
             }
         }
 

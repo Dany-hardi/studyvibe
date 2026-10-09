@@ -31,6 +31,12 @@ final class BulkPackage
     public const MAX_ENTRIES = 2000;
     public const MAX_UNPACKED = 1610612736;  // 1.5 GB
     public const MAX_IMAGE = 26214400;       // 25 MB (each picture is scaled to 1600 px and re-encoded)
+    /** A size for a message: "25 Mo", "1,5 Go". */
+    public static function label(int $bytes): string
+    {
+        return $bytes >= 1073741824 ? rtrim(rtrim(number_format($bytes / 1073741824, 1, ',', ''), '0'), ',') . ' Go' : (int)round($bytes / 1048576) . ' Mo';
+    }
+
     /** The largest file the server will take at all: the smaller of upload_max_filesize and post_max_size, in bytes. */
     public static function uploadLimitBytes(): int
     {
@@ -105,7 +111,7 @@ final class BulkPackage
             }
         }
         if ($total > self::MAX_UNPACKED) {
-            $out['errors'][] = 'Le ZIP est trop volumineux une fois décompressé (120 Mo au plus).';
+            $out['errors'][] = 'Le ZIP est trop volumineux une fois décompressé (' . self::label(self::MAX_UNPACKED) . ' au plus).';
             $zip->close();
             return $out;
         }
@@ -132,7 +138,7 @@ final class BulkPackage
                 continue;
             }
             if ($size > self::MAX_IMAGE) {
-                $out['errors'][] = "L’image « {$base} » dépasse 8 Mo.";
+                $out['errors'][] = "L’image « {$base} » dépasse " . self::label(self::MAX_IMAGE) . '.';
                 continue;
             }
             $stream = $zip->getStream((string)$zip->getNameIndex($idx));
@@ -154,7 +160,7 @@ final class BulkPackage
             fclose($stream);
             if ($written > self::MAX_IMAGE) {
                 @unlink($dest);
-                $out['errors'][] = "L’image « {$base} » dépasse 8 Mo.";
+                $out['errors'][] = "L’image « {$base} » dépasse " . self::label(self::MAX_IMAGE) . '.';
                 continue;
             }
             $out['images'][$key] = $dest;

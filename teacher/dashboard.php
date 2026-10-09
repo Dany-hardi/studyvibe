@@ -2413,7 +2413,7 @@ $tdHasCourse = (bool)$selectedCourse;
                                             <div class="t-field">
                                                 <label for="qf-<?= $sid ?>"><?= tde('q_import_file') ?></label>
                                                 <input type="file" id="qf-<?= $sid ?>" accept=".csv,.xlsx,.xls,.txt" onchange="importLiveQuestionsFile(this, <?= $sid ?>)">
-                                                <span class="t-hint"><?= tde('q_import_note') ?></span>
+                                                <span class="t-hint"><?= tde('q_import_note') ?> <button type="button" class="t-link" onclick="openLiveImportFaq('csv-columns')"><?= tde('bi_guide') ?></button></span>
                                             </div>
                                             <a href="/teacher/sample-questions.csv" download class="t-link"><?= tde('q_import_sample') ?></a>
 
@@ -2424,7 +2424,7 @@ $tdHasCourse = (bool)$selectedCourse;
                                                 <div class="t-field">
                                                     <label for="bi-<?= $sid ?>"><?= tde('bi_file') ?></label>
                                                     <input type="file" id="bi-<?= $sid ?>" class="bi-file" accept=".zip,.csv">
-                                                    <span class="t-hint"><?= tde('bi_hint') ?></span>
+                                                    <span class="t-hint"><?= tde('bi_hint') ?> <button type="button" class="t-link" onclick="openLiveImportFaq('zip-steps')"><?= tde('bi_guide') ?></button></span>
                                                 </div>
                                                 <div style="display:flex;gap:.75rem;flex-wrap:wrap;align-items:center">
                                                     <button type="button" class="t-btn t-btn-ghost bi-check"><?= tde('bi_check') ?></button>
@@ -2504,6 +2504,8 @@ $tdHasCourse = (bool)$selectedCourse;
                     </article>
                     <?php endforeach; ?>
                 <?php endif; ?>
+
+                <?php require __DIR__ . '/partials/live-import-faq.php'; ?>
             </div>
 
             <!-- 5. NOTES & SUIVI (tab-grades) -->

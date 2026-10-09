@@ -33,7 +33,7 @@ Use `,` or `;` as separator, with or without a UTF-8 BOM.
 1. **Check** (preview): the package is read and described line by line: questions found, pictures matched, errors, warnings. Nothing is written.
 2. **Import**: the package is checked again (the browser's preview is not trusted) and written **all or nothing**: pictures first, then every question in one transaction. If anything fails the pictures just saved are removed.
 
-Errors that block the import: a picture named in the CSV that is not in the zip, a file that is not really a picture, an incomplete multiple-choice line, an invalid correct letter, no CSV, a corrupted zip, too many questions or files. Warnings that do not block: a picture nobody uses, a duplicate file name, a bad `time_limit` (ignored), pictures in a lesson or course quiz (those do not carry pictures).
+Errors that block the import: a `time_limit` that is not a whole number of seconds between 5 and 3600, a picture named in the CSV that is not in the zip, a file that is not really a picture, an incomplete multiple-choice line, an invalid correct letter, no CSV, a corrupted zip, too many questions or files. Warnings that do not block: a picture nobody uses, a duplicate file name, pictures in a lesson or course quiz (those do not carry pictures).
 
 ## Limits and safety
 
