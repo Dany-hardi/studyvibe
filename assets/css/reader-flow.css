@@ -108,3 +108,9 @@ html.dark .dm-av { background: #E9DDC6; }
 @media (prefers-reduced-motion: reduce) {
   .rd-article, .dm-card { transition: none; } .rd-article.is-entering, .vc-in-r, .vc-in-l, .vc-out-l, .vc-out-r, .dm-av, .vc-veil-ic, .pr-page:not(.is-ready)::before { animation: none; }
 }
+
+/* Assignment: mark and feedback shown to the student */
+.rd-grade { margin-top: .6rem; padding: .6rem .8rem; border-radius: 12px; background: color-mix(in srgb, var(--pine, #24402F) 12%, transparent); font-size: .92rem; }
+.rd-grade.is-warn { background: color-mix(in srgb, var(--ochre, #D9A23B) 24%, transparent); }
+.rd-grade small { color: var(--ink-3, #6B6557); font-weight: 400; }
+.rd-feedback-text { margin-top: .4rem; line-height: 1.5; }

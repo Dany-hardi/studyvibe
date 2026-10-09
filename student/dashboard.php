@@ -250,6 +250,27 @@ try {
     ");
     $stmt->execute(['sid' => $user['id']]);
     $lessonScores = $stmt->fetchAll();
+
+    // 12. The student's assignments: what is due, what was handed in, the mark and the feedback
+    $myAssignments = [];
+    try {
+        $stmt = $pdo->prepare("
+            SELECT l.id AS lesson_id, l.title AS lesson_title, l.assignment_title, l.assignment_deadline, l.assignment_max_score,
+                   c.id AS course_id, c.title AS course_title,
+                   s.submitted_at, s.is_late, s.score, s.feedback, s.graded_at, s.revision_requested_at
+            FROM enrollments e
+            JOIN courses c ON c.id = e.course_id
+            JOIN chapters ch ON ch.course_id = c.id
+            JOIN lessons l ON l.chapter_id = ch.id AND l.has_assignment = 1
+            LEFT JOIN lesson_assignment_submissions s ON s.lesson_id = l.id AND s.student_id = e.student_id
+            WHERE e.student_id = :sid
+            ORDER BY (l.assignment_deadline IS NULL), l.assignment_deadline ASC, l.id ASC
+        ");
+        $stmt->execute(['sid' => $user['id']]);
+        $myAssignments = $stmt->fetchAll();
+    } catch (Throwable $asgEx) {
+        $myAssignments = [];
+    }
 } catch (PDOException $e) {
     dieSafe('Erreur serveur. Veuillez réessayer.', $e, 'student/dashboard');
 }
@@ -779,6 +800,34 @@ $nav = [
         </div>
         <?php endif; ?>
     </section>
+
+    <?php if (!empty($myAssignments)): ?>
+    <section class="sd-block" aria-labelledby="r-assign">
+        <h2 id="r-assign" class="sd-h2"><?= sdH(sd('my_assignments')) ?></h2>
+        <div class="sd-tablewrap">
+        <table class="sd-table">
+            <thead><tr><th scope="col"><?= sdH(sd('th_assignment')) ?></th><th scope="col" class="r"><?= sdH(sd('th_deadline')) ?></th><th scope="col" class="r"><?= sdH(sd('th_status')) ?></th><th scope="col" class="r"><?= sdH(sd('th_score')) ?></th></tr></thead>
+            <tbody>
+            <?php foreach ($myAssignments as $ma):
+                $maSub = $ma['submitted_at'] !== null ? ['submitted_at' => $ma['submitted_at'], 'graded_at' => $ma['graded_at'], 'revision_requested_at' => $ma['revision_requested_at']] : null;
+                $maStatus = $maSub === null ? ((!empty($ma['assignment_deadline']) && strtotime($ma['assignment_deadline']) < time()) ? 'missed' : 'todo') : (!empty($ma['revision_requested_at']) && strtotime($ma['revision_requested_at']) >= strtotime($ma['submitted_at']) ? 'revision' : (!empty($ma['graded_at']) ? 'graded' : 'submitted'));
+                $maMax = rtrim(rtrim(number_format((float)$ma['assignment_max_score'], 2, ',', ''), '0'), ',');
+            ?>
+                <tr>
+                    <th scope="row"><?= sdH($ma['assignment_title'] ?: $ma['lesson_title']) ?><small><?= sdH($ma['course_title']) ?><?= !empty($ma['is_late']) ? ' · ' . sdH(sd('as_late_tag')) : '' ?></small></th>
+                    <td class="r num" data-label="<?= sdH(sd('th_deadline')) ?>"><?= !empty($ma['assignment_deadline']) ? sdH(sdDate($ma['assignment_deadline'], 'date')) : '—' ?></td>
+                    <td class="r" data-label="<?= sdH(sd('th_status')) ?>"><?= sdH(sd('as_status_' . $maStatus)) ?></td>
+                    <td class="r num" data-label="<?= sdH(sd('th_score')) ?>">
+                        <?php if ($ma['score'] !== null): ?><?= sdH(rtrim(rtrim(number_format((float)$ma['score'], 2, ',', ''), '0'), ',')) ?> / <?= sdH($maMax) ?><?php else: ?>—<?php endif; ?>
+                        <?php if (!empty($ma['feedback'])): ?><details class="sd-meta"><summary><?= sdH(sd('as_feedback_link')) ?></summary><?= nl2br(sdH($ma['feedback'])) ?></details><?php endif; ?>
+                    </td>
+                </tr>
+            <?php endforeach; ?>
+            </tbody>
+        </table>
+        </div>
+    </section>
+    <?php endif; ?>
 
     <?php if (!empty($lessonScores)): ?>
     <section class="sd-block" aria-labelledby="r-lessons">

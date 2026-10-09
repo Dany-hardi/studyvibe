@@ -104,7 +104,14 @@ try {
         };
 
     } elseif ($type === 'assignment') {
-        $stmt = $pdo->prepare("SELECT student_id, submitted_file_name FROM lesson_assignment_submissions WHERE submitted_file_path = :file LIMIT 1");
+        $stmt = $pdo->prepare("
+            SELECT s.student_id, s.submitted_file_name, c.teacher_id
+            FROM lesson_assignment_submissions s
+            JOIN lessons l ON l.id = s.lesson_id
+            JOIN chapters ch ON ch.id = l.chapter_id
+            JOIN courses c ON c.id = ch.course_id
+            WHERE s.submitted_file_path = :file LIMIT 1
+        ");
         $stmt->execute(['file' => $file]);
         $sub = $stmt->fetch();
         if (!$sub) {
@@ -112,10 +119,16 @@ try {
             exit('Fichier introuvable.');
         }
 
-        if ($role !== 'teacher' && $role !== 'promoter' && $userId !== (int)$sub['student_id']) {
+        // The student who handed it in, the teacher of that course, or a promoter. Not any teacher.
+        $allowed = $role === 'promoter'
+            || ($role === 'teacher' && (int)$sub['teacher_id'] === $userId)
+            || ($role === 'student' && (int)$sub['student_id'] === $userId);
+        if (!$allowed) {
             http_response_code(403);
             exit('Accès non autorisé.');
         }
+        $downloadName = preg_replace('/[^A-Za-z0-9._-]+/', '_', (string)($sub['submitted_file_name'] ?: $file)) ?: $file;
+        $forceDownload = true;   // a student's file is never displayed in the browser
 
         $path = __DIR__ . '/uploads/assignments/' . $file;
         $ext  = strtolower(pathinfo($file, PATHINFO_EXTENSION));
@@ -238,7 +251,7 @@ try {
 
     header('Content-Type: ' . $mime);
     header('Content-Length: ' . (string)filesize($path));
-    header('Content-Disposition: inline; filename="' . $file . '"');
+    header('Content-Disposition: ' . (!empty($forceDownload) ? 'attachment' : 'inline') . '; filename="' . ($downloadName ?? $file) . '"');
     header('X-Content-Type-Options: nosniff');
     header('Cache-Control: private, max-age=3600');
     readfile($path);

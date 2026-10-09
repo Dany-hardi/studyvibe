@@ -553,6 +553,45 @@ class Mailer
         return self::send($to, ($accepted ? ($en ? 'Contestation accepted: ' : 'Contestation acceptée : ') : ($en ? 'Final decision: ' : 'Décision définitive : ')) . $sessionTitle . ' — StudyVibe', $html);
     }
 
+
+    /** The student's assignment was marked: the mark and the teacher's written feedback. */
+    public static function assignmentGraded(string $to, string $name, string $title, string $lessonTitle, string $courseTitle, float $score, float $max, string $feedback, string $teacher, string $lang, string $url): bool
+    {
+        $en = $lang === 'en';
+        $fmt = fn(float $v) => rtrim(rtrim(number_format($v, 2, $en ? '.' : ',', ''), '0'), $en ? '.' : ',');
+        $pct = $max > 0 ? $score / $max * 100 : 0;
+        $html = EmailTheme::layout(
+            EmailTheme::badge($en ? 'Assignment marked' : 'Devoir noté', $pct >= 50 ? 'pine' : 'clay')
+            . EmailTheme::title($en ? 'Your assignment has been marked' : 'Votre devoir a été noté')
+            . self::hello($name, $lang)
+            . EmailTheme::p(($en ? 'Your teacher has marked <strong>' : 'Votre enseignant a noté <strong>') . self::h($title) . ($en ? '</strong> (course ' : '</strong> (cours ') . self::h($courseTitle) . ').')
+            . EmailTheme::stat($en ? 'Your mark' : 'Votre note', $fmt($score) . ' / ' . $fmt($max), str_replace('.', $en ? '.' : ',', (string)round($pct, 1)) . ' %', $pct >= 50 ? 'pine' : 'clay')
+            . ($feedback !== '' ? EmailTheme::callout(nl2br(self::h($feedback)), 'ink', $en ? 'Your teacher’s feedback' : 'Le retour de votre enseignant') : '')
+            . EmailTheme::button($url, $en ? 'See my assignment' : 'Voir mon devoir')
+            . EmailTheme::signature($lang, $teacher),
+            ['preheader' => $title . ' · ' . $fmt($score) . ' / ' . $fmt($max), 'lang' => $lang]
+        );
+        return self::send($to, ($en ? 'Assignment marked: ' : 'Devoir noté : ') . $title . ' — StudyVibe', $html);
+    }
+
+    /** The teacher asks for a new version of an assignment. */
+    public static function assignmentRevision(string $to, string $name, string $title, string $lessonTitle, string $courseTitle, string $note, string $teacher, string $lang, string $url): bool
+    {
+        $en = $lang === 'en';
+        $html = EmailTheme::layout(
+            EmailTheme::badge($en ? 'New version requested' : 'Nouvelle version demandée', 'ochre')
+            . EmailTheme::title($en ? 'Your teacher asks for a new version' : 'Votre enseignant demande une nouvelle version')
+            . self::hello($name, $lang)
+            . EmailTheme::p(($en ? 'About <strong>' : 'À propos de <strong>') . self::h($title) . ($en ? '</strong> (course ' : '</strong> (cours ') . self::h($courseTitle) . ') :')
+            . EmailTheme::callout(nl2br(self::h($note)), 'ochre', $en ? 'What to improve' : 'Ce qu’il faut améliorer')
+            . EmailTheme::p($en ? 'You can send a new version even if the deadline has passed.' : 'Vous pouvez déposer une nouvelle version, même si la date limite est passée.')
+            . EmailTheme::button($url, $en ? 'Send a new version' : 'Déposer une nouvelle version')
+            . EmailTheme::signature($lang, $teacher),
+            ['preheader' => $title, 'lang' => $lang]
+        );
+        return self::send($to, ($en ? 'New version requested: ' : 'Nouvelle version demandée : ') . $title . ' — StudyVibe', $html);
+    }
+
     // =========================================================================
     // SECTION 4: ADMINISTRATION AND TEACHING
     // =========================================================================

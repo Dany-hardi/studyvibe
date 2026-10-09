@@ -457,6 +457,51 @@ class Database
             } catch (PDOException $ex) {}
         }
 
+        // Migration 2.6i: assignments become gradable. The lesson carries the scale and the late/resubmission policy; each submission
+        // carries its mark, the teacher's feedback, whether it was late and how many versions were sent; older versions are kept.
+        foreach ([
+            "ALTER TABLE `lessons` ADD COLUMN `assignment_max_score` DECIMAL(6,2) NOT NULL DEFAULT 20",
+            "ALTER TABLE `lessons` ADD COLUMN `assignment_allow_late` TINYINT(1) NOT NULL DEFAULT 0",
+            "ALTER TABLE `lessons` ADD COLUMN `assignment_allow_resubmit` TINYINT(1) NOT NULL DEFAULT 1",
+            "ALTER TABLE `lesson_assignment_submissions` ADD COLUMN `is_late` TINYINT(1) NOT NULL DEFAULT 0",
+            "ALTER TABLE `lesson_assignment_submissions` ADD COLUMN `attempt_count` INT NOT NULL DEFAULT 1",
+            "ALTER TABLE `lesson_assignment_submissions` ADD COLUMN `score` DECIMAL(6,2) DEFAULT NULL",
+            "ALTER TABLE `lesson_assignment_submissions` ADD COLUMN `feedback` TEXT DEFAULT NULL",
+            "ALTER TABLE `lesson_assignment_submissions` ADD COLUMN `graded_at` DATETIME DEFAULT NULL",
+            "ALTER TABLE `lesson_assignment_submissions` ADD COLUMN `graded_by` INT DEFAULT NULL",
+            "ALTER TABLE `lesson_assignment_submissions` ADD COLUMN `revision_requested_at` DATETIME DEFAULT NULL",
+            "ALTER TABLE `lesson_assignment_submissions` ADD COLUMN `revision_note` VARCHAR(500) DEFAULT NULL",
+        ] as $ddl) {
+            try {
+                $pdo->exec($ddl);
+            } catch (PDOException $ex) {
+                // already applied
+            }
+        }
+        try {
+            $pdo->query("SELECT 1 FROM lesson_assignment_history LIMIT 1");
+        } catch (PDOException $e) {
+            try {
+                $pdo->exec("
+                    CREATE TABLE IF NOT EXISTS `lesson_assignment_history` (
+                        `id`             INT AUTO_INCREMENT PRIMARY KEY,
+                        `submission_id`  INT NOT NULL,
+                        `attempt`        INT NOT NULL,
+                        `file_path`      VARCHAR(255) DEFAULT NULL,
+                        `file_name`      VARCHAR(255) DEFAULT NULL,
+                        `link`           VARCHAR(1000) DEFAULT NULL,
+                        `comment`        TEXT DEFAULT NULL,
+                        `submitted_at`   DATETIME NOT NULL,
+                        `score`          DECIMAL(6,2) DEFAULT NULL,
+                        `feedback`       TEXT DEFAULT NULL,
+                        `graded_at`      DATETIME DEFAULT NULL,
+                        KEY `idx_hist_submission` (`submission_id`),
+                        FOREIGN KEY (`submission_id`) REFERENCES `lesson_assignment_submissions`(`id`) ON DELETE CASCADE
+                    ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4
+                ");
+            } catch (PDOException $ex) {}
+        }
+
         // Migration 2.7: Support binary storage backups for course cover images and lesson PDFs
         try {
             $pdo->query("SELECT cover_image_data FROM courses LIMIT 1");

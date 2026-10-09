@@ -261,6 +261,9 @@ try {
             $allowedFileTypes = trim((string)($_POST['allowed_file_types'] ?? 'pdf,docx')) ?: 'pdf,docx';
             $assignmentInstructions = trim((string)($_POST['assignment_instructions'] ?? '')) ?: null;
             $assignmentDeadline = !empty($_POST['assignment_deadline']) ? $_POST['assignment_deadline'] : null;
+            $asgMaxScore = max(1.0, min(1000.0, (float)str_replace(',', '.', (string)($_POST['assignment_max_score'] ?? '20')) ?: 20.0));
+            $asgAllowLate = !empty($_POST['assignment_allow_late']) ? 1 : 0;
+            $asgAllowResubmit = isset($_POST['assignment_policy_sent']) ? (!empty($_POST['assignment_allow_resubmit']) ? 1 : 0) : 1;
             $pdfPath     = null;
 
             if (in_array($contentType, ['pdf','mixed'], true) && !empty($_FILES['lesson_pdf']['name'])) {
@@ -278,8 +281,8 @@ try {
                 $maxSort = (int)$stmt->fetchColumn();
 
                 $stmt = $pdo->prepare("
-                    INSERT INTO lessons (chapter_id,title,content_type,text_content,pdf_path,pdf_data,video_url,sort_order,is_compulsory,quiz_deadline,has_assignment,assignment_title,assignment_type,allowed_file_types,assignment_instructions,assignment_deadline)
-                    VALUES (:cid,:title,:ct,:tc,:pp,:pd,NULL,:so,:ic,:qd,:ha,:at,:atype,:aft,:ai,:ad)
+                    INSERT INTO lessons (chapter_id,title,content_type,text_content,pdf_path,pdf_data,video_url,sort_order,is_compulsory,quiz_deadline,has_assignment,assignment_title,assignment_type,allowed_file_types,assignment_instructions,assignment_deadline,assignment_max_score,assignment_allow_late,assignment_allow_resubmit)
+                    VALUES (:cid,:title,:ct,:tc,:pp,:pd,NULL,:so,:ic,:qd,:ha,:at,:atype,:aft,:ai,:ad,:amax,:alate,:are)
                 ");
                 $stmt->execute([
                     'cid' => $chapterId, 'title' => $title, 'ct' => $contentType,
@@ -288,6 +291,7 @@ try {
                     'qd'  => $quizDeadline, 'ha' => $hasAssignment, 'at' => $assignmentTitle,
                     'atype' => $assignmentType, 'aft' => $allowedFileTypes,
                     'ai'  => $assignmentInstructions, 'ad' => $assignmentDeadline,
+                    'amax' => $asgMaxScore, 'alate' => $asgAllowLate, 'are' => $asgAllowResubmit,
                 ]);
                 $lessonId = (int)$pdo->lastInsertId();
 
@@ -318,6 +322,9 @@ try {
             $allowedFileTypes = trim((string)($_POST['allowed_file_types'] ?? 'pdf,docx')) ?: 'pdf,docx';
             $assignmentInstructions = trim((string)($_POST['assignment_instructions'] ?? '')) ?: null;
             $assignmentDeadline = !empty($_POST['assignment_deadline']) ? $_POST['assignment_deadline'] : null;
+            $asgMaxScore = max(1.0, min(1000.0, (float)str_replace(',', '.', (string)($_POST['assignment_max_score'] ?? '20')) ?: 20.0));
+            $asgAllowLate = !empty($_POST['assignment_allow_late']) ? 1 : 0;
+            $asgAllowResubmit = isset($_POST['assignment_policy_sent']) ? (!empty($_POST['assignment_allow_resubmit']) ? 1 : 0) : 1;
             $deletePdf   = !empty($_POST['delete_pdf']) && $_POST['delete_pdf'] === '1';
 
             if ($lessonId > 0 && !empty($title)) {
@@ -359,21 +366,21 @@ try {
 
                     if ($updatePdfData) {
                         $stmt = $pdo->prepare("
-                            UPDATE lessons SET title=:t,content_type=:ct,text_content=:tc,pdf_path=:pp,pdf_data=:pd,is_compulsory=:ic,quiz_deadline=:qd,has_assignment=:ha,assignment_title=:at,assignment_type=:atype,allowed_file_types=:aft,assignment_instructions=:ai,assignment_deadline=:ad
+                            UPDATE lessons SET title=:t,content_type=:ct,text_content=:tc,pdf_path=:pp,pdf_data=:pd,is_compulsory=:ic,quiz_deadline=:qd,has_assignment=:ha,assignment_title=:at,assignment_type=:atype,allowed_file_types=:aft,assignment_instructions=:ai,assignment_deadline=:ad,assignment_max_score=:amax,assignment_allow_late=:alate,assignment_allow_resubmit=:are
                             WHERE id=:id
                         ");
                         $stmt->execute([
                             't'=>$title,'ct'=>$contentType,'tc'=>$textContent,'pp'=>$finalPdf,'pd'=>$pdfData,'ic'=>$isCompulsory,'qd'=>$quizDeadline,
-                            'ha'=>$hasAssignment,'at'=>$assignmentTitle,'atype'=>$assignmentType,'aft'=>$allowedFileTypes,'ai'=>$assignmentInstructions,'ad'=>$assignmentDeadline,'id'=>$lessonId
+                            'ha'=>$hasAssignment,'at'=>$assignmentTitle,'atype'=>$assignmentType,'aft'=>$allowedFileTypes,'ai'=>$assignmentInstructions,'ad'=>$assignmentDeadline,'amax'=>$asgMaxScore,'alate'=>$asgAllowLate,'are'=>$asgAllowResubmit,'id'=>$lessonId
                         ]);
                     } else {
                         $stmt = $pdo->prepare("
-                            UPDATE lessons SET title=:t,content_type=:ct,text_content=:tc,is_compulsory=:ic,quiz_deadline=:qd,has_assignment=:ha,assignment_title=:at,assignment_type=:atype,allowed_file_types=:aft,assignment_instructions=:ai,assignment_deadline=:ad
+                            UPDATE lessons SET title=:t,content_type=:ct,text_content=:tc,is_compulsory=:ic,quiz_deadline=:qd,has_assignment=:ha,assignment_title=:at,assignment_type=:atype,allowed_file_types=:aft,assignment_instructions=:ai,assignment_deadline=:ad,assignment_max_score=:amax,assignment_allow_late=:alate,assignment_allow_resubmit=:are
                             WHERE id=:id
                         ");
                         $stmt->execute([
                             't'=>$title,'ct'=>$contentType,'tc'=>$textContent,'ic'=>$isCompulsory,'qd'=>$quizDeadline,
-                            'ha'=>$hasAssignment,'at'=>$assignmentTitle,'atype'=>$assignmentType,'aft'=>$allowedFileTypes,'ai'=>$assignmentInstructions,'ad'=>$assignmentDeadline,'id'=>$lessonId
+                            'ha'=>$hasAssignment,'at'=>$assignmentTitle,'atype'=>$assignmentType,'aft'=>$allowedFileTypes,'ai'=>$assignmentInstructions,'ad'=>$assignmentDeadline,'amax'=>$asgMaxScore,'alate'=>$asgAllowLate,'are'=>$asgAllowResubmit,'id'=>$lessonId
                         ]);
                     }
 
@@ -1087,6 +1094,7 @@ try {
                 las.submitted_link,
                 las.student_comment,
                 las.submitted_at,
+                las.is_late, las.attempt_count, las.score, las.feedback, las.graded_at, las.revision_requested_at,
                 u.name AS student_name,
                 u.email AS student_email,
                 u.avatar_path AS student_avatar
@@ -2663,6 +2671,8 @@ $tdHasCourse = (bool)$selectedCourse;
                     </div>
                     <div class="t-actions">
                         <div class="t-export" role="group" aria-label="<?= tde('export') ?>"><span><?= tde('export') ?></span>
+                            <a href="/teacher/export-assignment-grades.php?course_id=<?= $selectedCourseId; ?>&amp;format=xlsx"><?= tde('asg_exp_marks_x') ?></a>
+                            <a href="/teacher/export-assignment-grades.php?course_id=<?= $selectedCourseId; ?>&amp;format=pdf"><?= tde('asg_exp_marks_p') ?></a>
                             <a href="/teacher/download-assignments-excel.php?course_id=<?= $selectedCourseId; ?>"><?= tde('asg_exp_csv') ?></a>
                             <a href="/teacher/download-assignments-zip.php?course_id=<?= $selectedCourseId; ?>"><?= tde('asg_exp_zip') ?></a>
                         </div>
@@ -2672,8 +2682,8 @@ $tdHasCourse = (bool)$selectedCourse;
                 <div class="t-stats" style="grid-template-columns:repeat(4,minmax(0,1fr));margin-bottom:2rem">
                     <div><span class="n"><?= count($configuredAssignmentLessons); ?></span><span class="l"><?= tde('asg_s_conf') ?></span></div>
                     <div><span class="n"><?= count($teacherAssignments); ?></span><span class="l"><?= tde('asg_s_total') ?></span></div>
-                    <div><span class="n"><?= count(array_filter($teacherAssignments, fn($a) => !empty($a['submitted_file_path']))); ?></span><span class="l"><?= tde('asg_s_files') ?></span></div>
-                    <div><span class="n"><?= count(array_filter($teacherAssignments, fn($a) => !empty($a['submitted_link']))); ?></span><span class="l"><?= tde('asg_s_links') ?></span></div>
+                    <div><span class="n"><?= count(array_filter($teacherAssignments, fn($a) => empty($a['graded_at']))); ?></span><span class="l"><?= tde('asg_s_tograde') ?></span></div>
+                    <div><span class="n"><?= count(array_filter($teacherAssignments, fn($a) => !empty($a['graded_at']))); ?></span><span class="l"><?= tde('asg_s_graded') ?></span></div>
                 </div>
 
                 <!-- Assignment Lessons Grouped by Chapter & Lesson -->
@@ -2763,6 +2773,9 @@ $tdHasCourse = (bool)$selectedCourse;
                                                     <th class="py-2.5 px-4">Fichier Rendu</th>
                                                     <th class="py-2.5 px-4">Date de Dépôt</th>
                                                     <th class="py-2.5 px-4">Commentaire Élève</th>
+                                                    <th class="py-2.5 px-4"><?= tde('asg_col_status') ?></th>
+                                                    <th class="py-2.5 px-4"><?= tde('asg_col_mark') ?></th>
+                                                    <th class="py-2.5 px-4"></th>
                                                 </tr>
                                             </thead>
                                             <tbody class="divide-y divide-[var(--line)]  text-xs">
@@ -2817,6 +2830,21 @@ $tdHasCourse = (bool)$selectedCourse;
                                                         </td>
                                                         <td class="py-3 px-4 max-w-xs truncate text-[var(--ink-2)] " title="<?= htmlspecialchars($asg['student_comment'] ?? ''); ?>">
                                                             <?= !empty($asg['student_comment']) ? htmlspecialchars($asg['student_comment']) : '<span class="text-[var(--ink-3)] italic">—</span>'; ?>
+                                                        </td>
+                                                        <?php
+                                                            $asgMax = (float)($lesAsg['assignment_max_score'] ?? 20);
+                                                            $asgStatus = !empty($asg['revision_requested_at']) && strtotime($asg['revision_requested_at']) >= strtotime($asg['submitted_at']) ? 'revision' : (!empty($asg['graded_at']) ? 'graded' : 'submitted');
+                                                        ?>
+                                                        <td class="py-3 px-4">
+                                                            <span class="t-chip" style="padding:0 .5rem;white-space:nowrap"><?= tde('asg_st_' . $asgStatus) ?></span>
+                                                            <?php if (!empty($asg['is_late'])): ?><span class="t-chip" style="padding:0 .5rem;margin-top:.2rem;display:inline-block;color:var(--danger)"><?= tde('asg_late') ?></span><?php endif; ?>
+                                                            <?php if ((int)($asg['attempt_count'] ?? 1) > 1): ?><div class="text-[10px] text-[var(--ink-3)]"><?= td('asg_versions', ['n' => (int)$asg['attempt_count']]) ?></div><?php endif; ?>
+                                                        </td>
+                                                        <td class="py-3 px-4 num font-bold">
+                                                            <?= $asg['score'] !== null ? htmlspecialchars(rtrim(rtrim(number_format((float)$asg['score'], 2, ',', ''), '0'), ',')) . ' / ' . htmlspecialchars(rtrim(rtrim(number_format($asgMax, 2, ',', ''), '0'), ',')) : '<span class="text-[var(--ink-3)] italic font-normal">—</span>' ?>
+                                                        </td>
+                                                        <td class="py-3 px-4">
+                                                            <button type="button" class="t-btn <?= $asgStatus === 'submitted' ? 't-btn-primary' : 't-btn-ghost' ?>" style="padding:.3rem .8rem" onclick="AsgGrade.open(<?= (int)$asg['id'] ?>)"><?= $asgStatus === 'submitted' ? tde('asg_grade') : tde('asg_review') ?></button>
                                                         </td>
                                                     </tr>
                                                 <?php endforeach; ?>
@@ -3382,6 +3410,17 @@ $tdHasCourse = (bool)$selectedCourse;
                         <label class="block text-[11px] font-semibold text-[var(--ink-2)]  mb-1">Date limite de rendu (Optionnelle)</label>
                         <input type="datetime-local" name="assignment_deadline" id="lesson-assignment-deadline" class="w-full px-3 py-1.5 bg-[var(--paper-2)]  border border-[var(--line)]  text-xs focus:outline-none focus:border-[var(--clay)] rounded-sm ">
                     </div>
+                    <input type="hidden" name="assignment_policy_sent" value="1">
+                    <div class="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                        <div>
+                            <label class="block text-[11px] font-semibold text-[var(--ink-2)] mb-1" for="lesson-assignment-max"><?= tde('asg_f_max') ?></label>
+                            <input type="number" name="assignment_max_score" id="lesson-assignment-max" min="1" max="1000" step="0.5" value="20" class="w-full px-3 py-1.5 bg-[var(--paper-2)] border border-[var(--line)] text-xs focus:outline-none focus:border-[var(--clay)] rounded-sm">
+                        </div>
+                        <div class="space-y-1.5 pt-1">
+                            <label class="flex items-center gap-2 text-[11px] text-[var(--ink-2)] cursor-pointer"><input type="checkbox" name="assignment_allow_resubmit" id="lesson-assignment-resubmit" value="1" checked> <?= tde('asg_f_resubmit') ?></label>
+                            <label class="flex items-center gap-2 text-[11px] text-[var(--ink-2)] cursor-pointer"><input type="checkbox" name="assignment_allow_late" id="lesson-assignment-late" value="1"> <?= tde('asg_f_late') ?></label>
+                        </div>
+                    </div>
                 </div>
             </div>
 
@@ -3683,6 +3722,37 @@ $tdHasCourse = (bool)$selectedCourse;
         </form>
     </div>
 </div>
+
+<!-- ── Devoirs : fenêtre de notation ────────── -->
+<style>
+.ag-overlay { position: fixed; inset: 0; z-index: 9000; display: none; align-items: center; justify-content: center; padding: 1rem; background: color-mix(in srgb, var(--ink, #1E1B16) 55%, transparent); }
+.ag-overlay.is-open { display: flex; }
+.ag-card { width: min(36rem, 100%); max-height: 92vh; overflow: auto; background: var(--card, #FBF8F2); color: var(--ink, #1E1B16); border: 1px solid var(--line, #DDD5C3); border-radius: 20px; padding: 1.4rem 1.5rem; box-shadow: 0 24px 60px rgba(0,0,0,.25); }
+.ag-head { display: flex; justify-content: space-between; gap: 1rem; align-items: flex-start; margin-bottom: .75rem; }
+.ag-head h3 { margin: 0; font: 500 1.4rem/1.2 'Fraunces', Georgia, serif; } .ag-head p { margin: .2rem 0 0; color: var(--ink-2, #4A453C); font-size: .9rem; }
+.ag-x { border: 0; background: none; font-size: 1.5rem; cursor: pointer; color: var(--ink-2, #4A453C); width: 40px; height: 40px; border-radius: 12px; }
+.ag-row { display: grid; grid-template-columns: 7.5rem 1fr; gap: .5rem; padding: .35rem 0; border-top: 1px solid var(--line, #DDD5C3); font-size: .92rem; } .ag-k { color: var(--ink-3, #6B6557); } .ag-v { overflow-wrap: anywhere; white-space: pre-wrap; }
+.ag-form { margin-top: .9rem; display: grid; gap: .35rem; } .ag-form label { font-weight: 600; font-size: .9rem; margin-top: .4rem; }
+.ag-form input, .ag-form textarea, .ag-rev textarea { width: 100%; box-sizing: border-box; padding: .55rem .75rem; border-radius: 12px; border: 1.5px solid var(--line-2, #C9BFA9); background: var(--paper, #F5F0E6); color: var(--ink, #1E1B16); font: 500 .95rem 'Hanken Grotesk', sans-serif; }
+.ag-form input { max-width: 10rem; font-variant-numeric: tabular-nums; font-weight: 700; } .ag-form textarea, .ag-rev textarea { min-height: 6rem; resize: vertical; }
+.ag-btn { min-height: 44px; margin-top: .6rem; padding: .5rem 1.2rem; border-radius: 12px; border: 1px solid var(--line-2, #C9BFA9); background: transparent; color: var(--ink, #1E1B16); font: 700 .95rem 'Hanken Grotesk', sans-serif; cursor: pointer; } .ag-btn.primary { background: var(--clay, #B5482A); border-color: var(--clay, #B5482A); color: #fff; } .ag-btn:disabled { opacity: .55; }
+.ag-rev { margin-top: 1rem; border-top: 1px solid var(--line, #DDD5C3); padding-top: .75rem; } .ag-rev summary { cursor: pointer; font-weight: 700; color: var(--clay, #B5482A); } .ag-rev label { display: block; margin: .6rem 0 .3rem; font-size: .9rem; font-weight: 600; }
+.ag-hist { margin-top: 1rem; font-size: .85rem; color: var(--ink-2, #4A453C); } .ag-hist p { margin: .2rem 0; }
+.ag-compact-note {}
+#tab-assignments table th, #tab-assignments table td { padding-left: .5rem !important; padding-right: .5rem !important; }
+#tab-assignments table td.max-w-xs { max-width: 9rem !important; }
+.ag-btn:focus-visible, .ag-x:focus-visible, .ag-form input:focus-visible, .ag-form textarea:focus-visible { outline: 2px solid var(--clay, #B5482A); outline-offset: 2px; }
+</style>
+<div id="ag-overlay" class="ag-overlay" role="dialog" aria-modal="true" aria-labelledby="ag-title">
+    <div class="ag-card">
+        <div class="ag-head">
+            <div><h3 id="ag-title"></h3><p id="ag-sub"></p></div>
+            <button type="button" class="ag-x" id="ag-close" aria-label="<?= tde('rv_close') ?>">&times;</button>
+        </div>
+        <div id="ag-body"></div>
+    </div>
+</div>
+<script src="/assets/js/assignment-grading.js" defer></script>
 
 <!-- ── Résultats : fenêtre « évaluation terminée » et tableau d'examen ────────── -->
 <link rel="stylesheet" href="/assets/css/results-review.css">
@@ -4518,6 +4588,9 @@ function openEditLessonModal(lesson) {
     }
     document.getElementById('lesson-assignment-instructions').value = lesson.assignment_instructions || '';
     document.getElementById('lesson-assignment-deadline').value = lesson.assignment_deadline ? lesson.assignment_deadline.substring(0, 16).replace(' ', 'T') : '';
+    if (document.getElementById('lesson-assignment-max')) document.getElementById('lesson-assignment-max').value = lesson.assignment_max_score || 20;
+    if (document.getElementById('lesson-assignment-resubmit')) document.getElementById('lesson-assignment-resubmit').checked = (lesson.assignment_allow_resubmit === undefined || lesson.assignment_allow_resubmit == 1);
+    if (document.getElementById('lesson-assignment-late')) document.getElementById('lesson-assignment-late').checked = (lesson.assignment_allow_late == 1);
     updateAssignmentInstructionsPreview();
 
     // Texte

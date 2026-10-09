@@ -776,7 +776,7 @@ function loadLesson(lessonId) {
             }
 
             const box = byId('lesson-assignment-container');
-            if ((l.has_assignment == 1 || l.has_assignment === '1') && box) { renderLessonAssignmentBox(l, data.submission); box.classList.remove('hidden'); }
+            if ((l.has_assignment == 1 || l.has_assignment === '1') && box) { renderLessonAssignmentBox(l, data.submission, data.assignment_state); box.classList.remove('hidden'); }
             else if (box) box.classList.add('hidden');
 
             SessionTimer.start(lessonId, 'lesson-session-timer');
@@ -937,9 +937,10 @@ byId('lesson-quiz-form').addEventListener('submit', function (e) {
 });
 
 /* ───────── assignment ───────── */
-function renderLessonAssignmentBox(lesson, submission) {
+function renderLessonAssignmentBox(lesson, submission, state) {
     const box = byId('lesson-assignment-container');
     if (!box) return;
+    state = state || { can_submit: !submission, reason: '', late: false, status: submission ? 'submitted' : 'none', max_score: 20 };
     byId('assignment-lesson-id').value = lesson.id;
     byId('assignment-display-title').textContent = lesson.assignment_title || T('assignment_default');
 
@@ -963,29 +964,50 @@ function renderLessonAssignmentBox(lesson, submission) {
     const linkInput = byId('assignment-link-input'), commentInput = byId('assignment-comment-input');
     const btn = byId('assignment-submit-btn'), btnSpan = $('#assignment-submit-btn span');
 
-    if (submission) {
-        if (submission.student_name) nameInput.value = submission.student_name;
-        if (submission.student_matricule) matInput.value = submission.student_matricule;
-    }
+    // Name and matricule come from the account: they are shown, not typed
+    nameInput.readOnly = true; matInput.readOnly = true;
     fileInput.value = '';
     linkInput.value = submission ? (submission.submitted_link || '') : '';
     commentInput.value = submission ? (submission.student_comment || '') : '';
     byId('assignment-form-message').textContent = '';
 
-    const lock = (v) => { [nameInput, matInput, fileInput, linkInput, commentInput].forEach(el => el.disabled = v); btn.disabled = v; };
+    const lock = (v) => { [fileInput, linkInput, commentInput].forEach(el => el.disabled = v); btn.disabled = v; };
+    const fmtN = (n) => String(Math.round(parseFloat(n) * 100) / 100).replace('.', ',');
     if (submission) {
         statusBox.classList.remove('hidden');
         let h = '<span class="num">' + esc(T('sent_on', { date: fmtDateTime(submission.submitted_at) })) + '</span>';
+        if (parseInt(submission.is_late, 10) === 1) h += ' <strong>· ' + esc(T('as_late')) + '</strong>';
+        if (parseInt(submission.attempt_count, 10) > 1) h += ' · ' + esc(T('as_attempt', { n: submission.attempt_count }));
         if (submission.submitted_file_name) h += '<br>' + esc(T('file')) + ' <a href="/download.php?type=assignment&file=' + encodeURIComponent(submission.submitted_file_path) + '" target="_blank" rel="noopener">' + esc(submission.submitted_file_name) + '</a>';
         if (submission.submitted_link) h += '<br>' + esc(T('link')) + ' <a href="' + esc(submission.submitted_link) + '" target="_blank" rel="noopener noreferrer">' + esc(submission.submitted_link) + '</a>';
+        if (state.status === 'graded' || (state.status === 'revision' && submission.score !== null)) {
+            h += '<div class="rd-grade"><strong>' + esc(T('as_mark')) + ' : <span class="num">' + esc(fmtN(submission.score)) + ' / ' + esc(fmtN(state.max_score)) + '</span></strong>'
+              + (submission.graded_at ? ' <small>(' + esc(fmtDateTime(submission.graded_at)) + ')</small>' : '')
+              + (submission.feedback ? '<div class="rd-feedback-text"><em>' + esc(T('as_feedback')) + '</em><br>' + esc(submission.feedback).replace(/\n/g, '<br>') + '</div>' : '') + '</div>';
+        } else if (state.status === 'submitted') {
+            h += '<div class="rd-grade"><em>' + esc(T('as_waiting')) + '</em></div>';
+        }
+        if (state.status === 'revision') {
+            h += '<div class="rd-grade is-warn"><strong>' + esc(T('as_revision')) + '</strong><br>' + esc(submission.revision_note || '').replace(/\n/g, '<br>') + '</div>';
+        }
         details.innerHTML = h;
-        lock(true);
-        if (btnSpan) btnSpan.textContent = T('as_sent_btn');
     } else {
         statusBox.classList.add('hidden');
         details.innerHTML = '';
+    }
+
+    if (state.can_submit) {
         lock(false);
-        if (btnSpan) btnSpan.textContent = T('as_submit');
+        if (btnSpan) btnSpan.textContent = submission ? T('as_resubmit') : T('as_submit');
+        if (!submission && state.deadline_passed && state.late) byId('assignment-form-message').textContent = T('as_late_ok');
+    } else {
+        lock(true);
+        if (btnSpan) btnSpan.textContent = submission ? T('as_sent_btn') : T('as_closed_btn');
+        if (!submission || state.reason === 'deadline') {
+            const m = byId('assignment-form-message');
+            m.className = 'rd-feedback is-bad';
+            m.textContent = state.reason === 'deadline' ? T('as_closed') : (state.reason === 'locked' ? T('as_locked') : '');
+        }
     }
 }
 
@@ -997,7 +1019,7 @@ function submitStudentAssignment(e) {
     const fi = byId('assignment-file-input'), li = byId('assignment-link-input'), ci = byId('assignment-comment-input');
     const msg = byId('assignment-form-message'), btn = byId('assignment-submit-btn');
     const bad = (t) => { msg.className = 'rd-feedback is-bad'; msg.textContent = t; };
-    if (!name || !mat) return bad(T('as_need_id'));
+    if (!mat) return bad(T('as_need_id'));
     if (!fi.files[0] && !li.value.trim()) return bad(T('as_need_one'));
     if (fi.files[0] && fi.files[0].size > 20 * 1024 * 1024) return bad(T('as_too_big'));
     const fd = new FormData();

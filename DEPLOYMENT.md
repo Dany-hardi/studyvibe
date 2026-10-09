@@ -287,7 +287,7 @@ Les SMS d'annonce d'évaluation partent par une file (`sms_outbox`) traitée en 
 Fichiers téléversés : ils sont copiés dans la base (tables `media_files` et `media_chunks`) et reviennent automatiquement après un redéploiement qui efface le disque. Pour copier les fichiers déjà présents : `php scripts/backfill-media.php`.
 
 Tests : `php tests/unit/run.php` (rapide, sans base) et, sur une machine de développement avec `APP_DEBUG=true` et `SMS_DRIVER=log`,
-`php tests/integration/account_security_flow.php`, `php tests/integration/media_store.php` et `php tests/integration/results_review.php` (revue des résultats, annulation, annonces par e-mail) et `php tests/integration/exports_compile.php` (compile tous les PDF avec LaTeX ; exige `pdflatex` avec les paquets `lmodern`, `babel-french`, `booktabs`, `longtable`, `enumitem`, `needspace`, `lastpage`, `microtype` : ils sont dans `texlive-latex-recommended`, `texlive-latex-extra`, `texlive-fonts-recommended` et `texlive-lang-french` du Dockerfile).
+`php tests/integration/account_security_flow.php`, `php tests/integration/media_store.php` et `php tests/integration/results_review.php` (revue des résultats, annulation, contestation, annonces par e-mail), `php tests/integration/assignments_flow.php` (devoirs : règles, notation, exports) et `php tests/integration/exports_compile.php` (compile tous les PDF avec LaTeX ; exige `pdflatex` avec les paquets `lmodern`, `babel-french`, `booktabs`, `longtable`, `enumitem`, `needspace`, `lastpage`, `microtype` : ils sont dans `texlive-latex-recommended`, `texlive-latex-extra`, `texlive-fonts-recommended` et `texlive-lang-french` du Dockerfile).
 
 ## 9 quinquies. E-mails de fond (annonces d'évaluation, résultats annulés)
 

@@ -35,7 +35,8 @@ try {
             las.submitted_link,
             las.submitted_file_name,
             las.submitted_file_path,
-            las.student_comment
+            las.student_comment,
+            las.is_late, las.score, las.feedback, las.graded_at, l.assignment_max_score
         FROM lesson_assignment_submissions las
         JOIN users u ON u.id = las.student_id
         JOIN lessons l ON l.id = las.lesson_id
@@ -91,7 +92,12 @@ try {
         'Lien Partagé / Projet',
         'Fichier Déposé',
         'Lien Téléchargement Fichier',
-        'Commentaire Élève'
+        'Commentaire Élève',
+        'Statut',
+        'Note',
+        'Sur',
+        'En retard',
+        'Retour de l\'enseignant'
     ]);
 
     // Data rows
@@ -104,7 +110,7 @@ try {
         };
 
         fputcsv($output, [
-            !empty($s['declared_student_name']) ? $s['declared_student_name'] : ($s['student_name'] ?? 'Élève inconnu'),
+            $s['student_name'] ?? 'Élève inconnu',   // the account's name, not what a form said
             $s['student_matricule'] ?? '',
             $s['student_email'] ?? '',
             $s['course_title'] ?? '',
@@ -114,7 +120,12 @@ try {
             $s['submitted_link'] ?? '',
             $s['submitted_file_name'] ?? '',
             $fileDownloadUrl,
-            $s['student_comment'] ?? ''
+            $s['student_comment'] ?? '',
+            $s['graded_at'] ? 'Noté' : 'À noter',
+            $s['score'] !== null ? str_replace('.', ',', (string)(float)$s['score']) : '',
+            str_replace('.', ',', (string)(float)($s['assignment_max_score'] ?? 20)),
+            !empty($s['is_late']) ? 'Oui' : 'Non',
+            $s['feedback'] ?? ''
         ]);
     }
 

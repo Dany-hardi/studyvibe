@@ -149,12 +149,18 @@ try {
     $submission = null;
     if (!empty($lesson['has_assignment'])) {
         $subStmt = $pdo->prepare("
-            SELECT id, submission_type, submitted_file_path, submitted_file_name, submitted_link, student_comment, submitted_at 
-            FROM lesson_assignment_submissions 
+            SELECT id, submission_type, submitted_file_path, submitted_file_name, submitted_link, student_comment, submitted_at,
+                   is_late, attempt_count, score, feedback, graded_at, revision_requested_at, revision_note
+            FROM lesson_assignment_submissions
             WHERE lesson_id = :lid AND student_id = :sid
         ");
         $subStmt->execute(['lid' => $lessonId, 'sid' => $studentId]);
         $submission = $subStmt->fetch(PDO::FETCH_ASSOC) ?: null;
+        require_once __DIR__ . '/../lib/Assignments.php';
+        $full = $pdo->prepare("SELECT assignment_deadline, assignment_allow_late, assignment_allow_resubmit, assignment_max_score FROM lessons WHERE id = :id");
+        $full->execute(['id' => $lessonId]);
+        $policy = $full->fetch(PDO::FETCH_ASSOC) ?: [];
+        $assignmentState = Assignments::state($policy, $submission) + ['max_score' => (float)($policy['assignment_max_score'] ?? 20)];
     }
 
     echo json_encode([
@@ -167,6 +173,7 @@ try {
         'completed'        => $completed || $quizComplete,
         'content_consumed' => $contentConsumed || $completed || $quizComplete,
         'submission'       => $submission,
+        'assignment_state' => $assignmentState ?? null,
     ]);
 
 } catch (PDOException $e) {

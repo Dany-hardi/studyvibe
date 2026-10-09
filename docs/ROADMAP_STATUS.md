@@ -93,3 +93,8 @@ Tests: `php tests/integration/exports_compile.php [folder]` compiles every docum
 | The teacher is told (notification + email) and answers from the review table: restore the result, or keep the cancellation with a written reason; the answer is final and goes to the student by email and notification | `teacher/live-results.php`, `assets/js/results-review.js`, `result_contests` table |
 | The old results link of a cancelled result now leads to the contest page instead of an error | `student/evaluation-results.php` |
 | Tests | `tests/integration/results_review.php` (45) |
+
+
+## Assignments audited and made gradable (9 October 2026)
+
+See `docs/ASSIGNMENTS_AUDIT.md` for the full audit. In short: seven defects reproduced and fixed (deadline not enforced, only the extension checked, identity typed by the student, any teacher could download any file, no resubmission, no notifications, no marks), and a marking workflow added (mark, feedback, new-version request, history, student view and list, Excel and PDF marks sheets). Code: `lib/Assignments.php`, `api/submit-assignment.php`, `teacher/grade-assignment.php`, `teacher/export-assignment-grades.php`, `assets/js/assignment-grading.js`, `download.php`. Tests: `tests/integration/assignments_flow.php` (52).
