@@ -28,6 +28,34 @@ if (session_status() === PHP_SESSION_NONE && !headers_sent()) {
 require_once __DIR__ . '/lib/TranslationService.php';
 TranslationService::init();
 
+// Maintenance mode (switched on from the control center): everybody except a signed-in promoter gets a 503 page
+// until the flag expires. Sign-in itself stays reachable so the promoter can get back in.
+(function (): void {
+    $flag = __DIR__ . '/uploads/maintenance.flag';
+    if (PHP_SAPI === 'cli' || !is_file($flag)) {
+        return;
+    }
+    $until = (int)@file_get_contents($flag);
+    if ($until <= time()) {
+        @unlink($flag);
+        return;
+    }
+    $script = basename((string)($_SERVER['SCRIPT_NAME'] ?? ''));
+    if (($_SESSION['user_role'] ?? '') === 'promoter' || in_array($script, ['login-action.php', 'logout.php'], true)) {
+        return;
+    }
+    http_response_code(503);
+    header('Retry-After: ' . max(60, $until - time()));
+    $json = str_contains((string)($_SERVER['HTTP_ACCEPT'] ?? ''), 'application/json') || str_starts_with((string)($_SERVER['SCRIPT_NAME'] ?? ''), '/api/');
+    if ($json) {
+        header('Content-Type: application/json');
+        echo json_encode(['success' => false, 'maintenance' => true, 'message' => 'Maintenance en cours. Merci de réessayer dans quelques minutes.']);
+    } else {
+        echo '<!doctype html><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>StudyVibe</title><body style="font:16px/1.6 system-ui,sans-serif;display:grid;place-items:center;min-height:100vh;margin:0;background:#F5F0E6;color:#1E1B16;text-align:center"><div style="max-width:30rem;padding:2rem"><h1 style="font-weight:500">Maintenance en cours</h1><p>StudyVibe revient dans quelques minutes. Merci de votre patience.</p></div>';
+    }
+    exit;
+})();
+
 // =========================================================================
 // SECTION 2: AUTHENTICATION STATE & USER DATA RETRIEVAL
 // =========================================================================
@@ -43,6 +71,18 @@ function isLoggedIn(): bool
 }
 
 /**
+ * Opens the signed-in session: a fresh session id (against session fixation) and the two values every page checks.
+ */
+function establishSession(int $userId, string $role): void
+{
+    session_regenerate_id(true);
+    unset($_SESSION['tfa_pending'], $_SESSION['tfa_setup']);
+    $_SESSION['user_id']    = $userId;
+    $_SESSION['user_role']  = $role;
+    $_SESSION['last_regen'] = time();
+}
+
+/**
  * Retrieves the currently logged-in user details from the database.
  * 
  * @return array|null The user record array, or null if unauthenticated/non-existent.
@@ -52,7 +92,7 @@ function getCurrentUser(): ?array
     if (!isLoggedIn()) return null;
     try {
         $pdo  = Database::getInstance();
-        $stmt = $pdo->prepare("SELECT id, name, email, role, avatar_path, email_verified_at, is_active, matricule FROM users WHERE id = :id");
+        $stmt = $pdo->prepare("SELECT id, name, email, role, avatar_path, email_verified_at, is_active, matricule, phone_e164, phone_pending, totp_enabled_at FROM users WHERE id = :id");
         $stmt->execute(['id' => $_SESSION['user_id']]);
         return $stmt->fetch() ?: null;
     } catch (PDOException $e) {
@@ -118,7 +158,16 @@ function requireRole(string $role): void
     }
     
     requireVerifiedEmail();
-    
+
+    // Roles listed in REQUIRE_2FA_ROLES (.env) must have two-factor authentication on before using the app
+    if (REQUIRE_2FA_ROLES !== '' && in_array($role, array_filter(array_map('trim', explode(',', REQUIRE_2FA_ROLES))), true)) {
+        $me = getCurrentUser();
+        if ($me && empty($me['totp_enabled_at'])) {
+            header('Location: ' . $base . 'account/security.php?setup=2fa');
+            exit;
+        }
+    }
+
     // Periodically rotate the session ID (every 30 minutes) to mitigate session hijacking
     if (!isset($_SESSION['last_regen']) || time() - $_SESSION['last_regen'] > 1800) {
         session_regenerate_id(true);
@@ -195,6 +244,22 @@ function recordLoginAttempt(string $email): void
         $pdo  = Database::getInstance();
         $stmt = $pdo->prepare("INSERT INTO login_attempts (ip_address, email) VALUES (:ip, :email)");
         $stmt->execute(['ip' => getClientIp(), 'email' => $email]);
+        purgeOldSecurityLogs($pdo);
+    } catch (PDOException) { /* Fail silently */ }
+}
+
+/**
+ * Retention promised in privacy.php: sign-in attempts 90 days, audit log 1 year.
+ * Runs on about 1 request in 20 that writes a log line, so it needs no cron job.
+ */
+function purgeOldSecurityLogs(PDO $pdo): void
+{
+    if (random_int(1, 20) !== 1) {
+        return;
+    }
+    try {
+        $pdo->exec("DELETE FROM login_attempts WHERE attempted_at < (NOW() - INTERVAL 90 DAY)");
+        $pdo->exec("DELETE FROM audit_logs WHERE created_at < (NOW() - INTERVAL 365 DAY)");
     } catch (PDOException) { /* Fail silently */ }
 }
 
@@ -239,6 +304,7 @@ function auditLog(string $action, string $details = ''): void
             'details' => $details,
             'ip'      => getClientIp(),
         ]);
+        purgeOldSecurityLogs($pdo);
     } catch (PDOException) { /* Fail silently */ }
 }
 
@@ -333,7 +399,10 @@ function jsonError(string $message = 'Erreur serveur. Veuillez réessayer.', ?Th
 {
     if ($e !== null) {
         logServerError($e, $context);
-        $message .= ' — Exception: ' . $e->getMessage() . ' in ' . $e->getFile() . ':' . $e->getLine();
+        // Technical details are only shown on a developer machine (APP_DEBUG=true); in production they stay in the log.
+        if (defined('APP_DEBUG') && APP_DEBUG === 'true') {
+            $message .= ' — Exception: ' . $e->getMessage() . ' in ' . $e->getFile() . ':' . $e->getLine();
+        }
     }
     header('Content-Type: application/json');
     echo json_encode(['success' => false, 'message' => $message]);
@@ -443,5 +512,27 @@ function hasCompletedAllLessons(int $studentId, int $courseId): bool
         return $completedCompulsory >= $totalCompulsory;
     } catch (PDOException $e) {
         return false;
+    }
+}
+
+/**
+ * Subscription plan a new account starts on. users.plan_id has a foreign key to subscription_plans, and its column
+ * default (1) does not exist in the current plan table, so inserts must pass a real id (or NULL) themselves.
+ *
+ * @return int|null plan id, or NULL when the plan table has no matching row
+ */
+function defaultPlanId(PDO $pdo, string $role): ?int
+{
+    if (!in_array($role, ['student', 'teacher'], true)) {
+        return null;
+    }
+    $key = $role === 'teacher' ? 'teacher_starter' : 'student_free';
+    try {
+        $stmt = $pdo->prepare('SELECT id FROM subscription_plans WHERE plan_key = :k LIMIT 1');
+        $stmt->execute(['k' => $key]);
+        $id = $stmt->fetchColumn();
+        return $id === false ? null : (int)$id;
+    } catch (PDOException $e) {
+        return null;
     }
 }

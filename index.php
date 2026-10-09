@@ -14,6 +14,7 @@ declare(strict_types=1);
  */
 
 require_once __DIR__ . '/auth.php';
+require_once __DIR__ . '/lib/Brand.php';
 
 // =========================================================================
 // SECTION 1: USER SESSION REDIRECTION GATE
@@ -29,1898 +30,370 @@ if (isLoggedIn()) {
     exit;
 }
 ?>
+<?php
+$lang = TranslationService::getLang() === 'en' ? 'en' : 'fr';
+
+require_once __DIR__ . '/lib/Analytics.php';
+Analytics::captureSource();      // ?src=qr-campus-1 is remembered for the session, so a later sign-up is attributed to it
+Analytics::hit('view:landing');
+$T = [
+'fr' => [
+ 'title' => 'StudyVibe — L’examen en direct, sans accroc',
+ 'desc' => "Toute la promo démarre à la même seconde, les notes arrivent sans correction à la main, et chaque réussite devient un certificat vérifiable. Pour les universités et les centres de formation.",
+ 'nav_eval' => 'Évaluations', 'nav_how' => 'Le parcours', 'nav_live' => 'Examen en direct', 'nav_who' => 'Pour qui',
+ 'login' => 'Se connecter', 'join' => 'Créer un compte', 'theme' => 'Changer de thème', 'menu' => 'Menu',
+ 'kicker' => 'Examens en direct pour l’enseignement supérieur et la formation',
+ 'h1' => 'L’examen en direct, <em>sans accroc.</em>',
+ 'lede' => 'Toute la promo démarre à la même seconde, les notes arrivent sans correction à la main, et chaque réussite devient un certificat vérifiable. Les cours sont là pour préparer la salle.',
+ 'cta1' => 'Commencer gratuitement', 'cta2' => 'Voir un examen en direct',
+ 'note' => 'Testé avec 300 étudiants simulés connectés en même temps. Dans le navigateur, sans application à installer.',
+ 'room_live' => 'EN DIRECT', 'room_title' => 'INF242 · QCM de fin de module', 'room_count' => '47 connectés',
+ 'room_q_n' => 'Question 6 sur 20', 'room_q' => 'Quelle est la complexité d’une recherche dans un arbre binaire de recherche équilibré ?',
+ 'room_o' => ['O(1)', 'O(log n)', 'O(n)', 'O(n log n)'],
+ 'study_alt' => 'Une étudiante révise sur son ordinateur', 'cert_alt' => 'Une étudiante consulte son certificat', 'end_alt' => 'Des diplômés qui célèbrent', 'end_p' => 'Créez votre compte, préparez la séance, et laissez la salle se remplir. Le reste se fait tout seul.',
+ 'art_alt' => 'Un étudiant lit sur un canapé', 'live_alt' => 'Une étudiante suit une séance en direct sur son ordinateur',
+ 's1_k' => 'Le parcours', 's1_h' => 'Trois temps, un seul compte.',
+ 's1_p' => 'Un étudiant s’inscrit, apprend, se fait évaluer, puis reçoit une preuve qu’il peut montrer à n’importe qui.',
+ 'm1_h' => 'Apprendre', 'm1_p' => 'Des cours découpés en chapitres et leçons. On lit le texte, on regarde la vidéo, on ouvre le PDF, sans quitter la page.',
+ 'm1_l' => ['Notes personnelles liées à la minute de la vidéo', 'Quiz de leçon qui se débloque après la lecture', 'Assistant IA pour résumer ou expliquer un passage', 'Progression sauvegardée d’un appareil à l’autre'],
+ 'm2_h' => 'Être évalué', 'm2_p' => 'L’enseignant lance une séance, tout le monde commence à la même seconde, et les notes arrivent sans correction à la main.',
+ 'm2_l' => ['Examens synchronisés sur l’horloge du serveur', 'Import de questions depuis un fichier CSV', 'Devoirs libres avec une date limite', 'Export des notes en Excel et en PDF'],
+ 'm3_h' => 'Être reconnu', 'm3_p' => 'Chaque réussite donne un certificat PDF avec un code unique. Un recruteur le vérifie en quelques secondes.',
+ 'm3_l' => ['Code de vérification public', 'Relevé de notes par étudiant', 'Émission automatique ou manuelle', 'Interface API pour relier votre système de scolarité'],
+ 's2_k' => 'Examen en direct', 's2_h' => 'Une salle d’attente, un signal, et tout le monde part ensemble.',
+ 's2_p' => 'La séance se prépare à l’avance. Les étudiants arrivent dans la salle, voient combien de camarades sont là, et l’examen démarre à l’heure prévue.',
+ 'f' => [['Synchronisation', 'Le décompte s’appuie sur l’horloge du serveur, pas sur celle du téléphone de chacun.'], ['Sans installation', 'Tout passe par le navigateur. Pas de WebSocket à configurer, pas d’application à télécharger.'], ['Pour l’enseignant', 'Pause, reprise, réinitialisation et statistiques de la séance en temps réel.'], ['Pour l’étudiant', 'Minuteur par question, formules mathématiques lisibles, résultat envoyé par email.']],
+ 's3_k' => 'Pour qui', 's3_h' => 'Trois rôles, trois espaces.',
+ 'r' => [
+   ['Étudiant', 'Apprenant', ['Catalogue de cours et inscription en un clic', 'Liseuse avec notes et assistant IA', 'Résultats, relevé et certificats au même endroit']],
+   ['Enseignant', 'Enseignant', ['Cours, chapitres, leçons, médias', 'Séances en direct et devoirs libres', 'Notes, statistiques et modération des questions']],
+   ['Administrateur', 'Administrateur', ['Comptes enseignants et étudiants', 'Certificats, newsletters, clés API', 'Vue d’ensemble de l’établissement']]],
+ 's4_k' => 'Certificats', 's4_h' => 'Un certificat qui se vérifie.', 's4_p' => 'Vous avez un code reçu avec un certificat ? Collez-le ici pour confirmer qu’il est authentique.',
+ 'v_ph' => 'Code du certificat', 'v_btn' => 'Vérifier',
+ 'cert_k' => 'Certificat de réussite', 'cert_h' => 'Module validé', 'cert_p' => 'Remis à un étudiant ayant validé l’ensemble des évaluations du module.', 'cert_c' => 'Code', 'cert_ex' => 'exemple',
+ 'end_h' => 'Prêt à ouvrir <em>votre première séance ?</em>',
+ 'foot_c' => 'Tous droits réservés.', 'foot_p' => 'Confidentialité',
+ 'a_login_h' => 'Bon retour', 'a_login_s' => 'Connectez-vous pour reprendre là où vous vous étiez arrêté.',
+ 'email' => 'Adresse e-mail', 'email_ph' => 'vous@exemple.com', 'pw' => 'Mot de passe', 'show' => 'Afficher', 'hide' => 'Masquer',
+ 'forgot' => 'Mot de passe oublié ?', 'forgot_s' => 'Indiquez votre e-mail, nous vous envoyons un lien pour en choisir un nouveau.', 'forgot_btn' => 'Envoyer le lien', 'back' => 'Retour',
+ 'no_acc' => 'Pas encore de compte ?', 'has_acc' => 'Déjà inscrit ?',
+ 'a_sign_h' => 'Créer votre compte', 'a_sign_s' => 'Deux étapes, moins d’une minute.',
+ 'role_s' => 'Étudiant', 'role_s_d' => 'Je suis des cours', 'role_t' => 'Enseignant', 'role_t_d' => 'Je crée et j’anime',
+ 'cont' => 'Continuer', 'name' => 'Nom complet', 'name_ph' => 'Marie Curie', 'pw_ph' => '8 caractères minimum', 'pw_h' => 'Au moins 8 caractères.',
+ 'phone' => 'Numéro de téléphone', 'phone_ph' => '6 12 34 56 78', 'phone_h' => 'Pour les rappels d’examens et la sécurité du compte. Nous le vérifierons par SMS après votre connexion.', 'news' => 'Recevoir la newsletter (facultatif)', 'create' => 'Créer mon compte',
+ 'net_err' => 'Le serveur ne répond pas comme prévu. Vérifiez votre connexion et réessayez dans un instant.', 'fg_busy' => 'Envoi en cours…', 'fg_ok_h' => 'Lien envoyé', 'fg_ok_p' => 'Si un compte existe pour :email, un lien de réinitialisation vient de partir. Il reste valable deux heures. Pensez à regarder vos courriers indésirables.', 'fg_bad' => 'Cette adresse e-mail ne semble pas valide.', 'fg_err' => 'Le message n’a pas pu partir. Vérifiez votre connexion et réessayez.', 'fg_resend' => 'Renvoyer le lien', 'fg_wait' => 'Renvoyer dans :s s',
+ 'lf_h' => 'Mot de passe incorrect', 'lf_p' => 'L\'adresse e-mail ou le mot de passe saisi est incorrect. Vérifiez vos informations et réessayez.', 'lf_retry' => 'Réessayer',
+ 'tfa_h' => 'Vérification en deux étapes', 'tfa_s' => 'Ouvrez votre application d’authentification et saisissez le code à 6 chiffres. Vous pouvez aussi utiliser un code de secours.', 'tfa_code' => 'Code', 'tfa_btn' => 'Valider', 'tfa_busy' => 'Vérification…', 'tfa_err' => 'Vérification impossible. Réessayez.', 'busy_login' => 'Connexion…', 'busy_sign' => 'Création…', 'ok_login' => 'Connexion réussie, redirection…',
+ 'ok_sign' => 'Compte créé. Consultez votre boîte mail pour l’activer.', 'mail_warn' => ' Si rien n’arrive, vérifiez vos courriers indésirables.',
+ 'auth_req' => 'Connectez-vous pour accéder à cette évaluation.', 'close' => 'Fermer',
+],
+'en' => [
+ 'title' => 'StudyVibe — Live exams that hold up',
+ 'desc' => 'The whole cohort starts on the same second, grades arrive without marking by hand, and every pass becomes a certificate anyone can verify. For universities and training centres.',
+ 'nav_eval' => 'Evaluations', 'nav_how' => 'How it works', 'nav_live' => 'Live exams', 'nav_who' => 'Who it’s for',
+ 'login' => 'Sign in', 'join' => 'Create account', 'theme' => 'Toggle theme', 'menu' => 'Menu',
+ 'kicker' => 'Live exams for higher education and training',
+ 'h1' => 'Live exams <em>that hold up.</em>',
+ 'lede' => 'The whole cohort starts on the same second, grades arrive without marking by hand, and every pass becomes a certificate anyone can verify. The courses are there to prepare the room.',
+ 'cta1' => 'Get started free', 'cta2' => 'See a live exam',
+ 'note' => 'Tested with 300 simulated students connected at the same time. In the browser, nothing to install.',
+ 'room_live' => 'LIVE', 'room_title' => 'INF242 · End-of-module quiz', 'room_count' => '47 connected',
+ 'room_q_n' => 'Question 6 of 20', 'room_q' => 'What is the time complexity of a lookup in a balanced binary search tree?',
+ 'room_o' => ['O(1)', 'O(log n)', 'O(n)', 'O(n log n)'],
+ 'study_alt' => 'A student revising at her computer', 'cert_alt' => 'A student looking at her certificate', 'end_alt' => 'Graduates celebrating', 'end_p' => 'Create your account, set up the session, and let the room fill up. The rest takes care of itself.',
+ 'art_alt' => 'A student reading on a couch', 'live_alt' => 'A student following a live session on a laptop',
+ 's1_k' => 'How it works', 's1_h' => 'Three moments, one account.',
+ 's1_p' => 'A student signs up, learns, gets assessed, then walks away with proof they can show anyone.',
+ 'm1_h' => 'Learn', 'm1_p' => 'Courses split into chapters and lessons. Students read the text, watch the video, open the PDF, all without leaving the page.',
+ 'm1_l' => ['Personal notes tied to the minute of the video', 'Lesson quizzes that unlock after reading', 'AI assistant to summarise or explain a passage', 'Progress saved across devices'],
+ 'm2_h' => 'Get assessed', 'm2_p' => 'The teacher starts a session, everyone begins on the same second, and grades arrive without marking by hand.',
+ 'm2_l' => ['Exams synchronised on the server clock', 'Question import from a CSV file', 'Open assignments with a deadline', 'Grades exported to Excel and PDF'],
+ 'm3_h' => 'Get recognised', 'm3_p' => 'Every pass produces a PDF certificate with a unique code. A recruiter can check it in seconds.',
+ 'm3_l' => ['Public verification code', 'Transcript per student', 'Automatic or manual issuing', 'API to connect your registrar system'],
+ 's2_k' => 'Live exams', 's2_h' => 'A waiting room, one signal, and everyone starts together.',
+ 's2_p' => 'The session is prepared ahead of time. Students arrive in the room, see how many classmates are there, and the exam begins at the scheduled time.',
+ 'f' => [['Synchronised', 'The countdown follows the server clock, not each phone’s own clock.'], ['No install', 'Everything runs in the browser. No WebSocket to configure, no app to download.'], ['For teachers', 'Pause, resume, reset and live session statistics.'], ['For students', 'Per-question timer, readable math formulas, result sent by email.']],
+ 's3_k' => 'Who it’s for', 's3_h' => 'Three roles, three spaces.',
+ 'r' => [
+   ['Student', 'Learner', ['Course catalogue and one-click enrolment', 'Reader with notes and AI assistant', 'Results, transcript and certificates in one place']],
+   ['Teacher', 'Teacher', ['Courses, chapters, lessons, media', 'Live sessions and open assignments', 'Grades, statistics and question moderation']],
+   ['Institution admin', 'Institution admin', ['Teacher and student accounts', 'Certificates, newsletters, API keys', 'Overview of the whole institution']]],
+ 's4_k' => 'Certificates', 's4_h' => 'A certificate you can check.', 's4_p' => 'Got a code with a certificate? Paste it here to confirm it is genuine.',
+ 'v_ph' => 'Certificate code', 'v_btn' => 'Verify',
+ 'cert_k' => 'Certificate of achievement', 'cert_h' => 'Module completed', 'cert_p' => 'Awarded to a student who passed every assessment in the module.', 'cert_c' => 'Code', 'cert_ex' => 'example',
+ 'end_h' => 'Ready to open <em>your first session?</em>',
+ 'foot_c' => 'All rights reserved.', 'foot_p' => 'Privacy',
+ 'a_login_h' => 'Welcome back', 'a_login_s' => 'Sign in to pick up where you left off.',
+ 'email' => 'Email address', 'email_ph' => 'you@example.com', 'pw' => 'Password', 'show' => 'Show', 'hide' => 'Hide',
+ 'forgot' => 'Forgot your password?', 'forgot_s' => 'Enter your email and we will send a link to choose a new one.', 'forgot_btn' => 'Send the link', 'back' => 'Back',
+ 'no_acc' => 'No account yet?', 'has_acc' => 'Already registered?',
+ 'a_sign_h' => 'Create your account', 'a_sign_s' => 'Two steps, under a minute.',
+ 'role_s' => 'Student', 'role_s_d' => 'I follow courses', 'role_t' => 'Teacher', 'role_t_d' => 'I create and run them',
+ 'cont' => 'Continue', 'name' => 'Full name', 'name_ph' => 'Marie Curie', 'pw_ph' => 'At least 8 characters', 'pw_h' => 'At least 8 characters.',
+ 'phone' => 'Phone number', 'phone_ph' => '6 12 34 56 78', 'phone_h' => 'For exam reminders and account security. We will verify it by SMS after you sign in.', 'news' => 'Receive the newsletter (optional)', 'create' => 'Create my account',
+ 'net_err' => 'The server did not answer as expected. Check your connection and try again in a moment.', 'fg_busy' => 'Sending…', 'fg_ok_h' => 'Link sent', 'fg_ok_p' => 'If an account exists for :email, a reset link is on its way. It stays valid for two hours. Check your spam folder too.', 'fg_bad' => 'That email address does not look valid.', 'fg_err' => 'The message could not be sent. Check your connection and try again.', 'fg_resend' => 'Send again', 'fg_wait' => 'Send again in :s s',
+ 'lf_h' => 'Incorrect password', 'lf_p' => 'The email or password you entered is incorrect. Please check your details and try again.', 'lf_retry' => 'Try again',
+ 'tfa_h' => 'Two-step verification', 'tfa_s' => 'Open your authenticator app and enter the 6-digit code. You can also use a recovery code.', 'tfa_code' => 'Code', 'tfa_btn' => 'Verify', 'tfa_busy' => 'Checking…', 'tfa_err' => 'Could not verify. Please try again.', 'busy_login' => 'Signing in…', 'busy_sign' => 'Creating…', 'ok_login' => 'Signed in, redirecting…',
+ 'ok_sign' => 'Account created. Check your inbox to activate it.', 'mail_warn' => ' If nothing arrives, look in your spam folder.',
+ 'auth_req' => 'Sign in to access this evaluation.', 'close' => 'Close',
+],
+][$lang];
+$e = fn(string $k): string => htmlspecialchars((string)$T[$k], ENT_QUOTES, 'UTF-8');
+?>
 <!DOCTYPE html>
-<html lang="fr" class="sv-cream">
+<html lang="<?= $lang ?>">
 <head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <link rel="icon" type="image/svg+xml" href="/assets/img/favicon.svg">
-    <link rel="icon" type="image/png" href="/assets/img/favicon.png" sizes="32x32">
-    <link rel="apple-touch-icon" href="/assets/img/favicon.png">
-
-    <title>StudyVibe — Plateforme Académique</title>
-    <meta name="description" content="StudyVibe, la plateforme LMS conçue pour l'enseignement supérieur.">
-    <link rel="preconnect" href="https://fonts.googleapis.com">
-    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&family=Plus+Jakarta+Sans:ital,wght@0,300..800;1,300..800&display=swap" rel="stylesheet">
-    <link rel="stylesheet" href="/assets/css/app.css">
-    
-    <!-- Injects CSRF token security meta tags for fetch requests -->
-    <?= csrfMetaTag(); ?>
-    
-    <script>document.documentElement.classList.add('js-enabled');</script>
-    <style>
-        .js-enabled .sv-hero-content, 
-        .js-enabled .sv-auth-card, 
-        .js-enabled .sv-feature-card, 
-        .js-enabled .sv-step-card { 
-            opacity: 0; 
-        }
-        /* Showdown Carousel Custom Styles */
-        .sv-showdown-viewport {
-            overflow: hidden;
-            position: relative;
-            width: 100%;
-            padding: 2rem 0;
-        }
-        .sv-showdown-viewport::before, .sv-showdown-viewport::after {
-            content: '';
-            position: absolute;
-            top: 0; bottom: 0;
-            width: 160px;
-            z-index: 10;
-            pointer-events: none;
-        }
-        .sv-showdown-viewport::before {
-            left: 0;
-            background: linear-gradient(to right, var(--sv-cream), transparent);
-        }
-        .sv-showdown-viewport::after {
-            right: 0;
-            background: linear-gradient(to left, var(--sv-cream), transparent);
-        }
-        .sv-showdown-track {
-            display: flex;
-            gap: 4rem;
-            width: max-content;
-            padding: 0 4rem;
-            will-change: transform;
-        }
-        .sv-showdown-panel {
-            width: 850px;
-            flex-shrink: 0;
-            background: #ffffff;
-            border-radius: 12px;
-            border: 1px solid rgba(0,0,0,0.06);
-            box-shadow: 0 30px 60px -15px rgba(0, 0, 0, 0.08);
-            overflow: hidden;
-            transition: transform 0.3s ease, box-shadow 0.3s ease;
-        }
-        .sv-showdown-panel:hover {
-            box-shadow: 0 40px 80px -20px rgba(0, 0, 0, 0.12);
-        }
-
-        /* ADVANCED IMMERSIVE STORYTELLING DECK CSS */
-        .sv-story-deck {
-            position: relative;
-            background: #0d0f0e; /* Fallback default dark base */
-            transition: background 1.2s cubic-bezier(0.25, 1, 0.5, 1);
-            color: #ffffff;
-            overflow: visible;
-        }
-
-        .sv-story-rows {
-            display: flex;
-            flex-direction: column;
-            gap: 8rem;
-            padding: 6rem 0;
-            position: relative;
-            z-index: 10;
-            width: 100%;
-        }
-
-        .sv-story-row {
-            display: grid;
-            grid-template-columns: 1fr 1.25fr;
-            gap: 4.5rem;
-            align-items: center;
-            width: 100%;
-            min-height: 80vh;
-            opacity: 0.25;
-            transform: translateY(40px) scale(0.97);
-            transition: opacity 0.9s cubic-bezier(0.16, 1, 0.3, 1), transform 0.9s cubic-bezier(0.16, 1, 0.3, 1);
-        }
-
-        .sv-story-row.active {
-            opacity: 1;
-            transform: translateY(0) scale(1);
-        }
-
-        @media (max-width: 1024px) {
-            .sv-story-rows {
-                gap: 5rem;
-                padding: 4rem 0;
-            }
-            .sv-story-row {
-                grid-template-columns: 1fr;
-                gap: 2.5rem;
-                min-height: auto;
-            }
-        }
-
-        .sv-story-row-text {
-            display: flex;
-            flex-direction: column;
-            justify-content: center;
-        }
-
-        .sv-story-step-indicator {
-            display: flex;
-            align-items: center;
-            gap: 0.75rem;
-            margin-bottom: 1.5rem;
-        }
-
-        .sv-story-step-number {
-            font-family: monospace;
-            font-size: 0.75rem;
-            font-weight: 700;
-            background: rgba(255,255,255,0.1);
-            color: #ffffff;
-            padding: 0.25rem 0.6rem;
-            border-radius: 99px;
-            border: 1px solid rgba(255,255,255,0.15);
-        }
-
-        .sv-story-step-line {
-            height: 1px;
-            background: rgba(255,255,255,0.15);
-            flex: 1;
-            position: relative;
-            overflow: hidden;
-        }
-
-        .sv-story-step-line::after {
-            content: '';
-            position: absolute;
-            left: 0; top: 0; bottom: 0;
-            width: 100%;
-            background: #00FF7F;
-            transform: translateX(-100%);
-            transition: transform 0.8s ease;
-        }
-
-        .sv-story-row.active .sv-story-step-line::after {
-            transform: translateX(0);
-        }
-
-        /* Console styling per phase */
-        .sv-story-row-visual {
-            display: flex;
-            align-items: center;
-            justify-content: center;
-            width: 100%;
-        }
-
-        .sv-story-console {
-            width: 100%;
-            aspect-ratio: 1.35;
-            background: rgba(10, 10, 10, 0.9);
-            backdrop-filter: blur(30px);
-            -webkit-backdrop-filter: blur(30px);
-            border: 1px solid rgba(255, 255, 255, 0.1);
-            border-radius: 28px;
-            position: relative;
-            overflow: hidden;
-            transform-style: preserve-3d;
-            perspective: 1200px;
-            transition: all 0.8s cubic-bezier(0.25, 1, 0.5, 1);
-        }
-
-        /* High-tech vector grid mesh overlay inside the console */
-        .sv-console-grid {
-            position: absolute;
-            inset: 0;
-            background-image: linear-gradient(rgba(255, 255, 255, 0.03) 1px, transparent 1px),
-                              linear-gradient(90deg, rgba(255, 255, 255, 0.03) 1px, transparent 1px);
-            background-size: 32px 32px;
-            pointer-events: none;
-            z-index: 1;
-            opacity: 0.7;
-        }
-
-        .sv-story-console.phase-1 {
-            border-color: rgba(0, 255, 127, 0.25);
-            box-shadow: 0 45px 90px rgba(0,0,0,0.65), inset 0 0 40px rgba(0, 255, 127, 0.1);
-        }
-
-        .sv-story-console.phase-2 {
-            border-color: rgba(201, 168, 76, 0.25);
-            box-shadow: 0 45px 90px rgba(0,0,0,0.65), inset 0 0 40px rgba(201, 168, 76, 0.1);
-        }
-
-        .sv-story-console.phase-3 {
-            border-color: rgba(255, 255, 255, 0.25);
-            box-shadow: 0 45px 90px rgba(0,0,0,0.65), inset 0 0 40px rgba(255, 255, 255, 0.06);
-        }
-
-        .sv-story-screen {
-            width: 100%;
-            height: 100%;
-            display: flex;
-            align-items: center;
-            justify-content: center;
-            overflow: hidden;
-            z-index: 2;
-        }
-
-        .sv-story-screen.active {
-            opacity: 1;
-            transform: scale(1) translateZ(0);
-            pointer-events: auto;
-        }
-
-        /* VISUAL 1: L'ÉVEIL (NEON NETWORK CORE) */
-        .sv-network-canvas {
-            position: relative;
-            width: 100%;
-            height: 100%;
-            display: flex;
-            align-items: center;
-            justify-content: center;
-        }
-
-        .sv-network-core {
-            width: 90px;
-            height: 90px;
-            border-radius: 50%;
-            background: radial-gradient(circle, #00FF7F 0%, rgba(0,75,35,0.4) 60%, transparent 100%);
-            box-shadow: 0 0 40px rgba(0, 255, 127, 0.5), 0 0 80px rgba(0, 255, 127, 0.2);
-            position: relative;
-            z-index: 10;
-            animation: corePulse 3s infinite alternate ease-in-out;
-            border: 1px solid rgba(0, 255, 127, 0.3);
-        }
-
-        .sv-orbit-ring {
-            position: absolute;
-            border: 1px dashed rgba(255,255,255,0.08);
-            border-radius: 50%;
-            transform-style: preserve-3d;
-            animation: ringRotate 25s linear infinite;
-        }
-
-        .sv-orbit-ring-1 {
-            width: 240px;
-            height: 240px;
-            transform: rotateX(60deg) rotateY(15deg);
-        }
-
-        .sv-orbit-ring-2 {
-            width: 360px;
-            height: 360px;
-            transform: rotateX(-55deg) rotateY(-25deg);
-            animation-duration: 35s;
-            animation-direction: reverse;
-        }
-
-        .sv-orbit-node {
-            position: absolute;
-            background: rgba(15, 15, 15, 0.85);
-            backdrop-filter: blur(10px);
-            border: 1px solid rgba(255, 255, 255, 0.15);
-            color: #fff;
-            font-size: 11px;
-            font-weight: 500;
-            padding: 6px 14px;
-            border-radius: 30px;
-            box-shadow: 0 10px 20px rgba(0,0,0,0.4);
-            white-space: nowrap;
-            display: flex;
-            align-items: center;
-            gap: 6px;
-            transition: all 0.3s;
-        }
-
-        .sv-orbit-node:hover {
-            border-color: #00FF7F;
-            box-shadow: 0 10px 20px rgba(0, 255, 127, 0.2);
-            transform: scale(1.05);
-        }
-
-        .sv-node-1 { top: 0; left: 50%; transform: translate(-50%, -50%); }
-        .sv-node-2 { bottom: 0; left: 50%; transform: translate(-50%, 50%); }
-        .sv-node-3 { top: 50%; left: 0; transform: translate(-50%, -50%); }
-        .sv-node-4 { top: 50%; right: 0; transform: translate(50%, -50%); }
-
-        @keyframes corePulse {
-            0% { transform: scale(0.92); box-shadow: 0 0 35px rgba(0, 255, 127, 0.4); }
-            100% { transform: scale(1.08); box-shadow: 0 0 70px rgba(0, 255, 127, 0.8); }
-        }
-
-        @keyframes ringRotate {
-            0% { transform: rotateX(60deg) rotateY(15deg) rotateZ(0deg); }
-            100% { transform: rotateX(60deg) rotateY(15deg) rotateZ(360deg); }
-        }
-
-        /* VISUAL 2: L'IMMERSION (GLASSMOCK WORKSPACE) */
-        .sv-immersion-mockup {
-            width: 85%;
-            height: 72%;
-            background: rgba(255, 255, 255, 0.02);
-            border: 1px solid rgba(255, 255, 255, 0.08);
-            border-radius: 20px;
-            display: flex;
-            flex-direction: column;
-            overflow: hidden;
-            box-shadow: inset 0 0 30px rgba(255, 255, 255, 0.01), 0 30px 60px rgba(0,0,0,0.5);
-            backdrop-filter: blur(15px);
-        }
-
-        .sv-chat-dialog {
-            background: rgba(0, 75, 35, 0.3);
-            backdrop-filter: blur(10px);
-            border: 1px solid rgba(0, 255, 127, 0.25);
-            border-radius: 16px;
-            padding: 1rem 1.25rem;
-            max-width: 85%;
-            margin: 0 1.5rem 1.5rem;
-            transform: translateY(30px);
-            opacity: 0;
-            transition: all 0.8s cubic-bezier(0.175, 0.885, 0.32, 1.15);
-            box-shadow: 0 10px 30px rgba(0, 0, 0, 0.2);
-        }
-
-        .sv-story-screen.active .sv-chat-dialog {
-            transform: translateY(0);
-            opacity: 1;
-            transition-delay: 0.35s;
-        }
-
-        .sv-grow-gauge {
-            width: 110px;
-            height: 110px;
-            position: relative;
-            margin: 0 auto;
-        }
-
-        .sv-grow-gauge-ring {
-            width: 100%;
-            height: 100%;
-            border-radius: 50%;
-            border: 8px solid rgba(255, 255, 255, 0.04);
-            border-top-color: #00FF7F;
-            border-right-color: #00FF7F;
-            transform: rotate(-45deg);
-            filter: drop-shadow(0 0 8px rgba(0, 255, 127, 0.4));
-        }
-
-        .sv-grow-gauge-val {
-            position: absolute;
-            inset: 0;
-            display: flex;
-            align-items: center;
-            justify-content: center;
-            font-size: 1.5rem;
-            font-weight: 700;
-            font-family: monospace;
-            color: #ffffff;
-            text-shadow: 0 0 10px rgba(0, 255, 127, 0.3);
-        }
-
-        /* VISUAL 3: LA RÉUSSITE (3D HOLOGRAPHIC CARD) */
-        .sv-holo-card-wrap {
-            perspective: 1200px;
-            width: 75%;
-            aspect-ratio: 1.58;
-            position: relative;
-            display: flex;
-            align-items: center;
-            justify-content: center;
-        }
-
-        .sv-holo-card-3d {
-            width: 100%;
-            height: 100%;
-            border-radius: 20px;
-            background: linear-gradient(135deg, rgba(201,168,76,0.15) 0%, rgba(15,15,15,0.96) 50%, rgba(0,75,35,0.15) 100%);
-            border: 1px solid rgba(201,168,76,0.4);
-            box-shadow: 0 40px 80px rgba(0,0,0,0.6), inset 0 0 35px rgba(255,255,255,0.03);
-            padding: 2.25rem;
-            position: relative;
-            overflow: hidden;
-            display: flex;
-            flex-direction: column;
-            justify-content: space-between;
-            transform: rotateY(-15deg) rotateX(10deg);
-            transition: transform 0.3s ease, box-shadow 0.3s ease, border-color 0.3s ease;
-        }
-
-        .sv-holo-card-3d:hover {
-            box-shadow: 0 50px 100px rgba(201,168,76,0.18), 0 10px 45px rgba(0,0,0,0.7);
-            border-color: rgba(201,168,76,0.85);
-        }
-
-        .sv-holo-sheen {
-            position: absolute;
-            top: 0; left: 0; right: 0; bottom: 0;
-            background: linear-gradient(105deg, transparent 30%, rgba(255,255,255,0.06) 40%, rgba(201,168,76,0.12) 50%, transparent 60%);
-            background-size: 200% 200%;
-            background-position: 0% 0%;
-            transition: background-position 0.6s ease;
-            pointer-events: none;
-            z-index: 5;
-        }
-
-        .sv-gold-seal {
-            width: 54px;
-            height: 54px;
-            border-radius: 50%;
-            background: radial-gradient(circle, #C9A84C 0%, #8E6E1A 100%);
-            border: 2px solid #ffffff;
-            box-shadow: 0 0 20px rgba(201,168,76,0.6);
-            display: flex;
-            align-items: center;
-            justify-content: center;
-            font-size: 1.35rem;
-            position: relative;
-            z-index: 2;
-        }
-
-        .sv-gold-seal::after {
-            content: '';
-            position: absolute;
-            inset: -4px;
-            border-radius: 50%;
-            border: 1px dashed rgba(201, 168, 76, 0.6);
-            animation: sealRotate 8s linear infinite;
-        }
-
-        @keyframes sealRotate {
-            100% { transform: rotate(360deg); }
-        }
-
-        @keyframes floatParticle {
-            0% { transform: translateY(0) scale(1); opacity: 0.15; }
-            100% { transform: translateY(-20px) scale(1.2); opacity: 0.35; }
-        }
-
-        /* PARALLAX & LANDING TRANSITIONS CLASS */
-        .sv-scroll-reveal {
-            opacity: 0;
-            transform: translateY(35px);
-            transition: opacity 1.1s cubic-bezier(0.16, 1, 0.3, 1), transform 1.1s cubic-bezier(0.16, 1, 0.3, 1);
-        }
-        .sv-scroll-reveal.revealed {
-            opacity: 1;
-            transform: translateY(0);
-        }
-
-        /* 3D TILT EFFECT IN CAROUSELS */
-        .sv-3d-tilt-panel {
-            transform: perspective(800px) rotateY(-8deg) scale(0.97);
-            transition: transform 0.8s cubic-bezier(0.16, 1, 0.3, 1);
-        }
-        .sv-3d-tilt-panel.active {
-            transform: perspective(800px) rotateY(0deg) scale(1);
-        }
-
-        /* BACKGROUND SLOPE TRANSITION (CLEAN CURVED PATHS) */
-        .sv-curve-svg-transition {
-            position: absolute;
-            left: 0; right: 0;
-            width: 100%;
-            height: 120px;
-            fill: #0d0f0e;
-            pointer-events: none;
-            z-index: 10;
-        }
-        .sv-curve-top { top: -119px; }
-        .sv-curve-bottom { bottom: -119px; transform: scaleY(-1); }
-    </style>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title><?= $e('title') ?></title>
+<meta name="description" content="<?= $e('desc') ?>">
+<meta name="theme-color" content="#F5F0E6">
+<?= Brand::headLinks() ?>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Fraunces:ital,opsz,wght,SOFT@0,9..144,300..700,0..100;1,9..144,300..700,0..100&family=Hanken+Grotesk:wght@400;500;600;700&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="/assets/css/sv2.css">
+<link rel="stylesheet" href="/assets/css/landing.css">
+<?= csrfMetaTag(); ?>
+<script>
+  document.documentElement.classList.add('js');
+  try { var s = localStorage.getItem('sv_dark'); if (s === '1' || (s === null && matchMedia('(prefers-color-scheme: dark)').matches)) document.documentElement.classList.add('dark'); } catch (e) {}
+</script>
 </head>
-<body class="sv-landing sv-page">
+<body class="v2">
 
-<!-- =========================================================================
-     SECTION 2: NAVIGATION HEADER BAR
-     ========================================================================= -->
-<nav class="sv-navbar" role="navigation" aria-label="Navigation principale">
-    <a href="#accueil" class="sv-navbar-brand">
-        <svg class="w-9 h-9" viewBox="0 0 100 100" fill="none" xmlns="http://www.w3.org/2000/svg" style="width: 36px; height: 36px;">
-            <circle cx="50" cy="50" r="46" stroke="#006630" stroke-width="3.5" />
-            <line x1="33" y1="31" x2="62" y2="25" stroke="#111111" stroke-width="2.5" stroke-linecap="round" />
-            <line x1="33" y1="31" x2="49" y2="53" stroke="#111111" stroke-width="2.5" stroke-linecap="round" />
-            <line x1="33" y1="31" x2="14" y2="13" stroke="#111111" stroke-width="2.5" stroke-linecap="round" />
-            <line x1="33" y1="31" x2="42" y2="11" stroke="#111111" stroke-width="2.5" stroke-linecap="round" />
-            <line x1="33" y1="31" x2="20" y2="53" stroke="#111111" stroke-width="2.5" stroke-linecap="round" />
-            <line x1="49" y1="53" x2="62" y2="25" stroke="#111111" stroke-width="2.5" stroke-linecap="round" />
-            <circle cx="62" cy="25" r="6" fill="#006630" />
-            <circle cx="49" cy="53" r="6" fill="#006630" />
-            <circle cx="33" cy="31" r="6" fill="#006630" />
-            <circle cx="14" cy="13" r="6" fill="#006630" />
-            <circle cx="42" cy="11" r="6" fill="#006630" />
-            <circle cx="20" cy="53" r="6" fill="#006630" />
-            <path d="M56 10 C52 14, 52 24, 52 29 C52 31, 50 33, 49 33 L45 33 L49 35 C50 37, 51 38, 50 40 C49 41, 47 42, 49 44 C51 45, 54 46, 56 46 C59 46, 65 38, 66 41 C68 46, 60 52, 56 60 C51 68, 50 78, 53 88" stroke="#111111" stroke-width="3" stroke-linecap="round" stroke-linejoin="round" />
-            <path d="M33 55 C32 52, 32 48, 33 46 C34 44, 36 44, 37 47 C37 50, 37 53, 37 55 C37 51, 38 46, 39 44 C40 42, 42 42, 43 45 C43 48, 43 51, 43 54 C43 51, 44 47, 45 45 C46 43, 48 43, 49 46 C50 49, 51 57, 51 68 C51 75, 49 81, 47 85" stroke="#111111" stroke-width="3" stroke-linecap="round" stroke-linejoin="round" />
-            <path d="M33 55 C34 61, 35 68, 37 75 C38 81, 39 84, 40 86" stroke="#111111" stroke-width="3" stroke-linecap="round" stroke-linejoin="round" />
-        </svg>
-        StudyVibe
-    </a>
-    <div class="sv-navbar-links">
-        <a href="/evaluations.php" class="sv-navbar-link" style="color:var(--004B23); font-weight:600;">Évaluations</a>
-        <a href="#fonctionnalites" class="sv-navbar-link">Fonctionnalités</a>
-        <a href="#roles" class="sv-navbar-link">Pour qui</a>
-        <a href="#comment" class="sv-navbar-link">Comment ça marche</a>
-        <button type="button" class="sv-btn sv-btn-primary" onclick="openSignup()">Rejoindre</button>
-        <button class="sv-dark-toggle" data-dark-toggle title="Mode sombre"></button>
-        <div class="relative inline-block text-left">
-            <select id="lang-selector" onchange="changeLanguage(this.value)" class="bg-transparent text-xs border border-[#E5E5E7] text-[#555555] rounded-sm py-1 px-2 focus:outline-none focus:border-[#004B23]">
-                <option value="fr" <?= TranslationService::getLang() === 'fr' ? 'selected' : ''; ?>>FR</option>
-                <option value="en" <?= TranslationService::getLang() === 'en' ? 'selected' : ''; ?>>EN</option>
-            </select>
-        </div>
+<header class="nav" id="nav">
+  <div class="wrap nav-in">
+    <a href="#top" class="brand" aria-label="StudyVibe"><?= Brand::logo('md') ?></a>
+    <nav class="nav-links" aria-label="Main">
+      <a href="#parcours"><?= $e('nav_how') ?></a>
+      <a href="#direct"><?= $e('nav_live') ?></a>
+      <a href="#roles"><?= $e('nav_who') ?></a>
+      <a href="/evaluations.php"><?= $e('nav_eval') ?></a>
+    </nav>
+    <div class="nav-tools">
+      <div class="seg" role="group" aria-label="Language">
+        <a href="#" onclick="changeLanguage('fr');return false;" <?= $lang === 'fr' ? 'aria-current="true"' : '' ?>>FR</a>
+        <a href="#" onclick="changeLanguage('en');return false;" <?= $lang === 'en' ? 'aria-current="true"' : '' ?>>EN</a>
+      </div>
+      <button class="chip" type="button" data-dark-toggle aria-label="<?= $e('theme') ?>"><svg width="14" height="14" viewBox="0 0 16 16" aria-hidden="true"><circle cx="8" cy="8" r="6" fill="none" stroke="currentColor" stroke-width="1.6"/><path d="M8 2a6 6 0 0 1 0 12z" fill="currentColor"/></svg></button>
+      <button class="btn btn-ghost hide-sm" type="button" data-open-auth="login"><?= $e('login') ?></button>
+      <button class="btn btn-primary" type="button" data-open-auth="signup"><?= $e('join') ?></button>
     </div>
-</nav>
+  </div>
+</header>
 
-<!-- =========================================================================
-     SECTION 3: HERO LAYOUT WITH INTERACTIVE GATEWAY PANEL
-     ========================================================================= -->
-<section class="sv-hero" id="accueil">
-    <div class="sv-hero-grid">
-
-        <!-- Column Left: Messaging -->
-        <div class="sv-hero-content">
-            <div class="sv-eyebrow">Plateforme académique</div>
-            <h1 class="sv-hero-headline">
-                Enseigner.<br>Apprendre.<br>Progresser.
-            </h1>
-            <p class="sv-hero-sub">
-                StudyVibe connecte promoteurs, enseignants et étudiants dans un espace pédagogique structuré — conçu pour l'efficacité, la rigueur et le suivi en temps réel.
-            </p>
-            <div class="sv-hero-actions">
-                <button type="button" class="sv-btn sv-btn-primary" onclick="openSignup()">Créer un compte</button>
-                <a href="#fonctionnalites" class="sv-btn sv-btn-outline">Découvrir</a>
-            </div>
-            <div style="display:flex; gap:0.5rem; margin-top:2.5rem; flex-wrap:wrap;">
-                <span class="sv-badge sv-badge-accent">Multi-rôles</span>
-                <span class="sv-badge">Suivi en temps réel</span>
-                <span class="sv-badge">Certifications</span>
-            </div>
-        </div>
-
-        <!-- Column Right: Dynamic Registration/Login Widget -->
-        <div class="sv-auth-card" id="auth-card">
-            <div class="sv-auth-card-header">
-                <div class="sv-auth-card-title">Accédez à StudyVibe</div>
-                <div class="sv-auth-card-sub">Connexion ou inscription en quelques secondes</div>
-            </div>
-
-            <div class="sv-form-tabs" role="tablist">
-                <button class="sv-form-tab active" id="tab-login" role="tab" aria-selected="true" onclick="switchAuthTab('login')">Connexion</button>
-                <button class="sv-form-tab" id="tab-signup" role="tab" aria-selected="false" onclick="switchAuthTab('signup')">Inscription</button>
-            </div>
-
-            <!-- Login Panel Form -->
-            <div id="panel-login" class="sv-form-panel active" role="tabpanel">
-                <form id="login-form" novalidate>
-                    <div class="sv-field">
-                        <label for="login-email" class="sv-field-label">Adresse électronique</label>
-                        <input type="email" id="login-email" name="email" required autocomplete="email"
-                               placeholder="vous@exemple.com" class="sv-field-input">
-                    </div>
-                    <div class="sv-field">
-                        <label for="login-password" class="sv-field-label">Mot de passe</label>
-                        <input type="password" id="login-password" name="password" required autocomplete="current-password"
-                               placeholder="••••••••" class="sv-field-input">
-                    </div>
-                    <button type="submit" id="login-btn" class="sv-btn-submit">Se connecter</button>
-                </form>
-                <p class="sv-form-footer" style="margin-top:0.5rem;">
-                    <button type="button" onclick="openForgotPassword()" style="font-size:0.8125rem;color:#004B23;background:none;border:none;cursor:pointer;text-decoration:underline;">Mot de passe oublié ?</button>
-                </p>
-                <div id="forgot-panel">
-                    <p class="sv-field-hint" style="margin-bottom:0.75rem;">Entrez votre email pour recevoir un lien de réinitialisation.</p>
-                    <div class="sv-field">
-                        <label for="forgot-email" class="sv-field-label">Adresse électronique</label>
-                        <input type="email" id="forgot-email" class="sv-field-input" placeholder="vous@exemple.com">
-                    </div>
-                    <button type="button" id="forgot-btn" class="sv-btn-submit" style="margin-top:0.5rem;">Envoyer le lien</button>
-                </div>
-                <p class="sv-form-footer">Pas encore de compte ? <button type="button" onclick="switchAuthTab('signup')">Créer un compte</button></p>
-            </div>
-
-            <!-- Signup Multi-step Form -->
-            <div id="panel-signup" class="sv-form-panel" role="tabpanel">
-                <form id="signup-form" novalidate>
-                    <div class="sv-signup-stepper" aria-label="Étapes d'inscription">
-                        <div class="sv-signup-stepper-item active" data-step="1">
-                            <span class="sv-signup-stepper-dot">1</span>
-                            <span class="sv-signup-stepper-label">Profil</span>
-                        </div>
-                        <div class="sv-signup-stepper-line" aria-hidden="true"></div>
-                        <div class="sv-signup-stepper-item" data-step="2">
-                            <span class="sv-signup-stepper-dot">2</span>
-                            <span class="sv-signup-stepper-label">Compte</span>
-                        </div>
-                    </div>
-
-                    <!-- Step 1: Role Selection -->
-                    <div class="sv-signup-step active" id="signup-step-1" data-step="1">
-                        <p class="sv-signup-intro">Choisissez le profil qui correspond à votre usage.</p>
-                        <div class="sv-field sv-signup-role-field">
-                            <label for="signup-role" class="sv-field-label">Je m'inscris en tant que</label>
-                            <div class="sv-select-wrap">
-                                <select id="signup-role" name="role" class="sv-field-input sv-field-select" required>
-                                    <option value="" disabled selected>Sélectionnez votre profil</option>
-                                    <option value="student">Apprenant — suivre des cours</option>
-                                    <option value="teacher">Enseignant — créer et animer</option>
-                                </select>
-                                <svg class="sv-select-chevron" viewBox="0 0 24 24" fill="none" stroke="currentColor" aria-hidden="true">
-                                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 9l6 6 6-6"/>
-                                </svg>
-                            </div>
-                            <div class="sv-field-hint" id="hint-role">Apprenant ou enseignant — modifiable à l'étape suivante.</div>
-                        </div>
-                        <button type="button" id="signup-next" class="sv-btn-submit" disabled>Continuer</button>
-                    </div>
-
-                    <!-- Step 2: Personal Profile Data -->
-                    <div class="sv-signup-step" id="signup-step-2" data-step="2" hidden>
-                        <div class="sv-signup-role-chip" id="signup-role-chip">
-                            <span id="signup-role-chip-label"></span>
-                            <button type="button" id="signup-change-role" class="sv-signup-role-change">Modifier</button>
-                        </div>
-                        <div class="sv-field">
-                            <label for="signup-name" class="sv-field-label">Nom complet</label>
-                            <input type="text" id="signup-name" name="name" required placeholder="Marie Curie"
-                                   class="sv-field-input" autocomplete="name">
-                        </div>
-                        <div class="sv-field">
-                            <label for="signup-email" class="sv-field-label">Adresse électronique</label>
-                            <input type="email" id="signup-email" name="email" required placeholder="vous@exemple.com"
-                                   class="sv-field-input" autocomplete="email">
-                        </div>
-                        <div class="sv-field">
-                            <label for="signup-password" class="sv-field-label">Mot de passe</label>
-                            <input type="password" id="signup-password" name="password" required minlength="6"
-                                   placeholder="6 caractères minimum" class="sv-field-input" autocomplete="new-password">
-                            <div class="sv-pw-strength"><div class="sv-pw-strength-bar" id="pw-bar"></div></div>
-                            <div class="sv-field-hint" id="hint-password">Minimum 6 caractères</div>
-                        </div>
-                        <label class="sv-checkbox-field" for="signup-newsletter">
-                            <input type="checkbox" id="signup-newsletter" name="newsletter" value="1">
-                            <span>Newsletter StudyVibe <em>(optionnel)</em></span>
-                        </label>
-                        <div class="sv-signup-actions">
-                            <button type="button" id="signup-back" class="sv-btn-back">Retour</button>
-                            <button type="submit" id="signup-btn" class="sv-btn-submit" disabled>Créer mon compte</button>
-                        </div>
-                    </div>
-                </form>
-                <p class="sv-form-footer">Déjà inscrit ? <button type="button" onclick="switchAuthTab('login')">Se connecter</button></p>
-            </div>
-        </div>
-
+<main id="top">
+<section class="hero">
+  <div class="wrap hero-grid">
+    <div>
+      <div class="hero-logo"><?= Brand::logo('xl', true) ?></div>
+      <p class="kicker"><?= $e('kicker') ?></p>
+      <h1 style="margin-top:1rem"><?= $T['h1'] ?></h1>
+      <p class="lede"><?= $e('lede') ?></p>
+      <div class="hero-cta">
+        <button class="btn btn-primary btn-lg" type="button" data-open-auth="signup"><?= $e('cta1') ?></button>
+        <a class="btn btn-ghost btn-lg" href="#direct"><?= $e('cta2') ?></a>
+      </div>
+      <p class="hero-note"><?= $e('note') ?></p>
     </div>
+
+    <figure class="hero-art" aria-label="<?= $e('room_title') ?>">
+      <div class="art-blob" aria-hidden="true"></div>
+      <div class="art-anim" data-lottie="/assets/anim/hero-reader-couch.json" role="img" aria-label="<?= $e('art_alt') ?>"></div>
+      <span class="chip-float cf-live"><span class="live"><i></i><?= $e('room_live') ?></span><b class="num"><?= $e('room_count') ?></b></span>
+      <span class="chip-float cf-cert"><span class="tick" aria-hidden="true">✓</span><code>SV-7K2Q-94MD</code></span>
+      <span class="chip-float cf-score"><span class="num">17<small>/20</small></span></span>
+    </figure>
+  </div>
 </section>
 
-<!-- =========================================================================
-     SECTION 4: PARTNERSHIPS LOGO MARQUEE
-     ========================================================================= -->
-<div class="sv-partners-band" role="region" aria-label="Entreprises de formation">
-    <div class="sv-container">
-        <p class="sv-partners-eyebrow">Écosystème formation &amp; EdTech</p>
-        <div class="sv-partners-marquee" aria-hidden="true">
-            <div class="sv-partners-track">
-                <?php
-                $partners = [
-                    ['file' => 'coursera.svg', 'name' => 'Coursera'],
-                    ['file' => 'udemy.svg', 'name' => 'Udemy'],
-                    ['file' => 'edx.svg', 'name' => 'edX'],
-                    ['file' => 'pluralsight.svg', 'name' => 'Pluralsight'],
-                    ['file' => 'instructure.svg', 'name' => 'Instructure'],
-                    ['file' => '2u.jpeg', 'name' => '2U'],
-                    ['file' => 'chegg.svg', 'name' => 'Chegg'],
-                    ['file' => 'linkedin.svg', 'name' => 'LinkedIn'],
-                    ['file' => 'canva.svg', 'name' => 'Canva'],
-                    ['file' => 'google-cloud.jpeg', 'name' => 'Google Cloud'],
-                    ['file' => 'apple.svg', 'name' => 'Apple'],
-                    ['file' => 'figma.svg', 'name' => 'Figma'],
-                    ['file' => 'airbnb.svg', 'name' => 'Airbnb'],
-                ];
-                $renderLogos = function () use ($partners) {
-                    foreach ($partners as $p) {
-                        echo '<div class="sv-partner-logo">';
-                        echo '<img src="/assets/logos/partners/' . htmlspecialchars($p['file']) . '" alt="' . htmlspecialchars($p['name']) . '" loading="lazy" width="200" height="60">';
-                        echo '</div>';
-                    }
-                };
-                $renderLogos();
-                $renderLogos();
-                ?>
-            </div>
-        </div>
+<section class="sec alt wavy" id="parcours">
+  <div class="wrap">
+    <div class="head-row">
+      <div class="sec-head rv">
+        <p class="kicker"><?= $e('s1_k') ?></p>
+        <h2><?= $e('s1_h') ?></h2>
+        <p><?= $e('s1_p') ?></p>
+      </div>
+      <div class="head-art rv" style="--d:.1s"><div class="art-blob" aria-hidden="true"></div><div class="art-anim" data-lottie="/assets/anim/parcours-study.json" role="img" aria-label="<?= $e('study_alt') ?>"></div></div>
     </div>
-</div>
-
-<!-- =========================================================================
-     SECTION 5: PHILOSOPHY & STORYTELLING
-     ========================================================================= -->
-<section class="sv-section" id="presentation-story" style="background:#fff;">
-    <div class="sv-container" style="display:grid; grid-template-columns:1fr 1fr; gap:4rem; align-items:center;">
-        <div>
-            <div class="sv-eyebrow">Notre Philosophie</div>
-            <h2 class="sv-section-title">L'apprentissage académique, repensé pour la clarté et l'engagement.</h2>
-            <p class="sv-section-sub" style="margin-bottom:1.5rem;">Parce que l'éducation mérite mieux que des interfaces encombrées et des processus rigides, nous avons conçu StudyVibe pour allier concentration, interactivité et transparence.</p>
-            <p style="font-size:0.875rem; color:var(--sv-text-muted); line-height:1.7; font-weight:300;">
-                Nos modules de lecture, nos outils d'évaluation synchrone (QuizBox) et nos classes virtuelles intégrées travaillent de concert pour offrir une expérience d'étude moderne et fluide. Chaque apprenant dispose d'un espace personnel favorisant la prise de notes et le rythme individuel, tandis que les enseignants pilotent leurs promotions grâce à des statistiques de réussite détaillées et des parcours d'apprentissage automatisés.
-            </p>
-        </div>
-        <div style="display:grid; grid-template-columns:1fr; gap:1.5rem;">
-            <div class="sv-glass-card" style="padding:2rem; display:flex; gap:1.5rem; align-items:flex-start; background:var(--sv-cream-light);">
-                <div style="background:rgba(0,75,35,0.06); color:#004B23; width:50px; height:50px; border-radius:12px; display:flex; align-items:center; justify-content:center; flex-shrink:0;">
-                    <svg class="w-6 h-6" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24" style="width: 24px; height: 24px;"><path stroke-linecap="round" stroke-linejoin="round" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z"/><path stroke-linecap="round" stroke-linejoin="round" d="M2.458 12C3.732 7.943 7.523 5 12 5c4.478 0 8.268 2.943 9.542 7-1.274 4.057-5.064 7-9.542 7-4.477 0-8.268-2.943-9.542-7z"/></svg>
-                </div>
-                <div>
-                    <h3 style="font-family:'Plus Jakarta Sans',sans-serif; font-size:1.125rem; font-weight:600; color:var(--sv-text);">Focus & Concentration</h3>
-                    <p style="font-size:0.8125rem; color:var(--sv-text-muted); margin-top:0.35rem; line-height:1.5; font-weight:300;">Une liseuse sans distraction, conçue pour minimiser la charge cognitive et optimiser l'ancrage mémoriel.</p>
-                </div>
-            </div>
-            <div class="sv-glass-card" style="padding:2rem; display:flex; gap:1.5rem; align-items:flex-start; background:var(--sv-cream-light);">
-                <div style="background:rgba(201,168,76,0.08); color:#C9A84C; width:50px; height:50px; border-radius:12px; display:flex; align-items:center; justify-content:center; flex-shrink:0;">
-                    <svg class="w-6 h-6" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24" style="width: 24px; height: 24px;"><path stroke-linecap="round" stroke-linejoin="round" d="M9.663 17h4.673M12 3v1m6.364 1.636l-.707.707M21 12h-1M4 12H3m3.343-5.657l-.707-.707m2.828 9.9a5 5 0 117.072 0l-.548.547A3.374 3.374 0 0014 18.469V19a2 2 0 11-4 0v-.531c0-.895-.356-1.754-.988-2.386l-.548-.547z"/></svg>
-                </div>
-                <div>
-                    <h3 style="font-family:'Plus Jakarta Sans',sans-serif; font-size:1.125rem; font-weight:600; color:var(--sv-text);">Compagnon IA Interactif</h3>
-                    <p style="font-size:0.8125rem; color:var(--sv-text-muted); margin-top:0.35rem; line-height:1.5; font-weight:300;">Un assistant virtuel disponible 24h/24 pour synthétiser vos leçons, répondre à vos questions et générer des quiz sur-mesure.</p>
-                </div>
-            </div>
-            <div class="sv-glass-card" style="padding:2rem; display:flex; gap:1.5rem; align-items:flex-start; background:var(--sv-cream-light);">
-                <div style="background:rgba(0,0,0,0.05); color:var(--sv-text); width:50px; height:50px; border-radius:12px; display:flex; align-items:center; justify-content:center; flex-shrink:0;">
-                    <svg class="w-6 h-6" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24" style="width: 24px; height: 24px;"><path stroke-linecap="round" stroke-linejoin="round" d="M9 12l2 2 4-4m5.618-4.016A11.955 11.955 0 0112 2.944a11.955 11.955 0 01-8.618 3.04A12.02 12.02 0 003 9c0 5.591 3.824 10.29 9 11.622 5.176-1.332 9-6.03 9-11.622 0-1.042-.133-2.052-.382-3.016z"/></svg>
-                </div>
-                <div>
-                    <h3 style="font-family:'Plus Jakarta Sans',sans-serif; font-size:1.125rem; font-weight:600; color:var(--sv-text);">Preuve de Compétence</h3>
-                    <p style="font-size:0.8125rem; color:var(--sv-text-muted); margin-top:0.35rem; line-height:1.5; font-weight:300;">Des attestations numériques vérifiables instantanément grâce à un identifiant unique sécurisé.</p>
-                </div>
-            </div>
-        </div>
+    <div class="moments">
+      <?php foreach ([1, 2, 3] as $i): ?>
+      <article class="moment rv" style="--d:<?= ($i - 1) * .1 ?>s">
+        <div class="n">0<?= $i ?></div>
+        <div><h3><?= $e("m{$i}_h") ?></h3><p><?= $e("m{$i}_p") ?></p></div>
+        <ul><?php foreach ($T["m{$i}_l"] as $li): ?><li><?= htmlspecialchars($li) ?></li><?php endforeach; ?></ul>
+      </article>
+      <?php endforeach; ?>
     </div>
+  </div>
 </section>
 
-<div class="sv-divider"></div>
-
-<!-- =========================================================================
-     SECTION 6: CORE SYSTEM FEATURES LIST
-     ========================================================================= -->
-<!-- =========================================================================
-     SECTION 6: CORE SYSTEM FEATURES LIST (REDESIGNED IMMERSIVE INTERACTIVE SHOWCASE)
-     ========================================================================= -->
-<section class="sv-story-deck" id="fonctionnalites">
-    <!-- Smooth SVG curve top transition -->
-    <svg class="sv-curve-svg-transition sv-curve-top" viewBox="0 0 1440 120" xmlns="http://www.w3.org/2000/svg">
-        <path d="M0,0 C480,120 960,120 1440,0 L1440,120 L0,120 Z" fill="#0d0f0e"></path>
-    </svg>
-
-    <div class="sv-container">
-        <div class="sv-story-rows">
-            
-            <!-- Phase 1: L'Éveil -->
-            <div class="sv-story-row" id="story-phase-1" data-phase-id="1">
-                <div class="sv-story-row-text">
-                    <div class="sv-story-step-indicator">
-                        <span class="sv-story-step-number">01</span>
-                        <div class="sv-story-step-line"></div>
-                        <span style="font-size:0.75rem; font-weight:700; color:#00FF7F; letter-spacing:1px; text-transform:uppercase;">L'Éveil</span>
-                    </div>
-                    <h3 style="font-family:'Plus Jakarta Sans',sans-serif; font-size:clamp(1.75rem, 3.5vw, 2.5rem); font-weight:800; line-height:1.2; margin-bottom:1.5rem; color:#fff;">
-                        L'étincelle de la curiosité.
-                    </h3>
-                    <p style="font-size:1.05rem; color:rgba(255,255,255,0.7); line-height:1.75; font-weight:300; margin-bottom:2rem;">
-                        Chaque grand parcours commence par une simple connexion. StudyVibe cartographie vos connaissances et vos objectifs dès le premier jour, reliant enseignants et étudiants au sein d'un univers académique interactif et inspirant.
-                    </p>
-                    <div style="display:flex; gap:0.5rem;">
-                        <span style="font-size:0.75rem; background:rgba(0,255,127,0.1); color:#00FF7F; padding:0.35rem 0.75rem; border-radius:6px; font-weight:600; border:1px solid rgba(0,255,127,0.2);">Cartographie IA</span>
-                        <span style="font-size:0.75rem; background:rgba(255,255,255,0.05); color:rgba(255,255,255,0.6); padding:0.35rem 0.75rem; border-radius:6px;">Orientation</span>
-                    </div>
-                </div>
-                <div class="sv-story-row-visual">
-                    <div class="sv-story-console phase-1">
-                        <div class="sv-console-grid"></div>
-                        <div class="sv-story-screen">
-                            <div class="sv-network-canvas">
-                                <div class="sv-network-core"></div>
-                                <div class="sv-orbit-ring sv-orbit-ring-1">
-                                    <div class="sv-orbit-node sv-node-1"> Algorithmes</div>
-                                    <div class="sv-orbit-node sv-node-2"> Statistiques</div>
-                                </div>
-                                <div class="sv-orbit-ring sv-orbit-ring-2">
-                                    <div class="sv-orbit-node sv-node-3"> Intelligence Artificielle</div>
-                                    <div class="sv-orbit-node sv-node-4"> Sciences Physiques</div>
-                                </div>
-                            </div>
-                        </div>
-                    </div>
-                </div>
-            </div>
-
-            <!-- Phase 2: L'Immersion -->
-            <div class="sv-story-row" id="story-phase-2" data-phase-id="2">
-                <div class="sv-story-row-text">
-                    <div class="sv-story-step-indicator">
-                        <span class="sv-story-step-number">02</span>
-                        <div class="sv-story-step-line"></div>
-                        <span style="font-size:0.75rem; font-weight:700; color:#C9A84C; letter-spacing:1px; text-transform:uppercase;">L'Immersion</span>
-                    </div>
-                    <h3 style="font-family:'Plus Jakarta Sans',sans-serif; font-size:clamp(1.75rem, 3.5vw, 2.5rem); font-weight:800; line-height:1.2; margin-bottom:1.5rem; color:#fff;">
-                        L'art d'étudier sans distraction.
-                    </h3>
-                    <p style="font-size:1.05rem; color:rgba(255,255,255,0.7); line-height:1.75; font-weight:300; margin-bottom:2rem;">
-                        Plongez au cœur de vos cours grâce à notre liseuse intelligente et notre QuizBox intégrée. Suivez votre temps de concentration, interagissez avec votre tuteur virtuel et visualisez votre progression s'étendre en temps réel.
-                    </p>
-                    <div style="display:flex; gap:0.5rem;">
-                        <span style="font-size:0.75rem; background:rgba(201,168,76,0.15); color:#C9A84C; padding:0.35rem 0.75rem; border-radius:6px; font-weight:600; border:1px solid rgba(201,168,76,0.2);">Liseuse interactive</span>
-                        <span style="font-size:0.75rem; background:rgba(255,255,255,0.05); color:rgba(255,255,255,0.6); padding:0.35rem 0.75rem; border-radius:6px;">QuizBox</span>
-                    </div>
-                </div>
-                <div class="sv-story-row-visual">
-                    <div class="sv-story-console phase-2">
-                        <div class="sv-console-grid"></div>
-                        <div class="sv-story-screen">
-                            <div class="sv-immersion-mockup">
-                                <div style="height:34px; background:rgba(255,255,255,0.02); border-bottom:1px solid rgba(255,255,255,0.06); display:flex; align-items:center; padding:0 1rem; justify-content:space-between; flex-shrink:0;">
-                                    <span style="font-size:0.65rem; font-weight:600; color:rgba(255,255,255,0.5); letter-spacing:0.5px; display:flex; align-items:center; gap:6px;">
-                                        <span style="display:inline-block; width:6px; height:6px; border-radius:50%; background:#00FF7F;"></span>
-                                        COURS ACTIF : ALGÈBRE LINÉAIRE
-                                    </span>
-                                    <span style="font-size:0.6rem; color:#C9A84C; font-family:monospace; background:rgba(201,168,76,0.1); padding:0.15rem 0.4rem; border-radius:4px; border:1px solid rgba(201,168,76,0.15);">SESSION #804</span>
-                                </div>
-                                <div style="flex:1; display:flex; min-height:0; position:relative; width:100%;">
-                                    <div style="width:140px; background:rgba(255,255,255,0.01); border-right:1px solid rgba(255,255,255,0.06); padding:0.75rem 0.6rem; display:flex; flex-direction:column; gap:0.5rem; height:100%; flex-shrink:0;">
-                                        <span style="font-size:0.55rem; font-weight:700; color:rgba(255,255,255,0.3); letter-spacing:0.8px; text-transform:uppercase;">PLAN DE LEÇON</span>
-                                        <div style="font-size:0.65rem; color:#00FF7F; display:flex; align-items:center; gap:6px; font-weight:500;"><span style="font-size:0.55rem;">✔</span> I. Espaces vectoriels</div>
-                                        <div style="font-size:0.65rem; color:#ffffff; display:flex; align-items:center; gap:6px; font-weight:500;"><span style="color:#00FF7F; font-size:0.7rem;">●</span> II. Matrices</div>
-                                        <div style="font-size:0.65rem; color:rgba(255,255,255,0.4); display:flex; align-items:center; gap:6px;"><span style="font-size:0.65rem;">○</span> III. Déterminants</div>
-                                        <div style="font-size:0.65rem; color:rgba(255,255,255,0.4); display:flex; align-items:center; gap:6px;"><span style="font-size:0.65rem;">○</span> IV. Diagonalisation</div>
-                                    </div>
-                                    <div style="flex:1; display:flex; flex-direction:column; padding:0.85rem 1rem; min-height:0; justify-content:space-between;">
-                                        <div>
-                                            <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:0.4rem;">
-                                                <span style="font-size:0.75rem; font-weight:700; color:#fff;">II. Algèbre Matricielle</span>
-                                                <span style="font-size:0.55rem; color:rgba(255,255,255,0.4); font-family:monospace; background:rgba(255,255,255,0.05); padding:0.1rem 0.3rem; border-radius:3px;">LIVRE II</span>
-                                            </div>
-                                            <div style="font-size:0.65rem; color:rgba(255,255,255,0.65); line-height:1.45; font-weight:300; margin-bottom:0.5rem;">
-                                                Soit la matrice A ∈ M<sub>n</sub>(ℝ). On étudie l'existence d'une matrice inverse B telle que :
-                                            </div>
-                                            <div style="font-family:monospace; background:rgba(0,0,0,0.4); padding:0.4rem; border-radius:8px; font-size:0.65rem; border:1px solid rgba(255,255,255,0.06); color:#00FF7F; text-align:center;">
-                                                A × B = B × A = I<sub>n</sub>
-                                            </div>
-                                        </div>
-                                        <div class="sv-chat-dialog" style="margin: 0; max-width: 100%;">
-                                            <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:0.25rem;">
-                                                <span style="font-size:0.6rem; font-weight:700; color:#00FF7F; display:flex; align-items:center; gap:4px;">
-                                                    <span style="display:inline-block; width:5px; height:5px; border-radius:50%; background:#00FF7F; animation:corePulse 1.5s infinite alternate;"></span>
-                                                    🤖 Assistant IA StudyVibe
-                                                </span>
-                                                <span style="font-size:0.5rem; color:rgba(255,255,255,0.4); font-family:monospace;">Actif</span>
-                                            </div>
-                                            <p style="font-size:0.625rem; color:#fff; margin:0; line-height:1.35; font-weight:300;">
-                                                "Tu as complété la lecture. Veux-tu lancer un quiz rapide pour valider cette notion ?"
-                                            </p>
-                                        </div>
-                                    </div>
-                                    <div style="width:130px; background:rgba(255,255,255,0.005); border-left:1px solid rgba(255,255,255,0.06); padding:0.75rem 0.5rem; display:flex; flex-direction:column; align-items:center; justify-content:center; gap:0.6rem; flex-shrink:0;">
-                                        <div class="sv-grow-gauge">
-                                            <div class="sv-grow-gauge-ring"></div>
-                                            <div class="sv-grow-gauge-val">65%</div>
-                                        </div>
-                                        <span style="font-size:0.55rem; color:rgba(255,255,255,0.5); font-weight:600; text-transform:uppercase; letter-spacing:0.5px;">Focus Level</span>
-                                    </div>
-                                </div>
-                            </div>
-                        </div>
-                    </div>
-                </div>
-            </div>
-
-            <!-- Phase 3: La Réussite -->
-            <div class="sv-story-row" id="story-phase-3" data-phase-id="3">
-                <div class="sv-story-row-text">
-                    <div class="sv-story-step-indicator">
-                        <span class="sv-story-step-number">03</span>
-                        <div class="sv-story-step-line"></div>
-                        <span style="font-size:0.75rem; font-weight:700; color:#fff; letter-spacing:1px; text-transform:uppercase;">La Réussite</span>
-                    </div>
-                    <h3 style="font-family:'Plus Jakarta Sans',sans-serif; font-size:clamp(1.75rem, 3.5vw, 2.5rem); font-weight:800; line-height:1.2; margin-bottom:1.5rem; color:#fff;">
-                        L'accomplissement certifié.
-                    </h3>
-                    <p style="font-size:1.05rem; color:rgba(255,255,255,0.7); line-height:1.75; font-weight:300; margin-bottom:2rem;">
-                        Chaque étape validée mérite sa reconnaissance. Obtenez des certificats signés cryptographiquement, exportables en un clic et vérifiables instantanément par vos futurs recruteurs à l'aide d'une URL sécurisée unique.
-                    </p>
-                    <div style="display:flex; gap:0.5rem;">
-                        <span style="font-size:0.75rem; background:rgba(255,255,255,0.1); color:#fff; padding:0.35rem 0.75rem; border-radius:6px; font-weight:600; border:1px solid rgba(255,255,255,0.2);">Cryptographic Sign</span>
-                        <span style="font-size:0.75rem; background:rgba(255,255,255,0.05); color:rgba(255,255,255,0.6); padding:0.35rem 0.75rem; border-radius:6px;">Partage instantané</span>
-                    </div>
-                </div>
-                <div class="sv-story-row-visual">
-                    <div class="sv-story-console phase-3">
-                        <div class="sv-console-grid"></div>
-                        <div class="sv-story-screen">
-                            <div class="sv-holo-card-wrap">
-                                <div style="position:absolute; width:120%; height:120%; pointer-events:none; z-index:0; overflow:hidden;">
-                                    <div style="position:absolute; width:8px; height:8px; background:#C9A84C; border-radius:50%; opacity:0.3; top:20%; left:10%; filter:blur(1px); animation:floatParticle 6s infinite alternate;"></div>
-                                    <div style="position:absolute; width:12px; height:12px; background:#C9A84C; border-radius:50%; opacity:0.25; bottom:15%; right:12%; filter:blur(2px); animation:floatParticle 8s infinite alternate-reverse;"></div>
-                                    <div style="position:absolute; width:6px; height:6px; background:#00FF7F; border-radius:50%; opacity:0.2; top:75%; left:25%; filter:blur(1px); animation:floatParticle 5s infinite alternate;"></div>
-                                </div>
-                                <div class="sv-holo-card-3d" id="holo-certificate" style="z-index: 1;">
-                                    <div class="sv-holo-sheen"></div>
-                                    <div style="display:flex; justify-content:space-between; align-items:flex-start;">
-                                        <div>
-                                            <div style="font-size:0.6rem; font-weight:700; color:#C9A84C; letter-spacing:1.5px; text-transform:uppercase; margin-bottom:0.25rem;">STUDYVIBE VERIFIED</div>
-                                            <h4 style="font-family:'Plus Jakarta Sans',sans-serif; font-size:1.15rem; font-weight:800; color:#fff; margin:0; line-height:1.2;">Attestation de Succès</h4>
-                                        </div>
-                                        <div class="sv-gold-seal">🏆</div>
-                                    </div>
-                                    <p style="font-size:0.75rem; color:rgba(255,255,255,0.85); line-height:1.55; margin:1rem 0 0.5rem; font-weight:300;">
-                                        Délivré avec fierté à <strong>Thomas Roche</strong> pour avoir validé avec mention le module complet d'<strong>Algèbre Linéaire Supérieure</strong>.
-                                    </p>
-                                    <div style="display:flex; justify-content:space-between; align-items:center; border-top:1px solid rgba(255,255,255,0.08); padding-top:0.75rem; margin-top:0.5rem;">
-                                        <div>
-                                            <div style="font-size:0.55rem; color:rgba(255,255,255,0.4);">SIGNATURE CRYPTOGRAPHIQUE</div>
-                                            <div style="font-family:monospace; font-size:0.6rem; color:#C9A84C; font-weight:600; margin-top:0.1rem;">hash:0x00FF7F...8A9D</div>
-                                        </div>
-                                        <span style="font-size:0.6rem; background:rgba(0,255,127,0.1); color:#00FF7F; padding:0.2rem 0.5rem; border-radius:4px; font-weight:700; border:1px solid rgba(0,255,127,0.2);">VERIFIED SEAL</span>
-                                    </div>
-                                </div>
-                            </div>
-                        </div>
-                    </div>
-                </div>
-            </div>
-
-        </div>
+<section class="sec wavy" id="direct">
+  <div class="wrap live-grid">
+    <div class="live-img rv"><div class="art-anim" data-lottie="/assets/anim/live-laptop.json" role="img" aria-label="<?= $e('live_alt') ?>"></div></div>
+    <div class="rv" style="--d:.1s">
+      <p class="kicker"><?= $e('s2_k') ?></p>
+      <h2 style="font-size:clamp(2rem,4vw,3.1rem);margin-top:.8rem;font-weight:450"><?= $e('s2_h') ?></h2>
+      <p style="margin-top:1rem;color:var(--ink-2);font-size:1.1rem"><?= $e('s2_p') ?></p>
+      <dl class="facts">
+        <?php foreach ($T['f'] as $f): ?><div class="fact"><dt><?= htmlspecialchars($f[0]) ?></dt><dd><?= htmlspecialchars($f[1]) ?></dd></div><?php endforeach; ?>
+      </dl>
     </div>
-
-    <!-- Smooth SVG curve bottom transition -->
-    <svg class="sv-curve-svg-transition sv-curve-bottom" viewBox="0 0 1440 120" xmlns="http://www.w3.org/2000/svg">
-        <path d="M0,0 C480,120 960,120 1440,0 L1440,120 L0,120 Z" fill="#0d0f0e"></path>
-    </svg>
+  </div>
 </section>
 
-<div class="sv-divider" style="background:#000; margin:0; border:none; height:1px;"></div>
-
-<div class="sv-divider"></div>
-
-<!-- =========================================================================
-     SECTION 7: SHOWCASE HORIZONTAL SCROLL CAROUSEL
-     ========================================================================= -->
-<section class="sv-section" id="aperçu-cours" style="background:var(--sv-cream-light);">
-    <div class="sv-container">
-        <div class="sv-eyebrow">Aperçu de la Plateforme</div>
-        <h2 class="sv-section-title">Découvrez l'Écosystème StudyVibe.<br>Une expérience intégrée en 4 dimensions.</h2>
-        <p class="sv-section-sub" style="margin-bottom:3.5rem;">Glissez ou observez le défilement automatique des différentes interfaces conçues pour optimiser chaque étape de l'apprentissage.</p>
+<section class="sec alt wavy" id="roles">
+  <div class="wrap">
+    <div class="sec-head rv"><p class="kicker"><?= $e('s3_k') ?></p><h2><?= $e('s3_h') ?></h2></div>
+    <div class="roles">
+      <?php foreach ($T['r'] as $n => $r): ?>
+      <article class="role rv" style="--d:<?= $n * .08 ?>s">
+        <div class="role-art" data-lottie="/assets/anim/<?= ['role-student','role-teacher','role-promoter'][$n] ?>.json" aria-hidden="true"></div>
+        <span class="tag"><?= htmlspecialchars($r[1]) ?></span>
+        <h3><?= htmlspecialchars($r[0]) ?></h3>
+        <ul><?php foreach ($r[2] as $li): ?><li><?= htmlspecialchars($li) ?></li><?php endforeach; ?></ul>
+      </article>
+      <?php endforeach; ?>
     </div>
-
-    <!-- Showdown Viewport Slider -->
-    <div class="sv-showdown-viewport">
-        <div class="sv-showdown-track">
-            
-            <!-- Panel 1: Course Reader Preview -->
-            <div class="sv-showdown-panel">
-                <div class="sv-preview-header">
-                    <div class="sv-preview-dot" style="background:#FF5F56;"></div>
-                    <div class="sv-preview-dot" style="background:#FFBD2E;"></div>
-                    <div class="sv-preview-dot" style="background:#27C93F;"></div>
-                    <div class="sv-preview-address">https://app.studyvibe.edu/student/lesson?id=104</div>
-                </div>
-                <div style="display:grid; grid-template-columns:260px 1fr; min-height:480px; font-family:'Inter', sans-serif;">
-                    <!-- Sidebar -->
-                    <div style="border-right:1px solid rgba(0,0,0,0.06); padding:1.5rem; background:rgba(0,0,0,0.015); display:flex; flex-direction:column; gap:1.25rem;">
-                        <div style="font-weight:700; font-size:0.875rem; color:var(--sv-text);">Algèbre Linéaire</div>
-                        <div style="display:flex; flex-direction:column; gap:0.5rem;">
-                            <div style="padding:0.6rem 0.75rem; background:var(--sv-text); color:#fff; font-size:0.75rem; font-weight:600; border-radius:6px;">1. Introduction aux matrices</div>
-                            <div style="padding:0.6rem 0.75rem; background:transparent; color:var(--sv-text-muted); font-size:0.75rem; font-weight:500; border-radius:6px;">2. Produit matriciel</div>
-                            <div style="padding:0.6rem 0.75rem; background:transparent; color:var(--sv-text-muted); font-size:0.75rem; font-weight:500; border-radius:6px;">3. Déterminants & inverses</div>
-                        </div>
-                        <div style="margin-top:auto; padding-top:1rem; border-top:1px solid rgba(0,0,0,0.06);">
-                            <div style="font-size:0.6875rem; color:var(--sv-text-muted); margin-bottom:0.35rem;">VOTRE SCORE : 82.4%</div>
-                            <div style="width:100%; height:4px; background:rgba(0,0,0,0.05); border-radius:2px; overflow:hidden;">
-                                <div style="width:82.4%; height:100%; background:#004B23;"></div>
-                            </div>
-                        </div>
-                    </div>
-                    <!-- Main Area -->
-                    <div style="padding:2.5rem; display:flex; flex-direction:column; gap:2rem;">
-                        <div style="display:flex; justify-content:space-between; align-items:center;">
-                            <div>
-                                <span class="sv-badge sv-badge-accent" style="font-size:0.625rem; font-weight:700; border-radius:12px;">LEÇON ACTIVE</span>
-                                <h3 style="font-family:'Plus Jakarta Sans',sans-serif; font-size:1.5rem; font-weight:500; margin-top:0.35rem; color:var(--sv-text);">Matrices et transformations géométriques</h3>
-                            </div>
-                            <span class="sv-badge" style="border-radius:12px; font-weight:600;">14:32 étudiés</span>
-                        </div>
-                        <div style="display:grid; grid-template-columns:1fr 280px; gap:2rem; flex:1;">
-                            <div style="border:1px dashed rgba(0,0,0,0.12); border-radius:8px; display:flex; flex-direction:column; justify-content:center; align-items:center; padding:2rem; text-align:center; background:#fafafa;">
-                                <svg fill="none" stroke="#004B23" stroke-width="1.5" viewBox="0 0 24 24" width="40" height="40" style="margin-bottom:0.75rem;"><path stroke-linecap="round" stroke-linejoin="round" d="M12 6.042A8.967 8.967 0 006 3.75c-1.052 0-2.062.18-3 .512v14.25A8.987 8.987 0 016 18c2.305 0 4.408.867 6 2.292m0-14.25a8.966 8.966 0 016-2.292c1.052 0 2.062.18 3 .512v14.25A8.987 8.987 0 0018 18a8.967 8.967 0 00-6 2.292m0-14.25v14.25"/></svg>
-                                <div style="font-size:0.8125rem; font-weight:600; color:var(--sv-text);">Liseuse PDF de cours intégrée</div>
-                                <div style="font-size:0.75rem; color:var(--sv-text-muted); max-width:240px; margin-top:0.25rem;">Les cours sont gates et déverrouillés uniquement après complétion des chapitres requis.</div>
-                            </div>
-                            <div style="display:flex; flex-direction:column; gap:1rem;">
-                                <div style="border:1px solid rgba(0,75,35,0.08); background:rgba(0,75,35,0.02); padding:1rem; border-radius:8px;">
-                                    <div style="font-size:0.75rem; font-weight:700; color:#004B23; display:flex; align-items:center; gap:0.35rem;">
-                                        <span style="display:inline-block; width:6px; height:6px; border-radius:50%; background:#C9A84C;"></span>
-                                        Assistant Pédagogique IA
-                                    </div>
-                                    <div style="font-size:0.75rem; color:var(--sv-text-muted); margin-top:0.35rem; line-height:1.4;">« Vous avez une question sur cette leçon ? Je peux synthétiser le PDF ou vous proposer un quiz d'entraînement. »</div>
-                                </div>
-                                <div style="border:1px solid rgba(0,0,0,0.06); padding:1rem; border-radius:8px;">
-                                    <div style="font-size:0.75rem; font-weight:600; color:var(--sv-text);">Notes personnelles</div>
-                                    <div style="font-size:0.6875rem; color:var(--sv-text-muted); margin-top:0.25rem;">Note prise à 04:12 : &quot;Vérifier le déterminant d'une matrice inverse&quot;</div>
-                                </div>
-                            </div>
-                        </div>
-                    </div>
-                </div>
-            </div>
-
-            <!-- Panel 2: Live Quiz Room Preview -->
-            <div class="sv-showdown-panel">
-                <div class="sv-preview-header">
-                    <div class="sv-preview-dot" style="background:#FF5F56;"></div>
-                    <div class="sv-preview-dot" style="background:#FFBD2E;"></div>
-                    <div class="sv-preview-dot" style="background:#27C93F;"></div>
-                    <div class="sv-preview-address">https://app.studyvibe.edu/live-evaluation?code=ALG301</div>
-                </div>
-                <div style="display:grid; grid-template-columns:260px 1fr; min-height:480px; font-family:'Inter', sans-serif;">
-                    <!-- Sidebar stats and status -->
-                    <div style="border-right:1px solid rgba(0,0,0,0.06); padding:1.5rem; background:rgba(0,0,0,0.015); display:flex; flex-direction:column; gap:1.25rem;">
-                        <div style="font-weight:700; font-size:0.875rem; color:var(--sv-text);">Session : ALG301</div>
-                        <div style="font-size:0.75rem; color:var(--sv-text-muted);">
-                            <strong>Mode :</strong> Synchrone direct<br>
-                            <strong>Candidats actifs :</strong> 48<br>
-                            <strong>Question :</strong> 4 sur 10
-                        </div>
-                        <div style="margin-top:auto; padding-top:1rem; border-top:1px solid rgba(0,0,0,0.06);">
-                            <div style="font-size:0.6875rem; color:var(--sv-text-muted); margin-bottom:0.35rem;">TEMPS RESTANT</div>
-                            <div style="width:100%; height:4px; background:rgba(0,0,0,0.05); border-radius:2px; overflow:hidden;">
-                                <div style="width:45%; height:100%; background:#EF4444;"></div>
-                            </div>
-                        </div>
-                    </div>
-                    <!-- Main Area Question -->
-                    <div style="padding:2.5rem; display:flex; flex-direction:column; gap:2rem;">
-                        <div style="display:flex; justify-content:space-between; align-items:center;">
-                            <div>
-                                <span class="sv-badge" style="background:#EF4444; border-color:#EF4444; color:#fff; font-size:0.625rem; font-weight:700; border-radius:12px;">ÉVALUATION LIVE</span>
-                                <h3 style="font-family:'Plus Jakarta Sans',sans-serif; font-size:1.5rem; font-weight:500; margin-top:0.35rem; color:var(--sv-text);">Algèbre Linéaire & Géométrie</h3>
-                            </div>
-                            <span style="font-family:'Plus Jakarta Sans',sans-serif; font-size:1.5rem; font-weight:700; color:#EF4444;">18s</span>
-                        </div>
-                        <div style="display:flex; flex-direction:column; gap:1rem; flex:1;">
-                            <div style="font-size:0.95rem; font-weight:600; color:var(--sv-text); line-height:1.5;">Question 4/10 : Laquelle des propositions définit une relation d'équivalence ?</div>
-                            <div style="display:flex; flex-direction:column; gap:0.6rem; margin-top:0.5rem;">
-                                <div style="padding:0.75rem 1rem; border:1px solid #004B23; background:rgba(0,75,35,0.02); font-size:0.75rem; font-weight:600; border-radius:8px; display:flex; align-items:center; gap:0.75rem;">
-                                    <span style="width:20px; height:20px; border-radius:50%; background:#004B23; color:#fff; display:flex; align-items:center; justify-content:center; font-size:0.65rem;">A</span>
-                                    Une relation réflexive, symétrique et transitive.
-                                </div>
-                                <div style="padding:0.75rem 1rem; border:1px solid rgba(0,0,0,0.08); font-size:0.75rem; border-radius:8px; display:flex; align-items:center; gap:0.75rem;">
-                                    <span style="width:20px; height:20px; border-radius:50%; background:rgba(0,0,0,0.05); color:var(--sv-text-muted); display:flex; align-items:center; justify-content:center; font-size:0.65rem;">B</span>
-                                    Une relation transitive et réflexive uniquement.
-                                </div>
-                            </div>
-                        </div>
-                    </div>
-                </div>
-            </div>
-
-            <!-- Panel 3: Teacher Dashboard Preview -->
-            <div class="sv-showdown-panel">
-                <div class="sv-preview-header">
-                    <div class="sv-preview-dot" style="background:#FF5F56;"></div>
-                    <div class="sv-preview-dot" style="background:#FFBD2E;"></div>
-                    <div class="sv-preview-dot" style="background:#27C93F;"></div>
-                    <div class="sv-preview-address">https://app.studyvibe.edu/teacher/dashboard</div>
-                </div>
-                <div style="display:grid; grid-template-columns:1fr 260px; min-height:480px; font-family:'Inter', sans-serif;">
-                    <!-- Left: Main Workspace -->
-                    <div style="background:#FAF9F6; padding:2rem; display:flex; flex-direction:column; gap:1.5rem; justify-content:flex-start;">
-                        <div style="display:flex; justify-content:space-between; align-items:center;">
-                            <div>
-                                <span class="sv-badge sv-badge-accent" style="font-size:0.625rem; font-weight:700; border-radius:12px;">ESPACE ENSEIGNANT</span>
-                                <h4 style="font-size:1.25rem; font-family:'Plus Jakarta Sans',sans-serif; font-weight:500; margin-top:0.25rem; color:var(--sv-text);">Suivi de la cohorte : Algorithmique</h4>
-                            </div>
-                            <span class="sv-badge" style="border-radius:12px; font-weight:600; background:#fff;">24 Apprenants</span>
-                        </div>
-                        
-                        <!-- KPIs -->
-                        <div style="display:grid; grid-template-columns:1fr 1fr 1fr; gap:1rem;">
-                            <div style="background:#fff; border:1px solid rgba(0,0,0,0.06); padding:1rem; border-radius:8px;">
-                                <div style="font-size:0.6875rem; color:var(--sv-text-muted); font-weight:700; uppercase">MOYENNE</div>
-                                <div style="font-size:1.5rem; font-family:'Plus Jakarta Sans',sans-serif; font-weight:700; color:#004B23; margin-top:0.25rem;">14.2<span style="font-size:0.875rem;">/20</span></div>
-                            </div>
-                            <div style="background:#fff; border:1px solid rgba(0,0,0,0.06); padding:1rem; border-radius:8px;">
-                                <div style="font-size:0.6875rem; color:var(--sv-text-muted); font-weight:700; uppercase">PROGRESSION</div>
-                                <div style="font-size:1.5rem; font-family:'Plus Jakarta Sans',sans-serif; font-weight:700; color:#004B23; margin-top:0.25rem;">78.5%</div>
-                            </div>
-                            <div style="background:#fff; border:1px solid rgba(0,0,0,0.06); padding:1rem; border-radius:8px;">
-                                <div style="font-size:0.6875rem; color:var(--sv-text-muted); font-weight:700; uppercase">CERTIFIÉS</div>
-                                <div style="font-size:1.5rem; font-family:'Plus Jakarta Sans',sans-serif; font-weight:700; color:#C9A84C; margin-top:0.25rem;">16<span style="font-size:0.875rem;"> / 24</span></div>
-                            </div>
-                        </div>
-
-                        <!-- Class Progress list mockup -->
-                        <div style="background:#fff; border:1px solid rgba(0,0,0,0.06); border-radius:8px; padding:1.25rem; display:flex; flex-direction:column; gap:0.75rem;">
-                            <div style="font-size:0.75rem; font-weight:700; color:var(--sv-text); border-bottom:1px solid rgba(0,0,0,0.06); padding-bottom:0.5rem;">Activité récente des apprenants</div>
-                            <div style="display:flex; justify-content:space-between; align-items:center; font-size:0.75rem;">
-                                <span style="font-weight:600;">Sophie V.</span>
-                                <span style="color:var(--sv-text-muted);">A complété la leçon : Graphes connexes</span>
-                                <span style="background:rgba(0,75,35,0.08); color:#004B23; padding:0.15rem 0.4rem; border-radius:4px; font-weight:700; font-size:0.625rem;">A l'instant</span>
-                            </div>
-                            <div style="display:flex; justify-content:space-between; align-items:center; font-size:0.75rem; border-top:1px solid rgba(0,0,0,0.04); padding-top:0.5rem;">
-                                <span style="font-weight:600;">Arthur D.</span>
-                                <span style="color:var(--sv-text-muted);">A obtenu 16.5/20 au QCM Chapitre 2</span>
-                                <span style="color:var(--sv-text-muted); font-size:0.625rem;">Il y a 10m</span>
-                            </div>
-                        </div>
-                    </div>
-                    <!-- Right: Quick actions panel -->
-                    <div style="border-left:1px solid rgba(0,0,0,0.06); background:#fff; padding:1.5rem; display:flex; flex-direction:column; gap:1.25rem;">
-                        <div style="font-weight:700; font-size:0.8125rem; color:var(--sv-text); border-bottom:1px solid rgba(0,0,0,0.06); padding-bottom:0.5rem;">Gestion de Cours</div>
-                        <div style="display:flex; flex-direction:column; gap:0.75rem; flex:1;">
-                            <div style="padding:0.75rem 1rem; border:1px solid rgba(0,0,0,0.08); border-radius:6px; font-size:0.75rem; font-weight:600; text-align:center; background:#fafafa; cursor:pointer;">
-                                ➕ Ajouter un Chapitre
-                            </div>
-                            <div style="padding:0.75rem 1rem; border:1px solid rgba(0,0,0,0.08); border-radius:6px; font-size:0.75rem; font-weight:600; text-align:center; background:#fafafa; cursor:pointer;">
-                                📝 Créer une Évaluation
-                            </div>
-                            <div style="padding:0.75rem 1rem; border:1px solid #004B23; color:#004B23; background:rgba(0,75,35,0.02); border-radius:6px; font-size:0.75rem; font-weight:700; text-align:center; cursor:pointer;">
-                                ⚡ Évaluation en Direct
-                            </div>
-                            <div style="padding:0.75rem 1rem; border:1px solid rgba(0,0,0,0.08); border-radius:6px; font-size:0.75rem; font-weight:600; text-align:center; background:#fafafa; cursor:pointer; margin-top:auto;">
-                                📥 Exporter les Notes (PDF)
-                            </div>
-                        </div>
-                    </div>
-                </div>
-            </div>
-
-            <!-- Panel 4: Student Dashboard Preview -->
-            <div class="sv-showdown-panel">
-                <div class="sv-preview-header">
-                    <div class="sv-preview-dot" style="background:#FF5F56;"></div>
-                    <div class="sv-preview-dot" style="background:#FFBD2E;"></div>
-                    <div class="sv-preview-dot" style="background:#27C93F;"></div>
-                    <div class="sv-preview-address">https://app.studyvibe.edu/student/dashboard</div>
-                </div>
-                <div style="display:grid; grid-template-columns:1fr 240px; min-height:480px; font-family:'Inter', sans-serif;">
-                    <!-- Left area -->
-                    <div style="padding:2.5rem; display:flex; flex-direction:column; gap:1.5rem;">
-                        <h3 style="font-family:'Plus Jakarta Sans',sans-serif; font-size:1.5rem; font-weight:500; color:var(--sv-text);">Bonjour, Arthur</h3>
-                        <div style="display:grid; grid-template-columns:1fr 1fr; gap:1rem;">
-                            <div style="border:1px solid rgba(0,0,0,0.06); padding:1rem; border-radius:8px; display:flex; flex-direction:column; gap:0.5rem; background:rgba(0,0,0,0.005);">
-                                <div style="font-size:0.75rem; font-weight:700; color:#004B23;">COURS EN COURS</div>
-                                <div style="font-size:0.875rem; font-weight:600; color:var(--sv-text);">Algorithmique & Graphes</div>
-                                <div style="display:flex; justify-content:space-between; align-items:center; font-size:0.6875rem; color:var(--sv-text-muted); margin-top:auto;">
-                                    <span>Progression: 75%</span>
-                                    <span style="color:#004B23; font-weight:700;">Continuer →</span>
-                                </div>
-                            </div>
-                            <div style="border:1px solid rgba(0,0,0,0.06); padding:1rem; border-radius:8px; display:flex; flex-direction:column; gap:0.5rem; background:rgba(0,0,0,0.005);">
-                                <div style="font-size:0.75rem; font-weight:700; color:#C9A84C;">CERTIFICATION</div>
-                                <div style="font-size:0.875rem; font-weight:600; color:var(--sv-text);">Physique Atomique</div>
-                                <div style="display:flex; align-items:center; font-size:0.6875rem; color:var(--sv-text-muted); margin-top:auto;">
-                                    <span style="background:#004B23; color:#fff; padding:0.15rem 0.4rem; border-radius:4px; font-weight:700; font-size:0.55rem;">TÉLÉCHARGER PDF</span>
-                                </div>
-                            </div>
-                        </div>
-                    </div>
-                    <!-- Right area stats -->
-                    <div style="background:rgba(0,0,0,0.015); border-left:1px solid rgba(0,0,0,0.06); padding:2rem; display:flex; flex-direction:column; gap:1.5rem;">
-                        <div style="font-size:0.75rem; font-weight:700; color:var(--sv-text);">PERFORMANCES</div>
-                        <div style="display:flex; flex-direction:column; gap:1rem;">
-                            <div>
-                                <div style="font-size:1.75rem; font-family:'Plus Jakarta Sans',sans-serif; font-weight:700; color:#004B23;">14.5<span style="font-size:0.875rem;">/20</span></div>
-                                <div style="font-size:0.6875rem; color:var(--sv-text-muted);">Moyenne Générale</div>
-                            </div>
-                            <div>
-                                <div style="font-size:1.75rem; font-family:'Plus Jakarta Sans',sans-serif; font-weight:700; color:var(--sv-text);">86%</div>
-                                <div style="font-size:0.6875rem; color:var(--sv-text-muted);">Taux d'assiduité</div>
-                            </div>
-                        </div>
-                    </div>
-                </div>
-            </div>
-
-        </div>
-    </div>
+  </div>
 </section>
 
-<div class="sv-divider"></div>
-
-<!-- =========================================================================
-     SECTION 8: PORTAL ROLE SWITCHERS
-     ========================================================================= -->
-<section class="sv-section" id="roles">
-    <div class="sv-container">
-        <div class="sv-eyebrow">Pour qui</div>
-        <h2 class="sv-section-title">Un espace taillé<br>pour chaque rôle.</h2>
-        <div style="display:flex; border-bottom:1px solid var(--sv-border-warm); margin-top:2rem; margin-bottom:2rem; gap:0.25rem;">
-            <button class="sv-form-tab active" data-role="promoteur" onclick="switchRole('promoteur')" style="flex:0; padding:0.65rem 1.25rem;">Promoteur</button>
-            <button class="sv-form-tab" data-role="enseignant" onclick="switchRole('enseignant')" style="flex:0; padding:0.65rem 1.25rem;">Enseignant</button>
-            <button class="sv-form-tab" data-role="etudiant" onclick="switchRole('etudiant')" style="flex:0; padding:0.65rem 1.25rem;">Étudiant</button>
-        </div>
-        <div id="role-promoteur" class="role-panel active" style="display:grid; grid-template-columns:1fr 1fr; gap:1rem;">
-            <div class="sv-feature-card"><h3 class="sv-section-title" style="font-size:1.125rem;">Superviser la structure</h3><p style="font-size:0.8125rem;color:var(--sv-text-muted);margin-top:0.5rem;font-weight:300;">Statistiques, certifications, gestion des utilisateurs.</p></div>
-            <div class="sv-feature-card"><h3 class="sv-section-title" style="font-size:1.125rem;">Contrôle des accès</h3><p style="font-size:0.8125rem;color:var(--sv-text-muted);margin-top:0.5rem;font-weight:300;">Créez les comptes, organisez les cohortes et les modules.</p></div>
-        </div>
-        <div id="role-enseignant" class="role-panel" style="display:none; grid-template-columns:1fr 1fr; gap:1rem;">
-            <div class="sv-feature-card"><h3 class="sv-section-title" style="font-size:1.125rem;">Création de contenu</h3><p style="font-size:0.8125rem;color:var(--sv-text-muted);margin-top:0.5rem;font-weight:300;">Leçons, QCM, évaluations finales et clés d'inscription.</p></div>
-            <div class="sv-feature-card"><h3 class="sv-section-title" style="font-size:1.125rem;">Suivi des apprenants</h3><p style="font-size:0.8125rem;color:var(--sv-text-muted);margin-top:0.5rem;font-weight:300;">Taux de réussite, progression et scores moyens.</p></div>
-        </div>
-        <div id="role-etudiant" class="role-panel" style="display:none; grid-template-columns:1fr 1fr; gap:1rem;">
-            <div class="sv-feature-card"><h3 class="sv-section-title" style="font-size:1.125rem;">Espace personnel</h3><p style="font-size:0.8125rem;color:var(--sv-text-muted);margin-top:0.5rem;font-weight:300;">Catalogue, liseuse PDF, chronomètre et Q&A par leçon.</p></div>
-            <div class="sv-feature-card"><h3 class="sv-section-title" style="font-size:1.125rem;">Certifications</h3><p style="font-size:0.8125rem;color:var(--sv-text-muted);margin-top:0.5rem;font-weight:300;">QCM final chronométré, certificat PDF et vérification en ligne.</p></div>
-        </div>
+<section class="sec wavy">
+  <div class="wrap verify">
+    <div class="rv">
+      <p class="kicker"><?= $e('s4_k') ?></p>
+      <h2 style="font-size:clamp(2rem,4vw,3.1rem);margin-top:.8rem;font-weight:450"><?= $e('s4_h') ?></h2>
+      <p style="margin-top:1rem;color:var(--ink-2);font-size:1.1rem"><?= $e('s4_p') ?></p>
+      <form class="verify-form" action="/verify.php" method="get">
+        <input class="input" name="code" required placeholder="<?= $e('v_ph') ?>" aria-label="<?= $e('v_ph') ?>" autocomplete="off" spellcheck="false">
+        <button class="btn btn-primary" type="submit"><?= $e('v_btn') ?></button>
+      </form>
     </div>
+    <div class="verify-side rv" style="--d:.1s">
+    <div class="verify-art"><div class="art-blob" aria-hidden="true"></div><div class="art-anim" data-lottie="/assets/anim/verify-certificate.json" role="img" aria-label="<?= $e('cert_alt') ?>"></div></div>
+    <div class="cert" aria-hidden="true">
+      <div class="k"><?= $e('cert_k') ?></div>
+      <h4><?= $e('cert_h') ?></h4>
+      <p><?= $e('cert_p') ?></p>
+      <div class="code"><span><?= $e('cert_c') ?> · <?= $e('cert_ex') ?></span><code>SV-7K2Q-94MD</code></div>
+    </div>
+    </div>
+  </div>
 </section>
 
-<div class="sv-divider"></div>
-
-<!-- =========================================================================
-     SECTION 9: SYSTEM STATISTICS COUNTERS
-     ========================================================================= -->
-<section class="sv-section" id="statistiques-insights" style="background:#fff;">
-    <div class="sv-container">
-        <div class="sv-eyebrow">Mesure de performance</div>
-        <h2 class="sv-section-title">Des résultats quantifiables.<br>Une rigueur académique sans compromis.</h2>
-        
-        <div style="display:grid; grid-template-columns:repeat(auto-fit, minmax(240px,1fr)); gap:1.5rem; margin-top:3.5rem;">
-            <div class="sv-glass-card" style="padding:2.5rem; text-align:center;">
-                <div style="font-size:3.5rem; font-family:'Plus Jakarta Sans',sans-serif; font-weight:700; color:#004B23; line-height:1;" data-counter="98.2" data-suffix="%">0%</div>
-                <div style="font-size:0.875rem; font-weight:600; color:var(--sv-text); margin-top:1rem;">Taux de satisfaction</div>
-                <div style="font-size:0.75rem; color:var(--sv-text-muted); margin-top:0.35rem; font-weight:300;">des enseignants utilisant nos suivis de devoirs et certifications automatisées.</div>
-            </div>
-            <div class="sv-glass-card" style="padding:2.5rem; text-align:center;">
-                <div style="font-size:3.5rem; font-family:'Plus Jakarta Sans',sans-serif; font-weight:700; color:#C9A84C; line-height:1;" data-counter="1420" data-suffix="+">0</div>
-                <div style="font-size:0.875rem; font-weight:600; color:var(--sv-text); margin-top:1rem;">Certifications délivrées</div>
-                <div style="font-size:0.75rem; color:var(--sv-text-muted); margin-top:0.35rem; font-weight:300;">avec code de vérification cryptographique infalsifiable pour les universités.</div>
-            </div>
-            <div class="sv-glass-card" style="padding:2.5rem; text-align:center;">
-                <div style="font-size:3.5rem; font-family:'Plus Jakarta Sans',sans-serif; font-weight:700; color:var(--sv-text); line-height:1;" data-counter="84" data-suffix="k">0</div>
-                <div style="font-size:0.875rem; font-weight:600; color:var(--sv-text); margin-top:1rem;">Questions de QCM résolues</div>
-                <div style="font-size:0.75rem; color:var(--sv-text-muted); margin-top:0.35rem; font-weight:300;">permettant un recalibrage continu de l'évaluation sur l'intégralité du cursus.</div>
-            </div>
-        </div>
+<section class="closing wavy">
+  <div class="wrap closing-grid">
+    <div class="rv">
+      <h2><?= $T['end_h'] ?></h2>
+      <p class="closing-p"><?= $e('end_p') ?></p>
+      <div class="hero-cta" style="animation:none;margin-top:2rem">
+        <button class="btn btn-primary btn-lg" type="button" data-open-auth="signup"><?= $e('join') ?></button>
+        <button class="btn btn-ghost btn-lg" type="button" data-open-auth="login"><?= $e('login') ?></button>
+      </div>
     </div>
+    <div class="closing-art rv" style="--d:.12s"><div class="art-anim" data-lottie="/assets/anim/closing-graduates.json" role="img" aria-label="<?= $e('end_alt') ?>"></div></div>
+  </div>
 </section>
+</main>
 
-<div class="sv-divider"></div>
+<footer class="foot"><div class="wrap foot-in">
+  <a href="#top" class="brand" aria-label="StudyVibe"><?= Brand::logo('sm') ?></a>
+  <span>© <?= date('Y') ?> StudyVibe. <?= $e('foot_c') ?> · <a href="/privacy.php"><?= $e('foot_p') ?></a></span>
+</div></footer>
 
-<!-- =========================================================================
-     SECTION 10: GETTING STARTED STEPS
-     ========================================================================= -->
-<section class="sv-section" id="comment" style="background:var(--sv-cream-light);">
-    <div class="sv-container sv-comment-grid" style="display:grid; grid-template-columns:1fr 1fr; gap:4rem; align-items:center;">
-        <div>
-            <div class="sv-eyebrow">Démarrage rapide</div>
-            <h2 class="sv-section-title">Trois étapes.<br>C'est parti.</h2>
-            <p class="sv-section-sub">Créez votre compte en choisissant votre rôle — apprenant ou enseignant — directement depuis le formulaire en haut de page.</p>
-            <button type="button" class="sv-btn sv-btn-primary" style="margin-top:1.5rem;" onclick="openSignup()">Commencer maintenant</button>
-        </div>
-        <div style="display:flex; flex-direction:column; gap:1.25rem;">
-            <?php
-            $steps = [
-                ['01', 'Créez votre compte', 'Nom, email et mot de passe — moins d\'une minute.'],
-                ['02', 'Explorez le catalogue', 'Inscrivez-vous aux cours et accédez aux leçons.'],
-                ['03', 'Validez et certifiez', 'Passez les QCM et obtenez votre certificat officiel.'],
-            ];
-            foreach ($steps as $s): ?>
-            <div class="sv-step-card" style="display:flex; gap:1rem; align-items:flex-start;">
-                <span class="sv-step-badge" style="font-size:0.625rem; font-weight:700; letter-spacing:0.1em; background:var(--sv-text); color:#fff; padding:0.35rem 0.6rem; flex-shrink:0;"><?= $s[0]; ?></span>
-                <div>
-                    <div class="sv-step-title" style="font-size:0.875rem; font-weight:600; color:var(--sv-text);"><?= $s[1]; ?></div>
-                    <div class="sv-step-desc" style="font-size:0.8125rem; color:var(--sv-text-muted); margin-top:0.2rem; font-weight:300;"><?= $s[2]; ?></div>
-                </div>
-            </div>
-            <?php endforeach; ?>
-        </div>
+<!-- Auth dialog: login, password reset and two-step signup -->
+<dialog class="auth" id="auth" aria-labelledby="auth-title">
+  <div class="auth-in">
+    <button class="auth-x" type="button" data-close-auth aria-label="<?= $e('close') ?>">×</button>
+    <a class="brand" href="#" onclick="return false" aria-label="StudyVibe"><?= Brand::logo('sm') ?></a>
+
+    <div class="login-fail" id="login-fail" role="alertdialog" aria-labelledby="lf-h" aria-describedby="lf-p" hidden>
+      <div class="login-fail-card">
+        <div class="login-fail-ic" aria-hidden="true">!</div>
+        <h3 id="lf-h"><?= $e('lf_h') ?></h3>
+        <p id="lf-p"><?= $e('lf_p') ?></p>
+        <button type="button" class="btn btn-primary" id="lf-retry"><?= $e('lf_retry') ?></button>
+      </div>
     </div>
-</section>
 
-<div class="sv-divider"></div>
+    <section class="view" id="view-login">
+      <h2 id="auth-title"><?= $e('a_login_h') ?></h2>
+      <p class="sub"><?= $e('a_login_s') ?></p>
+      <form id="login-form" novalidate>
+        <div class="field"><label for="login-email"><?= $e('email') ?></label>
+          <input class="input" type="email" id="login-email" name="email" required autocomplete="email" placeholder="<?= $e('email_ph') ?>"></div>
+        <div class="field"><label for="login-password"><?= $e('pw') ?></label>
+          <div class="pw"><input class="input" type="password" id="login-password" name="password" required autocomplete="current-password">
+          <button type="button" class="btn-text" data-toggle-pw="login-password" data-show="<?= $e('show') ?>" data-hide="<?= $e('hide') ?>"><?= $e('show') ?></button></div></div>
+        <button class="btn btn-primary btn-lg" type="submit" id="login-btn"><?= $e('login') ?></button>
+      </form>
+      <p class="auth-foot"><button type="button" class="btn-text" data-view="forgot"><?= $e('forgot') ?></button></p>
+      <p class="auth-foot"><?= $e('no_acc') ?> <button type="button" class="btn-text" data-view="signup"><?= $e('join') ?></button></p>
+    </section>
 
-<!-- =========================================================================
-     SECTION 11: AI PEDAGOGICAL COMPANION SHOWCASE
-     ========================================================================= -->
-<section class="sv-section" id="assistant-ia-section" style="background:#fff;">
-    <div class="sv-container sv-comment-grid" style="display:grid; grid-template-columns:1fr 1fr; gap:4rem; align-items:center;">
-        <div>
-            <div class="sv-eyebrow">Compagnon d'Étude IA</div>
-            <h2 class="sv-section-title">Un tuteur personnel.<br>Disponible 24h/24, 7j/7.</h2>
-            <p class="sv-section-sub">Étudiez plus intelligemment. Notre compagnon pédagogique basé sur l'IA est intégré directement dans votre espace de lecture pour lever tous vos doutes instantanément.</p>
-            
-            <div style="display:flex; flex-direction:column; gap:1.25rem; margin-top:2rem;">
-                <div style="display:flex; gap:0.75rem; align-items:flex-start;">
-                    <div style="width:24px; height:24px; border-radius:50%; background:rgba(0,75,35,0.08); display:flex; align-items:center; justify-content:center; flex-shrink:0; font-size:0.75rem; color:#004B23;">✓</div>
-                    <div>
-                        <strong style="font-size:0.875rem; color:var(--sv-text);">Synthèse de documents de cours</strong>
-                        <p style="font-size:0.75rem; color:var(--sv-text-muted); margin-top:0.15rem; font-weight:300;">Importez vos cours PDF et demandez à l'IA d'extraire les notions clés et les définitions fondamentales.</p>
-                    </div>
-                </div>
-                <div style="display:flex; gap:0.75rem; align-items:flex-start;">
-                    <div style="width:24px; height:24px; border-radius:50%; background:rgba(0,75,35,0.08); display:flex; align-items:center; justify-content:center; flex-shrink:0; font-size:0.75rem; color:#004B23;">✓</div>
-                    <div>
-                        <strong style="font-size:0.875rem; color:var(--sv-text);">Génération de quiz d'entraînement</strong>
-                        <p style="font-size:0.75rem; color:var(--sv-text-muted); margin-top:0.15rem; font-weight:300;">L'IA conçoit des questions d'entraînement adaptées à vos faiblesses pour ancrer durablement vos connaissances.</p>
-                    </div>
-                </div>
-            </div>
+    <section class="view" id="view-tfa" hidden>
+      <h2><?= $e('tfa_h') ?></h2>
+      <p class="sub"><?= $e('tfa_s') ?></p>
+      <form id="tfa-form" novalidate>
+        <div class="field"><label for="tfa-code"><?= $e('tfa_code') ?></label>
+          <input class="input" type="text" id="tfa-code" name="code" inputmode="text" autocomplete="one-time-code" autocapitalize="characters" spellcheck="false" maxlength="12" required placeholder="123456"></div>
+        <div class="fg-status" id="tfa-status" role="alert" aria-live="polite" hidden></div>
+        <button class="btn btn-primary btn-lg" type="submit" id="tfa-btn"><?= $e('tfa_btn') ?></button>
+      </form>
+      <p class="auth-foot"><button type="button" class="btn-text" data-view="login"><?= $e('back') ?></button></p>
+    </section>
+
+    <section class="view" id="view-forgot" hidden>
+      <h2><?= $e('forgot') ?></h2>
+      <p class="sub"><?= $e('forgot_s') ?></p>
+      <div class="field"><label for="forgot-email"><?= $e('email') ?></label>
+        <input class="input" type="email" id="forgot-email" autocomplete="email" placeholder="<?= $e('email_ph') ?>"></div>
+      <button class="btn btn-primary btn-lg" type="button" id="forgot-btn"><?= $e('forgot_btn') ?></button>
+      <div class="fg-status" id="forgot-status" role="status" aria-live="polite" hidden></div>
+      <p class="auth-foot"><button type="button" class="btn-text" data-view="login"><?= $e('back') ?></button></p>
+    </section>
+
+    <section class="view" id="view-signup" hidden>
+      <h2><?= $e('a_sign_h') ?></h2>
+      <p class="sub"><?= $e('a_sign_s') ?></p>
+      <form id="signup-form" novalidate>
+        <input type="hidden" id="signup-role" name="role" value="">
+        <div class="step" id="signup-step-1">
+          <div class="roles-pick">
+            <button type="button" class="pick" data-role="student" aria-pressed="false"><strong><?= $e('role_s') ?></strong><span><?= $e('role_s_d') ?></span></button>
+            <button type="button" class="pick" data-role="teacher" aria-pressed="false"><strong><?= $e('role_t') ?></strong><span><?= $e('role_t_d') ?></span></button>
+          </div>
+          <button class="btn btn-primary btn-lg" type="button" id="signup-next" disabled><?= $e('cont') ?></button>
         </div>
-        
-        <!-- Browser Mockup -->
-        <div class="sv-preview-browser" id="ia-companion-mockup">
-            <div class="sv-preview-header">
-                <div class="sv-preview-dot" style="background:#FF5F56;"></div>
-                <div class="sv-preview-dot" style="background:#FFBD2E;"></div>
-                <div class="sv-preview-dot" style="background:#27C93F;"></div>
-                <div class="sv-preview-address">https://app.studyvibe.edu/student/dashboard#assistant-ia</div>
-            </div>
-            <div style="position:relative; aspect-ratio:16/9; background:#efeae2; overflow:hidden; display:flex; flex-direction:column; padding:1rem; font-family:'Inter', sans-serif;">
-                <!-- Chat Window Container -->
-                <div style="display:flex; flex-direction:column; gap:0.75rem; flex:1; overflow-y:auto; font-size:0.75rem;">
-                    <!-- AI message -->
-                    <div style="align-self:flex-start; background:#fff; padding:0.6rem 0.8rem; border-radius:8px 8px 8px 0px; max-width:80%; box-shadow:0 1px 1px rgba(0,0,0,0.08); line-height:1.4;">
-                        Bonjour ! Je suis votre compagnon d'étude IA. De quoi souhaitez-vous discuter aujourd'hui ?
-                    </div>
-                    <!-- Student message -->
-                    <div style="align-self:flex-end; background:#d9fdd3; padding:0.6rem 0.8rem; border-radius:8px 8px 0px 8px; max-width:80%; box-shadow:0 1px 1px rgba(0,0,0,0.08); line-height:1.4;">
-                        Peux-tu m'expliquer simplement le principe d'une matrice symétrique ?
-                    </div>
-                    <!-- AI response -->
-                    <div style="align-self:flex-start; background:#fff; padding:0.6rem 0.8rem; border-radius:8px 8px 8px 0px; max-width:85%; box-shadow:0 1px 1px rgba(0,0,0,0.08); line-height:1.4;">
-                        Une <strong>matrice symétrique</strong> est une matrice carrée égale à sa transposée (A = Aᵀ). Les coefficients sont symétriques par rapport à la diagonale principale.
-                        <div style="display:flex; gap:0.5rem; margin-top:0.5rem;">
-                            <span style="font-size:0.625rem; font-weight:600; background:#004B23; color:#fff; padding:0.2rem 0.5rem; border-radius:4px; cursor:pointer;">📝 Lancer un mini-quiz</span>
-                            <span style="font-size:0.625rem; font-weight:600; background:rgba(0,0,0,0.05); color:var(--sv-text-muted); padding:0.2rem 0.5rem; border-radius:4px; cursor:pointer;">📖 Résumer la leçon</span>
-                        </div>
-                    </div>
-                </div>
-            </div>
+        <div class="step" id="signup-step-2" hidden>
+          <div class="field"><label for="signup-name"><?= $e('name') ?></label>
+            <input class="input" id="signup-name" name="name" required autocomplete="name" placeholder="<?= $e('name_ph') ?>"></div>
+          <div class="field"><label for="signup-email"><?= $e('email') ?></label>
+            <input class="input" type="email" id="signup-email" name="email" required autocomplete="email" placeholder="<?= $e('email_ph') ?>"></div>
+          <div class="field"><label for="signup-phone"><?= $e('phone') ?></label>
+            <input class="input" type="tel" inputmode="tel" id="signup-phone" name="phone" required autocomplete="tel" maxlength="30" placeholder="<?= $e('phone_ph') ?>"><span class="hint"><?= $e('phone_h') ?></span></div>
+          <div class="field"><label for="signup-password"><?= $e('pw') ?></label>
+            <div class="pw"><input class="input" type="password" id="signup-password" name="password" required minlength="8" autocomplete="new-password" placeholder="<?= $e('pw_ph') ?>">
+            <button type="button" class="btn-text" data-toggle-pw="signup-password" data-show="<?= $e('show') ?>" data-hide="<?= $e('hide') ?>"><?= $e('show') ?></button></div>
+            <div class="meter"><i id="pw-bar"></i></div><span class="hint" id="hint-password"><?= $e('pw_h') ?></span></div>
+          <label class="check"><input type="checkbox" id="signup-newsletter" name="newsletter" value="1"><span><?= $e('news') ?></span></label>
+          <div class="auth-actions">
+            <button class="btn btn-ghost" type="button" id="signup-back"><?= $e('back') ?></button>
+            <button class="btn btn-primary btn-lg" type="submit" id="signup-btn" disabled><?= $e('create') ?></button>
+          </div>
         </div>
-    </div>
-</section>
+            <div class="fg-status" id="signup-status" role="status" aria-live="polite" hidden></div>
+      </form>
+      <p class="auth-foot"><?= $e('has_acc') ?> <button type="button" class="btn-text" data-view="login"><?= $e('login') ?></button></p>
+    </section>
+  </div>
+</dialog>
 
-<div class="sv-divider"></div>
-
-<!-- =========================================================================
-     SECTION 12: SYSTEM FOOTER BLOCK
-     ========================================================================= -->
-<footer class="sv-footer" role="contentinfo">
-    <div class="sv-container" style="display:flex; justify-content:space-between; align-items:center; flex-wrap:wrap; gap:1rem;">
-        <div>
-            <div class="sv-footer-brand">StudyVibe</div>
-            <div style="font-size:0.75rem; margin-top:0.35rem;">© <?= date('Y') ?> StudyVibe Academic LMS · <a href="/privacy.php" style="color:rgba(255,255,255,0.7); text-decoration:underline; font-weight:300;">Politique de Confidentialité</a></div>
-        </div>
-        <div style="display:flex; gap:0.5rem; flex-wrap:wrap;">
-            <span class="sv-badge" style="border-color:rgba(255,255,255,0.2); color:rgba(255,255,255,0.7); background:transparent;">Promoteur</span>
-            <span class="sv-badge" style="border-color:rgba(255,255,255,0.2); color:rgba(255,255,255,0.7); background:transparent;">Enseignant</span>
-            <span class="sv-badge" style="border-color:rgba(255,255,255,0.2); color:rgba(255,255,255,0.7); background:transparent;">Étudiant</span>
-        </div>
-    </div>
-</footer>
-
-<!-- =========================================================================
-     SECTION 13: JAVASCRIPT ANIMATIONS & SCRIPTS
-     ========================================================================= -->
-<script src="https://cdn.jsdelivr.net/npm/gsap@3.12.5/dist/gsap.min.js"></script>
-<script src="https://cdn.jsdelivr.net/npm/gsap@3.12.5/dist/ScrollTrigger.min.js"></script>
+<script>window.SV_T = <?= json_encode(array_intersect_key($T, array_flip(['net_err','fg_busy','fg_ok_h','fg_ok_p','fg_bad','fg_err','fg_resend','fg_wait','forgot_btn','lf_h','lf_p','lf_retry','busy_login','busy_sign','ok_login','ok_sign','mail_warn','tfa_err','tfa_btn','tfa_busy','auth_req','login','create','show','hide'])), JSON_UNESCAPED_UNICODE) ?>;</script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/lottie-web/5.12.2/lottie_light.min.js" defer></script>
 <script src="/assets/js/app.js"></script>
-<script>
-    // Register GSAP plugins
-    gsap.registerPlugin(ScrollTrigger);
-
-    // Storytelling background morph controls
-    const phaseColors = {
-        1: '#0d0f0e', // Deep forest green
-        2: '#1a160d', // Golden bronze
-        3: '#0f1115'  // Platinum slate
-    };
-    function updateStoryBackground(phaseId) {
-        const deck = document.querySelector('.sv-story-deck');
-        if (deck) {
-            deck.style.background = phaseColors[phaseId];
-            document.querySelectorAll('.sv-curve-svg-transition path').forEach(path => {
-                path.setAttribute('fill', phaseColors[phaseId]);
-            });
-        }
-    }
-
-    // Trigger individual animations per active row entry
-    let animatedPhases = {};
-    function triggerPhaseAnimations(phaseId) {
-        // Run entry animations
-        if (phaseId == 1) {
-            gsap.fromTo("#story-phase-1 .sv-network-core", { scale: 0.7, opacity: 0 }, { scale: 1, opacity: 1, duration: 0.6, ease: "back.out(1.7)" });
-            gsap.fromTo("#story-phase-1 .sv-orbit-node", { scale: 0, opacity: 0 }, { scale: 1, opacity: 1, stagger: 0.08, duration: 0.5, ease: "back.out(2)" });
-        } else if (phaseId == 2) {
-            gsap.fromTo("#story-phase-2 .sv-immersion-mockup", { rotateY: 20, scale: 0.95 }, { rotateY: 0, scale: 1, duration: 0.8, ease: "power3.out" });
-            gsap.fromTo("#story-phase-2 .sv-chat-dialog", { y: 30, opacity: 0 }, { y: 0, opacity: 1, duration: 0.6, delay: 0.2, ease: "power2.out" });
-            
-            const valEl = document.querySelector('#story-phase-2 .sv-grow-gauge-val');
-            if (valEl) {
-                let obj = { val: 0 };
-                gsap.to(obj, {
-                    val: 65,
-                    duration: 1.2,
-                    ease: "power1.out",
-                    onUpdate: () => {
-                        valEl.textContent = Math.round(obj.val) + '%';
-                    }
-                });
-            }
-        } else if (phaseId == 3) {
-            gsap.fromTo("#story-phase-3 #holo-certificate", { rotateY: -35, rotateX: 20, scale: 0.9 }, { rotateY: -15, rotateX: 10, scale: 1, duration: 0.9, ease: "power2.out" });
-            gsap.fromTo("#story-phase-3 .sv-gold-seal", { scale: 0, rotation: -180 }, { scale: 1, rotation: 0, duration: 0.8, ease: "back.out(1.5)" });
-        }
-    }
-
-    // 3D Mouse Tilt Interactive Logic for Holographic Certificate
-    const holoCard = document.getElementById('holo-certificate');
-    const holoWrap = document.querySelector('.sv-holo-card-wrap');
-    if (holoCard && holoWrap) {
-        holoWrap.addEventListener('mousemove', (e) => {
-            const rect = holoWrap.getBoundingClientRect();
-            const x = e.clientX - rect.left;
-            const y = e.clientY - rect.top;
-            
-            // Calculate tilt angle based on cursor position relative to card center
-            const centerX = rect.width / 2;
-            const centerY = rect.height / 2;
-            const tiltX = (centerY - y) / 10;
-            const tiltY = (x - centerX) / 12;
-            
-            holoCard.style.transform = `rotateX(${tiltX}deg) rotateY(${tiltY}deg) scale(1.04)`;
-            
-            // Shift sheen highlight gradient towards cursor location
-            const sheen = holoCard.querySelector('.sv-holo-sheen');
-            if (sheen) {
-                const px = (x / rect.width) * 100;
-                const py = (y / rect.height) * 100;
-                sheen.style.backgroundImage = `linear-gradient(105deg, transparent 20%, rgba(255,255,255,0.08) 35%, rgba(201,168,76,0.18) ${px}%, transparent 80%)`;
-            }
-        });
-        
-        holoWrap.addEventListener('mouseleave', () => {
-            holoCard.style.transform = 'rotateY(-15deg) rotateX(10deg) scale(1)';
-            const sheen = holoCard.querySelector('.sv-holo-sheen');
-            if (sheen) {
-                sheen.style.backgroundImage = 'linear-gradient(105deg, transparent 30%, rgba(255,255,255,0.08) 40%, rgba(201,168,76,0.12) 50%, transparent 60%)';
-            }
-        });
-    }
-
-    window.addEventListener('DOMContentLoaded', () => {
-        // Set main containers opacity immediately when script executes to avoid FOUC
-        gsap.set([".sv-hero-content", ".sv-auth-card", ".sv-feature-card", ".sv-step-card"], { opacity: 1 });
-
-        // 1. Hero Reveal Animation Timeline
-        const tl = gsap.timeline({ defaults: { ease: "power3.out" } });
-        tl.from(".sv-navbar", { y: -45, opacity: 0, duration: 1.1 })
-          .from(".sv-hero-content .sv-eyebrow", { y: 25, opacity: 0, duration: 0.65 }, "-=0.6")
-          .from(".sv-hero-headline", { y: 35, opacity: 0, duration: 0.8 }, "-=0.45")
-          .from(".sv-hero-sub", { y: 25, opacity: 0, duration: 0.8 }, "-=0.6")
-          .from(".sv-hero-actions", { y: 25, opacity: 0, duration: 0.8 }, "-=0.6")
-          .from(".sv-hero-content .sv-badge", { y: 15, opacity: 0, stagger: 0.08, duration: 0.5 }, "-=0.6")
-          .from(".sv-auth-card", { x: 45, opacity: 0, duration: 1.1, ease: "power4.out" }, "-=1.1");
-
-        // 2. Storytelling Rows ScrollTrigger
-        document.querySelectorAll('.sv-story-row').forEach(row => {
-            const phaseId = row.getAttribute('data-phase-id');
-            ScrollTrigger.create({
-                trigger: row,
-                start: "top 65%",
-                end: "bottom 35%",
-                onEnter: () => {
-                    row.classList.add('active');
-                    updateStoryBackground(phaseId);
-                    triggerPhaseAnimations(phaseId);
-                },
-                onEnterBack: () => {
-                    row.classList.add('active');
-                    updateStoryBackground(phaseId);
-                    triggerPhaseAnimations(phaseId);
-                },
-                onLeave: () => {
-                    row.classList.remove('active');
-                },
-                onLeaveBack: () => {
-                    row.classList.remove('active');
-                }
-            });
-        });
-
-        // 3. ScrollTrigger Course Reader Mockup
-        gsap.from(".sv-showdown-viewport", {
-            scrollTrigger: {
-                trigger: "#aperçu-cours",
-                start: "top 80%",
-                toggleActions: "play none none none"
-            },
-            y: 50,
-            opacity: 0,
-            duration: 1,
-            ease: "power3.out"
-        });
-
-        // Showdown Horizontal Scroll (Yoyo Loop)
-        const track = document.querySelector('.sv-showdown-track');
-        if (track) {
-            const duration = 24;
-            const scrollTween = gsap.to(track, {
-                x: () => -(track.scrollWidth - track.parentElement.offsetWidth),
-                ease: "none",
-                duration: duration,
-                repeat: -1,
-                yoyo: true,
-                repeatDelay: 2.5
-            });
-
-            track.addEventListener('mouseenter', () => scrollTween.pause());
-            track.addEventListener('mouseleave', () => scrollTween.play());
-        }
-
-        // ScrollTrigger Presentation Philosophy Story
-        gsap.from("#presentation-story .sv-glass-card", {
-            scrollTrigger: {
-                trigger: "#presentation-story",
-                start: "top 80%",
-                toggleActions: "play none none none"
-            },
-            x: 50,
-            opacity: 0,
-            stagger: 0.15,
-            duration: 0.9,
-            ease: "power2.out"
-        });
-
-        // 4. ScrollTrigger Stats Panel Counter Increments
-        gsap.from("#statistiques-insights .sv-glass-card", {
-            scrollTrigger: {
-                trigger: "#statistiques-insights",
-                start: "top 80%",
-                toggleActions: "play none none none"
-            },
-            y: 40,
-            opacity: 0,
-            stagger: 0.15,
-            duration: 0.9,
-            ease: "power2.out"
-        });
-
-        // Counter Numbers Tick Up
-        document.querySelectorAll('.sv-stat-number').forEach(num => {
-            const target = parseInt(num.innerText.replace(/[^0-9]/g, ''));
-            if (!isNaN(target)) {
-                let obj = { val: 0 };
-                const suffix = num.innerText.replace(/[0-9]/g, '');
-                gsap.to(obj, {
-                    val: target,
-                    scrollTrigger: {
-                        trigger: num,
-                        start: "top 90%",
-                        toggleActions: "play none none none"
-                    },
-                    duration: 1.8,
-                    ease: "power2.out",
-                    onUpdate: () => {
-                        num.textContent = Math.round(obj.val) + suffix;
-                    }
-                });
-            }
-        });
-
-        // 5. ScrollTrigger steps timeline slide-in
-        gsap.from(".sv-step-card", {
-            scrollTrigger: {
-                trigger: "#comment",
-                start: "top 85%",
-                toggleActions: "play none none none"
-            },
-            x: 35,
-            opacity: 0,
-            duration: 0.85,
-            stagger: 0.15,
-            ease: "power2.out"
-        });
-
-        // 6. ScrollTrigger AI Companion Mockup (Section C)
-        gsap.from("#assistant-ia-section #ia-companion-mockup", {
-            scrollTrigger: {
-                trigger: "#assistant-ia-section",
-                start: "top 80%",
-                toggleActions: "play none none none"
-            },
-            x: 50,
-            opacity: 0,
-            duration: 1,
-            ease: "power3.out"
-        });
-
-        // 7. Global Scroll-triggered Parallax/Scale effects for sections
-        gsap.utils.toArray('section:not(.sv-hero):not(.sv-story-deck), .sv-partners-band, footer').forEach(sec => {
-            gsap.fromTo(sec, 
-                { opacity: 0.92, scale: 0.98 },
-                { 
-                    opacity: 1, 
-                    scale: 1,
-                    scrollTrigger: {
-                        trigger: sec,
-                        start: "top 95%",
-                        end: "top 70%",
-                        scrub: 0.8
-                    }
-                }
-            );
-        });
-    });
-</script>
-<script>
-    // =========================================================================
-    // SECTION 14: INTERACTIVE WIDGET CONTROLLERS
-    // =========================================================================
-
-    /* Tab switcher between login and signup card panels */
-    function switchAuthTab(tab) {
-        const isLogin = tab === 'login';
-        document.querySelectorAll('.sv-form-panel').forEach(p => p.classList.remove('active'));
-        document.getElementById(isLogin ? 'panel-login' : 'panel-signup').classList.add('active');
-        document.getElementById('tab-login').classList.toggle('active', isLogin);
-        document.getElementById('tab-signup').classList.toggle('active', !isLogin);
-        document.getElementById('tab-login').setAttribute('aria-selected', isLogin);
-        document.getElementById('tab-signup').setAttribute('aria-selected', !isLogin);
-        if (!isLogin) {
-            document.getElementById('forgot-panel').classList.remove('open');
-            if (typeof goSignupStep === 'function') goSignupStep(1);
-        }
-    }
-
-    function selectSignupRole(role) {
-        const input = document.getElementById('signup-role');
-        if (input) {
-            input.value = role;
-            // Update active states on visual role cards
-            document.querySelectorAll('.sv-role-card').forEach(card => {
-                card.classList.toggle('active', card.getAttribute('data-role') === role);
-            });
-            // Fire validation to update UI
-            validateSignup();
-        }
-    }
-
-    function togglePasswordVisibility(id, btn) {
-        const input = document.getElementById(id);
-        if (input) {
-            const isPassword = input.getAttribute('type') === 'password';
-            input.setAttribute('type', isPassword ? 'text' : 'password');
-            if (isPassword) {
-                btn.innerHTML = `
-                    <svg class="sv-eye-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-                        <line x1="1" y1="1" x2="23" y2="23"></line>
-                        <path d="M9 9a3 3 0 1 1-6 0 3 3 0 0 1 6 0z"></path>
-                        <path d="M17.6 17.6a10.22 10.22 0 0 1-5.6 1.4c-7 0-11-8-11-8a18.45 18.45 0 0 1 5.06-5.94M9.9 4.24A9.12 9.12 0 0 1 12 4c7 0 11 8 11 8a18.5 18.5 0 0 1-2.16 3.19"></path>
-                    </svg>
-                `;
-            } else {
-                btn.innerHTML = `
-                    <svg class="sv-eye-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-                        <path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"></path>
-                        <circle cx="12" cy="12" r="3"></circle>
-                    </svg>
-                `;
-            }
-        }
-    }
-
-    function handleSocialLogin(provider) {
-        Toast.success(`Authentification avec ${provider.charAt(0).toUpperCase() + provider.slice(1)} initiée...`);
-    }
-
-    function openSignup() {
-        document.getElementById('auth-card').scrollIntoView({ behavior: 'smooth', block: 'center' });
-        switchAuthTab('signup');
-    }
-
-    function openForgotPassword() {
-        const panel = document.getElementById('forgot-panel');
-        panel.classList.toggle('open');
-        if (panel.classList.contains('open')) {
-            document.getElementById('forgot-email').focus();
-        }
-    }
-
-    document.getElementById('forgot-btn')?.addEventListener('click', async () => {
-        const btn = document.getElementById('forgot-btn');
-        const email = document.getElementById('forgot-email').value.trim();
-        if (!email) return;
-        btn.disabled = true;
-        const fd = new FormData();
-        fd.append('email', email);
-        try {
-            const data = await svPost('/forgot-password-action.php', fd);
-            Toast[data.success ? 'success' : 'error'](data.message);
-        } catch { /* svPost handles errors */ }
-        btn.disabled = false;
-    });
-
-    function switchRole(role) {
-        ['promoteur','enseignant','etudiant'].forEach(r => {
-            const panel = document.getElementById('role-' + r);
-            const tab   = document.querySelector('[data-role="' + r + '"]');
-            const show  = r === role;
-            panel.style.display = show ? 'grid' : 'none';
-            tab.classList.toggle('active', show);
-        });
-    }
-
-    // Input fields references
-    const signupRole  = document.getElementById('signup-role');
-    const signupName  = document.getElementById('signup-name');
-    const signupEmail = document.getElementById('signup-email');
-    const signupPass  = document.getElementById('signup-password');
-    const signupBtn   = document.getElementById('signup-btn');
-    const signupNext  = document.getElementById('signup-next');
-    const signupBack  = document.getElementById('signup-back');
-    const signupChangeRole = document.getElementById('signup-change-role');
-    const signupStep1 = document.getElementById('signup-step-1');
-    const signupStep2 = document.getElementById('signup-step-2');
-    const signupRoleChip = document.getElementById('signup-role-chip');
-    const signupRoleChipLabel = document.getElementById('signup-role-chip-label');
-    const pwBar       = document.getElementById('pw-bar');
-    const hintRole    = document.getElementById('hint-role');
-
-    const roleMeta = {
-        student: { label: 'Apprenant', btn: 'Créer mon compte apprenant' },
-        teacher: { label: 'Enseignant', btn: 'Créer mon compte enseignant' },
-    };
-
-    let signupCurrentStep = 1;
-
-    function goSignupStep(step) {
-        signupCurrentStep = step;
-        signupStep1.hidden = step !== 1;
-        signupStep2.hidden = step !== 2;
-        signupStep1.classList.toggle('active', step === 1);
-        signupStep2.classList.toggle('active', step === 2);
-        document.querySelectorAll('.sv-signup-stepper-item').forEach(el => {
-            const n = Number(el.dataset.step);
-            el.classList.toggle('active', n === step);
-            el.classList.toggle('done', n < step);
-        });
-        if (step === 2) {
-            const meta = roleMeta[signupRole.value];
-            signupRoleChipLabel.textContent = meta ? `Inscription en tant qu'${meta.label}` : '';
-            signupRoleChip.dataset.role = signupRole.value;
-            signupBtn.textContent = meta ? meta.btn : 'Créer mon compte';
-            setTimeout(() => signupName.focus(), 200);
-        }
-        validateSignup();
-    }
-
-    // Dynamic Form validation rules for signup inputs
-    function validateSignup() {
-        const roleOk  = signupRole.value === 'student' || signupRole.value === 'teacher';
-        const nameOk  = signupName.value.trim().length >= 2;
-        const emailOk = /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(signupEmail.value.trim());
-        const passLen = signupPass.value.length;
-        const passOk  = passLen >= 6;
-
-        signupRole.classList.toggle('valid', roleOk);
-        signupRole.classList.toggle('invalid', !roleOk && signupCurrentStep === 2);
-        hintRole.classList.toggle('error', !roleOk && signupCurrentStep === 2);
-
-        signupName.classList.toggle('valid', nameOk);
-        signupName.classList.toggle('invalid', signupName.value && !nameOk);
-        signupEmail.classList.toggle('valid', emailOk);
-        signupEmail.classList.toggle('invalid', signupEmail.value && !emailOk);
-
-        // Check password complexity strength bar
-        const strength = Math.min(100, passLen * 12 + (/\d/.test(signupPass.value) ? 20 : 0) + (/[A-Z]/.test(signupPass.value) ? 15 : 0));
-        pwBar.style.width = passLen ? strength + '%' : '0';
-        pwBar.style.background = strength < 40 ? '#D32F2F' : strength < 70 ? '#E6A817' : '#004B23';
-
-        signupNext.disabled = !roleOk;
-        signupBtn.disabled = !(roleOk && nameOk && emailOk && passOk);
-        return roleOk && nameOk && emailOk && passOk;
-    }
-
-    signupNext.addEventListener('click', () => {
-        if (signupRole.value !== 'student' && signupRole.value !== 'teacher') {
-            hintRole.classList.add('error');
-            signupRole.classList.add('invalid');
-            return;
-        }
-        goSignupStep(2);
-    });
-    signupBack.addEventListener('click', () => goSignupStep(1));
-    signupChangeRole.addEventListener('click', () => goSignupStep(1));
-
-    [signupName, signupEmail, signupPass].forEach(el => el.addEventListener('input', validateSignup));
-    signupRole.addEventListener('change', validateSignup);
-
-    /* Submit Login Action Handler */
-    document.getElementById('login-form').addEventListener('submit', async (e) => {
-        e.preventDefault();
-        const btn = document.getElementById('login-btn');
-        btn.disabled = true; btn.textContent = 'Connexion…';
-        const fd = new FormData();
-        fd.append('email',    document.getElementById('login-email').value.trim());
-        fd.append('password', document.getElementById('login-password').value);
-        
-        const urlParams = new URLSearchParams(window.location.search);
-        const redirectVal = urlParams.get('redirect');
-        if (redirectVal) {
-            fd.append('redirect', redirectVal);
-        }
-
-        try {
-            const data = await svPost('/login-action.php', fd);
-            if (data.success) {
-                Toast.success('Connexion réussie — redirection…');
-                setTimeout(() => { window.location.href = data.redirect; }, 600);
-            } else {
-                Toast.error(data.message);
-                btn.disabled = false; btn.textContent = 'Se connecter';
-            }
-        } catch { btn.disabled = false; btn.textContent = 'Se connecter'; }
-    });
-
-    window.addEventListener('DOMContentLoaded', () => {
-        const urlParams = new URLSearchParams(window.location.search);
-        if (urlParams.get('error') === 'auth_required') {
-            if (typeof Toast !== 'undefined') {
-                Toast.error("Authentification requise pour accéder à cette évaluation.");
-            }
-        }
-    });
-
-    /* Submit Signup Action Handler */
-    document.getElementById('signup-form').addEventListener('submit', async (e) => {
-        e.preventDefault();
-        if (!validateSignup()) return;
-        const btn = document.getElementById('signup-btn');
-        btn.disabled = true; btn.textContent = 'Création…';
-        const fd = new FormData();
-        fd.append('role',     signupRole.value);
-        fd.append('name',     signupName.value.trim());
-        fd.append('email',    signupEmail.value.trim());
-        fd.append('password', signupPass.value);
-        if (document.getElementById('signup-newsletter').checked) {
-            fd.append('newsletter', '1');
-        }
-        try {
-            const data = await svPost('/signup-action.php', fd);
-            if (data.success) {
-                const mailNote = data.mail_sent === false
-                    ? ' Vérifiez votre boîte mail (ou SMTP).'
-                    : '';
-                Toast.success('Compte créé — vérifiez votre email pour activer le compte.' + mailNote);
-                setTimeout(() => { window.location.href = data.redirect; }, 800);
-            } else {
-                Toast.error(data.message);
-                btn.disabled = false;
-                validateSignup();
-            }
-        } catch { btn.disabled = false; validateSignup(); }
-    });
-
-    /* Adjust roles responsive columns grid */
-    const mq = window.matchMedia('(max-width:768px)');
-    function fixRoleGrid() {
-        document.querySelectorAll('.role-panel').forEach(p => {
-            if (p.style.display === 'grid') p.style.gridTemplateColumns = mq.matches ? '1fr' : '1fr 1fr';
-        });
-    }
-    mq.addEventListener('change', fixRoleGrid);
-    fixRoleGrid();
-</script>
+<script src="/assets/js/landing.js"></script>
 </body>
 </html>

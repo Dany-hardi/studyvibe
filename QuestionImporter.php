@@ -203,7 +203,9 @@ class QuestionImporter
      */
     private static function detectDelimiter(string $line): string
     {
-        return substr_count($line, ';') > substr_count($line, ',') ? ';' : ',';
+        $c = [',' => substr_count($line, ','), ';' => substr_count($line, ';'), "\t" => substr_count($line, "\t")];
+        arsort($c);
+        return (string)array_key_first($c);
     }
 
     /**
@@ -225,21 +227,19 @@ class QuestionImporter
      */
     private static function looksLikeHeaderArray(array $cols): bool
     {
-        $knownNames = [
-            'question', 'libelle', 'enonce',
-            'option_a', 'option_b', 'option_c', 'option_d',
-            'a', 'b', 'c', 'd',
-            'correct', 'reponse', 'réponse', 'bonne_reponse',
-            'explanation', 'explication', 'justification',
-        ];
-        $matches = 0;
+        $found = [];
         foreach ($cols as $col) {
-            $val = strtolower(trim((string)$col));
-            if (strlen($val) <= 30 && in_array($val, $knownNames, true)) {
-                $matches++;
+            $raw = trim((string)$col);
+            if (mb_strlen($raw) < 2 || mb_strlen($raw) > 30) {
+                continue;   // long free text, or a single letter: a data row, not a label
+            }
+            $field = self::classifyHeader(self::slug($raw));
+            if ($field !== 'ignore') {
+                $found[$field] = true;
             }
         }
-        return $matches >= 2;
+        // A real header names the question column, or at least four known columns
+        return isset($found['question']) || count($found) >= 4;
     }
 
     /**
@@ -250,29 +250,62 @@ class QuestionImporter
      */
     private static function normalizeHeader(array $cols): array
     {
-        $map = [];
+        $map  = [];
+        $used = [];
         foreach ($cols as $i => $col) {
-            $key = strtolower(trim((string)$col));
-            $key = str_replace(['é', 'è', 'ê'], 'e', $key);
-            $key = preg_replace('/[^a-z0-9_]/', '_', $key);
-            $map[$i] = match (true) {
-                str_contains($key, 'question'), str_contains($key, 'libelle'), str_contains($key, 'enonce') => 'question',
-                str_contains($key, 'type') => 'question_type',
-                $key === 'a', str_contains($key, 'option_a') => 'option_a',
-                $key === 'b', str_contains($key, 'option_b') => 'option_b',
-                $key === 'c', str_contains($key, 'option_c') => 'option_c',
-                $key === 'd', str_contains($key, 'option_d') => 'option_d',
-                str_contains($key, 'correct'), str_contains($key, 'reponse'), str_contains($key, 'bonne') => 'correct',
-                str_contains($key, 'explanation'), str_contains($key, 'explication'), str_contains($key, 'justification') => 'explanation',
-                default => $key,
-            };
+            $key = self::slug((string)$col);
+            $field = self::classifyHeader($key);
+            // The first column of a kind wins. A second "question"-like column (a number, an id) never overrides it.
+            if ($field !== 'ignore' && isset($used[$field])) {
+                $field = 'ignore';
+            }
+            $used[$field] = true;
+            $map[$i] = $field;
         }
         return $map;
     }
 
+    /** Lowercase, accents removed, anything else turned into underscores ("N° Question" -> "n_question"). */
+    private static function slug(string $label): string
+    {
+        $label = trim(mb_strtolower($label, 'UTF-8'));
+        $label = strtr($label, ['à' => 'a', 'â' => 'a', 'ä' => 'a', 'é' => 'e', 'è' => 'e', 'ê' => 'e', 'ë' => 'e', 'î' => 'i', 'ï' => 'i', 'ô' => 'o', 'ö' => 'o', 'ù' => 'u', 'û' => 'u', 'ü' => 'u', 'ç' => 'c', '°' => '_']);
+        $label = preg_replace('/[^a-z0-9]+/', '_', $label) ?? '';
+        return trim($label, '_');
+    }
+
+    private static function classifyHeader(string $key): string
+    {
+        if ($key === '' || $key === 'n' || $key === 'no' || $key === 'num' || $key === 'numero' || $key === 'nb' || $key === 'id' || $key === 'index' || $key === 'ordre' || $key === 'order' || $key === 'rang' || $key === 'number') {
+            return 'ignore';
+        }
+        if (preg_match('/^(?:option|opt|choix|proposition|reponse|answer)?_?([abcd])$/', $key, $m)) {
+            return 'option_' . $m[1];
+        }
+        if (in_array($key, ['correct', 'correct_option', 'correct_answer', 'bonne_reponse', 'reponse_correcte', 'bonne', 'answer', 'solution', 'reponse', 'corrige'], true)
+            || str_starts_with($key, 'correct') || str_starts_with($key, 'bonne_rep')) {
+            return 'correct';
+        }
+        if (preg_match('/explanation|explication|justification|commentaire|correction/', $key)) {
+            return 'explanation';
+        }
+        if ($key === 'type' || $key === 'question_type' || $key === 'type_question') {
+            return 'question_type';
+        }
+        $tokens = explode('_', $key);
+        $numberish = array_intersect($tokens, ['id', 'n', 'no', 'num', 'numero', 'nb', 'index', 'ordre', 'order', 'rang', 'number']);
+        if (in_array($key, ['question', 'question_text', 'libelle', 'enonce', 'intitule', 'texte', 'text'], true)) {
+            return 'question';
+        }
+        if (!$numberish && count($tokens) <= 3 && preg_match('/question|libelle|enonce|intitule/', $key)) {
+            return 'question';
+        }
+        return 'ignore';
+    }
+
     /**
      * Maps CSV columns to database fields using resolved header positions.
-     * 
+     *
      * @param array $header Normalized header names.
      * @param array $cols Raw row columns.
      * @return array Standardized question row array.
@@ -289,14 +322,24 @@ class QuestionImporter
             'explanation'    => '',
             'question_type'  => '',
         ];
+        $loose = [];
         foreach ($header as $i => $field) {
             $val = trim((string)($cols[$i] ?? ''));
-            if (isset($row[$field])) {
-                $row[$field] = $val;
-            } elseif ($field === 'question') {
+            if ($field === 'question') {
                 $row['question_text'] = $val;
             } elseif ($field === 'correct') {
                 $row['correct_option'] = $val;
+            } elseif (isset($row[$field])) {
+                $row[$field] = $val;
+            } elseif ($val !== '') {
+                $loose[] = $val;
+            }
+        }
+        // A question that is only a number came from a numbering column: take the longest unmapped text instead.
+        if (preg_match('/^\d{1,4}[.)\-]?$/', $row['question_text']) && $loose) {
+            usort($loose, fn($x, $y) => mb_strlen($y) <=> mb_strlen($x));
+            if (mb_strlen($loose[0]) > 8) {
+                $row['question_text'] = $loose[0];
             }
         }
         return $row;

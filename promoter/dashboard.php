@@ -4,6 +4,7 @@ declare(strict_types=1);
 require_once __DIR__ . '/../auth.php';
 require_once __DIR__ . '/../Mailer.php';
 require_once __DIR__ . '/../Newsletter.php';
+require_once __DIR__ . '/../lib/Brand.php';
 requireRole('promoter');
 
 if ($_SERVER['REQUEST_METHOD'] === 'POST') {
@@ -26,7 +27,7 @@ try {
                 $stmtDel = $pdo->prepare("DELETE FROM certificates WHERE id = :id");
                 $stmtDel->execute(['id' => $certId]);
                 auditLog('certificate_removed', "Code: {$certData['certificate_code']}, Student ID: {$certData['student_id']}");
-                header("Location: /promoter/dashboard.php?success=certificate_removed");
+                header("Location: /promoter/dashboard.php?success=certificate_removed#tab-certificates");
                 exit;
             }
         }
@@ -40,7 +41,7 @@ try {
             $stmt = $pdo->prepare("INSERT INTO modules (title, description) VALUES (:title, :description)");
             $stmt->execute(['title' => $title, 'description' => $description]);
             auditLog('module_created', "Module: {$title}");
-            header("Location: /promoter/dashboard.php?success=module_created");
+            header("Location: /promoter/dashboard.php?success=module_created#tab-academy");
             exit;
         }
     }
@@ -56,7 +57,7 @@ try {
             $stmt = $pdo->prepare("UPDATE live_eval_sessions SET start_time = :start, end_time = :end WHERE id = :id");
             $stmt->execute(['start' => $startTime, 'end' => $endTime, 'id' => $sessionId]);
             auditLog('live_eval_postponed', "Session ID: {$sessionId}");
-            header("Location: /promoter/dashboard.php?success=session_postponed");
+            header("Location: /promoter/dashboard.php?success=session_postponed#tab-live");
             exit;
         }
     }
@@ -68,7 +69,7 @@ try {
             $stmt = $pdo->prepare("DELETE FROM live_eval_sessions WHERE id = :id");
             $stmt->execute(['id' => $sessionId]);
             auditLog('live_eval_cancelled', "Session ID: {$sessionId}");
-            header("Location: /promoter/dashboard.php?success=session_cancelled");
+            header("Location: /promoter/dashboard.php?success=session_cancelled#tab-live");
             exit;
         }
     }
@@ -144,7 +145,7 @@ try {
 
     // Fetch all Users for User Management panel
     $allUsers = $pdo->query("
-        SELECT id, name, email, role, is_active, is_approved, created_at FROM users ORDER BY role ASC, name ASC
+        SELECT id, name, email, role, is_active, is_approved, created_at, email_verified_at FROM users ORDER BY role ASC, name ASC
     ")->fetchAll();
 
     $students = $pdo->query("SELECT id, name, email, is_active, created_at FROM users WHERE role = 'student' ORDER BY name ASC")->fetchAll();
@@ -189,1561 +190,1120 @@ try {
     }
     $totalStudentsCount = count($students);
 
+    // Certification tests passed with no certificate issued yet (decision queue)
+    $awaitingCerts = $pdo->query("
+        SELECT a.student_id, a.course_id, MAX(a.score) AS score, MAX(a.attempted_at) AS at,
+               u.name, u.email, c.title
+        FROM certification_attempts a
+        JOIN users u ON u.id = a.student_id
+        JOIN courses c ON c.id = a.course_id
+        WHERE a.passed = 1
+          AND NOT EXISTS (SELECT 1 FROM certificates ce WHERE ce.student_id = a.student_id AND ce.course_id = a.course_id)
+        GROUP BY a.student_id, a.course_id, u.name, u.email, c.title
+        ORDER BY at DESC
+    ")->fetchAll();
+    $hasAttempts = (int)$pdo->query("SELECT COUNT(*) FROM certification_attempts")->fetchColumn() > 0;
+
 } catch (PDOException $e) {
     dieSafe('Erreur serveur. Veuillez réessayer.', $e, 'promoter/dashboard');
 }
+
+
+$lang = TranslationService::getLang() === 'en' ? 'en' : 'fr';
+$li = $lang === 'en' ? 1 : 0;
+$PI = (require __DIR__ . '/../locales/promoter-insights.php')[$lang];
+$PI_ICO = [
+ 'qr'    => '<svg width="16" height="16" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linejoin="round" aria-hidden="true"><rect x="2" y="2" width="4.5" height="4.5" rx="1"/><rect x="9.5" y="2" width="4.5" height="4.5" rx="1"/><rect x="2" y="9.5" width="4.5" height="4.5" rx="1"/><path d="M9.5 9.5h2v2h-2zM12.5 12.5h1.5v1.5h-1.5zM12.5 9.5H14"/></svg>',
+ 'down'  => '<svg width="16" height="16" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M8 2v8m0 0L5 7m3 3 3-3M3 13h10"/></svg>',
+ 'print' => '<svg width="16" height="16" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linejoin="round" aria-hidden="true"><path d="M4 6V2h8v4M4 11H2.5V6h11v5H12M4.5 9.5h7V14h-7z"/></svg>',
+];
+$TX = [
+ // chrome
+ 'title' => ['Console promoteur — StudyVibe', 'Promoter console — StudyVibe'],
+ 'role_label' => ['Administrateur', 'Institution admin'],
+ 'theme' => ['Changer de thème', 'Toggle theme'],
+ 'logout' => ['Déconnexion', 'Sign out'],
+ 'notif' => ['Notifications', 'Notifications'],
+ 'notif_none' => ['Aucune notification.', 'No notifications.'],
+ 'skip' => ['Aller au contenu', 'Skip to content'],
+ 'nav_label' => ['Sections', 'Sections'],
+ 'nav_overview' => ['Aujourd’hui', 'Today'],
+ 'nav_people' => ['Personnes', 'People'],
+ 'nav_academy' => ['Cours', 'Courses'],
+ 'nav_live' => ['Évaluations en direct', 'Live evaluations'],
+ 'nav_certs' => ['Certificats', 'Certificates'],
+ 'nav_msgs' => ['Messages', 'Messages'],
+ 'nav_api' => ['Clés API', 'API keys'],
+ 'nav_audit' => ['Journal et exports', 'Activity and exports'],
+ 'rail_foot' => ['Chaque action sensible demande une confirmation avant de s’exécuter.', 'Every sensitive action asks for confirmation before it runs.'],
+ 'ok_generic' => ['Opération effectuée.', 'Done.'],
+ 'ok_certificate_removed' => ['Certificat révoqué.', 'Certificate revoked.'],
+ 'ok_module_created' => ['Module créé.', 'Module created.'],
+ 'ok_session_postponed' => ['Séance reportée.', 'Session rescheduled.'],
+ 'ok_session_cancelled' => ['Séance annulée.', 'Session cancelled.'],
+ // overview
+ 'ov_h_todo' => ['Ce qui attend votre <em>décision</em>', 'What needs your <em>decision</em>'],
+ 'ov_h_clear' => ['Tout est <em>à jour</em>', 'Everything is <em>up to date</em>'],
+ 'ov_date' => ['Bonjour :name. Nous sommes le :date.', 'Hello :name. Today is :date.'],
+ 'ov_clear_t' => ['Rien n’attend de décision.', 'Nothing is waiting on you.'],
+ 'ov_clear_p' => ['Aucun compte enseignant à valider, aucun certificat en attente, aucun e-mail non confirmé. Les totaux ci-dessous restent à jour.', 'No teacher account to approve, no certificate waiting, no unconfirmed email. The totals below stay current.'],
+ 'q_teachers' => ['comptes enseignants à valider', 'teacher accounts to approve'],
+ 'q_teachers_p' => ['Ces personnes se sont inscrites comme enseignants. Elles ne peuvent pas créer de cours avant votre validation.', 'These people signed up as teachers. They cannot create courses until you approve them.'],
+ 'q_teacher1' => ['compte enseignant à valider', 'teacher account to approve'],
+ 'q_certs' => ['certificats à délivrer', 'certificates to issue'],
+ 'q_cert1' => ['certificat à délivrer', 'certificate to issue'],
+ 'q_certs_p' => ['Ces étudiants ont réussi l’évaluation de certification mais n’ont pas encore de certificat pour ce cours.', 'These students passed the certification test but have no certificate for that course yet.'],
+ 'q_unver' => ['comptes sans e-mail confirmé', 'accounts with an unconfirmed email'],
+ 'q_unver1' => ['compte sans e-mail confirmé', 'account with an unconfirmed email'],
+ 'q_unver_p' => ['Ces personnes se sont inscrites mais n’ont jamais ouvert le lien de confirmation. Écrivez-leur ou vérifiez l’adresse.', 'These people signed up but never opened the confirmation link. Write to them or check the address.'],
+ 'q_see_all' => ['Tout voir', 'See all'],
+ 'q_more' => ['et :n autres', 'and :n more'],
+ 'smtp_off_t' => ['L’envoi d’e-mails est désactivé.', 'Email sending is switched off.'],
+ 'smtp_off_p' => ['Les validations, certificats et newsletters ne partiront pas tant que SMTP n’est pas configuré dans .env.', 'Approvals, certificates and newsletters will not go out until SMTP is configured in .env.'],
+ 'approve' => ['Valider', 'Approve'],
+ 'issue' => ['Délivrer', 'Issue'],
+ 'contact' => ['Contacter', 'Write'],
+ 'review' => ['Voir', 'Review'],
+ 'since' => ['inscrit le :d', 'signed up :d'],
+ 'passed_on' => [':s % le :d', ':s% on :d'],
+ 'tot_h' => ['En chiffres', 'In numbers'],
+ 'tot_p' => ['Valeurs lues dans la base à l’instant du chargement.', 'Values read from the database when the page loaded.'],
+ 't_students' => ['Apprenants', 'Students'],
+ 't_teachers' => ['Enseignants', 'Teachers'],
+ 't_courses' => ['Cours', 'Courses'],
+ 't_enroll' => ['Inscriptions', 'Enrollments'],
+ 't_certs' => ['Certificats délivrés', 'Certificates issued'],
+ 't_progress' => ['Progression moyenne', 'Average progress'],
+ 't_pass' => ['Réussite aux certifications', 'Certification pass rate'],
+ 't_subs' => ['Abonnés newsletter', 'Newsletter subscribers'],
+ 't_na' => ['Pas encore de données', 'No data yet'],
+ // people
+ 'pe_h' => ['Les <em>personnes</em>', 'The <em>people</em>'],
+ 'pe_p' => ['Tous les comptes de la plateforme dans un seul tableau. Filtrez par rôle ou par statut, ouvrez le menu d’une ligne pour agir.', 'Every account on the platform in one table. Filter by role or status, open a row’s menu to act.'],
+ 'pe_create' => ['Créer un compte', 'Create account'],
+ 'pe_search' => ['Rechercher un nom ou un e-mail', 'Search a name or an email'],
+ 'f_all' => ['Tous', 'All'],
+ 'f_teacher' => ['Enseignants', 'Teachers'],
+ 'f_student' => ['Apprenants', 'Students'],
+ 'f_promoter' => ['Promoteurs', 'Promoters'],
+ 'f_role' => ['Filtrer par rôle', 'Filter by role'],
+ 'f_status' => ['Filtrer par statut', 'Filter by status'],
+ 'f_s_all' => ['Tous les statuts', 'Any status'],
+ 's_pending' => ['En attente', 'Pending'],
+ 's_active' => ['Actif', 'Active'],
+ 's_suspended' => ['Suspendu', 'Suspended'],
+ 's_unver' => ['E-mail non confirmé', 'Email unconfirmed'],
+ 'th_person' => ['Personne', 'Person'],
+ 'th_role' => ['Rôle', 'Role'],
+ 'th_status' => ['Statut', 'Status'],
+ 'th_joined' => ['Inscrit le', 'Joined'],
+ 'th_actions' => ['Actions', 'Actions'],
+ 'th_select_all' => ['Tout sélectionner', 'Select all'],
+ 'role_teacher' => ['Enseignant', 'Teacher'],
+ 'role_student' => ['Apprenant', 'Student'],
+ 'role_promoter' => ['Administrateur', 'Institution admin'],
+ 'you' => ['vous', 'you'],
+ 'row_menu' => ['Actions pour :name', 'Actions for :name'],
+ 'row_select' => ['Sélectionner :name', 'Select :name'],
+ 'pe_none' => ['Aucune personne ne correspond à ces filtres.', 'No one matches these filters.'],
+ 'pe_count' => ['<b class="num" id="pe-shown">0</b> sur :n personnes', '<b class="num" id="pe-shown">0</b> of :n people'],
+ 'pe_more' => ['Afficher plus', 'Show more'],
+ 'sel_n' => ['sélectionné(s)', 'selected'],
+ 'b_approve' => ['Valider les enseignants', 'Approve teachers'],
+ 'b_suspend' => ['Suspendre', 'Suspend'],
+ 'b_reactivate' => ['Réactiver', 'Reactivate'],
+ 'b_delete' => ['Supprimer', 'Delete'],
+ 'b_clear' => ['Désélectionner', 'Clear selection'],
+ // academy
+ 'ac_h' => ['Modules et <em>cours</em>', 'Modules and <em>courses</em>'],
+ 'ac_p' => ['Un module regroupe des cours et ouvre droit à une certification. Attribuez ici un enseignant titulaire à chaque cours.', 'A module groups courses and leads to a certification. Assign a lead teacher to each course here.'],
+ 'mod_h' => ['Modules', 'Modules'],
+ 'mod_new' => ['Nouveau module', 'New module'],
+ 'mod_title' => ['Titre du module', 'Module title'],
+ 'mod_title_ph' => ['ex : Algorithmique et structures de données', 'e.g. Algorithms and data structures'],
+ 'mod_desc' => ['Description', 'Description'],
+ 'mod_desc_ph' => ['Objectifs du module en deux phrases.', 'What the module covers, in two sentences.'],
+ 'mod_create' => ['Créer le module', 'Create module'],
+ 'mod_edit' => ['Modifier', 'Edit'],
+ 'mod_delete' => ['Supprimer', 'Delete'],
+ 'mod_courses' => [':n cours', ':n courses'],
+ 'mod_courses1' => ['1 cours', '1 course'],
+ 'mod_blocked' => ['Impossible tant que des cours sont liés à ce module.', 'Not possible while courses are linked to this module.'],
+ 'mod_none' => ['Aucun module pour le moment.', 'No module yet.'],
+ 'mod_edit_h' => ['Modifier le module', 'Edit module'],
+ 'cs_h' => ['Cours et enseignants titulaires', 'Courses and lead teachers'],
+ 'cs_p' => ['Retirer un enseignant garde tout le contenu du cours.', 'Removing a teacher keeps all course content.'],
+ 'th_course' => ['Cours', 'Course'],
+ 'th_module' => ['Module', 'Module'],
+ 'th_creator' => ['Créé par', 'Created by'],
+ 'th_teacher' => ['Enseignant titulaire', 'Lead teacher'],
+ 'th_key' => ['Clé d’inscription', 'Enrollment key'],
+ 'cs_none' => ['Aucun cours.', 'No courses.'],
+ 'cs_unassigned' => ['Non assigné', 'Unassigned'],
+ 'cs_assign' => ['Assigner', 'Assign'],
+ 'cs_revoke' => ['Retirer', 'Remove'],
+ 'cs_open' => ['Libre', 'Open'],
+ 'cs_teacher_for' => ['Enseignant pour :c', 'Teacher for :c'],
+ // live
+ 'lv_h' => ['Évaluations <em>en direct</em>', 'Live <em>evaluations</em>'],
+ 'lv_p' => ['Le calendrier des séances et les résultats de toutes les classes.', 'The session calendar and results across all classes.'],
+ 'lv_evaluated' => ['Participants évalués', 'Participants evaluated'],
+ 'lv_avg' => ['Moyenne générale', 'Overall average'],
+ 'lv_rate' => ['Réussite (50 % et plus)', 'Pass rate (50% and above)'],
+ 'lv_dist' => ['Répartition des notes', 'Score distribution'],
+ 'lv_dist_p' => ['Nombre de participants par tranche de note.', 'Participants per score band.'],
+ 'lv_sessions' => ['Séances', 'Sessions'],
+ 'th_session' => ['Séance', 'Session'],
+ 'th_lteacher' => ['Enseignant', 'Teacher'],
+ 'th_regs' => ['Inscrits / évalués', 'Registered / evaluated'],
+ 'th_avg' => ['Moyenne', 'Average'],
+ 'th_when' => ['Horaire', 'Schedule'],
+ 'lv_none' => ['Aucune séance configurée pour le moment.', 'No session configured yet.'],
+ 'lv_status_lobby' => ['Salle d’attente', 'Lobby'],
+ 'lv_status_active' => ['En cours', 'Live'],
+ 'lv_status_finished' => ['Terminée', 'Finished'],
+ 'lv_status_draft' => ['Brouillon', 'Draft'],
+ 'lv_code' => ['Code', 'Code'],
+ 'lv_start' => ['Début', 'Start'],
+ 'lv_end' => ['Fin', 'End'],
+ 'lv_pp_h' => ['Reporter la séance', 'Reschedule the session'],
+ 'lv_pp_start' => ['Début', 'Start'],
+ 'lv_pp_end' => ['Fin', 'End'],
+ 'lv_pp_save' => ['Enregistrer', 'Save'],
+ // certificates
+ 'ce_h' => ['Les <em>certificats</em>', '<em>Certificates</em>'],
+ 'ce_p' => ['Délivrez ceux qui attendent, accordez une exception, retrouvez un certificat par son code ou son titulaire.', 'Issue those waiting, grant an exception, find a certificate by its code or its holder.'],
+ 'ce_wait_h' => ['En attente de délivrance', 'Waiting to be issued'],
+ 'ce_wait_none' => ['Aucun certificat en attente. Les réussites récentes ont toutes leur certificat.', 'No certificate waiting. Every recent pass has its certificate.'],
+ 'ce_manual_h' => ['Délivrance exceptionnelle', 'Exceptional issue'],
+ 'ce_manual_p' => ['Valide un cours pour un étudiant sans passer par l’évaluation. L’étudiant reçoit le certificat par e-mail.', 'Validates a course for a student without the test. The student receives the certificate by email.'],
+ 'ce_student' => ['Étudiant', 'Student'],
+ 'ce_course' => ['Cours validé', 'Course validated'],
+ 'ce_choose' => ['Choisir…', 'Choose…'],
+ 'ce_issue' => ['Délivrer le certificat', 'Issue certificate'],
+ 'ce_reg_h' => ['Registre', 'Register'],
+ 'ce_export' => ['Exporter en Excel', 'Export to Excel'],
+ 'ce_search' => ['Rechercher un étudiant, un cours ou un code', 'Search a student, a course or a code'],
+ 'th_holder' => ['Titulaire', 'Holder'],
+ 'th_origin' => ['Origine', 'Origin'],
+ 'th_code' => ['Code', 'Code'],
+ 'th_issued' => ['Délivré le', 'Issued'],
+ 'ce_auto' => ['Automatique', 'Automatic'],
+ 'ce_manual' => ['Manuel', 'Manual'],
+ 'ce_manual_by' => ['Manuel, par :n', 'Manual, by :n'],
+ 'ce_none' => ['Aucun certificat délivré pour le moment.', 'No certificate issued yet.'],
+ 'ce_unknown' => ['Cours supprimé', 'Deleted course'],
+ 'm_open' => ['Ouvrir la page publique', 'Open public page'],
+ 'm_copy' => ['Copier le code', 'Copy code'],
+ 'm_revoke_cert' => ['Révoquer le certificat', 'Revoke certificate'],
+ // messages
+ 'ms_h' => ['Messages et <em>newsletters</em>', 'Messages and <em>newsletters</em>'],
+ 'ms_p' => ['Ce qui part vers l’extérieur. Chaque envoi indique à qui il va et demande confirmation.', 'Everything that leaves the platform. Each send states who gets it and asks you to confirm.'],
+ 'nl_h' => ['Rédiger une newsletter', 'Write a newsletter'],
+ 'nl_smtp_on' => ['Envoi par SMTP actif', 'SMTP sending active'],
+ 'nl_smtp_off' => ['SMTP non configuré : renseignez .env pour envoyer', 'SMTP not configured: fill in .env to send'],
+ 'nl_test' => ['Tester SMTP', 'Test SMTP'],
+ 'nl_audience' => ['Destinataires', 'Recipients'],
+ 'nl_a_sub' => ['Abonnés à la newsletter', 'Newsletter subscribers'],
+ 'nl_a_stu' => ['Tous les apprenants', 'All students'],
+ 'nl_a_all' => ['Abonnés et apprenants', 'Subscribers and students'],
+ 'nl_a_sub_d' => ['les abonnés actifs de la newsletter', 'the active newsletter subscribers'],
+ 'nl_a_stu_d' => ['tous les comptes apprenants, confirmés ou non', 'every student account, confirmed or not'],
+ 'nl_a_all_d' => ['les abonnés et tous les apprenants (sans doublon)', 'subscribers and all students (no duplicates)'],
+ 'nl_line' => ['Ce message sera envoyé à :n personnes : :d.', 'This message will be sent to :n people: :d.'],
+ 'nl_subject' => ['Objet', 'Subject'],
+ 'nl_subject_ph' => ['ex : Ouverture des inscriptions de la session d’été', 'e.g. Summer session enrollment is open'],
+ 'nl_body' => ['Message', 'Message'],
+ 'nl_body_ph' => ['Écrivez le message. Le texte est envoyé tel quel, les sauts de ligne sont conservés.', 'Write the message. The text is sent as is, line breaks are kept.'],
+ 'nl_send' => ['Relire et envoyer…', 'Review and send…'],
+ 'nl_preview' => ['Aperçu', 'Preview'],
+ 'nl_prev_to' => ['À : :a (:n personnes)', 'To: :a (:n people)'],
+ 'nl_prev_empty' => ['Votre message apparaîtra ici.', 'Your message will appear here.'],
+ 'nl_prev_nosub' => ['(sans objet)', '(no subject)'],
+ 'nl_prev_foot' => ['Un lien de désinscription est ajouté automatiquement en bas de chaque e-mail.', 'An unsubscribe link is added automatically at the bottom of every email.'],
+ 'nl_hist_h' => ['Dernières campagnes', 'Recent campaigns'],
+ 'nl_hist_none' => ['Aucune campagne envoyée.', 'No campaign sent yet.'],
+ 'nl_hist_item' => [':n destinataires, envoyée par :u le :d', ':n recipients, sent by :u on :d'],
+ 'nl_subs_h' => ['Voir les abonnés récents', 'See recent subscribers'],
+ 'nl_subs_none' => ['Aucun abonné pour le moment.', 'No subscriber yet.'],
+ 'kb_h' => ['Rappeler les clés d’inscription', 'Remind students of enrollment keys'],
+ 'kb_p' => ['Envoie à chaque apprenant un e-mail avec les clés des cours protégés. Les cours libres et non publiés ne figurent pas dans le message.', 'Sends every student an email listing the keys of protected courses. Open and unpublished courses are left out.'],
+ 'kb_line' => ['Sera envoyé à :n apprenants.', 'Will be sent to :n students.'],
+ 'kb_send' => ['Envoyer les clés…', 'Send the keys…'],
+ 'kb_list' => ['Cours concernés', 'Courses included'],
+ 'kb_none' => ['Aucun cours n’a de clé d’inscription.', 'No course has an enrollment key.'],
+ 'dm_h' => ['Écrire à un apprenant', 'Write to a student'],
+ 'dm_p' => ['Le message arrive directement dans la boîte mail de la personne.', 'The message lands directly in the person’s inbox.'],
+ 'dm_to' => ['Destinataire', 'Recipient'],
+ 'dm_subject' => ['Objet', 'Subject'],
+ 'dm_subject_ph' => ['ex : À propos de votre certificat', 'e.g. About your certificate'],
+ 'dm_msg' => ['Message', 'Message'],
+ 'dm_send' => ['Envoyer le message', 'Send message'],
+ // api
+ 'ak_h' => ['Clés <em>API</em>', '<em>API</em> keys'],
+ 'ak_p' => ['Une clé permet à un outil externe, une application mobile par exemple, de lire la liste des cours et des modules. Elle ne donne aucun accès en écriture.', 'A key lets an outside tool, a mobile app for example, read the list of courses and modules. It gives no write access.'],
+ 'ak_label' => ['Nom de la clé', 'Key name'],
+ 'ak_label_ph' => ['ex : Application mobile', 'e.g. Mobile app'],
+ 'ak_label_hint' => ['Pour savoir plus tard à quoi elle sert.', 'So you know later what it is for.'],
+ 'ak_create' => ['Créer la clé', 'Create key'],
+ 'ak_once_h' => ['Copiez cette clé maintenant', 'Copy this key now'],
+ 'ak_once_p' => ['Elle ne sera plus jamais affichée. StudyVibe n’en garde qu’une empreinte, impossible à relire. Si vous la perdez, révoquez-la et créez-en une autre.', 'It will never be shown again. StudyVibe only keeps a fingerprint that cannot be read back. If you lose it, revoke it and create another.'],
+ 'ak_copy' => ['Copier', 'Copy'],
+ 'ak_copied' => ['Copiée', 'Copied'],
+ 'ak_done' => ['J’ai copié la clé', 'I have copied the key'],
+ 'ak_use' => ['Utilisation : envoyez la clé dans l’en-tête X-API-Key.', 'Usage: send the key in the X-API-Key header.'],
+ 'ak_list_h' => ['Clés existantes', 'Existing keys'],
+ 'th_name' => ['Nom', 'Name'],
+ 'th_created' => ['Créée le', 'Created'],
+ 'th_by' => ['Par', 'By'],
+ 'ak_active' => ['Active', 'Active'],
+ 'ak_revoked' => ['Révoquée', 'Revoked'],
+ 'ak_revoke' => ['Révoquer', 'Revoke'],
+ 'ak_none' => ['Aucune clé pour le moment.', 'No key yet.'],
+ 'ak_loading' => ['Chargement…', 'Loading…'],
+ 'ak_default' => ['Clé du :d', 'Key of :d'],
+ 'ak_nolast' => ['La date de dernière utilisation n’est pas enregistrée par l’API pour le moment.', 'The API does not record when a key was last used yet.'],
+ // audit
+ 'au_h' => ['Journal et <em>exports</em>', 'Activity and <em>exports</em>'],
+ 'au_p' => ['Les cinquante dernières actions sensibles, un rapport de synthèse et les exports complets.', 'The last fifty sensitive actions, a summary report and the full exports.'],
+ 'au_log' => ['Dernières actions', 'Latest actions'],
+ 'au_export' => ['Exporter le journal', 'Export the log'],
+ 'au_search' => ['Filtrer le journal', 'Filter the log'],
+ 'th_date' => ['Date', 'Date'],
+ 'th_author' => ['Auteur', 'Author'],
+ 'th_action' => ['Action', 'Action'],
+ 'th_details' => ['Détails', 'Details'],
+ 'au_none' => ['Le journal est vide.', 'The log is empty.'],
+ 'ex_h' => ['Exports', 'Exports'],
+ 'ex_p' => ['Toutes les tables et mesures en un classeur Excel à plusieurs feuilles.', 'Every table and metric in one multi-sheet Excel workbook.'],
+ 'ex_btn' => ['Télécharger l’export complet', 'Download the full export'],
+ 'ai_h' => ['Rapport de synthèse', 'Summary report'],
+ 'ai_p' => ['Un texte rédigé par l’IA à partir des chiffres de la plateforme. À relire avant d’en tirer une décision.', 'A text written by AI from the platform’s figures. Read it critically before acting on it.'],
+ 'ai_btn' => ['Générer le rapport', 'Generate the report'],
+ 'ai_wait' => ['Rédaction en cours…', 'Writing…'],
+ 'ai_print' => ['Imprimer', 'Print'],
+ // dialogs
+ 'cancel' => ['Annuler', 'Cancel'],
+ 'close' => ['Fermer', 'Close'],
+ 'back' => ['Retour', 'Back'],
+ 'cu_h' => ['Créer un compte', 'Create an account'],
+ 'cu_p' => ['La personne pourra se connecter tout de suite avec ce mot de passe.', 'The person can sign in right away with this password.'],
+ 'cu_name' => ['Nom complet', 'Full name'],
+ 'cu_name_ph' => ['ex : Dr Isabelle Martin', 'e.g. Dr Isabelle Martin'],
+ 'cu_email' => ['Adresse e-mail', 'Email address'],
+ 'cu_email_ph' => ['prenom@etablissement.edu', 'name@institution.edu'],
+ 'cu_pass' => ['Mot de passe initial', 'Initial password'],
+ 'cu_pass_hint' => ['8 caractères minimum.', 'At least 8 characters.'],
+ 'cu_role' => ['Rôle', 'Role'],
+ 'cu_role_promoter' => ['Promoteur (co-administrateur)', 'Promoter (co-administrator)'],
+ 'cu_submit' => ['Créer le compte', 'Create account'],
+ 'confirm' => ['Confirmer', 'Confirm'],
+ 'jserr' => ['Une erreur est survenue.', 'Something went wrong.'],
+];
+$t = fn(string $k, array $r = []): string => strtr($TX[$k][$li] ?? $k, array_combine(array_map(fn($x) => ':' . $x, array_keys($r)), array_values($r)) ?: []);
+$h = fn($s): string => htmlspecialchars((string)$s, ENT_QUOTES, 'UTF-8');
+$fmtD = fn($ts): string => $ts ? ($lang === 'en' ? date('M j, Y', strtotime((string)$ts)) : date('d/m/Y', strtotime((string)$ts))) : '';
+$fmtDT = fn($ts): string => $ts ? ($lang === 'en' ? date('M j, Y g:i A', strtotime((string)$ts)) : date('d/m/Y H:i', strtotime((string)$ts))) : '';
+$roleName = ['teacher' => $t('role_teacher'), 'student' => $t('role_student'), 'promoter' => $t('role_promoter')];
+
+// JS dictionary (strings used by promoter.js)
+$JT = [
+ 'fr' => [
+  'ok' => 'Opération effectuée.', 'err' => 'Une erreur est survenue.', 'net' => 'Erreur réseau : ',
+  'm_approve' => 'Valider', 'm_contact' => 'Écrire', 'm_suspend' => 'Suspendre', 'm_reactivate' => 'Réactiver', 'm_delete' => 'Supprimer…',
+  'm_open' => 'Ouvrir la page publique', 'm_copy' => 'Copier le code', 'm_revoke_cert' => 'Révoquer le certificat…',
+  'm_postpone' => 'Reporter', 'm_cancel_session' => 'Annuler la séance…',
+  'copied' => 'Copié.', 'cancel' => 'Annuler', 'confirm' => 'Confirmer', 'sending' => 'Envoi en cours…',
+  'approve_t' => 'Valider ce compte enseignant ?', 'approve_p' => '{name} pourra créer des cours. Un e-mail de confirmation lui sera envoyé.', 'approve_b' => 'Valider',
+  'suspend_t' => 'Suspendre {name} ?', 'suspend_p' => 'La personne ne pourra plus se connecter tant que le compte est suspendu. Rien n’est supprimé.', 'suspend_b' => 'Suspendre',
+  'reactivate_t' => 'Réactiver {name} ?', 'reactivate_p' => 'La personne pourra de nouveau se connecter.', 'reactivate_b' => 'Réactiver',
+  'delete_t' => 'Supprimer {name} définitivement ?', 'delete_p' => 'Le compte et toutes ses données (inscriptions, notes, certificats) seront effacés. Cette action ne peut pas être annulée.', 'delete_b' => 'Supprimer définitivement',
+  'phrase' => 'supprimer', 'phrase_hint' => 'Pour confirmer, tapez « {w} » ci-dessous.',
+  'bulk_approve_t' => 'Valider {n} enseignants ?', 'bulk_approve_p' => 'Seuls les comptes enseignants en attente sont concernés. Chacun recevra un e-mail.',
+  'bulk_suspend_t' => 'Suspendre {n} comptes ?', 'bulk_suspend_p' => 'Ces personnes ne pourront plus se connecter. Votre propre compte est ignoré.',
+  'bulk_reactivate_t' => 'Réactiver {n} comptes ?', 'bulk_reactivate_p' => 'Seuls les comptes suspendus sont concernés.',
+  'bulk_delete_t' => 'Supprimer {n} comptes définitivement ?', 'bulk_delete_p' => 'Ces comptes et toutes leurs données seront effacés. Cette action ne peut pas être annulée. Votre propre compte est ignoré.',
+  'bulk_done' => '{ok} sur {n} comptes mis à jour.', 'bulk_none' => 'Aucun compte sélectionné n’est concerné par cette action.',
+  'issue_t' => 'Délivrer le certificat ?', 'issue_p' => '{name} recevra le certificat pour « {course} » par e-mail.', 'issue_b' => 'Délivrer',
+  'revcert_t' => 'Révoquer ce certificat ?', 'revcert_p' => 'Le certificat {code} de {name} sera supprimé définitivement et son lien de vérification cessera de fonctionner.', 'revcert_b' => 'Révoquer définitivement',
+  'cancels_t' => 'Annuler cette séance ?', 'cancels_p' => '« {name} » sera supprimée avec ses inscriptions et ses résultats. Cette action ne peut pas être annulée.', 'cancels_b' => 'Supprimer la séance',
+  'revteacher_t' => 'Retirer l’enseignant de ce cours ?', 'revteacher_p' => 'Le contenu pédagogique est conservé. Le cours n’aura plus d’enseignant titulaire.', 'revteacher_b' => 'Retirer',
+  'pick_teacher' => 'Choisissez un enseignant à assigner.', 'assigned' => 'Assigné', 'removed' => 'Retiré',
+  'moddel_t' => 'Supprimer ce module ?', 'moddel_p' => '« {name} » sera supprimé. Aucun cours n’y est rattaché.', 'moddel_b' => 'Supprimer le module',
+  'nl_t' => 'Envoyer cette newsletter à {n} personnes ?', 'nl_p' => 'Objet : « {subject} »<br>Destinataires : {aud}.<br>Les e-mails partent immédiatement et on ne peut pas les rappeler.', 'nl_b' => 'Envoyer à {n} personnes',
+  'nl_empty' => 'Renseignez l’objet et le message avant d’envoyer.', 'nl_norecip' => 'Cette audience ne compte aucun destinataire.',
+  'kb_t' => 'Envoyer les clés à {n} apprenants ?', 'kb_p' => 'Chaque apprenant reçoit un e-mail listant les clés d’inscription des cours protégés. L’envoi est immédiat.', 'kb_b' => 'Envoyer à {n} apprenants', 'kb_sending' => 'Diffusion en cours…',
+  'akrev_t' => 'Révoquer la clé « {name} » ?', 'akrev_p' => 'Tout outil qui utilise cette clé perdra l’accès immédiatement. Une clé révoquée ne peut pas être réactivée.', 'akrev_b' => 'Révoquer la clé',
+  'ak_created' => 'Clé créée.', 'ak_default' => 'Clé du {d}', 'ak_active' => 'Active', 'ak_revoked' => 'Révoquée', 'ak_revoke' => 'Révoquer', 'ak_none' => 'Aucune clé pour le moment.',
+  'ak_copied' => 'Copiée', 'ak_copy' => 'Copier', 'ak_revoked_ok' => 'Clé révoquée.',
+  'cert_ok' => 'Certificat {code} délivré à {name}.', 'ai_ok' => 'Rapport généré.', 'dm_sending' => 'Envoi…', 'dm_send' => 'Envoyer le message', 'creating' => 'Création…', 'cu_submit' => 'Créer le compte',
+  'notif_none' => 'Aucune notification.', 'smtp_test' => 'Test SMTP lancé.',
+  'prev_nosub' => '(sans objet)', 'a_sub' => 'les abonnés actifs de la newsletter', 'a_stu' => 'tous les comptes apprenants, confirmés ou non', 'a_all' => 'les abonnés et tous les apprenants (sans doublon)',
+  'line' => 'Ce message sera envoyé à {n} personnes : {d}.', 'prev_to' => 'À : {a} ({n} personnes)', 'edit' => 'Modifier', 'role_you' => 'vous',
+ ],
+ 'en' => [
+  'ok' => 'Done.', 'err' => 'Something went wrong.', 'net' => 'Network error: ',
+  'm_approve' => 'Approve', 'm_contact' => 'Write', 'm_suspend' => 'Suspend', 'm_reactivate' => 'Reactivate', 'm_delete' => 'Delete…',
+  'm_open' => 'Open public page', 'm_copy' => 'Copy code', 'm_revoke_cert' => 'Revoke certificate…',
+  'm_postpone' => 'Reschedule', 'm_cancel_session' => 'Cancel session…',
+  'copied' => 'Copied.', 'cancel' => 'Cancel', 'confirm' => 'Confirm', 'sending' => 'Sending…',
+  'approve_t' => 'Approve this teacher account?', 'approve_p' => '{name} will be able to create courses. A confirmation email is sent to them.', 'approve_b' => 'Approve',
+  'suspend_t' => 'Suspend {name}?', 'suspend_p' => 'They will not be able to sign in while the account is suspended. Nothing is deleted.', 'suspend_b' => 'Suspend',
+  'reactivate_t' => 'Reactivate {name}?', 'reactivate_p' => 'They will be able to sign in again.', 'reactivate_b' => 'Reactivate',
+  'delete_t' => 'Delete {name} permanently?', 'delete_p' => 'The account and all its data (enrollments, grades, certificates) will be erased. This cannot be undone.', 'delete_b' => 'Delete permanently',
+  'phrase' => 'delete', 'phrase_hint' => 'To confirm, type “{w}” below.',
+  'bulk_approve_t' => 'Approve {n} teachers?', 'bulk_approve_p' => 'Only pending teacher accounts are affected. Each one receives an email.',
+  'bulk_suspend_t' => 'Suspend {n} accounts?', 'bulk_suspend_p' => 'These people will not be able to sign in. Your own account is skipped.',
+  'bulk_reactivate_t' => 'Reactivate {n} accounts?', 'bulk_reactivate_p' => 'Only suspended accounts are affected.',
+  'bulk_delete_t' => 'Delete {n} accounts permanently?', 'bulk_delete_p' => 'These accounts and all their data will be erased. This cannot be undone. Your own account is skipped.',
+  'bulk_done' => '{ok} of {n} accounts updated.', 'bulk_none' => 'None of the selected accounts is affected by this action.',
+  'issue_t' => 'Issue the certificate?', 'issue_p' => '{name} will receive the certificate for “{course}” by email.', 'issue_b' => 'Issue',
+  'revcert_t' => 'Revoke this certificate?', 'revcert_p' => 'Certificate {code} for {name} will be deleted permanently and its verification link will stop working.', 'revcert_b' => 'Revoke permanently',
+  'cancels_t' => 'Cancel this session?', 'cancels_p' => '“{name}” will be deleted with its registrations and results. This cannot be undone.', 'cancels_b' => 'Delete the session',
+  'revteacher_t' => 'Remove the teacher from this course?', 'revteacher_p' => 'The course content is kept. The course will have no lead teacher.', 'revteacher_b' => 'Remove',
+  'pick_teacher' => 'Choose a teacher to assign.', 'assigned' => 'Assigned', 'removed' => 'Removed',
+  'moddel_t' => 'Delete this module?', 'moddel_p' => '“{name}” will be deleted. No course is linked to it.', 'moddel_b' => 'Delete the module',
+  'nl_t' => 'Send this newsletter to {n} people?', 'nl_p' => 'Subject: “{subject}”<br>Recipients: {aud}.<br>Emails go out immediately and cannot be recalled.', 'nl_b' => 'Send to {n} people',
+  'nl_empty' => 'Fill in the subject and the message before sending.', 'nl_norecip' => 'This audience has no recipient.',
+  'kb_t' => 'Send the keys to {n} students?', 'kb_p' => 'Every student receives an email listing the enrollment keys of protected courses. It goes out immediately.', 'kb_b' => 'Send to {n} students', 'kb_sending' => 'Sending…',
+  'akrev_t' => 'Revoke the key “{name}”?', 'akrev_p' => 'Any tool using this key loses access immediately. A revoked key cannot be reactivated.', 'akrev_b' => 'Revoke key',
+  'ak_created' => 'Key created.', 'ak_default' => 'Key of {d}', 'ak_active' => 'Active', 'ak_revoked' => 'Revoked', 'ak_revoke' => 'Revoke', 'ak_none' => 'No key yet.',
+  'ak_copied' => 'Copied', 'ak_copy' => 'Copy', 'ak_revoked_ok' => 'Key revoked.',
+  'cert_ok' => 'Certificate {code} issued to {name}.', 'ai_ok' => 'Report generated.', 'dm_sending' => 'Sending…', 'dm_send' => 'Send message', 'creating' => 'Creating…', 'cu_submit' => 'Create account',
+  'notif_none' => 'No notifications.', 'smtp_test' => 'SMTP test started.',
+  'prev_nosub' => '(no subject)', 'a_sub' => 'the active newsletter subscribers', 'a_stu' => 'every student account, confirmed or not', 'a_all' => 'subscribers and all students (no duplicates)',
+  'line' => 'This message will be sent to {n} people: {d}.', 'prev_to' => 'To: {a} ({n} people)', 'edit' => 'Edit', 'role_you' => 'you',
+ ],
+][$lang];
+
+// Newsletter audience sizes (read-only counts, no side effects)
+$subEmails = array_map(fn($s) => strtolower((string)$s['email']), $newsletterSubscribers);
+$stuEmails = array_map(fn($s) => strtolower((string)$s['email']), $students);
+$audCounts = [
+    'subscribers' => count(array_unique($subEmails)),
+    'students'    => count(array_unique($stuEmails)),
+    'all'         => count(array_unique(array_merge($subEmails, $stuEmails))),
+];
+$keyedCourses = array_values(array_filter($courses, fn($c) => !empty($c['enrollment_key'])));
+
+// Decision queue
+$pendingTeachers = array_values(array_filter($teachers, fn($x) => !(int)$x['is_approved']));
+$unverifiedUsers = array_values(array_filter($allUsers, fn($x) => empty($x['email_verified_at'])));
+$queueTotal = count($pendingTeachers) + count($awaitingCerts) + count($unverifiedUsers) + ($smtpConfigured ? 0 : 1);
+
+// People counters
+$cnt = ['all' => count($allUsers), 'teacher' => 0, 'student' => 0, 'promoter' => 0, 'pending' => 0, 'active' => 0, 'suspended' => 0, 'unverified' => 0];
+foreach ($allUsers as $u) {
+    $cnt[$u['role']] = ($cnt[$u['role']] ?? 0) + 1;
+    $isPending = $u['role'] === 'teacher' && !(int)$u['is_approved'];
+    if ($isPending) $cnt['pending']++;
+    if (!(int)$u['is_active']) $cnt['suspended']++;
+    if (empty($u['email_verified_at'])) $cnt['unverified']++;
+    if ((int)$u['is_active'] && !$isPending) $cnt['active']++;
+}
+$myId = (int)$_SESSION['user_id'];
+$firstName = trim(explode(' ', (string)$user['name'])[0] ?? '');
+$moduleCourseCount = [];
+foreach ($courses as $c) { $moduleCourseCount[(int)$c['module_id']] = ($moduleCourseCount[(int)$c['module_id']] ?? 0) + 1; }
+$okKey = isset($_GET['success']) ? (string)$_GET['success'] : '';
+$okMsg = $okKey !== '' ? ($TX['ok_' . $okKey][$li] ?? $t('ok_generic')) : '';
+$todayStr = $lang === 'en' ? date('l, F j') : (['dimanche','lundi','mardi','mercredi','jeudi','vendredi','samedi'][(int)date('w')] . ' ' . date('j') . ' ' . ['janvier','février','mars','avril','mai','juin','juillet','août','septembre','octobre','novembre','décembre'][(int)date('n') - 1]);
+
+$ico = [
+ 'search' => '<svg width="16" height="16" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" aria-hidden="true"><circle cx="7" cy="7" r="4.6"/><path d="M10.5 10.5 14 14"/></svg>',
+ 'dots'   => '<svg width="18" height="18" viewBox="0 0 16 16" fill="currentColor" aria-hidden="true"><circle cx="3" cy="8" r="1.4"/><circle cx="8" cy="8" r="1.4"/><circle cx="13" cy="8" r="1.4"/></svg>',
+ 'bell'   => '<svg width="16" height="16" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M4 11V7a4 4 0 0 1 8 0v4l1 1.5H3z"/><path d="M6.5 14a1.5 1.5 0 0 0 3 0"/></svg>',
+];
+
+function pm_chips(array $u, callable $t): string {
+    $isPending = $u['role'] === 'teacher' && !(int)$u['is_approved'];
+    $o = '<span class="st-row">';
+    if ($isPending) $o .= '<span class="st wait">' . $t('s_pending') . '</span>';
+    elseif (!(int)$u['is_active']) $o .= '<span class="st off">' . $t('s_suspended') . '</span>';
+    else $o .= '<span class="st ok">' . $t('s_active') . '</span>';
+    if ($isPending && !(int)$u['is_active']) $o .= '<span class="st off">' . $t('s_suspended') . '</span>';
+    if (empty($u['email_verified_at'])) $o .= '<span class="st hollow">' . $t('s_unver') . '</span>';
+    return $o . '</span>';
+}
 ?>
 <!DOCTYPE html>
-<html lang="fr" class="h-full sv-cream">
+<html lang="<?= $lang ?>">
 <head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <link rel="icon" type="image/svg+xml" href="/assets/img/favicon.svg">
-    <link rel="icon" type="image/png" href="/assets/img/favicon.png" sizes="32x32">
-    <link rel="apple-touch-icon" href="/assets/img/favicon.png">
-
-    <title>Espace Promoteur — StudyVibe</title>
-    
-    <link rel="preconnect" href="https://fonts.googleapis.com">
-    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&family=Plus+Jakarta+Sans:ital,wght@0,300..800;1,300..800&display=swap" rel="stylesheet">
-    <link rel="stylesheet" href="/assets/css/app.css">
-    <?= csrfMetaTag(); ?>
-    <script src="https://cdn.tailwindcss.com"></script>
-    <script>
-        tailwind.config = {
-            theme: {
-                extend: {
-                    fontFamily: {
-                        sans: ['Inter', 'sans-serif'],
-                        serif: ['Plus Jakarta Sans', 'sans-serif'],
-                    }
-                }
-            }
-        }
-    </script>
-    <style>
-        .fade-in {
-            animation: fadeIn 0.4s ease-out forwards;
-        }
-        @keyframes fadeIn {
-            from { opacity: 0; }
-            to { opacity: 1; }
-        }
-    </style>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="theme-color" content="#F5F0E6">
+<title><?= $h($t('title')) ?></title>
+<?= Brand::headLinks() ?>
+<link rel="icon" type="image/png" href="/assets/img/favicon.png" sizes="32x32">
+<link rel="apple-touch-icon" href="/assets/img/apple-touch-icon.png">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Fraunces:ital,opsz,wght,SOFT@0,9..144,300..700,0..100;1,9..144,300..700,0..100&family=Hanken+Grotesk:wght@400;500;600;700&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="/assets/css/sv2.css">
+<link rel="stylesheet" href="/assets/css/promoter.css">
+<link rel="stylesheet" href="/assets/css/promoter-v3.css">
+<?= csrfMetaTag(); ?>
+<script>
+  document.documentElement.classList.add('js');
+  try { var s = localStorage.getItem('sv_dark'); if (s === '1' || (s === null && matchMedia('(prefers-color-scheme: dark)').matches)) document.documentElement.classList.add('dark'); } catch (e) {}
+</script>
 </head>
-<body class="font-sans antialiased text-[#111111] sv-page min-h-screen flex flex-col justify-between">
+<body class="v2 pm">
+<a class="sr" href="#pm-main"><?= $t('skip') ?></a>
 
-    <!-- En-tête Principal -->
-    <header class="sv-header border-b border-[#E5E5E7] py-6 px-6 md:px-12 flex justify-between items-center bg-[#FFFFFF]">
-        <div class="flex items-center gap-3">
-            <svg class="w-9 h-9" viewBox="0 0 100 100" fill="none" xmlns="http://www.w3.org/2000/svg" style="width: 36px; height: 36px;">
-                <circle cx="50" cy="50" r="46" stroke="#006630" stroke-width="3.5" />
-                <line x1="33" y1="31" x2="62" y2="25" stroke="#111111" stroke-width="2.5" stroke-linecap="round" />
-                <line x1="33" y1="31" x2="49" y2="53" stroke="#111111" stroke-width="2.5" stroke-linecap="round" />
-                <line x1="33" y1="31" x2="14" y2="13" stroke="#111111" stroke-width="2.5" stroke-linecap="round" />
-                <line x1="33" y1="31" x2="42" y2="11" stroke="#111111" stroke-width="2.5" stroke-linecap="round" />
-                <line x1="33" y1="31" x2="20" y2="53" stroke="#111111" stroke-width="2.5" stroke-linecap="round" />
-                <line x1="49" y1="53" x2="62" y2="25" stroke="#111111" stroke-width="2.5" stroke-linecap="round" />
-                <circle cx="62" cy="25" r="6" fill="#006630" />
-                <circle cx="49" cy="53" r="6" fill="#006630" />
-                <circle cx="33" cy="31" r="6" fill="#006630" />
-                <circle cx="14" cy="13" r="6" fill="#006630" />
-                <circle cx="42" cy="11" r="6" fill="#006630" />
-                <circle cx="20" cy="53" r="6" fill="#006630" />
-                <path d="M56 10 C52 14, 52 24, 52 29 C52 31, 50 33, 49 33 L45 33 L49 35 C50 37, 51 38, 50 40 C49 41, 47 42, 49 44 C51 45, 54 46, 56 46 C59 46, 65 38, 66 41 C68 46, 60 52, 56 60 C51 68, 50 78, 53 88" stroke="#111111" stroke-width="3" stroke-linecap="round" stroke-linejoin="round" />
-                <path d="M33 55 C32 52, 32 48, 33 46 C34 44, 36 44, 37 47 C37 50, 37 53, 37 55 C37 51, 38 46, 39 44 C40 42, 42 42, 43 45 C43 48, 43 51, 43 54 C43 51, 44 47, 45 45 C46 43, 48 43, 49 46 C50 49, 51 57, 51 68 C51 75, 49 81, 47 85" stroke="#111111" stroke-width="3" stroke-linecap="round" stroke-linejoin="round" />
-                <path d="M33 55 C34 61, 35 68, 37 75 C38 81, 39 84, 40 86" stroke="#111111" stroke-width="3" stroke-linecap="round" stroke-linejoin="round" />
-            </svg>
-            <span class="font-serif text-xl tracking-tight text-[#111111] font-semibold">StudyVibe</span>
-            <span class="text-xs uppercase tracking-widest bg-[#F5F5F7] text-[#555555] px-2 py-1 border border-[#E5E5E7] ml-2 font-mono">Promoteur</span>
+<header class="pm-top">
+  <div class="pm-top-in">
+    <?= Brand::logo('md') ?>
+    <span class="pm-role"><?= $t('role_label') ?></span>
+    <div class="pm-tools">
+      <div class="pm-bell" id="notif-wrap">
+        <button class="chip" type="button" id="notif-btn" aria-label="<?= $t('notif') ?>" aria-expanded="false" aria-controls="notif-panel"><?= $ico['bell'] ?><span class="dot" id="notif-count" hidden></span></button>
+        <div class="pm-notif" id="notif-panel" hidden></div>
+      </div>
+      <span class="pm-user"><?= $h($user['name']) ?></span>
+      <div class="seg" role="group" aria-label="Language">
+        <a href="#" data-lang="fr" <?= $lang === 'fr' ? 'aria-current="true"' : '' ?>>FR</a>
+        <a href="#" data-lang="en" <?= $lang === 'en' ? 'aria-current="true"' : '' ?>>EN</a>
+      </div>
+      <button class="chip" type="button" data-dark-toggle aria-label="<?= $t('theme') ?>"><svg width="14" height="14" viewBox="0 0 16 16" aria-hidden="true"><circle cx="8" cy="8" r="6" fill="none" stroke="currentColor" stroke-width="1.6"/><path d="M8 2a6 6 0 0 1 0 12z" fill="currentColor"/></svg></button>
+      <a class="chip" href="/account/security.php"><?= TranslationService::getLang() === 'en' ? 'Security' : 'Sécurité' ?></a>
+      <a class="chip" href="/logout.php"><?= $t('logout') ?></a>
+    </div>
+  </div>
+</header>
+
+<div class="pm-shell">
+  <nav class="pm-rail" aria-label="<?= $t('nav_label') ?>">
+    <p class="pm-rail-g"><?= $h($PI['nav_g_steer']) ?></p>
+    <ul>
+      <li><a href="#tab-overview" data-tab="tab-overview"><span><?= $h($PI['nav_command']) ?></span><?php if ($queueTotal > 0): ?><span class="pm-count num"><?= $queueTotal ?></span><?php endif; ?></a></li>
+      <li><a href="#tab-growth" data-tab="tab-growth"><span><?= $h($PI['nav_growth']) ?></span></a></li>
+      <li><a href="#tab-insights" data-tab="tab-insights"><span><?= $h($PI['nav_insights']) ?></span></a></li>
+    </ul>
+    <p class="pm-rail-g"><?= $h($PI['nav_g_manage']) ?></p>
+    <ul>
+      <li><a href="#tab-people" data-tab="tab-people"><span><?= $t('nav_people') ?></span><?php if ($cnt['pending'] > 0): ?><span class="pm-count num"><?= $cnt['pending'] ?></span><?php endif; ?></a></li>
+      <li><a href="#tab-academy" data-tab="tab-academy"><span><?= $t('nav_academy') ?></span></a></li>
+      <li><a href="#tab-live" data-tab="tab-live"><span><?= $t('nav_live') ?></span></a></li>
+      <li><a href="#tab-certificates" data-tab="tab-certificates"><span><?= $t('nav_certs') ?></span><?php if (count($awaitingCerts) > 0): ?><span class="pm-count num"><?= count($awaitingCerts) ?></span><?php endif; ?></a></li>
+      <li><a href="#tab-communications" data-tab="tab-communications"><span><?= $t('nav_msgs') ?></span></a></li>
+    </ul>
+    <p class="pm-rail-g"><?= $h($PI['nav_g_system']) ?></p>
+    <ul>
+      <li><a href="#tab-api" data-tab="tab-api"><span><?= $t('nav_api') ?></span></a></li>
+      <li><a href="#tab-audit" data-tab="tab-audit"><span><?= $t('nav_audit') ?></span></a></li>
+    </ul>
+    <p class="pm-rail-foot"><?= $t('rail_foot') ?></p>
+  </nav>
+
+  <main class="pm-main" id="pm-main" tabindex="-1">
+
+  <!-- ============ TODAY ============ -->
+  <section id="tab-overview" class="tab-content pm-panel" data-panel>
+    <?php require __DIR__ . '/panels/overview-top.php'; ?>
+
+    <?php if (!$smtpConfigured): ?>
+      <div class="q-warn" role="status">
+        <div><b><?= $t('smtp_off_t') ?></b><span><?= $t('smtp_off_p') ?></span></div>
+      </div>
+    <?php endif; ?>
+
+    <?php if (count($pendingTeachers) + count($awaitingCerts) + count($unverifiedUsers) === 0): ?>
+      <div class="q-clear"><b><?= $t('ov_clear_t') ?></b><?= $t('ov_clear_p') ?></div>
+    <?php else: ?>
+    <div class="queue">
+      <?php if ($pendingTeachers): ?>
+      <section class="q-group" aria-labelledby="q-t">
+        <header>
+          <div class="q-title"><span class="q-n"><?= count($pendingTeachers) ?></span><h2 id="q-t"><?= count($pendingTeachers) === 1 ? $t('q_teacher1') : $t('q_teachers') ?></h2></div>
+          <button type="button" class="link" data-goto="tab-people" data-fstatus="pending"><?= $t('q_see_all') ?></button>
+        </header>
+        <p class="q-sub"><?= $t('q_teachers_p') ?></p>
+        <div class="q-rows">
+          <?php foreach (array_slice($pendingTeachers, 0, 5) as $pt): ?>
+            <div class="q-row">
+              <div class="q-who"><b><?= $h($pt['name']) ?></b><span><?= $h($pt['email']) ?> · <?= $h($t('since', ['d' => $fmtD($pt['created_at'])])) ?></span></div>
+              <div class="q-act"><button type="button" class="btn btn-primary btn-sm" data-user-act="approve" data-id="<?= (int)$pt['id'] ?>" data-name="<?= $h($pt['name']) ?>"><?= $t('approve') ?></button></div>
+            </div>
+          <?php endforeach; ?>
         </div>
-        <div class="flex items-center gap-6">
-            <div class="relative" id="notif-wrap">
-                <button type="button" id="notif-btn" class="relative text-xs uppercase tracking-wider text-[#555555] hover:text-[#111111]" aria-label="Notifications">
-                    Notifications <span id="notif-count" class="hidden ml-1 bg-[#004B23] text-white text-[10px] px-1.5 py-0.5 rounded-full">0</span>
-                </button>
-                <div id="notif-panel" class="hidden absolute right-0 top-full mt-2 w-80 max-h-64 overflow-y-auto bg-white border border-[#E5E5E7] shadow-lg z-50 text-left text-sm"></div>
+        <?php if (count($pendingTeachers) > 5): ?><p class="note" style="margin-top:.6rem"><?= $h($t('q_more', ['n' => count($pendingTeachers) - 5])) ?></p><?php endif; ?>
+      </section>
+      <?php endif; ?>
+
+      <?php if ($awaitingCerts): ?>
+      <section class="q-group" aria-labelledby="q-c">
+        <header>
+          <div class="q-title"><span class="q-n"><?= count($awaitingCerts) ?></span><h2 id="q-c"><?= count($awaitingCerts) === 1 ? $t('q_cert1') : $t('q_certs') ?></h2></div>
+          <button type="button" class="link" data-goto="tab-certificates"><?= $t('q_see_all') ?></button>
+        </header>
+        <p class="q-sub"><?= $t('q_certs_p') ?></p>
+        <div class="q-rows">
+          <?php foreach (array_slice($awaitingCerts, 0, 5) as $ac): ?>
+            <div class="q-row">
+              <div class="q-who"><b><?= $h($ac['name']) ?> · <?= $h($ac['title']) ?></b><span><?= $h($t('passed_on', ['s' => rtrim(rtrim(number_format((float)$ac['score'], 1, '.', ''), '0'), '.'), 'd' => $fmtD($ac['at'])])) ?></span></div>
+              <div class="q-act"><button type="button" class="btn btn-primary btn-sm" data-issue data-student="<?= (int)$ac['student_id'] ?>" data-course="<?= (int)$ac['course_id'] ?>" data-name="<?= $h($ac['name']) ?>" data-ctitle="<?= $h($ac['title']) ?>"><?= $t('issue') ?></button></div>
             </div>
-            <span class="text-sm font-light text-[#555555]"><?= htmlspecialchars($user['name']); ?></span>
-            <button class="sv-dark-toggle" data-dark-toggle title="Mode sombre"></button>
-            <div class="relative inline-block text-left">
-                <select id="lang-selector" onchange="changeLanguage(this.value)" class="bg-transparent text-xs border border-[#E5E5E7] text-[#555555] rounded-sm py-1 px-2 focus:outline-none focus:border-[#004B23]">
-                    <option value="fr" <?= TranslationService::getLang() === 'fr' ? 'selected' : ''; ?>>FR</option>
-                    <option value="en" <?= TranslationService::getLang() === 'en' ? 'selected' : ''; ?>>EN</option>
-                </select>
-            </div>
-            <a href="/logout.php" class="text-xs uppercase tracking-wider text-[#D32F2F] hover:underline">Déconnexion</a>
+          <?php endforeach; ?>
         </div>
-    </header>
+        <?php if (count($awaitingCerts) > 5): ?><p class="note" style="margin-top:.6rem"><?= $h($t('q_more', ['n' => count($awaitingCerts) - 5])) ?></p><?php endif; ?>
+      </section>
+      <?php endif; ?>
 
-    <!-- Workspace Dual-Column Layout -->
-    <div class="flex-grow flex flex-col lg:flex-row min-h-[calc(100vh-80px)] bg-[#FAF8F4]">
-        
-        <!-- Sidebar Navigation -->
-        <aside class="w-full lg:w-72 bg-[#092215] text-[#E0E7E3] border-r border-[#143d26] p-6 space-y-6 flex-shrink-0 flex flex-col justify-between" role="complementary">
-            <div class="space-y-6">
-                <div class="border-b border-[#143d26] pb-4">
-                    <span class="text-[10px] uppercase tracking-widest text-[#88a394] font-semibold block">Espace Promoteur</span>
-                    <h2 class="font-serif text-lg text-white font-medium mt-1">Gouvernance Académique</h2>
-                </div>
-                
-                <!-- Tab Controls -->
-                <nav class="space-y-1.5" aria-label="Navigation principale">
-                    <button onclick="switchDashboardTab('tab-overview')" data-tab-target="tab-overview" class="sidebar-tab-btn w-full flex items-center gap-3 px-4 py-3 rounded-sm text-left text-sm transition-all duration-200 bg-[#004B23] text-white font-semibold">
-                        <svg class="w-4 h-4" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24" aria-hidden="true" style="width:16px; height:16px;"><path stroke-linecap="round" stroke-linejoin="round" d="M4 6a2 2 0 012-2h2a2 2 0 012 2v4a2 2 0 01-2 2H6a2 2 0 01-2-2V6zM14 6a2 2 0 012-2h2a2 2 0 012 2v4a2 2 0 01-2 2h-2a2 2 0 01-2-2V6zM4 16a2 2 0 012-2h2a2 2 0 012 2v4a2 2 0 01-2 2H6a2 2 0 01-2-2v-4zM14 16a2 2 0 012-2h2a2 2 0 012 2v4a2 2 0 01-2 2h-2a2 2 0 01-2-2v-4z" /></svg>
-                        <span>Vue d'ensemble</span>
-                    </button>
-                    <button onclick="switchDashboardTab('tab-academy')" data-tab-target="tab-academy" class="sidebar-tab-btn w-full flex items-center gap-3 px-4 py-3 rounded-sm text-left text-sm transition-all duration-200 text-gray-300 hover:bg-[#143d26] hover:text-white">
-                        <svg class="w-4 h-4" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24" aria-hidden="true" style="width:16px; height:16px;"><path stroke-linecap="round" stroke-linejoin="round" d="M12 6.253v13m0-13C10.832 5.477 9.246 5 7.5 5S4.168 5.477 3 6.253v13C4.168 18.477 5.754 18 7.5 18s3.168.477 4.5 1.253m0-13C13.168 5.477 14.754 5 16.5 5c1.747 0 3.332.477 4.5 1.253v13C19.832 18.477 18.247 18 16.5 18c-1.746 0-3.332.477-4.5 1.253" /></svg>
-                        <span>Académie & Cours</span>
-                    </button>
-                    <button onclick="switchDashboardTab('tab-certificates')" data-tab-target="tab-certificates" class="sidebar-tab-btn w-full flex items-center gap-3 px-4 py-3 rounded-sm text-left text-sm transition-all duration-200 text-gray-300 hover:bg-[#143d26] hover:text-white">
-                        <svg class="w-4 h-4" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24" aria-hidden="true" style="width:16px; height:16px;"><path stroke-linecap="round" stroke-linejoin="round" d="M9 12l2 2 4-4M7.835 4.697a3.42 3.42 0 001.946-.806 3.42 3.42 0 014.438 0 3.42 3.42 0 001.946.806 3.42 3.42 0 013.138 3.138 3.42 3.42 0 00.806 1.946 3.42 3.42 0 010 4.438 3.42 3.42 0 00-.806 1.946 3.42 3.42 0 01-3.138 3.138 3.42 3.42 0 00-1.946.806 3.42 3.42 0 01-4.438 0 3.42 3.42 0 00-1.946-.806 3.42 3.42 0 01-3.138-3.138 3.42 3.42 0 00-.806-1.946 3.42 3.42 0 010-4.438 3.42 3.42 0 00.806-1.946 3.42 3.42 0 013.138-3.138z" /></svg>
-                        <span>Certifications</span>
-                    </button>
-                    <button onclick="switchDashboardTab('tab-community')" data-tab-target="tab-community" class="sidebar-tab-btn w-full flex items-center gap-3 px-4 py-3 rounded-sm text-left text-sm transition-all duration-200 text-gray-300 hover:bg-[#143d26] hover:text-white">
-                        <svg class="w-4 h-4" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24" aria-hidden="true" style="width:16px; height:16px;"><path stroke-linecap="round" stroke-linejoin="round" d="M17 20h5v-2a3 3 0 00-5.356-1.857M17 20H7m10 0v-2c0-.656-.126-1.283-.356-1.857M7 20H2v-2a3 3 0 015.356-1.857M7 20v-2c0-.656.126-1.283.356-1.857m0 0a5.002 5.002 0 019.288 0M15 7a3 3 0 11-6 0 3 3 0 016 0zm6 3a2 2 0 11-4 0 2 2 0 014 0zM7 10a2 2 0 11-4 0 2 2 0 014 0z" /></svg>
-                        <span>Communauté</span>
-                    </button>
-                    <button onclick="switchDashboardTab('tab-communications')" data-tab-target="tab-communications" class="sidebar-tab-btn w-full flex items-center gap-3 px-4 py-3 rounded-sm text-left text-sm transition-all duration-200 text-gray-300 hover:bg-[#143d26] hover:text-white">
-                        <svg class="w-4 h-4" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24" aria-hidden="true" style="width:16px; height:16px;"><path stroke-linecap="round" stroke-linejoin="round" d="M3 8l7.89 5.26a2 2 0 002.22 0L21 8M5 19h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v10a2 2 0 002 2z" /></svg>
-                        <span>Comms & Audit</span>
-                    </button>
-                </nav>
+      <?php if ($unverifiedUsers): ?>
+      <section class="q-group" aria-labelledby="q-u">
+        <header>
+          <div class="q-title"><span class="q-n"><?= count($unverifiedUsers) ?></span><h2 id="q-u"><?= count($unverifiedUsers) === 1 ? $t('q_unver1') : $t('q_unver') ?></h2></div>
+          <button type="button" class="link" data-goto="tab-people" data-fstatus="unverified"><?= $t('q_see_all') ?></button>
+        </header>
+        <p class="q-sub"><?= $t('q_unver_p') ?></p>
+        <div class="q-rows">
+          <?php foreach (array_slice($unverifiedUsers, 0, 4) as $uu): ?>
+            <div class="q-row">
+              <div class="q-who"><b><?= $h($uu['name']) ?></b><span><?= $h($uu['email']) ?> · <?= $h($t('since', ['d' => $fmtD($uu['created_at'])])) ?></span></div>
+              <?php if ($uu['role'] === 'student'): ?><div class="q-act"><button type="button" class="btn btn-ghost btn-sm" data-user-act="contact" data-id="<?= (int)$uu['id'] ?>" data-name="<?= $h($uu['name']) ?>"><?= $t('contact') ?></button></div><?php endif; ?>
             </div>
-            
-            <div class="border-t border-[#143d26] pt-4">
-                <div class="flex items-center gap-3 text-xs text-[#88a394]">
-                    <div class="w-2 h-2 rounded-full bg-green-500 animate-pulse"></div>
-                    <span>Système en production</span>
-                </div>
+          <?php endforeach; ?>
+        </div>
+        <?php if (count($unverifiedUsers) > 4): ?><p class="note" style="margin-top:.6rem"><?= $h($t('q_more', ['n' => count($unverifiedUsers) - 4])) ?></p><?php endif; ?>
+      </section>
+      <?php endif; ?>
+    </div>
+    <?php endif; ?>
+
+    <section class="pm-sec" aria-labelledby="tot-h">
+      <header><h2 id="tot-h"><?= $t('tot_h') ?></h2><p><?= $t('tot_p') ?></p></header>
+      <dl class="totals">
+        <div><dd class="num"><?= $kpiTotalStudents ?></dd><dt><?= $t('t_students') ?></dt></div>
+        <div><dd class="num"><?= $totalTeachersCount ?></dd><dt><?= $t('t_teachers') ?></dt></div>
+        <div><dd class="num"><?= $kpiTotalCourses ?></dd><dt><?= $t('t_courses') ?></dt></div>
+        <div><dd class="num"><?= $kpiEnrollments ?></dd><dt><?= $t('t_enroll') ?></dt></div>
+        <div><dd class="num"><?= $kpiTotalCerts ?></dd><dt><?= $t('t_certs') ?></dt></div>
+        <div><?php if ($kpiEnrollments > 0): ?><dd class="num"><?= round($kpiAvgProgress) ?><small>%</small></dd><?php else: ?><dd class="na"><?= $t('t_na') ?></dd><?php endif; ?><dt><?= $t('t_progress') ?></dt></div>
+        <div><?php if ($hasAttempts): ?><dd class="num"><?= round((float)$kpiPassRate) ?><small>%</small></dd><?php else: ?><dd class="na"><?= $t('t_na') ?></dd><?php endif; ?><dt><?= $t('t_pass') ?></dt></div>
+        <div><dd class="num"><?= $kpiNewsletterSubs ?></dd><dt><?= $t('t_subs') ?></dt></div>
+      </dl>
+    </section>
+  </section>
+
+  <!-- ============ GROWTH + INSIGHTS (v3) ============ -->
+  <?php require __DIR__ . '/panels/growth.php'; ?>
+  <?php require __DIR__ . '/panels/insights.php'; ?>
+
+  <!-- ============ PEOPLE ============ -->
+  <section id="tab-people" class="tab-content pm-panel" data-panel hidden>
+    <div class="pm-head">
+      <div><h1><?= $t('pe_h') ?></h1><p><?= $t('pe_p') ?></p></div>
+      <div class="pm-head-actions"><button type="button" class="btn btn-primary" data-open="user-modal"><?= $t('pe_create') ?></button></div>
+    </div>
+
+    <div class="toolbar">
+      <div class="search">
+        <?= $ico['search'] ?>
+        <input class="input" type="search" id="pe-q" placeholder="<?= $h($t('pe_search')) ?>" aria-label="<?= $h($t('pe_search')) ?>" autocomplete="off">
+      </div>
+      <div class="pills" role="group" aria-label="<?= $h($t('f_role')) ?>" id="pe-roles">
+        <button type="button" class="pill" data-role="all" aria-pressed="true"><?= $t('f_all') ?> <small><?= $cnt['all'] ?></small></button>
+        <button type="button" class="pill" data-role="teacher" aria-pressed="false"><?= $t('f_teacher') ?> <small><?= $cnt['teacher'] ?></small></button>
+        <button type="button" class="pill" data-role="student" aria-pressed="false"><?= $t('f_student') ?> <small><?= $cnt['student'] ?></small></button>
+        <button type="button" class="pill" data-role="promoter" aria-pressed="false"><?= $t('f_promoter') ?> <small><?= $cnt['promoter'] ?></small></button>
+      </div>
+      <select class="input" id="pe-status" aria-label="<?= $h($t('f_status')) ?>" style="width:auto;min-width:200px">
+        <option value="all"><?= $t('f_s_all') ?></option>
+        <option value="pending"><?= $t('s_pending') ?> (<?= $cnt['pending'] ?>)</option>
+        <option value="active"><?= $t('s_active') ?> (<?= $cnt['active'] ?>)</option>
+        <option value="suspended"><?= $t('s_suspended') ?> (<?= $cnt['suspended'] ?>)</option>
+        <option value="unverified"><?= $t('s_unver') ?> (<?= $cnt['unverified'] ?>)</option>
+      </select>
+    </div>
+
+    <div class="bulk" id="pe-bulk" hidden role="region" aria-live="polite">
+      <span><b id="pe-bulk-n">0</b> <?= $t('sel_n') ?></span>
+      <button type="button" class="btn btn-sm btn-ghost" data-bulk="approve"><?= $t('b_approve') ?></button>
+      <button type="button" class="btn btn-sm btn-ghost" data-bulk="suspend"><?= $t('b_suspend') ?></button>
+      <button type="button" class="btn btn-sm btn-ghost" data-bulk="reactivate"><?= $t('b_reactivate') ?></button>
+      <button type="button" class="btn btn-sm btn-ghost" data-bulk="delete" style="color:var(--danger)"><?= $t('b_delete') ?>…</button>
+      <span class="spacer"></span>
+      <button type="button" class="link" id="pe-bulk-clear"><?= $t('b_clear') ?></button>
+    </div>
+
+    <div class="tbl-wrap">
+      <table class="tbl" id="pe-table">
+        <thead><tr>
+          <th class="c-check"><input type="checkbox" id="pe-all" aria-label="<?= $h($t('th_select_all')) ?>"></th>
+          <th><?= $t('th_person') ?></th>
+          <th class="c-hide-sm"><?= $t('th_role') ?></th>
+          <th class="c-hide-sm"><?= $t('th_status') ?></th>
+          <th class="c-hide-sm"><?= $t('th_joined') ?></th>
+          <th class="c-act"><span class="sr"><?= $t('th_actions') ?></span></th>
+        </tr></thead>
+        <tbody id="pe-body">
+        <?php foreach ($allUsers as $u):
+            $isPending = $u['role'] === 'teacher' && !(int)$u['is_approved'];
+            $isActive = (int)$u['is_active'];
+            $isSelf = (int)$u['id'] === $myId;
+            $status = $isPending ? 'pending' : ($isActive ? 'active' : 'suspended');
+            $stAll = trim(($isPending ? 'pending ' : '') . (!$isActive ? 'suspended ' : '') . (($isActive && !$isPending) ? 'active ' : '') . (empty($u['email_verified_at']) ? 'unverified' : ''));
+            $acts = [];
+            if ($isPending) $acts[] = 'approve';
+            if ($u['role'] === 'student') $acts[] = 'contact';
+            if (!$isSelf) { $acts[] = $isActive ? 'suspend' : 'reactivate'; $acts[] = 'delete'; }
+        ?>
+          <tr data-user="<?= (int)$u['id'] ?>" data-role="<?= $h($u['role']) ?>" data-st="<?= $h($stAll) ?>" data-active="<?= $isActive ?>" data-pending="<?= $isPending ? 1 : 0 ?>" data-self="<?= $isSelf ? 1 : 0 ?>" data-q="<?= $h(mb_strtolower($u['name'] . ' ' . $u['email'])) ?>">
+            <td class="c-check"><?php if (!$isSelf): ?><input type="checkbox" class="pe-chk" value="<?= (int)$u['id'] ?>" aria-label="<?= $h($t('row_select', ['name' => $u['name']])) ?>"><?php endif; ?></td>
+            <td><span class="name"><?= $h($u['name']) ?><?= $isSelf ? ' <span class="muted" style="font-weight:500">(' . $t('you') . ')</span>' : '' ?></span><span class="sub"><?= $h($u['email']) ?><span class="role-inline"> · <?= $h($roleName[$u['role']] ?? $u['role']) ?></span></span><span class="st-inline"><?= pm_chips($u, $t) ?></span></td>
+            <td class="c-hide-sm"><?= $h($roleName[$u['role']] ?? $u['role']) ?></td>
+            <td class="c-hide-sm"><?= pm_chips($u, $t) ?></td>
+            <td class="c-hide-sm c-nowrap num"><?= $h($fmtD($u['created_at'])) ?></td>
+            <td class="c-act"><?php if ($acts): ?><button type="button" class="kebab" aria-haspopup="menu" aria-expanded="false" aria-label="<?= $h($t('row_menu', ['name' => $u['name']])) ?>" data-menu="user" data-id="<?= (int)$u['id'] ?>" data-name="<?= $h($u['name']) ?>" data-acts="<?= $h(implode(',', $acts)) ?>"><?= $ico['dots'] ?></button><?php endif; ?></td>
+          </tr>
+        <?php endforeach; ?>
+        </tbody>
+      </table>
+      <p class="tbl-empty" id="pe-empty" hidden><?= $t('pe_none') ?></p>
+    </div>
+    <div class="tbl-foot"><span><?= $t('pe_count', ['n' => $cnt['all']]) ?></span><button type="button" class="btn btn-ghost btn-sm" id="pe-more" hidden><?= $t('pe_more') ?></button></div>
+  </section>
+
+  <!-- ============ ACADEMY ============ -->
+  <section id="tab-academy" class="tab-content pm-panel" data-panel hidden>
+    <div class="pm-head"><div><h1><?= $t('ac_h') ?></h1><p><?= $t('ac_p') ?></p></div></div>
+
+    <section class="pm-sec">
+      <header><h2><?= $t('mod_h') ?></h2></header>
+      <div class="compose" style="grid-template-columns:minmax(0,1.2fr) minmax(0,1fr)">
+        <div>
+          <?php if (empty($modules)): ?><p class="muted"><?= $t('mod_none') ?></p><?php endif; ?>
+          <?php foreach ($modules as $m): $n = $moduleCourseCount[(int)$m['id']] ?? 0; ?>
+            <div class="mod" data-module="<?= (int)$m['id'] ?>">
+              <div><b><?= $h($m['title']) ?></b><p><?= $h($m['description'] ?? '') ?></p><p class="num"><?= $n === 1 ? $t('mod_courses1') : $t('mod_courses', ['n' => $n]) ?></p></div>
+              <div class="st-row" style="flex-shrink:0">
+                <button type="button" class="btn btn-quiet btn-sm" data-mod-edit data-id="<?= (int)$m['id'] ?>" data-title="<?= $h($m['title']) ?>" data-desc="<?= $h($m['description'] ?? '') ?>"><?= $t('mod_edit') ?></button>
+                <button type="button" class="btn btn-quiet btn-sm" style="color:var(--danger)" data-mod-del data-id="<?= (int)$m['id'] ?>" data-name="<?= $h($m['title']) ?>" <?= $n > 0 ? 'disabled title="' . $h($t('mod_blocked')) . '"' : '' ?>><?= $t('mod_delete') ?></button>
+              </div>
             </div>
-        </aside>
+          <?php endforeach; ?>
+        </div>
+        <form class="block" action="/promoter/dashboard.php" method="POST">
+          <h3 style="margin-bottom:1rem"><?= $t('mod_new') ?></h3>
+          <input type="hidden" name="action" value="create_module">
+          <div class="field"><label for="mod-title"><?= $t('mod_title') ?></label><input class="input" id="mod-title" type="text" name="module_title" required placeholder="<?= $h($t('mod_title_ph')) ?>"></div>
+          <div class="field"><label for="mod-desc"><?= $t('mod_desc') ?></label><textarea class="input" id="mod-desc" name="module_desc" rows="3" placeholder="<?= $h($t('mod_desc_ph')) ?>"></textarea></div>
+          <button type="submit" class="btn btn-primary"><?= $t('mod_create') ?></button>
+        </form>
+      </div>
+    </section>
 
-        <!-- Main Workspace Area -->
-        <main class="flex-grow p-6 md:p-10 lg:p-12 space-y-12 max-w-7xl w-full mx-auto" role="main">
-            
-            <!-- Message de succès -->
-            <?php if (isset($_GET['success'])): ?>
-                <div class="p-4 bg-[#FFFFFF] border border-[#004B23] text-[#004B23] text-sm font-light fade-in">
-                    ✓ L'opération académique a été exécutée avec succès.
-                </div>
-            <?php endif; ?>
-
-            <!-- 1. VUE D'ENSEMBLE (OVERVIEW TAB) -->
-            <div id="tab-overview" class="tab-content space-y-12">
-                <!-- Greeting -->
-                <div>
-                    <h1 class="font-serif text-4xl font-light tracking-tight text-[#111111] mb-2">Bonjour, <?= htmlspecialchars($user['name']); ?></h1>
-                    <p class="text-sm font-light text-[#555555]">Supervisez et gouvernez les activités pédagogiques de StudyVibe.</p>
-                </div>
-
-                <!-- KPI Cards Grid -->
-                <div class="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-6 gap-4">
-                    <?php
-                    $kpisRaw = [
-                        ['label' => 'Apprenants',      'raw' => $kpiTotalStudents,            'suffix' => '',  'decimals' => 0],
-                        ['label' => 'Cours',            'raw' => $kpiTotalCourses,             'suffix' => '',  'decimals' => 0],
-                        ['label' => 'Inscriptions',     'raw' => $kpiEnrollments,              'suffix' => '',  'decimals' => 0],
-                        ['label' => 'Certifications',   'raw' => $kpiTotalCerts,               'suffix' => '',  'decimals' => 0],
-                        ['label' => 'Progression moy.', 'raw' => round($kpiAvgProgress, 1),   'suffix' => '%', 'decimals' => 1],
-                        ['label' => 'Taux de réussite', 'raw' => $kpiPassRate,                 'suffix' => '%', 'decimals' => 0],
-                    ];
-                    foreach ($kpisRaw as $kpi): ?>
-                        <div class="bg-[#FFFFFF] border border-[#E5E5E7] p-5 space-y-2 group hover:border-[#004B23] transition-colors rounded-sm shadow-sm">
-                            <div
-                                class="font-serif text-2xl font-light text-[#111111] tabular-nums"
-                                data-counter="<?= $kpi['raw']; ?>"
-                                data-suffix="<?= $kpi['suffix']; ?>"
-                                data-decimals="<?= $kpi['decimals']; ?>"
-                            >0<?= $kpi['suffix']; ?></div>
-                            <div class="text-[10px] uppercase tracking-wider text-[#888888] font-medium"><?= $kpi['label']; ?></div>
-                        </div>
+    <section class="pm-sec">
+      <header><h2><?= $t('cs_h') ?></h2><p><?= $t('cs_p') ?></p></header>
+      <div class="tbl-wrap">
+        <table class="tbl">
+          <thead><tr><th><?= $t('th_course') ?></th><th class="c-hide-sm"><?= $t('th_module') ?></th><th class="c-hide-sm"><?= $t('th_creator') ?></th><th><?= $t('th_teacher') ?></th><th class="c-hide-sm"><?= $t('th_key') ?></th></tr></thead>
+          <tbody>
+          <?php if (empty($courses)): ?><tr><td colspan="5" class="tbl-empty"><?= $t('cs_none') ?></td></tr><?php endif; ?>
+          <?php foreach ($courses as $c): ?>
+            <tr>
+              <td><span class="name"><?= $h($c['title']) ?></span><span class="sub role-inline" style="display:none"><?= $h($c['module_title']) ?></span></td>
+              <td class="c-hide-sm"><?= $h($c['module_title']) ?></td>
+              <td class="c-hide-sm"><?= !empty($c['creator_name']) ? $h($c['creator_name']) : '<span class="muted">—</span>' ?></td>
+              <td>
+                <div class="st-row" style="flex-wrap:nowrap;align-items:center">
+                  <select class="input cell-sel" id="teacher-select-<?= (int)$c['id'] ?>" data-current="<?= (int)($c['teacher_id'] ?? 0) ?>" aria-label="<?= $h($t('cs_teacher_for', ['c' => $c['title']])) ?>">
+                    <option value="" <?= empty($c['teacher_id']) ? 'selected' : '' ?>><?= $t('cs_unassigned') ?></option>
+                    <?php foreach ($teachers as $tc): ?>
+                      <option value="<?= (int)$tc['id'] ?>" <?= (int)($c['teacher_id'] ?? 0) === (int)$tc['id'] ? 'selected' : '' ?>><?= $h($tc['name']) ?></option>
                     <?php endforeach; ?>
+                  </select>
+                  <button type="button" class="btn btn-ghost btn-sm" data-assign="<?= (int)$c['id'] ?>" disabled><?= $t('cs_assign') ?></button>
+                  <?php if (!empty($c['teacher_id'])): ?><button type="button" class="btn btn-quiet btn-sm" data-unassign="<?= (int)$c['id'] ?>"><?= $t('cs_revoke') ?></button><?php endif; ?>
+                  <span id="status-<?= (int)$c['id'] ?>" class="note" hidden></span>
                 </div>
+              </td>
+              <td class="c-hide-sm num"><?= $c['enrollment_key'] ? $h($c['enrollment_key']) : '<span class="muted">' . $t('cs_open') . '</span>' ?></td>
+            </tr>
+          <?php endforeach; ?>
+          </tbody>
+        </table>
+      </div>
+    </section>
+  </section>
 
-                <!-- Strategic Audit Section -->
-                <div class="border border-[#E5E5E7] bg-[#FFFFFF] p-8 space-y-6 rounded-sm shadow-sm">
-                    <div class="flex flex-col md:flex-row md:items-end md:justify-between gap-4">
-                        <div class="space-y-2">
-                            <div class="flex items-center gap-2">
-                                <span class="bg-[#004B23]/10 text-[#004B23] text-[10px] font-semibold uppercase tracking-wider px-2 py-0.5 rounded-sm">IA Intégrée</span>
-                                <h2 class="font-serif text-2xl font-light text-[#111111]">Audit Académique Strategique</h2>
-                            </div>
-                            <p class="text-sm text-[#555555] font-light max-w-2xl">
-                                Obtenez un rapport d'évaluation pédagogique de vos cursus rédigé en temps réel par notre intelligence artificielle.
-                            </p>
-                        </div>
-                        <button type="button" onclick="runStrategicAudit()" id="audit-btn"
-                           class="px-5 py-2.5 bg-[#111111] text-[#FFFFFF] text-xs font-semibold uppercase tracking-wider hover:bg-[#004B23] transition-colors rounded-sm flex-shrink-0 text-center">
-                            Générer le rapport
-                        </button>
-                    </div>
+  <!-- ============ LIVE EVALUATIONS ============ -->
+  <section id="tab-live" class="tab-content pm-panel" data-panel hidden>
+    <div class="pm-head"><div><h1><?= $t('lv_h') ?></h1><p><?= $t('lv_p') ?></p></div></div>
 
-                    <!-- Audit Loading -->
-                    <div id="audit-loading" class="hidden flex flex-col items-center justify-center py-12 space-y-3 border-t border-[#E5E5E7] border-dashed">
-                        <div class="w-8 h-8 border-2 border-[#111111] border-t-transparent rounded-full animate-spin"></div>
-                        <p class="text-xs font-mono uppercase tracking-widest text-[#555555]">Audit en cours de rédaction par l'IA...</p>
-                    </div>
+    <dl class="totals" style="grid-template-columns:repeat(3,minmax(0,1fr))">
+      <div><dd class="num"><?= $totalEvaluatedCount ?></dd><dt><?= $t('lv_evaluated') ?></dt></div>
+      <div><?php if ($totalEvaluatedCount): ?><dd class="num"><?= round($overallAvgScore, 1) ?><small>%</small></dd><?php else: ?><dd class="na">—</dd><?php endif; ?><dt><?= $t('lv_avg') ?></dt></div>
+      <div><?php if ($totalEvaluatedCount): ?><dd class="num"><?= round($overallSuccessRate, 1) ?><small>%</small></dd><?php else: ?><dd class="na">—</dd><?php endif; ?><dt><?= $t('lv_rate') ?></dt></div>
+    </dl>
 
-                    <!-- Audit Result -->
-                    <div id="audit-result-container" class="hidden border-t border-[#E5E5E7] pt-6 space-y-4">
-                        <div class="flex justify-between items-center">
-                            <span class="text-[10px] font-mono uppercase tracking-widest text-[#888888]">Rapport généré par l'IA Gemini</span>
-                            <button type="button" onclick="window.print()" class="text-xs uppercase tracking-wider text-[#555555] hover:underline font-semibold">
-                                Imprimer le rapport
-                            </button>
-                        </div>
-                        <div id="audit-text" class="p-6 bg-[var(--sv-cream-light)] border border-[#D5D0C8] text-sm text-[#111111] leading-relaxed whitespace-pre-line font-light rounded-sm">
-                            <!-- Rempli par JS -->
-                        </div>
-                    </div>
-                </div>
+    <?php if ($totalEvaluatedCount): ?>
+    <section class="pm-sec">
+      <header><h2><?= $t('lv_dist') ?></h2><p><?= $t('lv_dist_p') ?></p></header>
+      <div class="bars" role="img" aria-label="<?= $h($t('lv_dist')) ?>">
+        <?php $bl = ['0–20', '21–40', '41–60', '61–80', '81–100']; foreach ($buckets as $i => $v): ?>
+          <div class="bar"><b><?= $v ?></b><i style="height:<?= max(2, round($v / $maxBucket * 100)) ?>%"></i><span><?= $bl[$i] ?> %</span></div>
+        <?php endforeach; ?>
+      </div>
+    </section>
+    <?php endif; ?>
 
-                <!-- API Key Rest -->
-                <div class="border border-[#E5E5E7] bg-[#FFFFFF] p-8 space-y-4 rounded-sm shadow-sm">
-                    <h2 class="font-serif text-2xl font-light">Accès API REST Externe</h2>
-                    <p class="text-sm text-[#555555] font-light max-w-xl">Générez une clé d'accès sécurisée pour interfacer vos applications mobiles ou outils tiers avec StudyVibe LMS.</p>
-                    <button onclick="createApiKey()" class="px-5 py-2.5 bg-[#111111] text-white text-xs font-semibold uppercase tracking-wider hover:bg-[#004B23] transition-colors rounded-sm">
-                        Générer une clé API
-                    </button>
-                    <div id="api-key-result" class="hidden p-4 border border-[#004B23] text-xs font-mono rounded-sm"></div>
-                </div>
+    <section class="pm-sec">
+      <header><h2><?= $t('lv_sessions') ?></h2></header>
+      <div class="tbl-wrap">
+        <table class="tbl">
+          <thead><tr><th><?= $t('th_session') ?></th><th class="c-hide-sm"><?= $t('th_lteacher') ?></th><th><?= $t('th_status') ?></th><th class="c-hide-sm"><?= $t('th_regs') ?></th><th class="c-hide-sm"><?= $t('th_avg') ?></th><th class="c-hide-sm"><?= $t('th_when') ?></th><th class="c-act"><span class="sr"><?= $t('th_actions') ?></span></th></tr></thead>
+          <tbody>
+          <?php if (empty($liveSessions)): ?><tr><td colspan="7" class="tbl-empty"><?= $t('lv_none') ?></td></tr><?php endif; ?>
+          <?php foreach ($liveSessions as $s):
+              $stKey = in_array($s['status'], ['lobby', 'active', 'finished'], true) ? $s['status'] : 'draft';
+              $stCls = $stKey === 'active' ? 'ok' : ($stKey === 'lobby' ? 'wait' : ($stKey === 'finished' ? '' : 'hollow'));
+          ?>
+            <tr>
+              <td><span class="name"><?= $h($s['title']) ?></span><span class="sub"><?= $h($s['course_title']) ?> · <?= $t('lv_code') ?> <?= $h($s['session_code']) ?></span></td>
+              <td class="c-hide-sm"><?= $h($s['teacher_name']) ?></td>
+              <td><span class="st <?= $stCls ?>"><?= $t('lv_status_' . $stKey) ?></span></td>
+              <td class="c-hide-sm num"><?= (int)$s['registered_count'] ?> / <?= (int)$s['evaluated_count'] ?></td>
+              <td class="c-hide-sm num"><?= (int)$s['evaluated_count'] > 0 ? round((float)$s['avg_score'], 1) . ' %' : '—' ?></td>
+              <td class="c-hide-sm num" style="font-size:.88rem"><?= $t('lv_start') ?> <?= $h($fmtDT($s['start_time'])) ?><br><?= $t('lv_end') ?> <?= $h($fmtDT($s['end_time'])) ?></td>
+              <td class="c-act"><button type="button" class="kebab" aria-haspopup="menu" aria-expanded="false" aria-label="<?= $h($t('row_menu', ['name' => $s['title']])) ?>" data-menu="session" data-id="<?= (int)$s['id'] ?>" data-name="<?= $h($s['title']) ?>" data-start="<?= $h(date('Y-m-d\TH:i', strtotime($s['start_time']))) ?>" data-end="<?= $h(date('Y-m-d\TH:i', strtotime($s['end_time']))) ?>" data-acts="postpone,cancel_session"><?= $ico['dots'] ?></button></td>
+            </tr>
+          <?php endforeach; ?>
+          </tbody>
+        </table>
+      </div>
+    </section>
+  </section>
 
-                <!-- Global Excel Exports -->
-                <div class="border border-[#E5E5E7] bg-[#FFFFFF] p-8 space-y-6 rounded-sm shadow-sm">
-                    <div class="flex flex-col md:flex-row md:items-end md:justify-between gap-4">
-                        <div class="space-y-2">
-                            <h2 class="font-serif text-2xl font-light text-[#111111]">Exports Excel Globaux</h2>
-                            <p class="text-sm text-[#555555] font-light max-w-2xl">
-                                Téléchargez l'intégralité des tables et métriques au format Excel multi-feuilles.
-                            </p>
-                        </div>
-                        <a href="/promoter/export-excel.php?type=all"
-                           class="px-5 py-2.5 bg-[#004B23] text-[#FFFFFF] text-xs font-semibold uppercase tracking-wider hover:bg-[#111111] transition-colors rounded-sm flex-shrink-0 text-center">
-                            ⬇ Export Excel complet (9 feuilles)
-                        </a>
-                    </div>
-                </div>
+  <!-- ============ CERTIFICATES ============ -->
+  <section id="tab-certificates" class="tab-content pm-panel" data-panel hidden>
+    <div class="pm-head"><div><h1><?= $t('ce_h') ?></h1><p><?= $t('ce_p') ?></p></div></div>
+
+    <section class="pm-sec">
+      <header><h2><?= $t('ce_wait_h') ?></h2></header>
+      <?php if (!$awaitingCerts): ?>
+        <p class="muted"><?= $t('ce_wait_none') ?></p>
+      <?php else: ?>
+        <div class="q-rows" style="border-top:1px solid var(--line-2)">
+          <?php foreach ($awaitingCerts as $ac): ?>
+            <div class="q-row">
+              <div class="q-who"><b><?= $h($ac['name']) ?> · <?= $h($ac['title']) ?></b><span><?= $h($ac['email']) ?> · <?= $h($t('passed_on', ['s' => rtrim(rtrim(number_format((float)$ac['score'], 1, '.', ''), '0'), '.'), 'd' => $fmtD($ac['at'])])) ?></span></div>
+              <div class="q-act"><button type="button" class="btn btn-primary btn-sm" data-issue data-student="<?= (int)$ac['student_id'] ?>" data-course="<?= (int)$ac['course_id'] ?>" data-name="<?= $h($ac['name']) ?>" data-ctitle="<?= $h($ac['title']) ?>"><?= $t('issue') ?></button></div>
             </div>
-
-            <!-- 2. ACADÉMIE & COURS (ACADEMY TAB) -->
-            <div id="tab-academy" class="tab-content space-y-12 hidden">
-                <div>
-                    <h1 class="font-serif text-4xl font-light tracking-tight text-[#111111] mb-2">Ingénierie Pédagogique</h1>
-                    <p class="text-sm font-light text-[#555555]">Gérez la structure des modules de formation et attribuez les cours au corps enseignant.</p>
-                </div>
-
-                <!-- Structurer un Module -->
-                <div class="border border-[#E5E5E7] bg-[#FFFFFF] p-8 space-y-6 rounded-sm shadow-sm max-w-3xl">
-                    <h2 class="font-serif text-2xl font-light text-[#111111]">Créer un Nouveau Module Académique</h2>
-                    <p class="text-xs text-[#555555] font-light">Un module est un ensemble cohérent de cours ouvrant droit à une certification officielle une fois validé.</p>
-                    <form action="/promoter/dashboard.php" method="POST" class="space-y-4">
-                        <input type="hidden" name="action" value="create_module">
-                        <div>
-                            <label class="block text-xs font-semibold uppercase tracking-wider text-[#555555] mb-2">Titre du Module</label>
-                            <input type="text" name="module_title" required placeholder="ex: Algorithmique & Structures de Données"
-                                class="w-full px-4 py-2.5 bg-[#F5F5F7] border border-[#E5E5E7] text-sm focus:outline-none focus:border-[#004B23] focus:bg-[#FFFFFF] transition-all duration-300 rounded-sm">
-                        </div>
-                        <div>
-                            <label class="block text-xs font-semibold uppercase tracking-wider text-[#555555] mb-2">Description</label>
-                            <textarea name="module_desc" rows="3" placeholder="Présentation succincte des objectifs de ce module..."
-                                class="w-full px-4 py-2.5 bg-[#F5F5F7] border border-[#E5E5E7] text-sm focus:outline-none focus:border-[#004B23] focus:bg-[#FFFFFF] transition-all duration-300 rounded-sm"></textarea>
-                        </div>
-                        <button type="submit" class="px-6 py-2.5 bg-[#111111] text-[#FFFFFF] text-xs font-semibold uppercase tracking-widest hover:bg-[#004B23] transition-all duration-300 rounded-sm">
-                            Créer le Module
-                        </button>
-                    </form>
-                </div>
-
-                <!-- Course Assignment Table -->
-                <div class="border border-[#E5E5E7] bg-[#FFFFFF] p-8 space-y-6 rounded-sm shadow-sm">
-                    <h2 class="font-serif text-2xl font-light text-[#111111]">Catalogue des Cours & Assignation Enseignant</h2>
-                    <p class="text-sm text-[#555555] font-light">Attribuez un enseignant titulaire à chaque cours de la plateforme.</p>
-
-                    <div class="overflow-x-auto">
-                        <table class="w-full text-left border-collapse">
-                            <thead>
-                                <tr class="border-b border-[#111111] text-xs uppercase tracking-wider text-[#555555]">
-                                    <th class="pb-4 font-semibold">Cours</th>
-                                    <th class="pb-4 font-semibold">Module d'rattachement</th>
-                                    <th class="pb-4 font-semibold">Créateur</th>
-                                    <th class="pb-4 font-semibold">Titulaire Assigné</th>
-                                    <th class="pb-4 font-semibold">Clé d'inscription</th>
-                                    <th class="pb-4 font-semibold text-right">Actions</th>
-                                </tr>
-                            </thead>
-                            <tbody class="divide-y divide-[#E5E5E7] text-sm font-light">
-                                <?php if (empty($courses)): ?>
-                                    <tr><td colspan="6" class="py-8 text-center italic text-[#888888]">Aucun cours disponible.</td></tr>
-                                <?php endif; ?>
-                                <?php foreach ($courses as $c): ?>
-                                    <tr class="hover:bg-[#FAF8F4]/80 transition-colors">
-                                        <td class="py-4">
-                                            <span class="font-medium text-[#111111]"><?= htmlspecialchars($c['title']); ?></span>
-                                        </td>
-                                        <td class="py-4 text-[#555555]">
-                                            <?= htmlspecialchars($c['module_title']); ?>
-                                        </td>
-                                        <td class="py-4 text-[#555555]">
-                                            <?= !empty($c['creator_name']) ? htmlspecialchars($c['creator_name']) : '<span class="italic text-[#888888]">—</span>'; ?>
-                                        </td>
-                                        <td class="py-4">
-                                            <select id="teacher-select-<?= $c['id']; ?>"
-                                                class="px-2 py-1 bg-[#F5F5F7] border border-[#E5E5E7] text-xs focus:outline-none focus:border-[#004B23] rounded-sm">
-                                                <option value="" <?= empty($c['teacher_id']) ? 'selected' : ''; ?>>— Non assigné —</option>
-                                                <?php foreach ($teachers as $t): ?>
-                                                    <option value="<?= $t['id']; ?>" <?= (int)($c['teacher_id'] ?? 0) === (int)$t['id'] ? 'selected' : ''; ?>>
-                                                        <?= htmlspecialchars($t['name']); ?>
-                                                    </option>
-                                                <?php endforeach; ?>
-                                            </select>
-                                        </td>
-                                        <td class="py-4 font-mono text-xs">
-                                            <?= $c['enrollment_key'] ? htmlspecialchars($c['enrollment_key']) : '<span class="text-[#888888] italic">Libre</span>'; ?>
-                                        </td>
-                                        <td class="py-4 text-right space-x-2 whitespace-nowrap">
-                                            <button type="button" onclick="assignTeacher(<?= $c['id']; ?>)"
-                                                class="px-3 py-1.5 text-[10px] font-semibold uppercase tracking-wider bg-[#111111] text-white hover:bg-[#004B23] rounded-sm transition-colors">
-                                                Assigner
-                                            </button>
-                                            <?php if (!empty($c['teacher_id'])): ?>
-                                            <button type="button" onclick="revokeTeacher(<?= $c['id']; ?>)"
-                                                class="px-3 py-1.5 text-[10px] font-semibold uppercase tracking-wider border border-[#E5E5E7] hover:border-[#D32F2F] hover:text-[#D32F2F] rounded-sm transition-colors">
-                                                Révoquer
-                                            </button>
-                                            <?php endif; ?>
-                                            <span id="status-<?= $c['id']; ?>" class="text-xs text-[#004B23] font-medium hidden"></span>
-                                        </td>
-                                    </tr>
-                                <?php endforeach; ?>
-                            </tbody>
-                        </table>
-                    </div>
-                </div>
-            </div>
-
-            <!-- 3. CERTIFICATIONS (CERTIFICATIONS TAB) -->
-            <div id="tab-certificates" class="tab-content space-y-12 hidden">
-                <div>
-                    <h1 class="font-serif text-4xl font-light tracking-tight text-[#111111] mb-2">Registre des Certifications</h1>
-                    <p class="text-sm font-light text-[#555555]">Supervisez les diplômes octroyés automatiquement ou délivrez manuellement de nouvelles attestations.</p>
-                </div>
-
-                <!-- Manual Issuance Form -->
-                <div class="border border-[#E5E5E7] bg-[#FFFFFF] p-8 space-y-6 rounded-sm shadow-sm max-w-3xl">
-                    <h2 class="font-serif text-2xl font-light text-[#111111]">Délivrance Exceptionnelle de Certificat</h2>
-                    <p class="text-xs text-[#555555] font-light">Permet de valider manuellement un module d'enseignement pour un étudiant sans passer par le processus d'évaluation standard.</p>
-                    <form id="manual-cert-form" class="grid grid-cols-1 md:grid-cols-3 gap-4 items-end">
-                        <div>
-                            <label class="block text-xs text-[#888] mb-1.5">Étudiant bénéficiaire</label>
-                            <select name="student_id" required class="w-full px-3 py-2 bg-[#F5F5F7] border border-[#E5E5E7] text-sm rounded-sm">
-                                <option value="">Choisir…</option>
-                                <?php foreach ($students as $s): ?>
-                                    <option value="<?= $s['id']; ?>"><?= htmlspecialchars($s['name']); ?></option>
-                                <?php endforeach; ?>
-                            </select>
-                        </div>
-                        <div>
-                            <label class="block text-xs text-[#888] mb-1.5">Cours validé</label>
-                            <select name="course_id" required class="w-full px-3 py-2 bg-[#F5F5F7] border border-[#E5E5E7] text-sm rounded-sm">
-                                <option value="">Choisir…</option>
-                                <?php foreach ($courses as $c): ?>
-                                    <option value="<?= $c['id']; ?>"><?= htmlspecialchars($c['title']); ?></option>
-                                <?php endforeach; ?>
-                            </select>
-                        </div>
-
-                        <button type="submit" class="px-5 py-2 bg-[#111111] text-white text-xs font-semibold uppercase tracking-wider hover:bg-[#004B23] rounded-sm h-[38px] transition-colors">
-                            Délivrer le certificat
-                        </button>
-                    </form>
-                </div>
-
-                <!-- Certifications Table Registry -->
-                <div class="border border-[#E5E5E7] bg-[#FFFFFF] p-8 space-y-6 rounded-sm shadow-sm">
-                    <div class="flex justify-between items-center border-b border-gray-100 pb-4">
-                        <h2 class="font-serif text-2xl font-light text-[#111111]">Registre Officiel des Certificats</h2>
-                        <a href="/promoter/export-excel.php?type=certifications" class="text-xs uppercase tracking-wider text-[#004B23] hover:underline font-semibold flex items-center gap-1">
-                            <span>Exporter au format Excel</span>
-                        </a>
-                    </div>
-
-                    <div class="overflow-x-auto">
-                        <table class="w-full text-left border-collapse">
-                            <thead>
-                                <tr class="border-b border-[#111111] text-xs uppercase tracking-wider text-[#555555]">
-                                    <th class="pb-4 font-semibold">Étudiant</th>
-                                    <th class="pb-4 font-semibold">Cours Validé</th>
-                                    <th class="pb-4 font-semibold">Enseignant</th>
-                                    <th class="pb-4 font-semibold">Origine</th>
-                                    <th class="pb-4 font-semibold">Code Unique</th>
-                                    <th class="pb-4 font-semibold">Date de Délivrance</th>
-                                    <th class="pb-4 font-semibold text-right">Actions</th>
-                                </tr>
-                            </thead>
-                            <tbody class="divide-y divide-[#E5E5E7] text-sm font-light">
-                                <?php if (empty($certificates)): ?>
-                                    <tr>
-                                        <td colspan="7" class="py-8 text-center text-[#888888] italic">
-                                            Aucun certificat n'a été délivré pour le moment.
-                                        </td>
-                                    </tr>
-                                <?php else: ?>
-                                    <?php foreach ($certificates as $cert): ?>
-                                        <tr class="hover:bg-[#FAF8F4]/80 transition-colors">
-                                            <td class="py-4">
-                                                <span class="font-medium text-[#111111]"><?= htmlspecialchars($cert['student_name']); ?></span><br>
-                                                <span class="text-xs text-[#888888]"><?= htmlspecialchars($cert['student_email']); ?></span>
-                                            </td>
-                                            <td class="py-4 text-[#555555]">
-                                                <?= htmlspecialchars($cert['course_title'] ?? 'Inconnu'); ?>
-                                            </td>
-                                            <td class="py-4 text-xs text-[#555555]">
-                                                <?= htmlspecialchars($cert['teacher_name'] ?? 'Aucun'); ?>
-                                            </td>
-                                            <td class="py-4 text-xs">
-                                                <?php if ($cert['manual_issue']): ?>
-                                                    <span class="px-2 py-0.5 bg-[#FFF8E1] text-[#5D4037] border border-[#FFE082] rounded-sm font-medium">Manuel (<?= htmlspecialchars($cert['issuer_name'] ?? 'Inconnu'); ?>)</span>
-                                                <?php else: ?>
-                                                    <span class="px-2 py-0.5 bg-[#E8F5E9] text-[#1B5E20] border border-[#A5D6A7] rounded-sm font-medium">Automatique</span>
-                                                <?php endif; ?>
-                                            </td>
-                                            <td class="py-4 font-mono text-xs font-semibold text-[#004B23]">
-                                                <a href="/certificate.php?code=<?= urlencode($cert['certificate_code']); ?>" target="_blank" class="hover:underline flex items-center gap-1">
-                                                    <?= htmlspecialchars($cert['certificate_code']); ?>
-                                                    <svg class="w-3.5 h-3.5 opacity-60" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg" style="width:14px; height:14px;"><path stroke-linecap="round" stroke-linejoin="round" d="M13.5 6H5.25A2.25 2.25 0 003 8.25v10.5A2.25 2.25 0 005.25 21h10.5A2.25 2.25 0 0018 18.75V10.5m-10.5 6L21 3m0 0h-5.25M21 3v5.25" /></svg>
-                                                </a>
-                                            </td>
-                                            <td class="py-4 text-[#888888]">
-                                                <?= date('d/m/Y H:i', strtotime($cert['issued_at'])); ?>
-                                            </td>
-                                            <td class="py-4 text-right">
-                                                <form action="/promoter/dashboard.php" method="POST" onsubmit="return confirm('Êtes-vous sûr de vouloir révoquer et supprimer définitivement ce certificat ?');" style="display:inline;">
-                                                    <input type="hidden" name="action" value="remove_certificate">
-                                                    <input type="hidden" name="certificate_id" value="<?= $cert['id']; ?>">
-                                                    <button type="submit" class="p-1.5 text-[#D32F2F] hover:bg-[#FFEBEE] rounded transition-colors" title="Révoquer le certificat">
-                                                        <svg class="w-4 h-4" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24" style="width:16px; height:16px;"><path stroke-linecap="round" stroke-linejoin="round" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" /></svg>
-                                                    </button>
-                                                </form>
-                                            </td>
-                                        </tr>
-                                    <?php endforeach; ?>
-                                <?php endif; ?>
-                            </tbody>
-                        </table>
-                    </div>
-                </div>
-            </div>
-
-            <!-- 4. COMMUNAUTÉ (COMMUNITY TAB) -->
-            <div id="tab-community" class="tab-content space-y-12 hidden">
-                <div class="flex flex-col md:flex-row justify-between md:items-end gap-4">
-                    <div>
-                        <h1 class="font-serif text-4xl font-light tracking-tight text-[#111111] mb-2">Gouvernance de la Communauté</h1>
-                        <p class="text-sm font-light text-[#555555]">Supervisez les enseignants, les étudiants et les sessions d'évaluation synchrone.</p>
-                    </div>
-                    <div class="flex gap-2">
-                        <button onclick="toggleModal('user-modal')"
-                            class="px-5 py-2.5 bg-[#111111] text-[#FFFFFF] text-xs font-semibold uppercase tracking-wider hover:bg-[#004B23] transition-colors rounded-sm shadow-sm">
-                            + Créer un Compte
-                        </button>
-                    </div>
-                </div>
-
-                <!-- Community Cards Grid -->
-                <div class="grid grid-cols-1 md:grid-cols-3 gap-8">
-                    <!-- Teachers Card -->
-                    <div class="bg-white border border-[#E5E5E7] p-8 flex flex-col justify-between hover:shadow-md transition-all duration-300 rounded-sm shadow-sm">
-                        <div class="space-y-4">
-                            <div class="w-12 h-12 bg-[#E8F5E9] text-[#004B23] flex items-center justify-center rounded-full">
-                                <svg class="w-6 h-6" fill="none" stroke="currentColor" stroke-width="1.5" viewBox="0 0 24 24" style="width:24px; height:24px;"><path stroke-linecap="round" stroke-linejoin="round" d="M19 20H5a2 2 0 01-2-2V6a2 2 0 012-2h10a2 2 0 012 2v1m2 4a2 2 0 00-2-2m-2 3h4m-4 3h4m-4 3h4m-4 3h4" /></svg>
-                            </div>
-                            <div>
-                                <h3 class="font-serif text-xl text-[#111111] font-medium">Corps Enseignant</h3>
-                                <p class="text-xs text-[#888888] mt-1">Gérez le statut d'approbation et l'activité des professeurs.</p>
-                            </div>
-                            <div class="flex gap-6 pt-2 text-xs">
-                                <div>
-                                    <span class="font-bold text-lg text-[#111111] block"><?= $totalTeachersCount; ?></span>
-                                    <span class="text-[#888888] block text-[10px] uppercase">Enseignants</span>
-                                </div>
-                                <div>
-                                    <span class="font-bold text-lg <?= $pendingTeachersCount > 0 ? 'text-amber-600 font-semibold' : 'text-[#888888]'; ?> block"><?= $pendingTeachersCount; ?></span>
-                                    <span class="text-[#888888] block text-[10px] uppercase">En attente</span>
-                                </div>
-                            </div>
-                        </div>
-                        <button onclick="toggleModal('teachers-list-modal')"
-                            class="w-full py-2.5 mt-6 bg-[#004B23] text-white text-xs font-semibold uppercase tracking-wider hover:bg-[#111111] transition-colors rounded-sm flex items-center justify-center gap-2">
-                            <span>Gérer les Enseignants</span>
-                        </button>
-                    </div>
-
-                    <!-- Students Card -->
-                    <div class="bg-white border border-[#E5E5E7] p-8 flex flex-col justify-between hover:shadow-md transition-all duration-300 rounded-sm shadow-sm">
-                        <div class="space-y-4">
-                            <div class="w-12 h-12 bg-[#F5F5F7] text-[#555555] flex items-center justify-center rounded-full">
-                                <svg class="w-6 h-6" fill="none" stroke="currentColor" stroke-width="1.5" viewBox="0 0 24 24" style="width:24px; height:24px;"><path stroke-linecap="round" stroke-linejoin="round" d="M12 4.354a4 4 0 110 5.292M15 21H3v-1a6 6 0 0112 0v1zm0 0h6v-1a6 6 0 00-9-5.197M13 7a4 4 0 11-8 0 4 4 0 018 0z" /></svg>
-                            </div>
-                            <div>
-                                <h3 class="font-serif text-xl text-[#111111] font-medium">Communauté Apprenante</h3>
-                                <p class="text-xs text-[#888888] mt-1">Supervisez et suspendez les comptes étudiants au besoin.</p>
-                            </div>
-                            <div class="flex gap-6 pt-2 text-xs">
-                                <div>
-                                    <span class="font-bold text-lg text-[#111111] block"><?= $totalStudentsCount; ?></span>
-                                    <span class="text-[#888888] block text-[10px] uppercase">Étudiants Inscrits</span>
-                                </div>
-                            </div>
-                        </div>
-                        <button onclick="toggleModal('students-list-modal')"
-                            class="w-full py-2.5 mt-6 bg-[#111111] text-white text-xs font-semibold uppercase tracking-wider hover:bg-[#004B23] transition-colors rounded-sm flex items-center justify-center gap-2">
-                            <span>Gérer les Apprenants</span>
-                        </button>
-                    </div>
-
-                    <!-- Tele-evaluations Card -->
-                    <div class="bg-white border border-[#E5E5E7] p-8 flex flex-col justify-between hover:shadow-md transition-all duration-300 rounded-sm shadow-sm">
-                        <div class="space-y-4">
-                            <div class="w-12 h-12 bg-[#E3F2FD] text-[#1E88E5] flex items-center justify-center rounded-full">
-                                <svg class="w-6 h-6" fill="none" stroke="currentColor" stroke-width="1.5" viewBox="0 0 24 24" style="width:24px; height:24px;"><path stroke-linecap="round" stroke-linejoin="round" d="M9 19v-6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2a2 2 0 002-2zm0 0V9a2 2 0 012-2h2a2 2 0 012 2v10m-6 0a2 2 0 002 2h2a2 2 0 002-2m0 0V5a2 2 0 012-2h2a2 2 0 012 2v14a2 2 0 01-2 2h-2a2 2 0 01-2-2z" /></svg>
-                            </div>
-                            <div>
-                                <h3 class="font-serif text-xl text-[#111111] font-medium">Téléévaluations</h3>
-                                <p class="text-xs text-[#888888] mt-1">Supervisez les sessions d'évaluations collectives synchrones.</p>
-                            </div>
-                            <div class="flex gap-6 pt-2 text-xs">
-                                <div>
-                                    <span class="font-bold text-lg text-[#111111] block"><?= count($liveSessions); ?></span>
-                                    <span class="text-[#888888] block text-[10px] uppercase">Sessions</span>
-                                </div>
-                                <div>
-                                    <span class="font-bold text-lg text-[#111111] block"><?= $totalEvaluatedCount; ?></span>
-                                    <span class="text-[#888888] block text-[10px] uppercase">Évaluations</span>
-                                </div>
-                            </div>
-                        </div>
-                        <button onclick="toggleModal('tele-evaluations-modal')"
-                            class="w-full py-2.5 mt-6 bg-[#111111] text-white text-xs font-semibold uppercase tracking-wider hover:bg-[#004B23] transition-colors rounded-sm flex items-center justify-center gap-2">
-                            <span>Console de Supervision</span>
-                        </button>
-                    </div>
-                </div>
-            </div>
-
-            <!-- 5. COMMUNICATIONS & AUDIT (COMMS & AUDIT TAB) -->
-            <div id="tab-communications" class="tab-content space-y-12 hidden">
-                <div>
-                    <h1 class="font-serif text-4xl font-light tracking-tight text-[#111111] mb-2">Communications & Journalisation</h1>
-                    <p class="text-sm font-light text-[#555555]">Envoyez des messages de groupe et suivez les actions d'audit de sécurité.</p>
-                </div>
-
-                <!-- Newsletter Campaigns Builder -->
-                <div class="border border-[#E5E5E7] bg-[#FFFFFF] p-8 space-y-8 rounded-sm shadow-sm">
-                    <div class="flex justify-between items-center border-b border-gray-100 pb-4">
-                        <div>
-                            <h2 class="font-serif text-2xl font-light text-[#111111]">Envoyer une Newsletter</h2>
-                            <p class="text-xs text-[#888888] mt-1">
-                                <?php if ($smtpConfigured): ?>
-                                    <span class="text-[#004B23] font-semibold">Service d'expédition SMTP connecté ✓</span>
-                                <?php else: ?>
-                                    <span class="text-[#D32F2F]">SMTP déconnecté — modifiez .env pour activer les envois réels.</span>
-                                <?php endif; ?>
-                            </p>
-                        </div>
-                        <div class="text-right">
-                            <span class="font-serif text-2xl text-[#111111] font-semibold block"><?= $kpiNewsletterSubs; ?></span>
-                            <span class="text-[10px] uppercase tracking-wider text-[#888888]">Abonnés actifs</span>
-                        </div>
-                    </div>
-
-                    <div class="grid grid-cols-1 lg:grid-cols-2 gap-12">
-                        <form id="newsletter-form" class="space-y-4">
-                            <input type="hidden" name="csrf_token" value="<?= csrfToken(); ?>">
-                            <div>
-                                <label class="block text-xs font-semibold uppercase tracking-wider text-[#555555] mb-2">Audience</label>
-                                <select name="audience" class="w-full px-4 py-2.5 bg-[#F5F5F7] border border-[#E5E5E7] text-sm rounded-sm focus:outline-none focus:border-[#004B23]">
-                                    <option value="subscribers">Abonnés newsletter uniquement</option>
-                                    <option value="students">Tous les apprenants inscrits</option>
-                                    <option value="all">Abonnés + tous les apprenants</option>
-                                </select>
-                            </div>
-                            <div>
-                                <label class="block text-xs font-semibold uppercase tracking-wider text-[#555555] mb-2">Objet du message</label>
-                                <input type="text" name="subject" required placeholder="ex: Ouverture des inscriptions pour la session d'été"
-                                    class="w-full px-4 py-2.5 bg-white border border-[#E5E5E7] text-sm rounded-sm focus:outline-none focus:border-[#004B23]">
-                            </div>
-                            <div>
-                                <label class="block text-xs font-semibold uppercase tracking-wider text-[#555555] mb-2">Message (Format HTML accepté)</label>
-                                <textarea name="body_html" rows="6" required placeholder="Saisissez le contenu du mail..."
-                                    class="w-full px-4 py-2.5 bg-white border border-[#E5E5E7] text-sm rounded-sm focus:outline-none focus:border-[#004B23]"></textarea>
-                            </div>
-                            <div class="flex gap-2">
-                                <button type="submit" <?= $smtpConfigured ? '' : 'disabled'; ?>
-                                    class="px-6 py-2.5 bg-[#111111] text-[#FFFFFF] text-xs font-semibold uppercase tracking-widest hover:bg-[#004B23] transition-colors rounded-sm disabled:opacity-40">
-                                    Envoyer la newsletter
-                                </button>
-                                <button type="button" id="test-smtp-btn" <?= $smtpConfigured ? '' : 'disabled'; ?>
-                                    class="px-4 py-2.5 border border-[#E5E5E7] text-xs font-semibold uppercase tracking-widest rounded-sm disabled:opacity-40 transition-colors hover:bg-gray-50">
-                                    Tester SMTP
-                                </button>
-                            </div>
-                        </form>
-
-                        <div class="space-y-6">
-                            <h3 class="font-serif text-lg font-light text-gray-800">Abonnés récents</h3>
-                            <div class="overflow-x-auto max-h-48 overflow-y-auto border border-[#E5E5E7] rounded-sm">
-                                <table class="w-full text-left text-xs border-collapse">
-                                    <thead>
-                                        <tr class="bg-[#F5F5F7] text-gray-500 uppercase tracking-wider border-b border-[#E5E5E7]">
-                                            <th class="p-3">Email</th>
-                                            <th class="p-3">Abonné le</th>
-                                        </tr>
-                                    </thead>
-                                    <tbody class="divide-y divide-[#E5E5E7]">
-                                        <?php if (empty($newsletterSubscribers)): ?>
-                                            <tr><td colspan="2" class="p-4 text-center text-[#888] italic">Aucun abonné pour le moment.</td></tr>
-                                        <?php else: ?>
-                                            <?php foreach (array_slice($newsletterSubscribers, 0, 10) as $sub): ?>
-                                                <tr class="hover:bg-gray-50">
-                                                    <td class="p-3 font-medium text-gray-900"><?= htmlspecialchars($sub['email']); ?></td>
-                                                    <td class="p-3 font-mono text-gray-500"><?= date('d/m/Y', strtotime($sub['subscribed_at'])); ?></td>
-                                                </tr>
-                                            <?php endforeach; ?>
-                                        <?php endif; ?>
-                                    </tbody>
-                                </table>
-                            </div>
-                        </div>
-                    </div>
-                </div>
-
-                <!-- Send Course Enrollment Keys manually to all students -->
-                <div class="border border-[#E5E5E7] bg-[#FFFFFF] p-8 space-y-6 rounded-sm shadow-sm">
-                    <div class="border-b border-gray-100 pb-4">
-                        <h2 class="font-serif text-2xl font-light text-[#111111]">Diffusion des Clés d'Inscription aux Étudiants</h2>
-                        <p class="text-xs text-[#888888] mt-1">
-                            Envoyez manuellement un e-mail récapitulant toutes les clés d'inscription actives à l'ensemble des étudiants inscrits sur la plateforme.
-                        </p>
-                    </div>
-
-                    <div class="grid grid-cols-1 lg:grid-cols-2 gap-12">
-                        <div class="space-y-4">
-                            <p class="text-sm text-gray-600 font-light leading-relaxed">
-                                Cette fonctionnalité permet de renvoyer à tous les étudiants de StudyVibe les codes d'accès requis pour leurs cours. Les cours sans clé d'inscription (libres) ou non publiés ne seront pas listés.
-                            </p>
-                            <div class="flex items-center gap-4">
-                                <button type="button" id="send-keys-btn" onclick="broadcastEnrollmentKeys()"
-                                    class="px-6 py-2.5 bg-[#004B23] text-white text-xs font-semibold uppercase tracking-widest hover:bg-[#111111] transition-colors rounded-sm flex items-center gap-2">
-                                    <span>Diffuser les Clés d'Inscription</span>
-                                </button>
-                                <span id="keys-broadcast-status" class="text-xs font-medium text-gray-500 hidden"></span>
-                            </div>
-                        </div>
-
-                        <div class="space-y-4">
-                            <h3 class="font-serif text-lg font-light text-gray-800">Aperçu des cours & clés concernés</h3>
-                            <div class="overflow-x-auto max-h-48 overflow-y-auto border border-[#E5E5E7] rounded-sm">
-                                <table class="w-full text-left text-xs border-collapse">
-                                    <thead>
-                                        <tr class="bg-[#F5F5F7] text-gray-500 uppercase tracking-wider border-b border-[#E5E5E7]">
-                                            <th class="p-3">Cours</th>
-                                            <th class="p-3">Clé d'inscription</th>
-                                        </tr>
-                                    </thead>
-                                    <tbody class="divide-y divide-[#E5E5E7]">
-                                        <?php 
-                                        $keyedCourses = array_filter($courses, function($c) {
-                                            return !empty($c['enrollment_key']);
-                                        });
-                                        if (empty($keyedCourses)): ?>
-                                            <tr><td colspan="2" class="p-4 text-center text-[#888] italic">Aucun cours avec clé d'inscription actuellement.</td></tr>
-                                        <?php else: ?>
-                                            <?php foreach ($keyedCourses as $c): ?>
-                                                <tr class="hover:bg-gray-50">
-                                                    <td class="p-3 font-medium text-gray-900"><?= htmlspecialchars($c['title']); ?></td>
-                                                    <td class="p-3 font-mono text-[#004B23] font-semibold bg-gray-50/50"><?= htmlspecialchars($c['enrollment_key']); ?></td>
-                                                </tr>
-                                            <?php endforeach; ?>
-                                        <?php endif; ?>
-                                    </tbody>
-                                </table>
-                            </div>
-                        </div>
-                    </div>
-                </div>
-
-                <!-- Audit Logs Registry -->
-                <div class="border border-[#E5E5E7] bg-[#FFFFFF] p-8 space-y-6 rounded-sm shadow-sm">
-                    <div class="flex justify-between items-center border-b border-gray-100 pb-4">
-                        <h2 class="font-serif text-2xl font-light text-[#111111]">Journal d'Audit Stratégique</h2>
-                        <a href="/promoter/export-excel.php?type=audit_logs" class="text-xs uppercase tracking-wider text-[#004B23] hover:underline font-semibold">
-                            <span>Exporter l'Audit</span>
-                        </a>
-                    </div>
-                    <div class="overflow-x-auto max-h-[400px] overflow-y-auto border border-[#E5E5E7] rounded-sm">
-                        <table class="w-full text-left text-xs border-collapse">
-                            <thead>
-                                <tr class="bg-[#F5F5F7] text-gray-500 uppercase tracking-wider border-b border-[#E5E5E7]">
-                                    <th class="p-3">Date</th>
-                                    <th class="p-3">Auteur</th>
-                                    <th class="p-3">Action</th>
-                                    <th class="p-3">Détails</th>
-                                </tr>
-                            </thead>
-                            <tbody class="divide-y divide-[#E5E5E7]">
-                                <?php foreach ($auditLogs as $log): ?>
-                                    <tr class="hover:bg-gray-50/50">
-                                        <td class="p-3 font-mono text-[#888]"><?= date('d/m/Y H:i', strtotime($log['created_at'])); ?></td>
-                                        <td class="p-3 font-medium text-gray-900"><?= htmlspecialchars($log['user_name'] ?? '—'); ?></td>
-                                        <td class="p-3 font-semibold text-[#004B23]"><?= htmlspecialchars($log['action']); ?></td>
-                                        <td class="p-3 text-gray-600 font-light"><?= htmlspecialchars($log['details'] ?? ''); ?></td>
-                                    </tr>
-                                <?php endforeach; ?>
-                            </tbody>
-                        </table>
-                    </div>
-                </div>
-            </div>
-        </main>
-    </div>
-
-    <!-- Modal : Créer un Utilisateur -->
-    <div id="user-modal" class="hidden fixed inset-0 bg-black bg-opacity-40 backdrop-blur-sm z-50 flex items-center justify-center p-6">
-        <div class="bg-[#FFFFFF] p-8 max-w-md w-full border border-[#E5E5E7] space-y-6">
-            <h3 class="font-serif text-2xl font-light">Créer un Nouveau Compte</h3>
-
-            <div id="modal-error" class="hidden p-3 border border-[#D32F2F] text-[#D32F2F] text-xs font-medium"></div>
-
-            <form id="create-user-form" class="space-y-4">
-                <div>
-                    <label class="block text-xs font-semibold uppercase tracking-wider text-[#555555] mb-2">Nom Complet</label>
-                    <input type="text" name="name" required placeholder="ex: Dr. Isabelle Martin"
-                        class="w-full px-4 py-2 bg-[#F5F5F7] border border-[#E5E5E7] text-sm focus:outline-none focus:border-[#004B23] rounded-sm">
-                </div>
-                <div>
-                    <label class="block text-xs font-semibold uppercase tracking-wider text-[#555555] mb-2">Adresse Électronique</label>
-                    <input type="email" name="email" required placeholder="ex: isabelle@studyvibe.edu"
-                        class="w-full px-4 py-2 bg-[#F5F5F7] border border-[#E5E5E7] text-sm focus:outline-none focus:border-[#004B23] rounded-sm">
-                </div>
-                <div>
-                    <label class="block text-xs font-semibold uppercase tracking-wider text-[#555555] mb-2">Mot de passe initial</label>
-                    <input type="password" name="password" required minlength="6" placeholder="Min. 6 caractères"
-                        class="w-full px-4 py-2 bg-[#F5F5F7] border border-[#E5E5E7] text-sm focus:outline-none focus:border-[#004B23] rounded-sm">
-                </div>
-                <div>
-                    <label class="block text-xs font-semibold uppercase tracking-wider text-[#555555] mb-2">Rôle Institutionnel</label>
-                    <select name="role" required
-                        class="w-full px-4 py-2 bg-[#F5F5F7] border border-[#E5E5E7] text-sm focus:outline-none focus:border-[#004B23] rounded-sm">
-                        <option value="teacher">Enseignant</option>
-                        <option value="student">Apprenant</option>
-                        <option value="promoter">Promoteur (Co-Administrateur)</option>
-                    </select>
-                </div>
-                <div class="flex justify-end gap-3 pt-2">
-                    <button type="button" onclick="toggleModal('user-modal')"
-                        class="px-4 py-2 bg-[#F5F5F7] text-[#111111] text-xs font-semibold uppercase tracking-wider border border-[#E5E5E7] rounded-sm">
-                        Annuler
-                    </button>
-                    <button type="submit" id="create-user-btn"
-                        class="px-4 py-2 bg-[#111111] text-[#FFFFFF] text-xs font-semibold uppercase tracking-wider hover:bg-[#004B23] rounded-sm">
-                        Créer le Compte
-                    </button>
-                </div>
-            </form>
+          <?php endforeach; ?>
         </div>
-    </div>
+      <?php endif; ?>
+    </section>
 
-    <!-- Modal : Supervision des Téléévaluations -->
-    <div id="tele-evaluations-modal" class="hidden fixed inset-0 bg-black/50 backdrop-blur-sm z-50 flex items-start justify-center p-4 overflow-y-auto">
-        <div class="bg-white w-full max-w-6xl border border-[#E5E5E7] my-8 rounded-sm shadow-2xl overflow-hidden">
-            <!-- Header -->
-            <div class="flex justify-between items-center px-8 py-6 border-b border-[#E5E5E7] bg-[#F5F5F7]">
-                <div>
-                    <h3 class="font-serif text-2xl font-light text-[#111111]">Supervision des Téléévaluations</h3>
-                    <p class="text-xs text-[#888888] mt-1">Gérez le calendrier des séances de télé-évaluation et consultez les statistiques en temps réel.</p>
-                </div>
-                <button type="button" onclick="toggleModal('tele-evaluations-modal')" class="text-[#888888] hover:text-[#D32F2F] p-1">
-                    <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"/>
-                    </svg>
-                </button>
-            </div>
-
-            <div class="p-8 space-y-8 max-h-[80vh] overflow-y-auto bg-[#FAFAFA]">
-                <!-- Stats Overview & Chart -->
-                <div class="grid grid-cols-1 lg:grid-cols-3 gap-8">
-                    <!-- Metrics Column -->
-                    <div class="space-y-4 lg:col-span-1">
-                        <h4 class="text-xs font-semibold text-gray-500 uppercase tracking-wider">Indicateurs clés</h4>
-                        
-                        <!-- Metric 1: Total évalués -->
-                        <div class="bg-white border border-[#E5E5E7] p-5 rounded-sm flex items-center justify-between">
-                            <div>
-                                <span class="text-[10px] text-gray-400 uppercase tracking-wider block font-medium">Participants Évalués</span>
-                                <span class="text-3xl font-light text-gray-900 mt-1 block"><?= $totalEvaluatedCount ?></span>
-                            </div>
-                            <div class="w-10 h-10 bg-green-50 text-[#004B23] flex items-center justify-center rounded-full">
-                                <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M12 4.354a4 4 0 110 5.292M15 21H3v-1a6 6 0 0112 0v1zm0 0h6v-1a6 6 0 00-9-5.197M13 7a4 4 0 11-8 0 4 4 0 018 0z" />
-                                </svg>
-                            </div>
-                        </div>
-
-                        <!-- Metric 2: Moyenne générale -->
-                        <div class="bg-white border border-[#E5E5E7] p-5 rounded-sm flex items-center justify-between">
-                            <div>
-                                <span class="text-[10px] text-gray-400 uppercase tracking-wider block font-medium">Moyenne Générale</span>
-                                <span class="text-3xl font-light text-gray-900 mt-1 block"><?= round($overallAvgScore, 1) ?> %</span>
-                            </div>
-                            <div class="w-10 h-10 bg-blue-50 text-blue-600 flex items-center justify-center rounded-full">
-                                <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M9 19v-6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2a2 2 0 002-2zm0 0V9a2 2 0 012-2h2a2 2 0 012 2v10m-6 0a2 2 0 002 2h2a2 2 0 002-2m0 0V5a2 2 0 012-2h2a2 2 0 012 2v14a2 2 0 01-2 2h-2a2 2 0 01-2-2z" />
-                                </svg>
-                            </div>
-                        </div>
-
-                        <!-- Metric 3: Taux de réussite -->
-                        <div class="bg-white border border-[#E5E5E7] p-5 rounded-sm flex items-center justify-between">
-                            <div>
-                                <span class="text-[10px] text-gray-400 uppercase tracking-wider block font-medium">Taux de Réussite (≥50%)</span>
-                                <span class="text-3xl font-light text-gray-900 mt-1 block"><?= round($overallSuccessRate, 1) ?> %</span>
-                            </div>
-                            <div class="w-10 h-10 bg-purple-50 text-purple-600 flex items-center justify-center rounded-full">
-                                <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M9 12l2 2 4-4M7.835 4.697a3.42 3.42 0 001.946-.806 3.42 3.42 0 014.438 0 3.42 3.42 0 001.946.806 3.42 3.42 0 013.138 3.138 3.42 3.42 0 00.806 1.946 3.42 3.42 0 010 4.438 3.42 3.42 0 00-.806 1.946 3.42 3.42 0 01-3.138 3.138 3.42 3.42 0 00-1.946.806 3.42 3.42 0 01-4.438 0 3.42 3.42 0 00-1.946-.806 3.42 3.42 0 01-3.138-3.138 3.42 3.42 0 00-.806-1.946 3.42 3.42 0 010-4.438 3.42 3.42 0 00.806-1.946 3.42 3.42 0 013.138-3.138z" />
-                                </svg>
-                            </div>
-                        </div>
-                    </div>
-
-                    <!-- Score Distribution SVG Chart -->
-                    <div class="bg-white border border-[#E5E5E7] p-6 rounded-sm lg:col-span-2 flex flex-col justify-between">
-                        <div>
-                            <h4 class="text-xs font-semibold text-gray-500 uppercase tracking-wider mb-1">Distribution des notes</h4>
-                            <p class="text-[11px] text-gray-400">Répartition du nombre d'étudiants évalués par tranches de notes (en %)</p>
-                        </div>
-                        
-                        <div class="w-full h-48 mt-4 flex items-end justify-between relative px-2">
-                            <!-- Draw Y axis grid lines -->
-                            <div class="absolute inset-0 flex flex-col justify-between pointer-events-none border-b border-gray-100 pb-6">
-                                <div class="border-b border-dashed border-gray-100 w-full h-0"></div>
-                                <div class="border-b border-dashed border-gray-100 w-full h-0"></div>
-                                <div class="border-b border-dashed border-gray-100 w-full h-0"></div>
-                            </div>
-                            
-                            <?php 
-                            $labels = ['0-20%', '21-40%', '41-60%', '61-80%', '81-100%'];
-                            foreach ($buckets as $idx => $val):
-                                $heightPercent = ($val / $maxBucket) * 120; // Scale to max height
-                            ?>
-                                <div class="flex-grow flex flex-col items-center group relative z-10 mx-2">
-                                    <!-- Tooltip -->
-                                    <div class="absolute bottom-full mb-2 bg-[#111] text-white text-[10px] px-2 py-1 rounded opacity-0 group-hover:opacity-100 transition-opacity duration-200 pointer-events-none font-semibold">
-                                        <?= $val ?> participant(s)
-                                    </div>
-                                    <!-- Bar -->
-                                    <div class="w-full bg-[#EAF2EC] border border-[#004B23]/10 hover:bg-[#004B23] hover:border-[#004B23] transition-all duration-300 rounded-t-sm" style="height: <?= max(4, $heightPercent) ?>px;"></div>
-                                    <!-- Label -->
-                                    <span class="text-[10px] text-gray-500 mt-2 font-medium"><?= $labels[$idx] ?></span>
-                                </div>
-                            <?php endforeach; ?>
-                        </div>
-                    </div>
-                </div>
-
-                <!-- Live Sessions List -->
-                <div class="space-y-4">
-                    <h4 class="text-xs font-semibold text-gray-500 uppercase tracking-wider">Séances programmées & passées</h4>
-                    
-                    <div class="bg-white border border-[#E5E5E7] rounded-sm overflow-hidden">
-                        <table class="w-full text-left text-xs border-collapse">
-                            <thead>
-                                <tr class="bg-[#F5F5F7] text-gray-500 uppercase tracking-wider font-semibold border-b border-[#E5E5E7]">
-                                    <th class="p-4">Séance / Cours</th>
-                                    <th class="p-4">Enseignant</th>
-                                    <th class="p-4">Statut</th>
-                                    <th class="p-4">Inscrits / Évalués</th>
-                                    <th class="p-4">Moyenne</th>
-                                    <th class="p-4">Date & Heures</th>
-                                    <th class="p-4 text-right">Actions</th>
-                                </tr>
-                            </thead>
-                            <tbody class="divide-y divide-[#E5E5E7]">
-                                <?php if (empty($liveSessions)): ?>
-                                    <tr>
-                                        <td colspan="7" class="p-8 text-center text-gray-400 italic">Aucune séance de télé-évaluation n'est actuellement configurée.</td>
-                                    </tr>
-                                <?php else: ?>
-                                    <?php foreach ($liveSessions as $session): 
-                                        $statusColor = match($session['status']) {
-                                            'lobby' => 'bg-blue-100 text-blue-800 border-blue-200',
-                                            'active' => 'bg-green-100 text-green-800 border-green-200',
-                                            'finished' => 'bg-gray-100 text-gray-800 border-gray-200',
-                                            default => 'bg-yellow-100 text-yellow-800 border-yellow-200'
-                                        };
-                                        $statusText = match($session['status']) {
-                                            'lobby' => 'Lobby',
-                                            'active' => 'En cours',
-                                            'finished' => 'Terminé',
-                                            default => 'Brouillon'
-                                        };
-                                    ?>
-                                        <tr class="hover:bg-gray-50/50">
-                                            <td class="p-4">
-                                                <div class="font-semibold text-gray-900"><?= htmlspecialchars($session['title']) ?></div>
-                                                <div class="text-[10px] text-gray-400 mt-0.5">Code: <span class="font-mono bg-gray-100 px-1 py-0.5"><?= htmlspecialchars($session['session_code']) ?></span> | Cours: <?= htmlspecialchars($session['course_title']) ?></div>
-                                            </td>
-                                            <td class="p-4 text-gray-600"><?= htmlspecialchars($session['teacher_name']) ?></td>
-                                            <td class="p-4">
-                                                <span class="px-2 py-0.5 text-[10px] rounded-full border font-medium <?= $statusColor ?>"><?= $statusText ?></span>
-                                            </td>
-                                            <td class="p-4 text-gray-600 font-medium">
-                                                <?= $session['registered_count'] ?> inscrits / <?= $session['evaluated_count'] ?> évalués
-                                            </td>
-                                            <td class="p-4 text-gray-700 font-semibold"><?= round((float)$session['avg_score'], 1) ?> %</td>
-                                            <td class="p-4 text-gray-500 space-y-0.5">
-                                                <div>Début: <?= date('d/m/Y H:i', strtotime($session['start_time'])) ?></div>
-                                                <div>Fin: <?= date('d/m/Y H:i', strtotime($session['end_time'])) ?></div>
-                                            </td>
-                                            <td class="p-4 text-right">
-                                                <div class="flex items-center justify-end gap-2" id="session-actions-<?= $session['id'] ?>">
-                                                    <button onclick="showPostponeForm(<?= $session['id'] ?>)" class="px-2 py-1 text-[10px] font-semibold text-[#004B23] bg-green-50 hover:bg-[#EAF2EC] border border-green-200/50 rounded-sm">Reporter</button>
-                                                    
-                                                    <form action="" method="POST" onsubmit="return confirm('Êtes-vous sûr de vouloir supprimer/annuler définitivement cette séance ?');" class="inline">
-                                                        <input type="hidden" name="action" value="cancel_session">
-                                                        <input type="hidden" name="session_id" value="<?= $session['id'] ?>">
-                                                        <button type="submit" class="px-2 py-1 text-[10px] font-semibold text-red-600 bg-red-50 hover:bg-red-100 border border-red-200/50 rounded-sm">Annuler</button>
-                                                    </form>
-                                                </div>
-                                                
-                                                <form action="" method="POST" id="postpone-form-<?= $session['id'] ?>" class="hidden text-left mt-2 p-3 bg-[#F5F5F7] border border-[#E5E5E7] rounded-sm space-y-2 max-w-xs ml-auto">
-                                                    <input type="hidden" name="action" value="postpone_session">
-                                                    <input type="hidden" name="session_id" value="<?= $session['id'] ?>">
-                                                    <div>
-                                                        <label class="block text-[9px] uppercase tracking-wider text-gray-500 font-semibold mb-1">Date de début</label>
-                                                        <input type="datetime-local" name="start_time" required value="<?= date('Y-m-d\TH:i', strtotime($session['start_time'])) ?>" class="w-full px-2 py-1 bg-white border border-[#E5E5E7] text-[11px] focus:outline-none rounded-sm">
-                                                    </div>
-                                                    <div>
-                                                        <label class="block text-[9px] uppercase tracking-wider text-gray-500 font-semibold mb-1">Date de fin</label>
-                                                        <input type="datetime-local" name="end_time" required value="<?= date('Y-m-d\TH:i', strtotime($session['end_time'])) ?>" class="w-full px-2 py-1 bg-white border border-[#E5E5E7] text-[11px] focus:outline-none rounded-sm">
-                                                    </div>
-                                                    <div class="flex gap-2 justify-end">
-                                                        <button type="button" onclick="hidePostponeForm(<?= $session['id'] ?>)" class="px-2 py-1 text-[9px] font-semibold text-gray-500 border border-gray-300 bg-white rounded-sm">Retour</button>
-                                                        <button type="submit" class="px-2 py-1 text-[9px] font-semibold text-white bg-[#004B23] rounded-sm hover:bg-[#003d1c]">Enregistrer</button>
-                                                    </div>
-                                                </form>
-                                            </td>
-                                        </tr>
-                                    <?php endforeach; ?>
-                                <?php endif; ?>
-                            </tbody>
-                        </table>
-                    </div>
-                </div>
-            </div>
+    <section class="pm-sec">
+      <header><h2><?= $t('ce_manual_h') ?></h2><p><?= $t('ce_manual_p') ?></p></header>
+      <form id="manual-cert-form" class="block">
+        <div class="row3">
+          <div class="field"><label for="mc-student"><?= $t('ce_student') ?></label>
+            <select class="input" id="mc-student" name="student_id" required>
+              <option value=""><?= $t('ce_choose') ?></option>
+              <?php foreach ($students as $s): ?><option value="<?= (int)$s['id'] ?>"><?= $h($s['name']) ?></option><?php endforeach; ?>
+            </select></div>
+          <div class="field"><label for="mc-course"><?= $t('ce_course') ?></label>
+            <select class="input" id="mc-course" name="course_id" required>
+              <option value=""><?= $t('ce_choose') ?></option>
+              <?php foreach ($courses as $c): ?><option value="<?= (int)$c['id'] ?>"><?= $h($c['title']) ?></option><?php endforeach; ?>
+            </select></div>
+          <div class="field"><button type="submit" class="btn btn-primary" style="width:100%"><?= $t('ce_issue') ?></button></div>
         </div>
-    </div>
+      </form>
+    </section>
 
-    <!-- Modal : Liste des Enseignants (Modal Cards) -->
-    <div id="teachers-list-modal" class="hidden fixed inset-0 bg-black/50 backdrop-blur-sm z-50 flex items-start justify-center p-4 overflow-y-auto">
-        <div class="bg-white w-full max-w-5xl border border-[#E5E5E7] my-8 rounded-sm shadow-2xl">
-            <!-- Header -->
-            <div class="flex justify-between items-center px-8 py-6 border-b border-[#E5E5E7] bg-[#F5F5F7]">
-                <div>
-                    <h3 class="font-serif text-2xl font-light text-[#111111]">Membres du Corps Enseignant</h3>
-                    <p class="text-xs text-[#888888] mt-1">Validez les comptes des nouveaux professeurs et gérez les accès.</p>
-                </div>
-                <button type="button" onclick="toggleModal('teachers-list-modal')" class="text-[#888888] hover:text-[#D32F2F] p-1">
-                    <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"/>
-                    </svg>
-                </button>
-            </div>
+    <section class="pm-sec">
+      <header><h2><?= $t('ce_reg_h') ?> <span class="muted num" style="font-family:var(--font-body);font-size:1rem">(<?= count($certificates) ?>)</span></h2>
+        <a class="link" href="/promoter/export-excel.php?type=certifications"><?= $t('ce_export') ?></a></header>
+      <div class="toolbar"><div class="search"><?= $ico['search'] ?><input class="input" type="search" id="ce-q" placeholder="<?= $h($t('ce_search')) ?>" aria-label="<?= $h($t('ce_search')) ?>" autocomplete="off"></div></div>
+      <div class="tbl-wrap">
+        <table class="tbl" id="ce-table">
+          <thead><tr><th><?= $t('th_holder') ?></th><th><?= $t('th_course') ?></th><th class="c-hide-sm"><?= $t('th_origin') ?></th><th><?= $t('th_code') ?></th><th class="c-hide-sm"><?= $t('th_issued') ?></th><th class="c-act"><span class="sr"><?= $t('th_actions') ?></span></th></tr></thead>
+          <tbody id="ce-body">
+          <?php if (empty($certificates)): ?><tr><td colspan="6" class="tbl-empty"><?= $t('ce_none') ?></td></tr><?php endif; ?>
+          <?php foreach ($certificates as $cert): ?>
+            <tr data-q="<?= $h(mb_strtolower($cert['student_name'] . ' ' . $cert['student_email'] . ' ' . ($cert['course_title'] ?? '') . ' ' . $cert['certificate_code'])) ?>">
+              <td><span class="name"><?= $h($cert['student_name']) ?></span><span class="sub"><?= $h($cert['student_email']) ?></span></td>
+              <td><?= $h($cert['course_title'] ?? $t('ce_unknown')) ?><?php if (!empty($cert['teacher_name'])): ?><span class="sub"><?= $h($cert['teacher_name']) ?></span><?php endif; ?></td>
+              <td class="c-hide-sm"><?php if ($cert['manual_issue']): ?><span class="st wait"><?= $h($t('ce_manual_by', ['n' => $cert['issuer_name'] ?? '?'])) ?></span><?php else: ?><span class="st ok"><?= $t('ce_auto') ?></span><?php endif; ?></td>
+              <td class="c-nowrap"><a class="code" href="/certificate.php?code=<?= urlencode($cert['certificate_code']) ?>" target="_blank" rel="noopener"><?= $h($cert['certificate_code']) ?></a></td>
+              <td class="c-hide-sm c-nowrap num"><?= $h($fmtDT($cert['issued_at'])) ?></td>
+              <td class="c-act"><button type="button" class="kebab" aria-haspopup="menu" aria-expanded="false" aria-label="<?= $h($t('row_menu', ['name' => $cert['certificate_code']])) ?>" data-menu="cert" data-id="<?= (int)$cert['id'] ?>" data-code="<?= $h($cert['certificate_code']) ?>" data-name="<?= $h($cert['student_name']) ?>" data-acts="open,copy,revoke_cert"><?= $ico['dots'] ?></button></td>
+            </tr>
+          <?php endforeach; ?>
+          </tbody>
+        </table>
+        <p class="tbl-empty" id="ce-empty" hidden><?= $t('pe_none') ?></p>
+      </div>
+    </section>
+  </section>
 
-            <!-- Filtre de recherche rapide -->
-            <div class="px-8 py-4 bg-white border-b border-[#E5E5E7]">
-                <input type="text" oninput="filterTeachersCards(this.value)" placeholder="Rechercher un enseignant par nom ou email..."
-                    class="w-full px-4 py-2 bg-[#F5F5F7] border border-[#E5E5E7] text-xs focus:outline-none focus:border-[#004B23] rounded-sm">
-            </div>
+  <!-- ============ MESSAGES ============ -->
+  <section id="tab-communications" class="tab-content pm-panel" data-panel hidden>
+    <div class="pm-head"><div><h1><?= $t('ms_h') ?></h1><p><?= $t('ms_p') ?></p></div></div>
 
-            <!-- Liste des cartes -->
-            <div class="p-8 max-h-[60vh] overflow-y-auto bg-[#FAFAFA]" id="teachers-cards-container">
-                <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-                    <?php if (empty($teachers)): ?>
-                        <p class="text-sm italic text-[#888888] col-span-3 text-center py-8">Aucun enseignant inscrit.</p>
-                    <?php else: ?>
-                        <?php foreach ($teachers as $t): 
-                            $initials = strtoupper(substr($t['name'], 0, 2));
-                            $isApproved = (int)$t['is_approved'];
-                            $isActive = (int)$t['is_active'];
-                        ?>
-                            <div class="bg-white border border-[#E5E5E7] p-6 rounded-sm space-y-4 hover:shadow-md transition-shadow duration-300 teacher-card" 
-                                data-name="<?= htmlspecialchars(strtolower($t['name'])); ?>" 
-                                data-email="<?= htmlspecialchars(strtolower($t['email'])); ?>">
-                                
-                                <!-- Header carte -->
-                                <div class="flex items-center gap-3">
-                                    <div class="w-10 h-10 rounded-full bg-[#E8F5E9] text-[#004B23] flex items-center justify-center font-bold text-xs uppercase border border-[#004B23]/20">
-                                        <?= $initials; ?>
-                                    </div>
-                                    <div class="min-w-0 flex-1">
-                                        <h4 class="font-semibold text-sm text-[#111111] truncate"><?= htmlspecialchars($t['name']); ?></h4>
-                                        <p class="text-[11px] text-[#888888] truncate font-light"><?= htmlspecialchars($t['email']); ?></p>
-                                    </div>
-                                </div>
-
-                                <!-- Badges d'état -->
-                                <div class="flex flex-wrap gap-2 text-[10px]">
-                                    <?php if ($isApproved): ?>
-                                        <span class="px-2 py-0.5 rounded-full font-semibold bg-[#DCFCE7] text-[#15803D]">✓ Validé</span>
-                                    <?php else: ?>
-                                        <span class="px-2 py-0.5 rounded-full font-semibold bg-[#FEF3C7] text-[#D97706] animate-pulse">En attente</span>
-                                    <?php endif; ?>
-
-                                    <?php if ($isActive): ?>
-                                        <span class="px-2 py-0.5 rounded-full font-semibold bg-[#E0F2FE] text-[#0369A1]">Actif</span>
-                                    <?php else: ?>
-                                        <span class="px-2 py-0.5 rounded-full font-semibold bg-[#F3F4F6] text-[#6B7280]">Suspendu</span>
-                                    <?php endif; ?>
-                                </div>
-
-                                <!-- Actions -->
-                                <div class="pt-4 border-t border-[#E5E5E7] flex flex-wrap gap-2 justify-between">
-                                    <div class="flex gap-2">
-                                        <?php if (!$isApproved): ?>
-                                            <button onclick="manageUserAccount(<?= $t['id']; ?>, 'approve')"
-                                                class="px-2.5 py-1.5 bg-[#004B23] text-white text-[10px] font-semibold uppercase tracking-wider hover:bg-[#111111] transition-colors rounded-sm">
-                                                Valider
-                                            </button>
-                                        <?php endif; ?>
-                                        <button onclick="manageUserAccount(<?= $t['id']; ?>, 'toggle_active')"
-                                            class="px-2.5 py-1.5 border border-[#E5E5E7] text-[10px] font-semibold uppercase tracking-wider hover:bg-[#111111] hover:text-white hover:border-[#111111] transition-colors rounded-sm">
-                                            <?= $isActive ? 'Suspendre' : 'Réactiver'; ?>
-                                        </button>
-                                    </div>
-                                    <button onclick="manageUserAccount(<?= $t['id']; ?>, 'delete')"
-                                        class="px-2.5 py-1.5 border border-[#D32F2F] text-[#D32F2F] text-[10px] font-semibold uppercase tracking-wider hover:bg-[#D32F2F] hover:text-white transition-colors rounded-sm"
-                                        title="Supprimer définitivement">
-                                        Supprimer
-                                    </button>
-                                </div>
-                            </div>
-                        <?php endforeach; ?>
-                    <?php endif; ?>
-                </div>
-            </div>
-
-            <!-- Footer -->
-            <div class="px-8 py-4 border-t border-[#E5E5E7] bg-[#F5F5F7] flex justify-end">
-                <button onclick="toggleModal('teachers-list-modal')" class="px-5 py-2 bg-[#111111] text-white text-xs font-semibold uppercase tracking-wider rounded-sm hover:bg-[#004B23] transition-colors">Fermer</button>
-            </div>
+    <section class="pm-sec">
+      <header>
+        <h2><?= $t('nl_h') ?></h2>
+        <span class="dotline <?= $smtpConfigured ? '' : 'off' ?>"><?= $smtpConfigured ? $t('nl_smtp_on') : $t('nl_smtp_off') ?></span>
+      </header>
+      <div class="compose">
+        <form id="newsletter-form" novalidate>
+          <input type="hidden" name="csrf_token" value="<?= csrfToken(); ?>">
+          <div class="field"><label for="nl-aud"><?= $t('nl_audience') ?></label>
+            <select class="input" id="nl-aud" name="audience">
+              <option value="subscribers"><?= $t('nl_a_sub') ?> (<?= $audCounts['subscribers'] ?>)</option>
+              <option value="students"><?= $t('nl_a_stu') ?> (<?= $audCounts['students'] ?>)</option>
+              <option value="all"><?= $t('nl_a_all') ?> (<?= $audCounts['all'] ?>)</option>
+            </select></div>
+          <p class="audience-line" id="nl-line" aria-live="polite"></p>
+          <div class="field"><label for="nl-subject"><?= $t('nl_subject') ?></label><input class="input" id="nl-subject" type="text" name="subject" required maxlength="200" placeholder="<?= $h($t('nl_subject_ph')) ?>"></div>
+          <div class="field"><label for="nl-body"><?= $t('nl_body') ?></label><textarea class="input" id="nl-body" name="body_html" rows="9" required placeholder="<?= $h($t('nl_body_ph')) ?>"></textarea></div>
+          <div class="form-actions">
+            <button type="submit" class="btn btn-primary" id="nl-send" <?= $smtpConfigured ? '' : 'disabled' ?>><?= $t('nl_send') ?></button>
+            <button type="button" class="btn btn-ghost" id="test-smtp-btn" <?= $smtpConfigured ? '' : 'disabled' ?>><?= $t('nl_test') ?></button>
+          </div>
+        </form>
+        <div>
+          <p class="mail-cap"><?= $t('nl_preview') ?></p>
+          <div class="mail" aria-live="polite">
+            <div class="mail-head"><span id="pv-to"></span><b id="pv-subject"></b></div>
+            <div class="mail-body empty" id="pv-body"><?= $t('nl_prev_empty') ?></div>
+            <div class="mail-foot"><?= $t('nl_prev_foot') ?></div>
+          </div>
         </div>
-    </div>
+      </div>
 
-    <!-- Modal : Liste des Apprenants (Modal Cards) -->
-    <div id="students-list-modal" class="hidden fixed inset-0 bg-black/50 backdrop-blur-sm z-50 flex items-start justify-center p-4 overflow-y-auto">
-        <div class="bg-white w-full max-w-5xl border border-[#E5E5E7] my-8 rounded-sm shadow-2xl">
-            <!-- Header -->
-            <div class="flex justify-between items-center px-8 py-6 border-b border-[#E5E5E7] bg-[#F5F5F7]">
-                <div>
-                    <h3 class="font-serif text-2xl font-light text-[#111111]">Membres de la Communauté Apprenante</h3>
-                    <p class="text-xs text-[#888888] mt-1">Gérez les accès et suspensions des comptes étudiants.</p>
-                </div>
-                <button type="button" onclick="toggleModal('students-list-modal')" class="text-[#888888] hover:text-[#D32F2F] p-1">
-                    <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"/>
-                    </svg>
-                </button>
-            </div>
+      <h3 style="margin:2.5rem 0 .8rem"><?= $t('nl_hist_h') ?></h3>
+      <?php if (empty($newsletterCampaigns)): ?><p class="muted"><?= $t('nl_hist_none') ?></p><?php else: ?>
+        <ul class="plain-list">
+          <?php foreach ($newsletterCampaigns as $nc): ?>
+            <li><div><b><?= $h($nc['subject']) ?></b><small><?= $h($t('nl_hist_item', ['n' => (int)$nc['recipient_count'], 'u' => $nc['sender_name'], 'd' => $fmtD($nc['sent_at'])])) ?></small></div></li>
+          <?php endforeach; ?>
+        </ul>
+      <?php endif; ?>
+      <details class="more"><summary><?= $t('nl_subs_h') ?> (<?= $kpiNewsletterSubs ?>)</summary>
+        <?php if (empty($newsletterSubscribers)): ?><p class="muted"><?= $t('nl_subs_none') ?></p><?php else: ?>
+          <ul class="plain-list">
+            <?php foreach (array_slice($newsletterSubscribers, 0, 10) as $sub): ?>
+              <li><span><?= $h($sub['email']) ?></span><small class="num"><?= $h($fmtD($sub['subscribed_at'])) ?></small></li>
+            <?php endforeach; ?>
+          </ul>
+        <?php endif; ?>
+      </details>
+    </section>
 
-            <!-- Filtre de recherche rapide -->
-            <div class="px-8 py-4 bg-white border-b border-[#E5E5E7]">
-                <input type="text" oninput="filterStudentsCards(this.value)" placeholder="Rechercher un étudiant par nom ou email..."
-                    class="w-full px-4 py-2 bg-[#F5F5F7] border border-[#E5E5E7] text-xs focus:outline-none focus:border-[#004B23] rounded-sm">
-            </div>
-
-            <!-- Liste des cartes -->
-            <div class="p-8 max-h-[60vh] overflow-y-auto bg-[#FAFAFA]" id="students-cards-container">
-                <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-                    <?php if (empty($students)): ?>
-                        <p class="text-sm italic text-[#888888] col-span-3 text-center py-8">Aucun apprenant inscrit.</p>
-                    <?php else: ?>
-                        <?php foreach ($students as $s): 
-                            $initials = strtoupper(substr($s['name'], 0, 2));
-                            $isActive = (int)$s['is_active'];
-                        ?>
-                            <div class="bg-white border border-[#E5E5E7] p-6 rounded-sm space-y-4 hover:shadow-md transition-shadow duration-300 student-card"
-                                data-name="<?= htmlspecialchars(strtolower($s['name'])); ?>" 
-                                data-email="<?= htmlspecialchars(strtolower($s['email'])); ?>">
-                                
-                                <!-- Header carte -->
-                                <div class="flex items-center gap-3">
-                                    <div class="w-10 h-10 rounded-full bg-[#F5F5F7] text-[#555555] flex items-center justify-center font-bold text-xs uppercase border border-[#E5E5E7]">
-                                        <?= $initials; ?>
-                                    </div>
-                                    <div class="min-w-0 flex-1">
-                                        <h4 class="font-semibold text-sm text-[#111111] truncate"><?= htmlspecialchars($s['name']); ?></h4>
-                                        <p class="text-[11px] text-[#888888] truncate font-light"><?= htmlspecialchars($s['email']); ?></p>
-                                    </div>
-                                </div>
-
-                                <!-- Badges d'état -->
-                                <div class="flex flex-wrap gap-2 text-[10px]">
-                                    <?php if ($isActive): ?>
-                                        <span class="px-2 py-0.5 rounded-full font-semibold bg-[#E0F2FE] text-[#0369A1]">Actif</span>
-                                    <?php else: ?>
-                                        <span class="px-2 py-0.5 rounded-full font-semibold bg-[#F3F4F6] text-[#6B7280]">Suspendu</span>
-                                    <?php endif; ?>
-                                </div>
-
-                                <!-- Actions -->
-                                <div class="pt-4 border-t border-[#E5E5E7] flex flex-wrap gap-2 justify-between items-center">
-                                    <div class="flex gap-2">
-                                        <button onclick="openDirectMessageModal(<?= $s['id']; ?>, '<?= htmlspecialchars($s['name'], ENT_QUOTES); ?>')"
-                                            class="px-2.5 py-1.5 bg-[#004B23] text-white text-[10px] font-semibold uppercase tracking-wider hover:bg-[#111111] transition-colors rounded-sm">
-                                            Contacter
-                                        </button>
-                                        <button onclick="manageUserAccount(<?= $s['id']; ?>, 'toggle_active')"
-                                            class="px-2.5 py-1.5 border border-[#E5E5E7] text-[10px] font-semibold uppercase tracking-wider hover:bg-[#111111] hover:text-white hover:border-[#111111] transition-colors rounded-sm">
-                                            <?= $isActive ? 'Suspendre' : 'Réactiver'; ?>
-                                        </button>
-                                    </div>
-                                    <button onclick="manageUserAccount(<?= $s['id']; ?>, 'delete')"
-                                        class="px-2.5 py-1.5 border border-[#D32F2F] text-[#D32F2F] text-[10px] font-semibold uppercase tracking-wider hover:bg-[#D32F2F] hover:text-white transition-colors rounded-sm"
-                                        title="Supprimer définitivement">
-                                        Supprimer
-                                    </button>
-                                </div>
-                            </div>
-                        <?php endforeach; ?>
-                    <?php endif; ?>
-                </div>
-            </div>
-
-            <!-- Footer -->
-            <div class="px-8 py-4 border-t border-[#E5E5E7] bg-[#F5F5F7] flex justify-end">
-                <button onclick="toggleModal('students-list-modal')" class="px-5 py-2 bg-[#111111] text-white text-xs font-semibold uppercase tracking-wider rounded-sm hover:bg-[#004B23] transition-colors">Fermer</button>
-            </div>
+    <section class="pm-sec">
+      <header><h2><?= $t('kb_h') ?></h2></header>
+      <p class="pm-lead"><?= $t('kb_p') ?></p>
+      <div class="compose" style="margin-top:1.2rem">
+        <div>
+          <p class="audience-line"><?= $h($t('kb_line', ['n' => count($students)])) ?></p>
+          <div class="form-actions"><button type="button" class="btn btn-primary" id="send-keys-btn" data-count="<?= count($students) ?>" <?= $smtpConfigured && count($students) ? '' : 'disabled' ?>><?= $t('kb_send') ?></button><span id="keys-broadcast-status" class="note" hidden></span></div>
         </div>
-    </div>
-
-    <!-- Modal : Envoyer un Message Direct à un Apprenant -->
-    <div id="direct-message-modal" class="hidden fixed inset-0 bg-black/50 backdrop-blur-sm z-50 flex items-center justify-center p-6">
-        <div class="bg-white p-8 max-w-lg w-full border border-[#E5E5E7] space-y-6 shadow-2xl rounded-sm">
-            <div class="flex justify-between items-start">
-                <div>
-                    <h3 class="font-serif text-2xl font-light text-[#111111]">Envoyer un Message Direct</h3>
-                    <p class="text-xs text-[#888888] mt-1">Le message sera envoyé directement dans la boîte mail de l'apprenant.</p>
-                </div>
-                <button type="button" onclick="toggleModal('direct-message-modal')" class="text-[#888888] hover:text-[#D32F2F]">
-                    <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"/>
-                    </svg>
-                </button>
-            </div>
-
-            <form id="direct-message-form" class="space-y-4">
-                <input type="hidden" name="student_id" id="dm-student-id">
-                <div>
-                    <label class="block text-xs font-semibold uppercase tracking-wider text-[#555555] mb-2">Destinataire</label>
-                    <input type="text" id="dm-student-name" readonly
-                        class="w-full px-4 py-2 bg-[#F5F5F7] border border-[#E5E5E7] text-sm text-[#555555] cursor-not-allowed rounded-sm">
-                </div>
-                <div>
-                    <label class="block text-xs font-semibold uppercase tracking-wider text-[#555555] mb-2">Sujet du Message</label>
-                    <input type="text" name="subject" required placeholder="ex: Information concernant votre certificat"
-                        class="w-full px-4 py-2 bg-white border border-[#E5E5E7] text-sm focus:outline-none focus:border-[#004B23] rounded-sm">
-                </div>
-                <div>
-                    <label class="block text-xs font-semibold uppercase tracking-wider text-[#555555] mb-2">Message</label>
-                    <textarea name="message" rows="6" required placeholder="Rédigez votre message ici..."
-                        class="w-full px-4 py-2 bg-white border border-[#E5E5E7] text-sm focus:outline-none focus:border-[#004B23] rounded-sm"></textarea>
-                </div>
-                <div class="flex justify-end gap-3 pt-2">
-                    <button type="button" onclick="toggleModal('direct-message-modal')"
-                        class="px-4 py-2 bg-[#F5F5F7] text-[#111111] text-xs font-semibold uppercase tracking-wider border border-[#E5E5E7] rounded-sm">
-                        Annuler
-                    </button>
-                    <button type="submit" id="send-dm-btn"
-                        class="px-4 py-2 bg-[#004B23] text-white text-xs font-semibold uppercase tracking-wider hover:bg-[#111111] rounded-sm">
-                        Envoyer le Message
-                    </button>
-                </div>
-            </form>
+        <div>
+          <p class="mail-cap"><?= $t('kb_list') ?></p>
+          <?php if (!$keyedCourses): ?><p class="muted"><?= $t('kb_none') ?></p><?php else: ?>
+            <ul class="plain-list">
+              <?php foreach ($keyedCourses as $c): ?><li><span><?= $h($c['title']) ?></span><b class="num"><?= $h($c['enrollment_key']) ?></b></li><?php endforeach; ?>
+            </ul>
+          <?php endif; ?>
         </div>
+      </div>
+    </section>
+  </section>
+
+  <!-- ============ API KEYS ============ -->
+  <section id="tab-api" class="tab-content pm-panel" data-panel hidden>
+    <div class="pm-head"><div><h1><?= $t('ak_h') ?></h1><p><?= $t('ak_p') ?></p></div></div>
+
+    <div class="reveal" id="api-key-result" hidden role="alert">
+      <h3><?= $t('ak_once_h') ?></h3>
+      <p class="warn-line"><?= $t('ak_once_p') ?></p>
+      <div class="copyrow">
+        <input class="input" type="text" id="api-key-value" readonly aria-label="<?= $h($t('ak_once_h')) ?>">
+        <button type="button" class="btn btn-primary" id="api-key-copy"><?= $t('ak_copy') ?></button>
+      </div>
+      <p class="note"><?= $t('ak_use') ?></p>
+      <div class="code-sample" style="margin:.6rem 0 1rem">GET /api/v1/courses
+GET /api/v1/modules
+X-API-Key: &lt;key&gt;</div>
+      <button type="button" class="btn btn-ghost" id="api-key-done"><?= $t('ak_done') ?></button>
     </div>
 
-    <!-- Pied de Page -->
-    <footer class="border-t border-[#E5E5E7] py-6 px-12 flex justify-between items-center bg-[#F5F5F7] text-xs text-[#888888] font-light">
-        <div>StudyVibe Académique — Plateforme de Gouvernance</div>
-        <div>Console d'Administration</div>
-    </footer>
+    <form class="block" id="api-key-form" style="max-width:560px">
+      <div class="field"><label for="ak-label"><?= $t('ak_label') ?></label><input class="input" id="ak-label" type="text" maxlength="100" placeholder="<?= $h($t('ak_label_ph')) ?>"><span class="hint"><?= $t('ak_label_hint') ?></span></div>
+      <button type="submit" class="btn btn-primary" id="api-key-create"><?= $t('ak_create') ?></button>
+    </form>
 
-    <!-- Scripts AJAX -->
-    <script>
-        // --- Dashboard Tab Management ---
-        function switchDashboardTab(tabId) {
-            document.querySelectorAll('.tab-content').forEach(el => {
-                el.classList.add('hidden');
-            });
-            const target = document.getElementById(tabId);
-            if (target) {
-                target.classList.remove('hidden');
-            }
-            document.querySelectorAll('.sidebar-tab-btn').forEach(btn => {
-                const targetAttr = btn.getAttribute('data-tab-target');
-                if (targetAttr === tabId) {
-                    btn.className = "sidebar-tab-btn w-full flex items-center gap-3 px-4 py-3 rounded-sm text-left text-sm transition-all duration-200 bg-[#004B23] text-white font-semibold";
-                } else {
-                    btn.className = "sidebar-tab-btn w-full flex items-center gap-3 px-4 py-3 rounded-sm text-left text-sm transition-all duration-200 text-gray-300 hover:bg-[#143d26] hover:text-white";
-                }
-            });
-            history.replaceState(null, null, '#' + tabId);
-        }
+    <section class="pm-sec">
+      <header><h2><?= $t('ak_list_h') ?></h2><p><?= $t('ak_nolast') ?></p></header>
+      <div class="tbl-wrap flat">
+        <table class="tbl">
+          <thead><tr><th><?= $t('th_name') ?></th><th><?= $t('th_status') ?></th><th class="c-hide-sm"><?= $t('th_created') ?></th><th class="c-hide-sm"><?= $t('th_by') ?></th><th class="c-act"><span class="sr"><?= $t('th_actions') ?></span></th></tr></thead>
+          <tbody id="api-keys-body"><tr><td colspan="5" class="tbl-empty"><?= $t('ak_loading') ?></td></tr></tbody>
+        </table>
+      </div>
+    </section>
+  </section>
 
-        window.addEventListener('DOMContentLoaded', () => {
-            const hash = window.location.hash.replace('#', '');
-            if (hash && document.getElementById(hash)) {
-                switchDashboardTab(hash);
-            }
-        });
+  <!-- ============ AUDIT & EXPORTS ============ -->
+  <section id="tab-audit" class="tab-content pm-panel" data-panel hidden>
+    <div class="pm-head"><div><h1><?= $t('au_h') ?></h1><p><?= $t('au_p') ?></p></div></div>
 
-        // --- Modal Helper ---
-        function toggleModal(id) {
-            document.getElementById(id).classList.toggle('hidden');
-        }
+    <section class="pm-sec">
+      <header><h2><?= $t('au_log') ?></h2><a class="link" href="/promoter/export-excel.php?type=audit_logs"><?= $t('au_export') ?></a></header>
+      <div class="toolbar"><div class="search"><?= $ico['search'] ?><input class="input" type="search" id="au-q" placeholder="<?= $h($t('au_search')) ?>" aria-label="<?= $h($t('au_search')) ?>" autocomplete="off"></div></div>
+      <div class="tbl-wrap">
+        <table class="tbl">
+          <thead><tr><th><?= $t('th_date') ?></th><th><?= $t('th_author') ?></th><th><?= $t('th_action') ?></th><th class="c-hide-sm"><?= $t('th_details') ?></th></tr></thead>
+          <tbody id="au-body">
+          <?php if (empty($auditLogs)): ?><tr><td colspan="4" class="tbl-empty"><?= $t('au_none') ?></td></tr><?php endif; ?>
+          <?php foreach ($auditLogs as $log): ?>
+            <tr data-q="<?= $h(mb_strtolower(($log['user_name'] ?? '') . ' ' . $log['action'] . ' ' . ($log['details'] ?? ''))) ?>">
+              <td class="c-nowrap num"><?= $h($fmtDT($log['created_at'])) ?></td>
+              <td><?= $h($log['user_name'] ?? '—') ?></td>
+              <td><b style="font-weight:600"><?= $h($log['action']) ?></b><span class="sub role-inline" style="display:none"><?= $h($log['details'] ?? '') ?></span></td>
+              <td class="c-hide-sm" style="color:var(--ink-2)"><?= $h($log['details'] ?? '') ?></td>
+            </tr>
+          <?php endforeach; ?>
+          </tbody>
+        </table>
+        <p class="tbl-empty" id="au-empty" hidden><?= $t('pe_none') ?></p>
+      </div>
+    </section>
 
-        // --- Audit Strategique IA (Gemini) ---
-        function runStrategicAudit() {
-            const btn = document.getElementById('audit-btn');
-            const loader = document.getElementById('audit-loading');
-            const container = document.getElementById('audit-result-container');
-            const textDiv = document.getElementById('audit-text');
+    <section class="pm-sec">
+      <header><h2><?= $t('ex_h') ?></h2></header>
+      <p class="pm-lead"><?= $t('ex_p') ?></p>
+      <p style="margin-top:1rem"><a class="btn btn-ghost" href="/promoter/export-excel.php?type=all"><?= $t('ex_btn') ?></a></p>
+    </section>
 
-            btn.disabled = true;
-            loader.classList.remove('hidden');
-            container.classList.add('hidden');
+    <section class="pm-sec">
+      <header><h2><?= $t('ai_h') ?></h2></header>
+      <p class="pm-lead"><?= $t('ai_p') ?></p>
+      <p style="margin-top:1rem"><button type="button" class="btn btn-ghost" id="audit-btn"><?= $t('ai_btn') ?></button></p>
+      <p class="note" id="audit-loading" hidden role="status" style="margin-top:1rem"><?= $t('ai_wait') ?></p>
+      <div id="audit-result-container" hidden class="block" style="margin-top:1rem">
+        <div id="audit-text" style="white-space:pre-line;line-height:1.65"></div>
+        <p style="margin-top:1rem"><button type="button" class="link" onclick="window.print()"><?= $t('ai_print') ?></button></p>
+      </div>
+    </section>
+  </section>
 
-            fetch('/api/ai-promoter.php', {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json' }
-            })
-            .then(res => res.json())
-            .then(data => {
-                btn.disabled = false;
-                loader.classList.add('hidden');
-                if (data.success && data.report) {
-                    textDiv.textContent = data.report;
-                    container.classList.remove('hidden');
-                    Toast.success('Rapport strategique genere.');
-                } else {
-                    Toast.error(data.error || 'Erreur lors de la generation du rapport.');
-                }
-            })
-            .catch(err => {
-                btn.disabled = false;
-                loader.classList.add('hidden');
-                Toast.error('Erreur reseau : ' + err.message);
-            });
-        }
+  </main>
+</div>
 
-        // --- Assignation / révocation enseignant ---
-        function postTeacherUpdate(courseId, teacherId, successLabel) {
-            const statusLabel = document.getElementById(`status-${courseId}`);
-            const fd = new FormData();
-            fd.append('course_id', courseId);
-            fd.append('teacher_id', teacherId);
+<!-- Hidden POST forms (preserved server handlers) -->
+<form id="remove-cert-form" action="/promoter/dashboard.php" method="POST" hidden><input type="hidden" name="action" value="remove_certificate"><input type="hidden" name="certificate_id" value=""></form>
+<form id="cancel-session-form" action="/promoter/dashboard.php" method="POST" hidden><input type="hidden" name="action" value="cancel_session"><input type="hidden" name="session_id" value=""></form>
 
-            fetch('/promoter/update-teacher.php', { method: 'POST', body: fd })
-                .then(r => r.json())
-                .then(data => {
-                    if (data.success) {
-                        statusLabel.textContent = successLabel;
-                        statusLabel.className = 'text-xs text-[#004B23] font-medium';
-                        statusLabel.classList.remove('hidden');
-                        setTimeout(() => location.reload(), 1200);
-                    } else {
-                        Toast.error('Erreur: ' + (data.message || 'Impossible de mettre à jour.'));
-                    }
-                })
-                .catch(err => Toast.error('Erreur réseau: ' + err.message));
-        }
+<!-- Dialogs -->
+<dialog class="dlg" id="user-modal" aria-labelledby="cu-h">
+  <form id="create-user-form" method="dialog">
+    <h2 id="cu-h"><?= $t('cu_h') ?></h2>
+    <p class="dlg-p"><?= $t('cu_p') ?></p>
+    <p class="err" id="modal-error" hidden></p>
+    <div class="field"><label for="cu-name"><?= $t('cu_name') ?></label><input class="input" id="cu-name" type="text" name="name" required placeholder="<?= $h($t('cu_name_ph')) ?>"></div>
+    <div class="field"><label for="cu-email"><?= $t('cu_email') ?></label><input class="input" id="cu-email" type="email" name="email" required placeholder="<?= $h($t('cu_email_ph')) ?>"></div>
+    <div class="row2">
+      <div class="field"><label for="cu-pass"><?= $t('cu_pass') ?></label><input class="input" id="cu-pass" type="password" name="password" required minlength="8" autocomplete="new-password"><span class="hint"><?= $t('cu_pass_hint') ?></span></div>
+      <div class="field"><label for="cu-role"><?= $t('cu_role') ?></label>
+        <select class="input" id="cu-role" name="role" required>
+          <option value="teacher"><?= $t('role_teacher') ?></option>
+          <option value="student"><?= $t('role_student') ?></option>
+          <option value="promoter"><?= $t('cu_role_promoter') ?></option>
+        </select></div>
+    </div>
+    <div class="dlg-actions"><button type="button" class="btn btn-ghost" data-close><?= $t('cancel') ?></button><button type="submit" class="btn btn-primary" id="create-user-btn"><?= $t('cu_submit') ?></button></div>
+  </form>
+</dialog>
 
-        function assignTeacher(courseId) {
-            const select = document.getElementById(`teacher-select-${courseId}`);
-            const teacherId = select ? select.value : '';
-            if (!teacherId) {
-                Toast.error('Sélectionnez un enseignant à assigner.');
-                return;
-            }
-            postTeacherUpdate(courseId, teacherId, 'Assigné ✓');
-        }
+<dialog class="dlg" id="direct-message-modal" aria-labelledby="dm-h">
+  <form id="direct-message-form" method="dialog">
+    <h2 id="dm-h"><?= $t('dm_h') ?></h2>
+    <p class="dlg-p"><?= $t('dm_p') ?></p>
+    <input type="hidden" name="student_id" id="dm-student-id">
+    <div class="field"><label for="dm-student-name"><?= $t('dm_to') ?></label><input class="input" type="text" id="dm-student-name" readonly></div>
+    <div class="field"><label for="dm-subject"><?= $t('dm_subject') ?></label><input class="input" id="dm-subject" type="text" name="subject" required placeholder="<?= $h($t('dm_subject_ph')) ?>"></div>
+    <div class="field"><label for="dm-msg"><?= $t('dm_msg') ?></label><textarea class="input" id="dm-msg" name="message" rows="6" required></textarea></div>
+    <div class="dlg-actions"><button type="button" class="btn btn-ghost" data-close><?= $t('cancel') ?></button><button type="submit" class="btn btn-primary" id="send-dm-btn"><?= $t('dm_send') ?></button></div>
+  </form>
+</dialog>
 
-        function revokeTeacher(courseId) {
-            if (!confirm('Révoquer l\'enseignant de ce cours ? Le contenu pédagogique sera conservé.')) return;
-            postTeacherUpdate(courseId, '0', 'Révoqué ✓');
-        }
+<dialog class="dlg" id="module-modal" aria-labelledby="md-h">
+  <form id="module-form" method="dialog">
+    <h2 id="md-h"><?= $t('mod_edit_h') ?></h2>
+    <input type="hidden" name="module_id" id="md-id">
+    <div class="field"><label for="md-title"><?= $t('mod_title') ?></label><input class="input" id="md-title" type="text" name="module_title" required></div>
+    <div class="field"><label for="md-desc"><?= $t('mod_desc') ?></label><textarea class="input" id="md-desc" name="module_desc" rows="4"></textarea></div>
+    <div class="dlg-actions"><button type="button" class="btn btn-ghost" data-close><?= $t('cancel') ?></button><button type="submit" class="btn btn-primary"><?= $t('lv_pp_save') ?></button></div>
+  </form>
+</dialog>
 
-        document.getElementById('test-smtp-btn')?.addEventListener('click', () => {
-            fetch('/promoter/test-mail.php', { method: 'POST' })
-            .then(r => r.json())
-            .then(data => data.success ? Toast.success(data.message) : Toast.error(data.message));
-        });
+<dialog class="dlg" id="postpone-modal" aria-labelledby="pp-h">
+  <form action="/promoter/dashboard.php" method="POST">
+    <h2 id="pp-h"><?= $t('lv_pp_h') ?></h2>
+    <p class="dlg-p" id="pp-name"></p>
+    <input type="hidden" name="action" value="postpone_session">
+    <input type="hidden" name="session_id" id="pp-id">
+    <div class="row2">
+      <div class="field"><label for="pp-start"><?= $t('lv_pp_start') ?></label><input class="input" id="pp-start" type="datetime-local" name="start_time" required></div>
+      <div class="field"><label for="pp-end"><?= $t('lv_pp_end') ?></label><input class="input" id="pp-end" type="datetime-local" name="end_time" required></div>
+    </div>
+    <div class="dlg-actions"><button type="button" class="btn btn-ghost" data-close><?= $t('cancel') ?></button><button type="submit" class="btn btn-primary"><?= $t('lv_pp_save') ?></button></div>
+  </form>
+</dialog>
 
-        document.getElementById('newsletter-form')?.addEventListener('submit', function(e) {
-            e.preventDefault();
-            if (!confirm('Confirmer l\'envoi de cette newsletter ?')) return;
-            const btn = this.querySelector('button[type=submit]');
-            btn.disabled = true;
-            btn.textContent = 'Envoi en cours…';
-            const fd = new FormData(this);
-            fetch('/promoter/send-newsletter.php', { method: 'POST', body: fd })
-            .then(r => r.json())
-            .then(data => {
-                if (data.success) {
-                    Toast.success(data.message, 6000);
-                    setTimeout(() => location.reload(), 2000);
-                } else {
-                    Toast.error(data.message);
-                    btn.disabled = false;
-                    btn.textContent = 'Envoyer la newsletter';
-                }
-            })
-            .catch(err => {
-                Toast.error('Erreur réseau: ' + err.message);
-                btn.disabled = false;
-                btn.textContent = 'Envoyer la newsletter';
-            });
-        });
+<dialog class="dlg" id="confirm-dlg" aria-labelledby="cf-h" aria-describedby="cf-p">
+  <div class="dlg-in">
+    <h2 id="cf-h"></h2>
+    <p class="dlg-p" id="cf-p"></p>
+    <div id="cf-phrase" hidden>
+      <p class="note" id="cf-phrase-hint"></p>
+      <input class="input phrase" type="text" id="cf-phrase-in" autocomplete="off" autocapitalize="off" spellcheck="false" aria-labelledby="cf-phrase-hint">
+    </div>
+    <div class="dlg-actions"><button type="button" class="btn btn-ghost" id="cf-no"><?= $t('cancel') ?></button><button type="button" class="btn btn-primary" id="cf-yes"><?= $t('confirm') ?></button></div>
+  </div>
+</dialog>
 
-        window.broadcastEnrollmentKeys = function() {
-            if (!confirm('Êtes-vous sûr de vouloir diffuser les clés d\'inscription à tous les étudiants enregistrés ?')) return;
-            const btn = document.getElementById('send-keys-btn');
-            const status = document.getElementById('keys-broadcast-status');
-            
-            btn.disabled = true;
-            status.textContent = 'Diffusion en cours…';
-            status.classList.remove('hidden', 'text-red-600', 'text-green-600');
-            status.classList.add('text-gray-500');
-            
-            const fd = new FormData();
-            fd.append('csrf_token', document.querySelector('input[name="csrf_token"]')?.value ?? '');
-            
-            fetch('/promoter/send-keys-broadcast.php', { method: 'POST', body: fd })
-            .then(r => r.json())
-            .then(data => {
-                if (data.success) {
-                    Toast.success(data.message);
-                    status.textContent = '✓ ' + data.message;
-                    status.classList.remove('text-gray-500');
-                    status.classList.add('text-green-600');
-                } else {
-                    Toast.error(data.message);
-                    status.textContent = '✗ ' + data.message;
-                    status.classList.remove('text-gray-500');
-                    status.classList.add('text-red-600');
-                    btn.disabled = false;
-                }
-            })
-            .catch(err => {
-                Toast.error('Erreur réseau : ' + err.message);
-                status.textContent = '✗ Erreur réseau';
-                status.classList.remove('text-gray-500');
-                status.classList.add('text-red-600');
-                btn.disabled = false;
-            });
-        };
+<div class="toasts" id="toasts" aria-live="polite" role="status"></div>
 
-        document.getElementById('manual-cert-form')?.addEventListener('submit', function(e) {
-            e.preventDefault();
-            const fd = new FormData(this);
-            fetch('/promoter/issue-certificate.php', { method: 'POST', body: fd })
-            .then(r => r.json())
-            .then(data => {
-                if (data.success) {
-                    Toast.success(`Certificat ${data.certificate_code} délivré à ${data.student_name}.`);
-                    setTimeout(() => location.reload(), 1200);
-                } else Toast.error(data.message);
-            });
-        });
+<script>
+window.SV_T = <?= json_encode($JT, JSON_UNESCAPED_UNICODE | JSON_HEX_TAG | JSON_HEX_AMP) ?>;
+window.SV_PM = <?= json_encode([
+    'lang' => $lang,
+    'me' => $myId,
+    'aud' => $audCounts,
+    'audLabels' => ['subscribers' => $t('nl_a_sub'), 'students' => $t('nl_a_stu'), 'all' => $t('nl_a_all')],
+    'audDesc' => ['subscribers' => $JT['a_sub'], 'students' => $JT['a_stu'], 'all' => $JT['a_all']],
+    'ok' => $okMsg,
+    'perPage' => 50,
+    'mailReady' => $smtpConfigured,
+], JSON_UNESCAPED_UNICODE | JSON_HEX_TAG | JSON_HEX_AMP) ?>;
+</script>
+<script src="/assets/js/promoter.js"></script>
+<div id="qr-sheet" class="qs" aria-hidden="true">
+  <img class="qs-logo" src="/assets/img/logo-wordmark.svg" alt="StudyVibe">
+  <h2><?= $h($PI['qr_scan']) ?></h2>
+  <div class="qs-qr"></div>
+  <p class="qs-name"></p>
+  <p class="qs-sub"><?= $h($PI['qr_poster_sub']) ?></p>
+  <p class="qs-url"></p>
+</div>
 
-        function createApiKey() {
-    const fd = new FormData();
-    fd.append('label', 'Clé mobile ' + new Date().toLocaleDateString('fr-FR'));
-    fd.append('csrf_token', document.querySelector('meta[name="csrf-token"]')?.content ?? '');
-    fetch('/promoter/create-api-key.php', { method: 'POST', body: fd })
-    .then(r => r.json())
-    .then(data => {
-        const el = document.getElementById('api-key-result');
-        if (data.success) {
-            el.classList.remove('hidden');
-            el.innerHTML = `<strong>Clé API (à copier maintenant) :</strong><br>${data.api_key}<br><span class="text-[#888]">Endpoints : GET /api/v1/courses, GET /api/v1/modules</span>`;
-            Toast.success('Clé API générée.');
-        } else Toast.error(data.message);
-    });
-    }
+<script>
+window.PM_I18N = <?= json_encode($PI, JSON_UNESCAPED_UNICODE | JSON_HEX_TAG | JSON_HEX_AMP) ?>;
+window.PM_BASE = <?= json_encode((defined('APP_URL') && APP_URL !== '' && !str_contains((string)APP_URL, 'localhost') ? rtrim((string)APP_URL, '/') : ((isset($_SERVER['HTTPS']) && $_SERVER['HTTPS'] !== 'off' ? 'https' : 'http') . '://' . ($_SERVER['HTTP_HOST'] ?? 'localhost')))) ?>;
+window.PM_COURSES = <?= json_encode(array_map(fn($c) => ['id' => (int)$c['id'], 'title' => $c['title']], $courses), JSON_UNESCAPED_UNICODE | JSON_HEX_TAG | JSON_HEX_AMP) ?>;
+window.PM_LIVE = <?= json_encode(array_map(fn($l) => ['id' => (int)$l['id'], 'title' => $l['title'], 'code' => $l['session_code']], $liveSessions), JSON_UNESCAPED_UNICODE | JSON_HEX_TAG | JSON_HEX_AMP) ?>;
+</script>
+<script src="/assets/vendor/qrcode-generator.js"></script>
+<script src="/assets/js/promoter-insights.js"></script>
+<?php require_once __DIR__ . '/../lib/PhonePrompt.php'; PhonePrompt::render($user, (string)($lang ?? TranslationService::getLang())); ?>
 
-
-
-        // --- Création de Compte Utilisateur ---
-        document.getElementById('create-user-form').addEventListener('submit', function(e) {
-            e.preventDefault();
-            const btn = document.getElementById('create-user-btn');
-            const modalErr = document.getElementById('modal-error');
-            modalErr.classList.add('hidden');
-            btn.disabled = true;
-            btn.textContent = 'Création…';
-
-            const fd = new FormData(this);
-
-            fetch('/promoter/create-user.php', { method: 'POST', body: fd })
-                .then(r => r.json())
-                .then(data => {
-                    btn.disabled = false;
-                    btn.textContent = 'Créer le Compte';
-
-                    if (data.success) {
-                        toggleModal('user-modal');
-                        this.reset();
-                        Toast.success(`Compte créé avec succès.`);
-                        setTimeout(() => location.reload(), 1000);
-                    } else {
-                        Toast.error(data.message || 'Erreur lors de la création.');
-                    }
-                })
-                .catch(err => {
-                    btn.disabled = false;
-                    btn.textContent = 'Créer le Compte';
-                    Toast.error('Erreur réseau : ' + err.message);
-                });
-        });
-
-        // --- Administration des Utilisateurs (Approbation, Suspension, Suppression) ---
-        function manageUserAccount(userId, action) {
-            let confirmMsg = '';
-            if (action === 'delete') {
-                confirmMsg = 'Êtes-vous sûr de vouloir supprimer définitivement ce compte ? Cette action est irréversible et effacera toutes ses données.';
-            } else if (action === 'toggle_active') {
-                confirmMsg = 'Confirmez-vous le changement de statut de ce compte ?';
-            } else if (action === 'approve') {
-                confirmMsg = 'Valider cet enseignant et l\'autoriser à enseigner sur la plateforme ?';
-            }
-
-            if (confirmMsg && !confirm(confirmMsg)) return;
-
-            const fd = new FormData();
-            fd.append('user_id', userId);
-            fd.append('action', action);
-
-            fetch('/promoter/manage-user.php', { method: 'POST', body: fd })
-                .then(r => r.json())
-                .then(data => {
-                    if (data.success) {
-                        Toast.success(data.message);
-                        setTimeout(() => location.reload(), 1000);
-                    } else {
-                        Toast.error(data.message || 'Une erreur est survenue.');
-                    }
-                })
-                .catch(err => Toast.error('Erreur réseau : ' + err.message));
-        }
-
-        function filterTeachersCards(query) {
-            const val = query.toLowerCase().trim();
-            document.querySelectorAll('.teacher-card').forEach(card => {
-                const name = card.dataset.name || '';
-                const email = card.dataset.email || '';
-                if (name.includes(val) || email.includes(val)) {
-                    card.classList.remove('hidden');
-                } else {
-                    card.classList.add('hidden');
-                }
-            });
-        }
-
-        function filterStudentsCards(query) {
-            const val = query.toLowerCase().trim();
-            document.querySelectorAll('.student-card').forEach(card => {
-                const name = card.dataset.name || '';
-                const email = card.dataset.email || '';
-                if (name.includes(val) || email.includes(val)) {
-                    card.classList.remove('hidden');
-                } else {
-                    card.classList.add('hidden');
-                }
-            });
-        }
-
-        // --- Envoi de Message Direct à un Apprenant ---
-        function openDirectMessageModal(studentId, studentName) {
-            document.getElementById('dm-student-id').value = studentId;
-            document.getElementById('dm-student-name').value = studentName;
-            toggleModal('direct-message-modal');
-        }
-
-        document.getElementById('direct-message-form')?.addEventListener('submit', function(e) {
-            e.preventDefault();
-            const btn = document.getElementById('send-dm-btn');
-            btn.disabled = true;
-            btn.textContent = 'Envoi…';
-
-            const fd = new FormData(this);
-            fetch('/promoter/send-direct-message.php', { method: 'POST', body: fd })
-                .then(r => r.json())
-                .then(data => {
-                    btn.disabled = false;
-                    btn.textContent = 'Envoyer le Message';
-                    if (data.success) {
-                        Toast.success(data.message);
-                        toggleModal('direct-message-modal');
-                        this.reset();
-                    } else {
-                        Toast.error(data.message || 'Une erreur est survenue.');
-                    }
-                })
-                .catch(err => {
-                    btn.disabled = false;
-                    btn.textContent = 'Envoyer le Message';
-                    Toast.error('Erreur réseau : ' + err.message);
-                });
-        });
-
-        function loadNotifications() {
-            fetch('/student/get-notifications.php')
-            .then(r => r.json())
-            .then(data => {
-                if (!data.success) return;
-                const badge = document.getElementById('notif-count');
-                const panel = document.getElementById('notif-panel');
-                if (data.unread_count > 0) {
-                    badge.textContent = data.unread_count;
-                    badge.classList.remove('hidden');
-                } else {
-                    badge.classList.add('hidden');
-                }
-                panel.innerHTML = data.notifications.length
-                    ? data.notifications.map(n => `<a href="${n.link || '#'}" class="block p-3 border-b border-[#E5E5E7] hover:bg-[#F5F5F7] ${n.is_read == 0 ? 'font-semibold' : ''}"><div class="text-xs">${n.title}</div><div class="text-[11px] text-[#888]">${n.body || ''}</div></a>`).join('')
-                    : '<p class="p-3 text-xs text-[#888]">Aucune notification.</p>';
-            });
-        }
-        document.getElementById('notif-btn')?.addEventListener('click', () => {
-            document.getElementById('notif-panel').classList.toggle('hidden');
-            loadNotifications();
-        });
-        loadNotifications();
-
-        function showPostponeForm(id) {
-            document.getElementById('session-actions-' + id).classList.add('hidden');
-            document.getElementById('postpone-form-' + id).classList.remove('hidden');
-        }
-        function hidePostponeForm(id) {
-            document.getElementById('session-actions-' + id).classList.remove('hidden');
-            document.getElementById('postpone-form-' + id).classList.add('hidden');
-        }
-    </script>
-    <script src="/assets/js/app.js"></script>
 </body>
 </html>

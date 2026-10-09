@@ -32,7 +32,7 @@ if (isRateLimited($email)) {
 
 try {
     $pdo  = Database::getInstance();
-    $stmt = $pdo->prepare("SELECT id, name, email, password, role, email_verified_at, is_active, is_approved FROM users WHERE email = :email");
+    $stmt = $pdo->prepare("SELECT id, name, email, password, role, email_verified_at, is_active, is_approved, totp_enabled_at FROM users WHERE email = :email");
     $stmt->execute(['email' => $email]);
     $user = $stmt->fetch();
 
@@ -40,7 +40,7 @@ try {
         // Enregistrer la tentative échouée
         recordLoginAttempt($email);
         auditLog('login_failed', "Email: {$email}");
-        echo json_encode(['success' => false, 'message' => 'Adresse électronique ou mot de passe incorrect.']);
+        echo json_encode(['success' => false, 'code' => 'invalid_credentials', 'message' => 'Adresse électronique ou mot de passe incorrect.']);
         exit;
     }
 
@@ -53,16 +53,6 @@ try {
         echo json_encode(['success' => false, 'message' => 'Votre compte enseignant est en attente de validation par le promoteur.']);
         exit;
     }
-
-    // ── Succès — ouvrir la session ──────────────────────────
-    session_regenerate_id(true);
-    $_SESSION['user_id']   = (int)$user['id'];
-    $_SESSION['user_role'] = $user['role'];
-    $_SESSION['last_regen'] = time();
-
-    // Effacer les tentatives en cas de succès
-    clearLoginAttempts($email);
-    auditLog('login_success', "User #{$user['id']} ({$user['role']})");
 
     $redirectMap = [
         'promoter' => '/promoter/dashboard.php',
@@ -79,6 +69,23 @@ try {
         && !str_contains($postRedirect, '//')
         && !str_contains($postRedirect, '\\')
     ) ? $postRedirect : null;
+
+    // ── Two-factor: the password was right, but the account is not signed in until a code from the app is accepted ──
+    if (!empty($user['totp_enabled_at']) && !empty($user['email_verified_at'])) {
+        require_once __DIR__ . '/lib/TwoFactor.php';
+        TwoFactor::startLoginChallenge((int)$user['id'], (string)$user['role'], $safeRedirect);
+        clearLoginAttempts($email);   // the password was correct; the second step has its own limits
+        auditLog('login_password_ok_2fa_pending', "User #{$user['id']} ({$user['role']})");
+        echo json_encode(['success' => true, 'requires_2fa' => true]);
+        exit;
+    }
+
+    // ── Succès — ouvrir la session ──────────────────────────
+    establishSession((int)$user['id'], (string)$user['role']);
+
+    // Effacer les tentatives en cas de succès
+    clearLoginAttempts($email);
+    auditLog('login_success', "User #{$user['id']} ({$user['role']})");
 
     $redirect = empty($user['email_verified_at'])
         ? '/verify-email-pending.php'

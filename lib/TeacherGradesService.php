@@ -146,10 +146,20 @@ class TeacherGradesService
     }
 
 
+    /**
+     * Suivi des apprenants inscrits : où chacun en est dans le cours.
+     * Calculé à partir des leçons réellement terminées (pas du pourcentage mis en cache dans enrollments).
+     *
+     * @return array<int, array<string, mixed>>
+     */
     public function fetchEnrolledStudents(int $courseId): array
     {
+        require_once __DIR__ . '/LessonFlow.php';
+        $lessons = LessonFlow::orderedLessons($this->pdo, $courseId);
+        $total   = count($lessons);
+
         $stmt = $this->pdo->prepare("
-            SELECT u.name AS student_name, u.email AS student_email,
+            SELECT u.id AS student_id, u.name AS student_name, u.email AS student_email, u.matricule,
                    e.progress_percent, e.enrolled_at
             FROM enrollments e
             JOIN users u ON u.id = e.student_id
@@ -157,7 +167,82 @@ class TeacherGradesService
             ORDER BY u.name ASC
         ");
         $stmt->execute(['cid' => $courseId]);
-        return $stmt->fetchAll();
+        $students = $stmt->fetchAll(PDO::FETCH_ASSOC);
+
+        $done = [];      // student => [lesson_id => completed_at]
+        $q = $this->pdo->prepare("
+            SELECT lp.student_id, lp.lesson_id, lp.completed_at
+            FROM lesson_progress lp
+            JOIN lessons l ON l.id = lp.lesson_id
+            JOIN chapters ch ON ch.id = l.chapter_id
+            WHERE ch.course_id = :cid AND lp.completed = 1
+        ");
+        $q->execute(['cid' => $courseId]);
+        foreach ($q->fetchAll(PDO::FETCH_ASSOC) as $r) {
+            $done[(int)$r['student_id']][(int)$r['lesson_id']] = $r['completed_at'];
+        }
+
+        $quiz = [];      // student => [correct, answered]
+        $q = $this->pdo->prepare("
+            SELECT a.student_id, SUM(a.answered_correctly) AS ok, COUNT(*) AS n
+            FROM lesson_question_answers a
+            JOIN lesson_questions lq ON lq.id = a.question_id
+            JOIN lessons l ON l.id = lq.lesson_id
+            JOIN chapters ch ON ch.id = l.chapter_id
+            WHERE ch.course_id = :cid
+            GROUP BY a.student_id
+        ");
+        $q->execute(['cid' => $courseId]);
+        foreach ($q->fetchAll(PDO::FETCH_ASSOC) as $r) {
+            $quiz[(int)$r['student_id']] = [(int)$r['ok'], (int)$r['n']];
+        }
+
+        $q = $this->pdo->prepare("SELECT COUNT(*) FROM lessons l JOIN chapters ch ON ch.id = l.chapter_id WHERE ch.course_id = :cid AND l.has_assignment = 1");
+        $q->execute(['cid' => $courseId]);
+        $assignTotal = (int)$q->fetchColumn();
+
+        $subs = [];      // student => number of lessons with a submission
+        $q = $this->pdo->prepare("
+            SELECT s.student_id, COUNT(DISTINCT s.lesson_id) AS n
+            FROM lesson_assignment_submissions s
+            JOIN lessons l ON l.id = s.lesson_id
+            JOIN chapters ch ON ch.id = l.chapter_id
+            WHERE ch.course_id = :cid
+            GROUP BY s.student_id
+        ");
+        $q->execute(['cid' => $courseId]);
+        foreach ($q->fetchAll(PDO::FETCH_ASSOC) as $r) {
+            $subs[(int)$r['student_id']] = (int)$r['n'];
+        }
+
+        foreach ($students as &$s) {
+            $sid     = (int)$s['student_id'];
+            $mine    = $done[$sid] ?? [];
+            $count   = 0;
+            $current = null;
+            $last    = null;
+            foreach ($lessons as $l) {
+                if (isset($mine[$l['id']])) {
+                    $count++;
+                    if ($mine[$l['id']] && ($last === null || $mine[$l['id']] > $last)) {
+                        $last = $mine[$l['id']];
+                    }
+                } elseif ($current === null && !$l['expired']) {
+                    $current = $l['title'];
+                }
+            }
+            $s['lessons_done']      = $count;
+            $s['lessons_total']     = $total;
+            $s['progress_percent']  = $total > 0 ? (int)round($count / $total * 100) : 0;
+            $s['quiz_percent']      = isset($quiz[$sid]) && $quiz[$sid][1] > 0 ? (int)round($quiz[$sid][0] / $quiz[$sid][1] * 100) : null;
+            $s['assignments_done']  = min($subs[$sid] ?? 0, $assignTotal);
+            $s['assignments_total'] = $assignTotal;
+            $s['current_lesson']    = $count >= $total && $total > 0 ? null : $current;
+            $s['last_activity']     = $last;
+        }
+        unset($s);
+
+        return $students;
     }
 
     /**
@@ -170,10 +255,13 @@ class TeacherGradesService
         $enrolledRows = [];
         foreach ($this->fetchEnrolledStudents($courseId) as $s) {
             $enrolledRows[] = [
+                $s['matricule'] ?? '',
                 $s['student_name'],
-                $s['student_email'],
-                $s['progress_percent'] !== null ? $s['progress_percent'] . '%' : '0%',
-                !empty($s['enrolled_at']) ? date('d/m/Y H:i', strtotime((string)$s['enrolled_at'])) : '—',
+                $s['lessons_done'] . '/' . $s['lessons_total'],
+                $s['progress_percent'] . '%',
+                $s['quiz_percent'] !== null ? $s['quiz_percent'] . '%' : '—',
+                $s['assignments_total'] > 0 ? $s['assignments_done'] . '/' . $s['assignments_total'] : '—',
+                $s['current_lesson'] ?? '—',
             ];
         }
 
@@ -219,7 +307,7 @@ class TeacherGradesService
         return [
             [
                 'name'    => 'Eleves inscrits',
-                'headers' => ['Apprenant', 'Email', 'Progression', 'Date inscription'],
+                'headers' => ['Matricule', 'Nom complet', 'Lecons terminees', 'Progression', 'Moyenne quiz', 'Devoirs rendus', 'Lecon en cours'],
                 'rows'    => $enrolledRows,
             ],
             [

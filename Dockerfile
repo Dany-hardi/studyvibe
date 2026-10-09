@@ -15,6 +15,12 @@ RUN docker-php-ext-install pdo pdo_mysql
 # Activer le module rewrite d'Apache (mod_rewrite)
 RUN a2enmod rewrite
 
+# Réglages de performance pour les évaluations en direct (300+ étudiants en même temps), voir docs/PERFORMANCE.md
+RUN docker-php-ext-install opcache
+COPY docker/php-tuning.ini /usr/local/etc/php/conf.d/zz-studyvibe-tuning.ini
+COPY docker/apache-tuning.conf /etc/apache2/conf-available/studyvibe-tuning.conf
+RUN a2enconf studyvibe-tuning
+
 # Copier les fichiers du projet dans le conteneur
 COPY . /var/www/html/
 

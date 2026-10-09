@@ -63,7 +63,7 @@ if (is_file($envFile)) {
 // =========================================================================
 
 $envKeys = [
-    'DB_HOST', 'DB_PORT', 'DB_NAME', 'DB_USER', 'DB_PASS',
+    'DB_HOST', 'DB_PORT', 'DB_NAME', 'DB_USER', 'DB_PASS', 'DB_PERSISTENT',
     'APP_SECRET', 'APP_URL', 'HTTPS_ONLY',
     'LOGIN_MAX_ATTEMPTS', 'LOGIN_LOCKOUT_MINUTES',
     'SMTP_HOST', 'SMTP_PORT', 'SMTP_USER', 'SMTP_PASS', 'SMTP_FROM', 'SMTP_FROM_NAME',
@@ -93,8 +93,10 @@ defined('DB_NAME')               || define('DB_NAME', 'studyvibe');
 defined('DB_USER')               || define('DB_USER', 'root');
 defined('DB_PASS')               || define('DB_PASS', '');
 defined('APP_SECRET')            || define('APP_SECRET', 'fallback_secret_key');
-defined('APP_URL')               || define('APP_URL', 'http://127.0.0.1:8000');
+defined('APP_URL')               || define('APP_URL', 'http://127.0.0.1:8123');
 defined('HTTPS_ONLY')            || define('HTTPS_ONLY', 'false');
+defined('APP_DEBUG')             || define('APP_DEBUG', 'false');
+defined('TRUST_PROXY')           || define('TRUST_PROXY', 'false');
 defined('LOGIN_MAX_ATTEMPTS')    || define('LOGIN_MAX_ATTEMPTS', '5');
 defined('LOGIN_LOCKOUT_MINUTES') || define('LOGIN_LOCKOUT_MINUTES', '15');
 defined('SMTP_HOST')             || define('SMTP_HOST', '');
@@ -104,6 +106,19 @@ defined('SMTP_PASS')             || define('SMTP_PASS', '');
 defined('SMTP_FROM')             || define('SMTP_FROM', 'noreply@studyvibe.edu');
 defined('SMTP_FROM_NAME')        || define('SMTP_FROM_NAME', 'StudyVibe');
 defined('GEMINI_API_KEY')        || define('GEMINI_API_KEY', 'votre_cle_api_gemini_ici');
+// SMS (see lib/SmsGateway.php). Driver: log (developer machine only) | twilio | africastalking
+defined('SMS_DRIVER')            || define('SMS_DRIVER', 'log');
+defined('SMS_SENDER_ID')         || define('SMS_SENDER_ID', 'StudyVibe');
+defined('SMS_DEFAULT_COUNTRY')   || define('SMS_DEFAULT_COUNTRY', '237');
+defined('TWILIO_SID')            || define('TWILIO_SID', '');
+defined('TWILIO_TOKEN')          || define('TWILIO_TOKEN', '');
+defined('TWILIO_FROM')           || define('TWILIO_FROM', '');
+defined('TWILIO_MESSAGING_SERVICE_SID') || define('TWILIO_MESSAGING_SERVICE_SID', '');
+defined('AT_USERNAME')           || define('AT_USERNAME', '');
+defined('AT_API_KEY')            || define('AT_API_KEY', '');
+// Roles that must turn on two-factor authentication before using the app, comma separated (for example: promoter,teacher)
+defined('REQUIRE_2FA_ROLES')     || define('REQUIRE_2FA_ROLES', '');
+
 
 // =========================================================================
 // SECTION 5: HTTPS RE-ROUTING (PRODUCTION ENFORCEMENT)

@@ -1,0 +1,16 @@
+# MariaDB / MySQL settings for a live evaluation with 300+ students.
+# Put in /etc/mysql/conf.d/ (or the [mysqld] section of my.cnf) and restart the database.
+[mysqld]
+# Every web worker may hold one connection: this must stay well above Apache's MaxRequestWorkers (600)
+max_connections            = 800
+thread_cache_size          = 128
+skip-name-resolve
+
+# The default buffer pool is 16 MB: the whole working set should live in memory
+innodb_buffer_pool_size    = 512M
+innodb_log_file_size       = 128M
+
+# 300 students answering write a few hundred rows per second. Flushing to disk once a second instead of at every commit
+# multiplies write throughput, and the worst case on a power cut is losing the last second of answers.
+innodb_flush_log_at_trx_commit = 2
+innodb_flush_method        = O_DIRECT

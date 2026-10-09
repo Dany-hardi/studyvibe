@@ -1,6 +1,8 @@
 <?php
 declare(strict_types=1);
 
+require_once __DIR__ . '/lib/Brand.php';
+
 /**
  * StudyVibe LMS - Native SMTP & Mail Service
  * 
@@ -89,6 +91,24 @@ class Mailer
      * @param string $roleLabel Description of user account role ('apprenant' | 'enseignant').
      * @return bool True if sent successfully.
      */
+    /**
+     * Security notice after a change to the account's protection (two-factor turned on or off, new recovery codes).
+     * Tells the owner, so a change they did not make does not go unnoticed.
+     */
+    public static function securityNotice(string $to, string $name, string $what, string $lang = 'fr'): bool
+    {
+        $n = htmlspecialchars($name, ENT_QUOTES, 'UTF-8');
+        $w = htmlspecialchars($what, ENT_QUOTES, 'UTF-8');
+        if ($lang === 'en') {
+            $subject = 'Security notice — StudyVibe';
+            $body = "<p>Hello {$n},</p><p>{$w}</p><p>If this was you, nothing more to do. If it was not, change your password right away and contact your administrator.</p>";
+        } else {
+            $subject = 'Alerte de sécurité — StudyVibe';
+            $body = "<p>Bonjour {$n},</p><p>{$w}</p><p>Si c’est bien vous, il n’y a rien à faire. Sinon, changez immédiatement votre mot de passe et contactez votre administrateur.</p>";
+        }
+        return self::send($to, $subject, self::wrap($body, $subject));
+    }
+
     public static function welcome(string $to, string $name, string $roleLabel = 'apprenant'): bool
     {
         $appUrl = APP_URL;
@@ -107,12 +127,12 @@ class Mailer
                 ");
                 $courses = $stmt->fetchAll(PDO::FETCH_ASSOC);
                 if (!empty($courses)) {
-                    $coursesInfo .= "<div style='background-color:#FAF9F6; border: 1px solid #E5E5E7; padding: 20px; margin: 24px 0; border-radius: 4px;'>";
-                    $coursesInfo .= "<h4 style='margin-top:0; margin-bottom:12px; color:#004B23; font-family:Georgia,serif; font-size:15px; font-weight:normal;'>🔑 Clés d'inscription de vos cours :</h4>";
+                    $coursesInfo .= "<div style='background-color:#FBF8F2; border: 1px solid #DDD5C3; padding: 20px; margin: 24px 0; border-radius: 4px;'>";
+                    $coursesInfo .= "<h4 style='margin-top:0; margin-bottom:12px; color:#B5482A; font-family:Georgia,serif; font-size:15px; font-weight:normal;'>Clés d'inscription de vos cours :</h4>";
                     $coursesInfo .= "<p style='font-size:12px; color:#555; margin-bottom:12px;'>Copiez ces clés et utilisez-les sur votre tableau de bord pour déverrouiller vos cours instantanément :</p>";
                     $coursesInfo .= "<ul style='margin:0; padding-left:20px; line-height:1.6; font-size:13px; color:#111;'>";
                     foreach ($courses as $c) {
-                        $coursesInfo .= "<li style='margin-bottom:6px;'><strong>" . htmlspecialchars($c['title']) . "</strong> : <code style='background:#E5E5E7; padding:2px 6px; border-radius:3px; font-weight:bold; font-family:monospace;'>" . htmlspecialchars($c['enrollment_key']) . "</code></li>";
+                        $coursesInfo .= "<li style='margin-bottom:6px;'><strong>" . htmlspecialchars($c['title']) . "</strong> : <code style='background:#DDD5C3; padding:2px 6px; border-radius:3px; font-weight:bold; font-family:monospace;'>" . htmlspecialchars($c['enrollment_key']) . "</code></li>";
                     }
                     $coursesInfo .= "</ul></div>";
                 }
@@ -122,14 +142,14 @@ class Mailer
         }
 
         $body = self::wrap("
-            <h2 style='font-family:Georgia,serif;font-weight:300;color:#004B23;margin-top:0;'>Bienvenue sur StudyVibe !</h2>
+            <h2 style='font-family:Georgia,serif;font-weight:300;color:#B5482A;margin-top:0;'>Bienvenue sur StudyVibe !</h2>
             <p>Bonjour <strong>" . htmlspecialchars($name) . "</strong>,</p>
             <p>Nous sommes ravis de vous accueillir au sein de notre communauté d'apprentissage. Votre compte de type <strong>" . htmlspecialchars($roleLabel) . "</strong> a été créé avec succès.</p>
             <p>Notre mission est de vous offrir une expérience d'apprentissage fluide, intuitive et enrichissante. Pour commencer dès aujourd'hui, accédez à votre espace pour découvrir tous vos cours.</p>
             
             {$coursesInfo}
 
-            <p style='margin-top:24px;'><a href='{$appUrl}' style='display:inline-block;padding:12px 24px;background:#004B23;color:#fff;text-decoration:none;font-size:13px;font-weight:600;border-radius:4px;'>Accéder à mon espace StudyVibe</a></p>
+            <p style='margin-top:24px;'><a href='{$appUrl}' style='display:inline-block;padding:12px 24px;background:#B5482A;color:#fff;text-decoration:none;font-size:13px;font-weight:600;border-radius:4px;'>Accéder à mon espace StudyVibe</a></p>
             <p style='font-size:13px;color:#555;margin-top:24px;'>Si vous avez des questions ou si vous avez besoin d'aide pour vos premiers pas, notre équipe est à votre entière disposition. N'hésitez pas à répondre directement à ce message.</p>
             <p style='font-size:13px;color:#111;margin-top:24px;'>Chaleureusement,<br><strong>L'équipe StudyVibe</strong></p>
         ");
@@ -147,15 +167,20 @@ class Mailer
      */
     public static function emailVerification(string $to, string $name, string $token): bool
     {
-        $url  = APP_URL . '/verify-email.php?token=' . urlencode($token);
-        $body = self::wrap("
-            <h2 style='font-family:Georgia,serif;font-weight:300'>Confirmez votre adresse email</h2>
-            <p>Bonjour <strong>" . htmlspecialchars($name) . "</strong>,</p>
-            <p>Cliquez sur le bouton ci-dessous pour vérifier votre adresse et activer votre compte StudyVibe.</p>
-            <p><a href='{$url}' style='display:inline-block;padding:12px 24px;background:#004B23;color:#fff;text-decoration:none;font-size:13px'>Vérifier mon email</a></p>
-            <p style='font-size:12px;color:#888'>Ce lien expire dans 48 heures.</p>
-        ");
-        return self::send($to, 'Vérifiez votre email — StudyVibe', $body);
+        $url   = APP_URL . '/verify-email.php?token=' . urlencode($token);
+        $first = trim(explode(' ', trim($name))[0] ?? '');
+        $body  = self::wrap(
+            self::heading('Confirmez votre adresse email')
+            . self::p('Bonjour <strong>' . htmlspecialchars($first !== '' ? $first : $name) . '</strong>,')
+            . self::p('Bienvenue sur StudyVibe. Une dernière étape et votre compte est prêt : confirmez que cette adresse est bien la vôtre.')
+            . self::button($url, 'Vérifier mon email')
+            . self::note('Ce lien reste valable <strong>48 heures</strong>. Passé ce délai, vous pourrez en demander un nouveau depuis la page de connexion.')
+            . self::p("Le bouton ne s'affiche pas ? Copiez ce lien dans votre navigateur :", 'font-size:12px;color:#6F695C;margin:18px 0 4px 0;')
+            . "<p style='margin:0;font-size:12px;word-break:break-all;'><a href='" . htmlspecialchars($url, ENT_QUOTES) . "' style='color:#B5482A;'>" . htmlspecialchars($url) . "</a></p>"
+            . self::p("Vous n'avez pas créé de compte StudyVibe ? Ignorez simplement cet email, rien ne sera activé.", 'font-size:12px;color:#6F695C;margin:22px 0 0 0;'),
+            'Confirmez votre adresse email pour activer votre compte StudyVibe.'
+        );
+        return self::send($to, 'Confirmez votre adresse email — StudyVibe', $body);
     }
 
     /**
@@ -168,15 +193,18 @@ class Mailer
      */
     public static function passwordReset(string $to, string $name, string $token): bool
     {
-        $url  = APP_URL . '/reset-password.php?token=' . urlencode($token);
-        $body = self::wrap("
-            <h2 style='font-family:Georgia,serif;font-weight:300'>Réinitialisation du mot de passe</h2>
-            <p>Bonjour <strong>" . htmlspecialchars($name) . "</strong>,</p>
-            <p>Une demande de réinitialisation a été effectuée. Si vous êtes à l'origine de cette demande, cliquez ci-dessous :</p>
-            <p><a href='{$url}' style='display:inline-block;padding:12px 24px;background:#111;color:#fff;text-decoration:none;font-size:13px'>Choisir un nouveau mot de passe</a></p>
-            <p style='font-size:12px;color:#888'>Ce lien expire dans 2 heures. Ignorez cet email si vous n'avez pas fait cette demande.</p>
-        ");
-        return self::send($to, 'Réinitialisation mot de passe — StudyVibe', $body);
+        $url   = APP_URL . '/reset-password.php?token=' . urlencode($token);
+        $first = trim(explode(' ', trim($name))[0] ?? '');
+        $body  = self::wrap(
+            self::heading('Choisissez un nouveau mot de passe')
+            . self::p('Bonjour <strong>' . htmlspecialchars($first !== '' ? $first : $name) . '</strong>,')
+            . self::p("Nous avons reçu une demande de réinitialisation du mot de passe de votre compte. Si c'est bien vous, cliquez ci-dessous.")
+            . self::button($url, 'Choisir un nouveau mot de passe')
+            . self::note('Ce lien reste valable <strong>2 heures</strong> et ne peut servir qu\'une seule fois.')
+            . self::p("Vous n'êtes pas à l'origine de cette demande ? Ignorez cet email : votre mot de passe actuel reste inchangé.", 'font-size:12px;color:#6F695C;margin:22px 0 0 0;'),
+            'Un lien pour choisir un nouveau mot de passe StudyVibe.'
+        );
+        return self::send($to, 'Réinitialisation du mot de passe — StudyVibe', $body);
     }
 
     /**
@@ -198,8 +226,8 @@ class Mailer
             <p>Bonjour <strong>" . htmlspecialchars($name) . "</strong>,</p>
             <p>Vous avez validé le cours <strong>" . htmlspecialchars($courseTitle) . "</strong>.</p>
             <p>Code certificat : <code style='background:#f5f5f7;padding:4px 8px'>{$certCode}</code></p>
-            <p><a href='{$certUrl}' style='display:inline-block;padding:12px 24px;background:#004B23;color:#fff;text-decoration:none;font-size:13px;margin-right:8px'>Voir mon certificat</a>
-            <a href='{$verifyUrl}' style='font-size:13px;color:#004B23'>Vérifier en ligne</a></p>
+            <p><a href='{$certUrl}' style='display:inline-block;padding:12px 24px;background:#B5482A;color:#fff;text-decoration:none;font-size:13px;margin-right:8px'>Voir mon certificat</a>
+            <a href='{$verifyUrl}' style='font-size:13px;color:#B5482A'>Vérifier en ligne</a></p>
         ");
         return self::send($to, 'Votre certificat StudyVibe — ' . $courseTitle, $body);
     }
@@ -224,7 +252,7 @@ class Mailer
         $qasHtml = '';
         foreach ($qas as $idx => $qa) {
             $num = $idx + 1;
-            $status = $qa['answered_correctly'] ? "<span style='color:#004B23; font-weight:bold;'>✓ Correct (+1)</span>" : "<span style='color:#C62828; font-weight:bold;'>✕ Incorrect (0)</span>";
+            $status = $qa['answered_correctly'] ? "<span style='color:#B5482A; font-weight:bold;'>✓ Correct (+1)</span>" : "<span style='color:#C62828; font-weight:bold;'>✕ Incorrect (0)</span>";
             
             $optionsHtml = '';
             foreach (['A', 'B', 'C', 'D'] as $opt) {
@@ -232,7 +260,7 @@ class Mailer
                 $isCorrectOpt = $opt === $qa['correct_option'];
                 $isSelectedOpt = $opt === $qa['selected_option'];
                 
-                $style = 'padding: 6px 12px; margin-bottom: 4px; border: 1px solid #E5E5E7; font-size: 13px;';
+                $style = 'padding: 6px 12px; margin-bottom: 4px; border: 1px solid #DDD5C3; font-size: 13px;';
                 if ($isCorrectOpt) {
                     $style .= 'background-color: #E2F0D9; border-color: #A2D190; color: #385723; font-weight: 500;';
                 } elseif ($isSelectedOpt) {
@@ -253,7 +281,7 @@ class Mailer
             }
             
             $qasHtml .= "
-                <div style='margin-bottom: 24px; border-bottom: 1px solid #E5E5E7; padding-bottom: 16px;'>
+                <div style='margin-bottom: 24px; border-bottom: 1px solid #DDD5C3; padding-bottom: 16px;'>
                     <h4 style='margin: 0 0 10px 0; font-size: 14px; font-weight: 600; color: #111;'>Question {$num} : " . htmlspecialchars($qa['question_text']) . "</h4>
                     <div style='margin-bottom: 10px;'>{$optionsHtml}</div>
                     <div style='font-size: 12px;'>Statut : {$status}</div>
@@ -262,17 +290,17 @@ class Mailer
         }
 
         $body = self::wrap("
-            <h2 style='font-family:Georgia,serif;font-weight:300;color:#004B23;margin-top:0;'>Copie de vos réponses au Quiz</h2>
+            <h2 style='font-family:Georgia,serif;font-weight:300;color:#B5482A;margin-top:0;'>Copie de vos réponses au Quiz</h2>
             <p>Bonjour <strong>" . htmlspecialchars($studentName) . "</strong>,</p>
             <p>Vous avez complété avec succès le quiz pour la leçon : <strong>" . htmlspecialchars($lessonTitle) . "</strong> (Cours : <em>" . htmlspecialchars($courseTitle) . "</em>).</p>
             
-            <div style='background-color:#F5F5F7; border: 1px solid #E5E5E7; padding: 16px; margin: 20px 0; text-align: center;'>
+            <div style='background-color:#F5F0E6; border: 1px solid #DDD5C3; padding: 16px; margin: 20px 0; text-align: center;'>
                 <div style='font-size:12px; text-transform:uppercase; color:#888; letter-spacing:1px;'>Note Officielle</div>
-                <div style='font-size:36px; font-weight:bold; color:#004B23; margin: 5px 0;'>{$score}%</div>
+                <div style='font-size:36px; font-weight:bold; color:#B5482A; margin: 5px 0;'>{$score}%</div>
                 <div style='font-size:12px; color:#555;'>Vos réponses ont été enregistrées de manière définitive.</div>
             </div>
             
-            <h3 style='font-family:Georgia,serif;font-weight:300;border-bottom:2px solid #004B23;padding-bottom:6px;margin-top:30px;'>Détails de vos réponses</h3>
+            <h3 style='font-family:Georgia,serif;font-weight:300;border-bottom:2px solid #B5482A;padding-bottom:6px;margin-top:30px;'>Détails de vos réponses</h3>
             {$qasHtml}
         ");
         
@@ -295,7 +323,7 @@ class Mailer
     {
         $scorePercent = $totalQuestions > 0 ? round(($correctCount / $totalQuestions) * 100, 1) : 0.0;
         $statusLabel = $scorePercent >= 50 ? 'Validé (Réussite)' : 'Non validé';
-        $statusColor = $scorePercent >= 50 ? '#004B23' : '#C62828';
+        $statusColor = $scorePercent >= 50 ? '#B5482A' : '#C62828';
 
         $linkHtml = '';
         if ($registrationId > 0 && defined('APP_SECRET')) {
@@ -309,26 +337,26 @@ class Mailer
             $url = rtrim($baseUrl, '/') . "/student/evaluation-results.php?registration_id={$registrationId}&token={$token}";
             $linkHtml = "
                 <div style='margin: 25px 0; text-align: center;'>
-                    <a href='" . htmlspecialchars($url, ENT_QUOTES) . "' style='display: inline-block; padding: 12px 24px; background-color: #004B23; color: #FFFFFF; font-weight: bold; text-decoration: none; border-radius: 4px; font-size: 14px; box-shadow: 0 2px 5px rgba(0,0,0,0.15);'>Consulter mon rapport détaillé & correction</a>
+                    <a href='" . htmlspecialchars($url, ENT_QUOTES) . "' style='display: inline-block; padding: 12px 24px; background-color: #B5482A; color: #FFFFFF; font-weight: bold; text-decoration: none; border-radius: 4px; font-size: 14px; box-shadow: 0 2px 5px rgba(0,0,0,0.15);'>Consulter mon rapport détaillé & correction</a>
                     <div style='font-size: 11px; color: #888; margin-top: 8px;'>Ce lien sécurisé vous permet d'accéder aux justifications et explications de chaque question en ligne.</div>
                 </div>
             ";
         }
 
         $body = self::wrap("
-            <h2 style='font-family:Georgia,serif;font-weight:300;color:#004B23;margin-top:0;'>Résultats de votre Téléévaluation</h2>
+            <h2 style='font-family:Georgia,serif;font-weight:300;color:#B5482A;margin-top:0;'>Résultats de votre Téléévaluation</h2>
             <p>Bonjour <strong>" . htmlspecialchars($studentName) . "</strong>,</p>
             <p>Vous avez participé à la séance de téléévaluation : <strong>" . htmlspecialchars($sessionTitle) . "</strong>.</p>
             
-            <div style='background-color:#F5F5F7; border: 1px solid #E5E5E7; padding: 16px; margin: 20px 0;'>
+            <div style='background-color:#F5F0E6; border: 1px solid #DDD5C3; padding: 16px; margin: 20px 0;'>
                 <div style='font-size:12px; text-transform:uppercase; color:#888; letter-spacing:1px; text-align: center; margin-bottom: 10px;'>Statistiques Individuelles d'Évaluation</div>
                 
                 <table style='width: 100%; border-collapse: collapse; font-size: 13px;'>
-                    <tr style='border-bottom: 1px solid #E5E5E7;'>
+                    <tr style='border-bottom: 1px solid #DDD5C3;'>
                         <td style='padding: 8px 0; color: #555;'>Score obtenu :</td>
                         <td style='padding: 8px 0; text-align: right; font-weight: bold; color: #111;'>{$correctCount} / {$totalQuestions}</td>
                     </tr>
-                    <tr style='border-bottom: 1px solid #E5E5E7;'>
+                    <tr style='border-bottom: 1px solid #DDD5C3;'>
                         <td style='padding: 8px 0; color: #555;'>Taux de réussite :</td>
                         <td style='padding: 8px 0; text-align: right; font-weight: bold; color: #111;'>{$scorePercent}%</td>
                     </tr>
@@ -376,7 +404,7 @@ class Mailer
                 <li><strong>Module :</strong> " . htmlspecialchars($moduleTitle) . "</li>
             </ul>
             <p>Le cours apparaît dans votre catalogue. Vous pouvez révoquer ou réassigner l'enseignant titulaire à tout moment.</p>
-            <p><a href='{$appUrl}/promoter/dashboard.php' style='display:inline-block;padding:12px 24px;background:#004B23;color:#fff;text-decoration:none;font-size:13px'>Ouvrir la console promoteur</a></p>
+            <p><a href='{$appUrl}/promoter/dashboard.php' style='display:inline-block;padding:12px 24px;background:#B5482A;color:#fff;text-decoration:none;font-size:13px'>Ouvrir la console promoteur</a></p>
         ");
         return self::send($to, 'StudyVibe — Nouveau cours : ' . $courseTitle, $body);
     }
@@ -421,7 +449,7 @@ class Mailer
             <p>Bonjour <strong>" . htmlspecialchars($name) . "</strong>,</p>
             <p>Bonne nouvelle ! Votre compte d'enseignant sur StudyVibe a été validé par le promoteur.</p>
             <p>Vous pouvez dès maintenant vous connecter à votre espace, créer vos cours et gérer vos leçons.</p>
-            <p><a href='{$appUrl}' style='display:inline-block;padding:12px 24px;background:#004B23;color:#fff;text-decoration:none;font-size:13px'>Me connecter</a></p>
+            <p><a href='{$appUrl}' style='display:inline-block;padding:12px 24px;background:#B5482A;color:#fff;text-decoration:none;font-size:13px'>Me connecter</a></p>
         ");
         return self::send($to, 'Votre compte enseignant a été validé ! — StudyVibe', $body);
     }
@@ -438,10 +466,10 @@ class Mailer
     public static function directMessage(string $to, string $studentName, string $subject, string $messageText): bool
     {
         $body = self::wrap("
-            <h2 style='font-family:Georgia,serif;font-weight:300;color:#004B23'>Message de l'administration StudyVibe</h2>
+            <h2 style='font-family:Georgia,serif;font-weight:300;color:#B5482A'>Message de l'administration StudyVibe</h2>
             <p>Bonjour <strong>" . htmlspecialchars($studentName) . "</strong>,</p>
             <p>Le promoteur de la plateforme vous a envoyé le message direct suivant :</p>
-            <div style='background:#F5F5F7;border-left:4px solid #004B23;padding:16px;margin:20px 0;line-height:1.6;font-family:inherit;white-space:pre-wrap;'>" . htmlspecialchars($messageText) . "</div>
+            <div style='background:#F5F0E6;border-left:4px solid #B5482A;padding:16px;margin:20px 0;line-height:1.6;font-family:inherit;white-space:pre-wrap;'>" . htmlspecialchars($messageText) . "</div>
             <p style='font-size:12px;color:#666;'>Vous pouvez répondre à ce message ou vous connecter sur StudyVibe pour suivre vos cours.</p>
         ");
         return self::send($to, $subject, $body);
@@ -480,23 +508,23 @@ class Mailer
     public static function sendEnrollmentKeys(string $to, string $name, array $courses): bool
     {
         $appUrl = APP_URL;
-        $coursesInfo = "<div style='background-color:#FAF9F6; border: 1px solid #E5E5E7; padding: 20px; margin: 24px 0; border-radius: 4px;'>";
-        $coursesInfo .= "<h4 style='margin-top:0; margin-bottom:12px; color:#004B23; font-family:Georgia,serif; font-size:15px; font-weight:normal;'>🔑 Clés d'inscription de vos cours :</h4>";
+        $coursesInfo = "<div style='background-color:#FBF8F2; border: 1px solid #DDD5C3; padding: 20px; margin: 24px 0; border-radius: 4px;'>";
+        $coursesInfo .= "<h4 style='margin-top:0; margin-bottom:12px; color:#B5482A; font-family:Georgia,serif; font-size:15px; font-weight:normal;'>Clés d'inscription de vos cours :</h4>";
         $coursesInfo .= "<ul style='margin:0; padding-left:20px; line-height:1.6; font-size:13px; color:#111;'>";
         foreach ($courses as $c) {
-            $coursesInfo .= "<li style='margin-bottom:6px;'><strong>" . htmlspecialchars($c['title']) . "</strong> : <code style='background:#E5E5E7; padding:2px 6px; border-radius:3px; font-weight:bold; font-family:monospace;'>" . htmlspecialchars($c['enrollment_key']) . "</code></li>";
+            $coursesInfo .= "<li style='margin-bottom:6px;'><strong>" . htmlspecialchars($c['title']) . "</strong> : <code style='background:#DDD5C3; padding:2px 6px; border-radius:3px; font-weight:bold; font-family:monospace;'>" . htmlspecialchars($c['enrollment_key']) . "</code></li>";
         }
         $coursesInfo .= "</ul></div>";
 
         $body = self::wrap("
-            <h2 style='font-family:Georgia,serif;font-weight:300;color:#004B23;margin-top:0;'>Vos clés d'inscription StudyVibe</h2>
+            <h2 style='font-family:Georgia,serif;font-weight:300;color:#B5482A;margin-top:0;'>Vos clés d'inscription StudyVibe</h2>
             <p>Bonjour <strong>" . htmlspecialchars($name) . "</strong>,</p>
             <p>L'administration vient de vous transmettre la liste à jour de toutes les clés d'inscription actives sur StudyVibe.</p>
             <p>Vous pouvez copier ces clés et les saisir sur votre tableau de bord étudiant pour vous inscrire instantanément aux cours correspondants :</p>
             
             {$coursesInfo}
 
-            <p style='margin-top:24px;'><a href='{$appUrl}' style='display:inline-block;padding:12px 24px;background:#004B23;color:#fff;text-decoration:none;font-size:13px;font-weight:600;border-radius:4px;'>Accéder à mon espace StudyVibe</a></p>
+            <p style='margin-top:24px;'><a href='{$appUrl}' style='display:inline-block;padding:12px 24px;background:#B5482A;color:#fff;text-decoration:none;font-size:13px;font-weight:600;border-radius:4px;'>Accéder à mon espace StudyVibe</a></p>
             <p style='font-size:13px;color:#555;margin-top:24px;'>Si vous rencontrez des difficultés d'inscription, n'hésitez pas à répondre directement à ce message.</p>
             <p style='font-size:13px;color:#111;margin-top:24px;'>Cordialement,<br><strong>L'administration StudyVibe</strong></p>
         ");
@@ -534,9 +562,9 @@ class Mailer
             : "L'enseignant a mis à jour le contenu de la leçon <strong>" . htmlspecialchars($lessonTitle) . "</strong> dans le cours <strong>" . htmlspecialchars($courseTitle) . "</strong>.";
 
         $infoBox = "
-            <div style='background-color:#EFF6FF; border-left:4px solid #2563EB; padding:16px 20px; margin:24px 0; border-radius:0 8px 8px 0;'>
-                <div style='font-weight:700; color:#1E40AF; font-size:13px; margin-bottom:4px; text-transform:uppercase; letter-spacing:0.5px;'>Information importante :</div>
-                <div style='color:#1E3A8A; font-size:13px; line-height:1.5;'>
+            <div style='background-color:#F1DDD2; border-left:4px solid #B5482A; padding:16px 20px; margin:24px 0; border-radius:0 8px 8px 0;'>
+                <div style='font-weight:700; color:#96391E; font-size:13px; margin-bottom:4px; text-transform:uppercase; letter-spacing:0.5px;'>Information importante :</div>
+                <div style='color:#4A453C; font-size:13px; line-height:1.5;'>
                     Afin de vous permettre d'assimiler les nouveaux éléments ajoutés par l'enseignant, la progression de cette leçon a été réinitialisée. Votre pourcentage d'avancement global sur ce cours a été ajusté sur votre tableau de bord.
                 </div>
             </div>
@@ -544,26 +572,26 @@ class Mailer
 
         $body = self::wrap("
             <div style='margin-bottom:16px;'>
-                <span style='display:inline-block; padding:4px 12px; background-color:#DBEAFE; color:#1E40AF; font-size:11px; font-weight:700; text-transform:uppercase; letter-spacing:0.5px; border-radius:20px;'>
+                <span style='display:inline-block; padding:4px 12px; background-color:#F1DDD2; color:#96391E; font-size:11px; font-weight:700; text-transform:uppercase; letter-spacing:0.5px; border-radius:20px;'>
                     {$badgeLabel}
                 </span>
             </div>
-            <h2 style='font-size:22px; font-weight:800; color:#0F172A; margin:0 0 16px 0; letter-spacing:-0.5px;'>{$heading}</h2>
+            <h2 style='font-size:22px; font-weight:800; color:#1E1B16; margin:0 0 16px 0; letter-spacing:-0.5px;'>{$heading}</h2>
             <p style='margin:0 0 16px 0;'>Bonjour <strong>" . htmlspecialchars($studentName) . "</strong>,</p>
             <p style='margin:0 0 16px 0;'>{$introText}</p>
             
             {$infoBox}
 
             <p style='margin:28px 0 20px 0;'>
-                <a href='{$lessonUrl}' style='display:inline-block; padding:14px 28px; background-color:#2563EB; color:#FFFFFF; text-decoration:none; font-size:14px; font-weight:700; border-radius:8px; box-shadow:0 4px 12px rgba(37,99,235,0.25); text-align:center;'>
+                <a href='{$lessonUrl}' style='display:inline-block; padding:14px 28px; background-color:#B5482A; color:#FFFFFF; text-decoration:none; font-size:14px; font-weight:700; border-radius:8px; box-shadow:0 4px 12px rgba(181,72,42,0.25); text-align:center;'>
                     Accéder au cours &amp; Découvrir les nouveautés &rarr;
                 </a>
             </p>
 
-            <p style='font-size:13px; color:#64748B; margin-top:24px;'>
+            <p style='font-size:13px; color:#6F695C; margin-top:24px;'>
                 Si vous avez des questions concernant cette mise à jour, vous pouvez directement échanger avec l'enseignant ou contacter l'assistance StudyVibe.
             </p>
-            <p style='font-size:13px; color:#334155; margin-top:24px; font-weight:600;'>
+            <p style='font-size:13px; color:#4A453C; margin-top:24px; font-weight:600;'>
                 Cordialement,<br>L'équipe pédagogique StudyVibe
             </p>
         ");
@@ -585,68 +613,81 @@ class Mailer
      * @param string $content HTML block details.
      * @return string Wrapped HTML document.
      */
-    private static function wrap(string $content): string
-    {
-        $appUrl = defined('APP_URL') ? APP_URL : 'https://studyvibe.edu';
-        $logoPath = __DIR__ . '/assets/img/studyvibe-logo.png';
-        if (file_exists($logoPath)) {
-            $logoSrc = 'data:image/png;base64,' . base64_encode(file_get_contents($logoPath));
-        } else {
-            $logoSrc = rtrim($appUrl, '/') . '/assets/img/studyvibe-logo.png';
-        }
+    private const FONT_DISPLAY = "'Fraunces', Georgia, 'Times New Roman', serif";
+    private const FONT_BODY    = "'Hanken Grotesk', 'Helvetica Neue', Helvetica, Arial, sans-serif";
 
-        return "
-        <!DOCTYPE html>
-        <html lang='fr'>
-        <head>
-            <meta charset='UTF-8'>
-            <meta name='viewport' content='width=device-width, initial-scale=1.0'>
-            <title>StudyVibe</title>
-        </head>
-        <body style='margin:0; padding:0; background-color:#F4F6F8; font-family:-apple-system, BlinkMacSystemFont, \"Segoe UI\", Roboto, Helvetica, Arial, sans-serif; -webkit-font-smoothing:antialiased;'>
-            <table border='0' cellpadding='0' cellspacing='0' width='100%' style='background-color:#F4F6F8; padding: 40px 16px;'>
-                <tr>
-                    <td align='center'>
-                        <table border='0' cellpadding='0' cellspacing='0' width='100%' style='max-width:580px; background-color:#FFFFFF; border-radius:12px; border:1px solid #E5E7EB; box-shadow:0 4px 20px rgba(0,0,0,0.05); overflow:hidden;'>
-                            <!-- Header Banner with Logo -->
-                            <tr>
-                                <td style='background-color:#0A1128; padding:28px 36px; text-align:left; border-bottom:3px solid #2563EB;'>
-                                    <table border='0' cellpadding='0' cellspacing='0' width='100%'>
-                                        <tr>
-                                            <td>
-                                                <img src='{$logoSrc}' alt='StudyVibe Technologies' style='height:36px; width:auto; display:block; border:0;'>
-                                            </td>
-                                            <td align='right' style='color:#94A3B8; font-size:11px; text-transform:uppercase; letter-spacing:1px; font-weight:600;'>
-                                                Plateforme Académique
-                                            </td>
-                                        </tr>
-                                    </table>
-                                </td>
-                            </tr>
-                            <!-- Main Content Area -->
-                            <tr>
-                                <td style='padding:36px; color:#1E293B; font-size:14px; line-height:1.6;'>
-                                    {$content}
-                                </td>
-                            </tr>
-                            <!-- Footer -->
-                            <tr>
-                                <td style='background-color:#F8FAFC; padding:24px 36px; border-top:1px solid #E2E8F0; text-align:center; color:#64748B; font-size:12px;'>
-                                    <p style='margin:0 0 8px 0; font-weight:600; color:#334155;'>StudyVibe Technologies — Excellence &amp; Innovation Académique</p>
-                                    <p style='margin:0 0 12px 0;'>Vous recevez cette notification automatique car vous êtes inscrit sur la plateforme StudyVibe.</p>
-                                    <p style='margin:0;'>
-                                        <a href='{$appUrl}' style='color:#2563EB; text-decoration:none; font-weight:500;'>Accéder au portail</a> &bull; 
-                                        <a href='{$appUrl}/student/dashboard.php' style='color:#2563EB; text-decoration:none; font-weight:500;'>Mon Espace Étudiant</a>
-                                    </p>
-                                </td>
-                            </tr>
-                        </table>
-                    </td>
-                </tr>
-            </table>
-        </body>
-        </html>
-        ";
+    /** Serif headline (Fraunces where the client loads it, Georgia elsewhere). */
+    private static function heading(string $text): string
+    {
+        return "<h1 style=\"margin:0 0 18px 0; font-family:" . self::FONT_DISPLAY . "; font-weight:500; font-size:28px; line-height:1.2; letter-spacing:-0.02em; color:#1E1B16;\">" . htmlspecialchars($text) . "</h1>";
+    }
+
+    private static function p(string $html, string $style = ''): string
+    {
+        return "<p style=\"margin:0 0 14px 0; font-size:15px; line-height:1.65; color:#4A453C; {$style}\">{$html}</p>";
+    }
+
+    /** Bulletproof terracotta button (table based so Outlook keeps the colour and the rounded look). */
+    private static function button(string $url, string $label): string
+    {
+        $u = htmlspecialchars($url, ENT_QUOTES);
+        return "<table role='presentation' border='0' cellpadding='0' cellspacing='0' style='margin:22px 0 22px 0;'><tr>"
+             . "<td align='center' bgcolor='#B5482A' style='border-radius:10px; background-color:#B5482A;'>"
+             . "<a href='{$u}' target='_blank' style=\"display:inline-block; padding:14px 28px; font-family:" . self::FONT_BODY . "; font-size:15px; font-weight:700; line-height:1; color:#FFFFFF; text-decoration:none; border-radius:10px; border:1px solid #B5482A;\">" . htmlspecialchars($label) . "</a>"
+             . "</td></tr></table>";
+    }
+
+    /** Soft callout (expiry, security note). */
+    private static function note(string $html): string
+    {
+        return "<table role='presentation' border='0' cellpadding='0' cellspacing='0' width='100%' style='margin:0 0 6px 0;'><tr>"
+             . "<td style=\"background-color:#F1DDD2; border-left:3px solid #B5482A; border-radius:6px; padding:12px 16px; font-family:" . self::FONT_BODY . "; font-size:13px; line-height:1.55; color:#4A453C;\">{$html}</td></tr></table>";
+    }
+
+    private static function wrap(string $content, string $preheader = ''): string
+    {
+        $appUrl = defined('APP_URL') ? rtrim((string)APP_URL, '/') : 'https://studyvibe.edu';
+        $header = Brand::emailHeader('#FBF8F2', 190);
+        $fb  = self::FONT_BODY;
+        $pre = $preheader !== ''
+            ? "<div style='display:none; max-height:0; overflow:hidden; mso-hide:all; font-size:1px; line-height:1px; color:#F5F0E6;'>" . htmlspecialchars($preheader) . str_repeat('&nbsp;&zwnj;', 40) . "</div>"
+            : '';
+
+        return "<!DOCTYPE html>
+<html lang='fr'>
+<head>
+    <meta charset='UTF-8'>
+    <meta name='viewport' content='width=device-width, initial-scale=1.0'>
+    <meta name='color-scheme' content='light'>
+    <title>StudyVibe</title>
+    <link href='https://fonts.googleapis.com/css2?family=Fraunces:opsz,wght@9..144,500&family=Hanken+Grotesk:wght@400;600;700&display=swap' rel='stylesheet'>
+</head>
+<body style=\"margin:0; padding:0; background-color:#F5F0E6; font-family:{$fb}; -webkit-font-smoothing:antialiased;\">
+    {$pre}
+    <table role='presentation' border='0' cellpadding='0' cellspacing='0' width='100%' style='background-color:#F5F0E6;'>
+        <tr>
+            <td align='center' style='padding:36px 14px;'>
+                <table role='presentation' border='0' cellpadding='0' cellspacing='0' width='100%' style='max-width:600px; background-color:#FBF8F2; border:1px solid #DDD5C3; border-radius:14px; overflow:hidden;'>
+                    <tr><td style='height:5px; line-height:5px; font-size:0; background-color:#B5482A;'>&nbsp;</td></tr>
+                    <tr><td>{$header}</td></tr>
+                    <tr>
+                        <td style=\"padding:8px 40px 38px 40px; font-family:{$fb}; color:#1E1B16; font-size:15px; line-height:1.65;\">
+                            {$content}
+                        </td>
+                    </tr>
+                    <tr>
+                        <td style=\"background-color:#F5F0E6; padding:24px 40px; border-top:1px solid #DDD5C3; text-align:center; font-family:{$fb}; color:#6F695C; font-size:12px; line-height:1.6;\">
+                            <p style='margin:0 0 6px 0; font-weight:700; color:#4A453C;'>StudyVibe</p>
+                            <p style='margin:0 0 12px 0;'>La plateforme pour l&rsquo;enseignement sup&eacute;rieur. Vous recevez ce message automatique car une action a &eacute;t&eacute; effectu&eacute;e avec votre adresse.</p>
+                            <p style='margin:0;'><a href='{$appUrl}' style='color:#B5482A; text-decoration:none; font-weight:700;'>Acc&eacute;der &agrave; StudyVibe</a></p>
+                        </td>
+                    </tr>
+                </table>
+            </td>
+        </tr>
+    </table>
+</body>
+</html>";
     }
 
     // =========================================================================

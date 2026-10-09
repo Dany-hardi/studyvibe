@@ -27,6 +27,15 @@ try {
         exit;
     }
 
+    // One email per minute and per session is plenty; it also protects the mailbox from repeated clicks
+    $last = (int)($_SESSION['verify_resend_at'] ?? 0);
+    if (time() - $last < 60) {
+        $wait = 60 - (time() - $last);
+        echo json_encode(['success' => false, 'message' => "Un email vient déjà d'être envoyé. Patientez encore {$wait} s avant de réessayer."]);
+        exit;
+    }
+    $_SESSION['verify_resend_at'] = time();
+
     $token = AuthTokens::createEmailVerification($pdo, (int)$user['id']);
     $sent  = Mailer::emailVerification($user['email'], $user['name'], $token);
 

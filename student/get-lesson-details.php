@@ -22,6 +22,7 @@ declare(strict_types=1);
 // =========================================================================
 
 require_once __DIR__ . '/../auth.php';
+require_once __DIR__ . '/../lib/LessonFlow.php';
 
 header('Content-Type: application/json');
 
@@ -69,6 +70,13 @@ try {
         exit;
     }
 
+    // Séquence : une leçon ne s'ouvre qu'une fois la précédente terminée
+    $blocker = LessonFlow::blockerFor($pdo, (int)$studentId, (int)$lesson['course_id'], $lessonId);
+    if ($blocker !== null) {
+        echo json_encode(['success' => false, 'code' => 'locked', 'blocker' => $blocker, 'message' => 'Terminez d’abord la leçon « ' . $blocker . ' » pour ouvrir celle-ci.']);
+        exit;
+    }
+
     // Progression de la leçon
     $progressStmt = $pdo->prepare(
         "SELECT completed, content_consumed FROM lesson_progress WHERE student_id = :student_id AND lesson_id = :lesson_id"
@@ -88,10 +96,29 @@ try {
     // SECTION 3: LESSON MEDIA & EVALUATION METRICS INGESTION
     // =========================================================================
 
-    // Récupérer les vidéos associées à la leçon
-    $vStmt = $pdo->prepare("SELECT * FROM lesson_videos WHERE lesson_id = :lesson_id ORDER BY sort_order ASC, id ASC");
-    $vStmt->execute(['lesson_id' => $lessonId]);
-    $videos = $vStmt->fetchAll();
+    // Vidéos : une seule à la fois. Les suivantes ne sont pas envoyées au navigateur tant que la précédente n'est pas terminée.
+    $videoDone    = LessonFlow::videosDone($pdo, (int)$studentId, $lessonId);
+    $reviewing    = $contentConsumed || $completed; // already taken: everything stays open for revision
+    $videos       = [];
+    $reachedFirst = false;
+    $videoNum     = 0;
+    foreach (LessonFlow::videos($pdo, $lessonId) as $v) {
+        $videoNum++;
+        $isDone = $reviewing || isset($videoDone[$v['key']]);
+        $open   = $isDone || !$reachedFirst;
+        if (!$isDone) {
+            $reachedFirst = true;
+        }
+        $videos[] = [
+            'key'     => $v['key'],
+            'label'   => $v['label'],
+            'url'     => $open ? $v['url'] : null,
+            'done'    => $isDone,
+            'current' => $open && !$isDone,
+            'locked'  => !$open,
+        ];
+    }
+    $lesson['video_url'] = null; // la liste $videos fait foi, on ne laisse pas fuiter l'URL de la vidéo principale
 
     $totalStmt = $pdo->prepare("SELECT COUNT(*) FROM lesson_questions WHERE lesson_id = :lesson_id");
     $totalStmt->execute(['lesson_id' => $lessonId]);

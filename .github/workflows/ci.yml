@@ -1,0 +1,28 @@
+name: CI
+
+on:
+  push:
+  pull_request:
+
+jobs:
+  checks:
+    runs-on: ubuntu-latest
+    strategy:
+      matrix:
+        php: ['8.2', '8.3']
+    steps:
+      - uses: actions/checkout@v4
+      - uses: shivammathur/setup-php@v2
+        with:
+          php-version: ${{ matrix.php }}
+      - name: Lint every PHP file
+        run: |
+          find . -name '*.php' -not -path './uploads/*' -not -path './assets/vendor/*' -print0 \
+            | xargs -0 -n1 -P4 php -l > /dev/null
+      - name: Unit tests
+        run: php tests/unit/run.php
+      - name: No secrets in .env.example
+        run: |
+          if grep -E '^(SMTP_PASS|DB_PASS|GEMINI_API_KEY)=.{12,}' .env.example | grep -vi 'votre\|your\|changeme'; then
+            echo "A real secret seems to be in .env.example"; exit 1
+          fi

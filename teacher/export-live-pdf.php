@@ -57,7 +57,13 @@ try {
 
     $top = 841.89 - 42.0;
 
-    // Header styling: Black and White only, clean fonts
+    // Brand: clay rule + vector StudyVibe logo (lib/Brand.php), then the report header below it
+    $clay = Brand::rgb(Brand::CLAY);
+    $pdf->drawFilledRect(42.0, $top - 4, 595.28 - 84.0, 4, $clay[0], $clay[1], $clay[2]);
+    $pdf->drawLogo(42.0, $top - 16 - Brand::pdfHeight(130.0), 130.0);
+    $top -= 56;
+
+    // Header styling
     $pdf->drawText(42.0, $top - 10, "RAPPORT D'EVALUATION", 18, true);
     $pdf->drawText(42.0, $top - 28, "Session : " . $session['title'], 11, false);
     $pdf->drawText(42.0, $top - 44, "Cours : " . $session['course_title'], 11, false);

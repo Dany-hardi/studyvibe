@@ -81,7 +81,13 @@ try {
 
     // Check key requirements
     if ($course['enrollment_key'] !== null && $course['enrollment_key'] !== '') {
-        if ($providedKey !== $course['enrollment_key']) {
+        // Mobile keyboards add stray spaces, zero-width characters, smart dashes and capitals.
+        $normalizeKey = static function (?string $k): string {
+            $k = preg_replace('/[\s\x{00A0}\x{200B}-\x{200D}\x{FEFF}]+/u', '', (string)$k) ?? '';
+            $k = preg_replace('/[\x{2010}-\x{2015}\x{2212}]/u', '-', $k) ?? '';
+            return mb_strtolower($k, 'UTF-8');
+        };
+        if ($providedKey === null || $providedKey === '' || !hash_equals($normalizeKey((string)$course['enrollment_key']), $normalizeKey($providedKey))) {
             echo json_encode([
                 'success' => false,
                 'message' => 'Clé d\'inscription incorrecte.'

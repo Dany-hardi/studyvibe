@@ -74,6 +74,12 @@ try {
         $rawPath  = (string)($s['submitted_file_path'] ?? '');
         $fileName = basename($rawPath);
 
+        // A file the web server lost (redeploy) is put back from its database copy first
+        if ($fileName !== '') {
+            require_once __DIR__ . '/../lib/MediaStore.php';
+            MediaStore::restore($pdo, 'assignment/' . $fileName, $assignmentsDir . $fileName);
+        }
+
         $candidates = array_unique(array_filter([
             $assignmentsDir . $fileName,
             $assignmentsDir . $rawPath,

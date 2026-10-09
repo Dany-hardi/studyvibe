@@ -1,228 +1,235 @@
 <?php
 declare(strict_types=1);
+
+/**
+ * Privacy policy. Text lives in locales/privacy.php (FR + EN), design in assets/css/privacy.css.
+ * The language follows the site-wide choice (cookie / profile) and can be switched from the header.
+ */
+
 require_once __DIR__ . '/auth.php';
+require_once __DIR__ . '/lib/Brand.php';
+
+$lang = TranslationService::getLang() === 'en' ? 'en' : 'fr';
+
+require_once __DIR__ . '/lib/Analytics.php';
+Analytics::hit('view:privacy');
+$all  = require __DIR__ . '/locales/privacy.php';
+$P    = $all[$lang];
+
+$h = fn(string $s): string => htmlspecialchars($s, ENT_QUOTES, 'UTF-8');
+
+/** Renders one content block. Text comes from our own locale file, so inline tags are allowed. */
+function pvBlock(array $b): void
+{
+    if (isset($b['p'])) {
+        echo '<p>' . $b['p'] . '</p>';
+    } elseif (isset($b['ul'])) {
+        echo '<ul class="pv-list">';
+        foreach ($b['ul'] as $li) {
+            echo '<li>' . $li . '</li>';
+        }
+        echo '</ul>';
+    } elseif (isset($b['steps'])) {
+        echo '<ol class="pv-steps">';
+        foreach ($b['steps'] as $li) {
+            echo '<li><span>' . $li . '</span></li>';
+        }
+        echo '</ol>';
+    } elseif (isset($b['note'])) {
+        echo '<aside class="pv-note"><svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 3l7 3v5c0 4.5-3 8.2-7 10-4-1.8-7-5.5-7-10V6l7-3z"/><path d="m9 12 2 2 4-4"/></svg><p>' . $b['note'] . '</p></aside>';
+    } elseif (isset($b['table'])) {
+        $head = $b['table']['head'];
+        echo '<div class="pv-table-wrap"><table class="pv-table"><thead><tr>';
+        foreach ($head as $th) {
+            echo '<th scope="col">' . htmlspecialchars($th, ENT_QUOTES, 'UTF-8') . '</th>';
+        }
+        echo '</tr></thead><tbody>';
+        foreach ($b['table']['rows'] as $row) {
+            echo '<tr>';
+            foreach ($row as $i => $cell) {
+                echo '<td data-label="' . htmlspecialchars($head[$i] ?? '', ENT_QUOTES, 'UTF-8') . '">' . $cell . '</td>';
+            }
+            echo '</tr>';
+        }
+        echo '</tbody></table></div>';
+    }
+}
 ?>
 <!DOCTYPE html>
-<html lang="fr" class="sv-cream">
+<html lang="<?= $lang ?>" class="v2">
 <head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <link rel="icon" type="image/svg+xml" href="/assets/img/favicon.svg">
-    <link rel="icon" type="image/png" href="/assets/img/favicon.png" sizes="32x32">
-    <link rel="apple-touch-icon" href="/assets/img/favicon.png">
-
-    <title>Politique de Confidentialité — StudyVibe</title>
-    <meta name="description" content="Politique de protection des données personnelles de StudyVibe LMS.">
-    <link rel="preconnect" href="https://fonts.googleapis.com">
-    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&family=Plus+Jakarta+Sans:ital,wght@0,300..800;1,300..800&display=swap" rel="stylesheet">
-    <link rel="stylesheet" href="/assets/css/app.css">
-    <style>
-        .privacy-container {
-            max-width: 800px;
-            margin: 4rem auto;
-            padding: 2.5rem;
-            background: #FFFFFF;
-            border: 1px solid rgba(0, 75, 35, 0.15);
-            box-shadow: 0 20px 40px rgba(0, 0, 0, 0.04);
-            border-radius: 4px;
-            position: relative;
-        }
-        .privacy-container::before {
-            content: '';
-            position: absolute;
-            top: 0; left: 0; right: 0;
-            height: 4px;
-            background: linear-gradient(90deg, #004B23 0%, #00873F 50%, #C9A84C 100%);
-            border-radius: 4px 4px 0 0;
-        }
-        .privacy-title {
-            font-family: 'Plus Jakarta Sans', sans-serif;
-            font-size: 2.25rem;
-            font-weight: 500;
-            color: #111111;
-            margin-bottom: 0.5rem;
-        }
-        .privacy-subtitle {
-            font-size: 0.875rem;
-            color: #555555;
-            margin-bottom: 2.5rem;
-            font-weight: 300;
-            border-bottom: 1px solid #E5E5E7;
-            padding-bottom: 1rem;
-        }
-        .privacy-section {
-            margin-bottom: 2rem;
-        }
-        .privacy-section-title {
-            font-family: 'Plus Jakarta Sans', sans-serif;
-            font-size: 1.25rem;
-            font-weight: 600;
-            color: #004B23;
-            margin-bottom: 0.75rem;
-            display: flex;
-            align-items: center;
-            gap: 0.5rem;
-        }
-        .privacy-text {
-            font-size: 0.875rem;
-            color: #333333;
-            line-height: 1.6;
-            margin-bottom: 1rem;
-            font-weight: 300;
-        }
-        .privacy-table {
-            width: 100%;
-            border-collapse: collapse;
-            margin: 1.5rem 0;
-            font-size: 0.8125rem;
-        }
-        .privacy-table th {
-            background: #F9F7F4;
-            color: #111111;
-            font-weight: 600;
-            text-transform: uppercase;
-            font-size: 0.75rem;
-            letter-spacing: 0.05em;
-            padding: 0.75rem;
-            border-bottom: 2px solid #004B23;
-            text-align: left;
-        }
-        .privacy-table td {
-            padding: 0.75rem;
-            border-bottom: 1px solid #E5E5E7;
-            color: #444444;
-            line-height: 1.5;
-        }
-        .privacy-table tr:hover {
-            background: #F9F9FB;
-        }
-        .back-link {
-            display: inline-flex;
-            align-items: center;
-            gap: 0.5rem;
-            color: #004B23;
-            font-size: 0.8125rem;
-            font-weight: 600;
-            text-decoration: none;
-            margin-bottom: 2rem;
-            transition: color 0.15s;
-        }
-        .back-link:hover {
-            color: #111111;
-        }
-        .highlight-box {
-            background: rgba(0, 75, 35, 0.03);
-            border-left: 3px solid #004B23;
-            padding: 1rem 1.25rem;
-            margin: 1.5rem 0;
-            border-radius: 0 4px 4px 0;
-        }
-        .highlight-box p {
-            margin: 0;
-            font-size: 0.8125rem;
-            color: #555555;
-            line-height: 1.5;
-        }
-    </style>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title><?= $h($P['title']) ?> — StudyVibe</title>
+<meta name="description" content="<?= $h($P['desc']) ?>">
+<meta name="theme-color" content="#F5F0E6">
+<?= Brand::headLinks() ?>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Fraunces:ital,opsz,wght,SOFT@0,9..144,300..700,0..100;1,9..144,300..700,0..100&family=Hanken+Grotesk:wght@400;500;600;700&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="/assets/css/sv2.css">
+<link rel="stylesheet" href="/assets/css/privacy.css">
+<script>
+  document.documentElement.classList.add('js');
+  try { var s = localStorage.getItem('sv_dark'); if (s === '1' || (s === null && matchMedia('(prefers-color-scheme: dark)').matches)) document.documentElement.classList.add('dark'); } catch (e) {}
+</script>
 </head>
-<body class="sv-cream">
+<body class="v2 pv-body">
 
-<div class="max-w-4xl mx-auto px-4 py-8">
-    <a href="/" class="back-link">
-        <svg class="w-4.5 h-4.5" fill="none" stroke="currentColor" stroke-width="2.5" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg" style="width: 18px; height: 18px;">
-            <path stroke-linecap="round" stroke-linejoin="round" d="M10.5 19.5L3 12m0 0l7.5-7.5M3 12h18" />
-        </svg>
-        Retour à l'accueil
+<header class="pv-top" id="pv-top">
+  <div class="pv-top-in">
+    <a class="pv-back" href="/index.php">
+      <svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M19 12H5"/><path d="m11 6-6 6 6 6"/></svg>
+      <span><?= $h($P['back']) ?></span>
     </a>
-
-    <div class="privacy-container">
-        <h1 class="privacy-title">Politique de Confidentialité</h1>
-        <p class="privacy-subtitle">Dernière mise à jour : 24 juin 2026</p>
-
-        <div class="privacy-section">
-            <h2 class="privacy-section-title">1. Notre Engagement</h2>
-            <p class="privacy-text">
-                Chez <strong>StudyVibe</strong>, nous croyons qu'une plateforme d'apprentissage académique doit mériter la confiance absolue de ses étudiants, enseignants et administrateurs. C'est pourquoi nous appliquons une politique de transparence totale : <strong>vos données restent les vôtres</strong>. Nous ne revendons aucune information et n'utilisons aucun traceur publicitaire ou commercial tiers.
-            </p>
-        </div>
-
-        <div class="privacy-section">
-            <h2 class="privacy-section-title">2. Données Collectées & Finalités d'Utilisation</h2>
-            <p class="privacy-text">
-                Nous collectons uniquement les informations strictement nécessaires à la fourniture et à la sécurité du service LMS. Voici le détail précis de l'utilisation de chaque donnée :
-            </p>
-
-            <table class="privacy-table">
-                <thead>
-                    <tr>
-                        <th style="width: 25%;">Donnée Collectée</th>
-                        <th style="width: 45%;">Finalité & Usage Précis</th>
-                        <th style="width: 30%;">Durée de Conservation</th>
-                    </tr>
-                </thead>
-                <tbody>
-                    <tr>
-                        <td><strong>Nom & Adresse E-mail</strong></td>
-                        <td>Création et sécurisation de votre compte, personnalisation de l'espace de travail, et envoi des certificats officiels ou alertes académiques (ex: newsletters de cours).</td>
-                        <td>Tant que votre compte reste actif. Supprimé sous 30 jours après fermeture du compte.</td>
-                    </tr>
-                    <tr>
-                        <td><strong>Mot de passe (crypté)</strong></td>
-                        <td>Authentification sécurisée. Les mots de passe sont hachés de manière irréversible via l'algorithme fort <code>bcrypt</code> en base de données.</td>
-                        <td>Tant que votre compte est actif.</td>
-                    </tr>
-                    <tr>
-                        <td><strong>Progression Académique</strong></td>
-                        <td>Enregistrement du statut de lecture des leçons, logs de sessions d'étude, scores aux quiz de leçons et scores aux tentatives d'examens finaux. Requis pour le calcul du taux de réussite global (seuil de 80%) et la délivrance automatique des certifications.</td>
-                        <td>Lié à votre parcours d'études. Conservé pendant toute la durée de vie du compte étudiant.</td>
-                    </tr>
-                    <tr>
-                        <td><strong>Certificats officiels</strong></td>
-                        <td>Stockage du code unique du certificat, du module associé, de la date d'attribution et de l'autorité émettrice. Utilisé pour la vérification publique ou le téléchargement au format PDF.</td>
-                        <td>À des fins de vérification de diplôme, ces informations sont archivées de façon permanente sauf demande explicite d'effacement.</td>
-                    </tr>
-                    <tr>
-                        <td><strong>Journaux de Sécurité (IP & Audit Logs)</strong></td>
-                        <td>Adresses IP lors des tentatives de connexion pour la protection brute-force. Historique d'audit des actions importantes (changements de rôle, émissions de diplômes, modifications de mot de passe) pour assurer la traçabilité.</td>
-                        <td>Les journaux d'IP sont nettoyés tous les 90 jours. Les logs d'audit sont conservés 1 an.</td>
-                    </tr>
-                    <tr>
-                        <td><strong>Abonnements Newsletter</strong></td>
-                        <td>Adresse de messagerie stockée séparément pour les lettres d'information académiques et les annonces de la communauté.</td>
-                        <td>Jusqu'à votre désabonnement en un clic depuis les emails reçus ou votre profil.</td>
-                    </tr>
-                </tbody>
-            </table>
-        </div>
-
-        <div class="privacy-section">
-            <h2 class="privacy-section-title">3. Hébergement, Sécurité & Confidentialité</h2>
-            <div class="privacy-text">
-                <ul style="list-style-type: square; padding-left: 1.25rem; margin-bottom: 1rem;">
-                    <li style="margin-bottom: 0.5rem;"><strong>Souveraineté des données :</strong> Toutes nos bases de données et serveurs sont situés dans des datacenters hautement sécurisés en Union Européenne, garantissant la conformité stricte au Règlement Général sur la Protection des Données (RGPD).</li>
-                    <li style="margin-bottom: 0.5rem;"><strong>Zéro Partage :</strong> Nous ne partageons, ne louons et ne vendons jamais vos données personnelles à des régies publicitaires, courtiers de données ou autres tiers.</li>
-                    <li style="margin-bottom: 0.5rem;"><strong>Cookies techniques uniquement :</strong> Notre plateforme utilise uniquement des cookies de session strictement techniques (pour maintenir votre session utilisateur active) et des jetons CSRF pour vous prémunir des cyberattaques de type cross-site request forgery.</li>
-                </ul>
-            </div>
-            <div class="highlight-box">
-                <p>
-                    <strong>Note de sécurité :</strong> Toutes les communications entre votre navigateur et nos serveurs sont cryptées de bout en bout via le protocole sécurisé HTTPS (SSL/TLS). Les pièces jointes et couvertures de cours sont protégées par un système de contrôle d'accès rigoureux.
-                </p>
-            </div>
-        </div>
-
-        <div class="privacy-section">
-            <h2 class="privacy-section-title">4. Vos Droits (RGPD) & Contact</h2>
-            <p class="privacy-text">
-                Conformément à la réglementation sur la protection des données personnelles, vous disposez d'un droit d'accès, de rectification, de portabilité et de suppression de toutes vos données.
-            </p>
-            <p class="privacy-text">
-                Pour toute demande relative à vos données personnelles ou pour fermer définitivement votre compte et effacer vos historiques de progression, vous pouvez contacter directement l'équipe de support ou le Promoteur de la plateforme à l'adresse suivante : <a href="mailto:danielwilfriedtakou@gmail.com" style="color: #004B23; font-weight: 500; text-decoration: underline;">danielwilfriedtakou@gmail.com</a>.
-            </p>
-        </div>
+    <a class="pv-logo" href="/index.php" aria-label="StudyVibe"><?= Brand::logo('md') ?></a>
+    <div class="pv-tools">
+      <div class="seg" role="group" aria-label="Language">
+        <a href="#" data-lang="fr" <?= $lang === 'fr' ? 'aria-current="true"' : '' ?>>FR</a>
+        <a href="#" data-lang="en" <?= $lang === 'en' ? 'aria-current="true"' : '' ?>>EN</a>
+      </div>
+      <button class="chip" type="button" id="pv-theme" aria-label="<?= $lang === 'en' ? 'Switch theme' : 'Changer de thème' ?>"><svg width="14" height="14" viewBox="0 0 16 16" aria-hidden="true"><circle cx="8" cy="8" r="6" fill="none" stroke="currentColor" stroke-width="1.6"/><path d="M8 2a6 6 0 0 1 0 12z" fill="currentColor"/></svg></button>
     </div>
-</div>
+  </div>
+  <div class="pv-progress" aria-hidden="true"><i id="pv-bar"></i></div>
+</header>
 
+<main>
+<section class="pv-hero">
+  <div class="pv-wrap pv-hero-grid">
+    <div class="pv-hero-text">
+      <p class="pv-kicker"><?= $h($P['kicker']) ?></p>
+      <h1><?= $P['h1'] ?></h1>
+      <p class="pv-lede"><?= $h($P['lede']) ?></p>
+      <p class="pv-meta"><span><?= $h($P['updated']) ?></span><span aria-hidden="true">·</span><span><?= $h($P['version']) ?></span></p>
+    </div>
+    <figure class="pv-art" role="img" aria-label="<?= $h($P['art_alt']) ?>">
+      <div class="pv-blob" aria-hidden="true"></div>
+      <div class="pv-anim" data-lottie="/assets/anim/privacy-hero.json"></div>
+    </figure>
+  </div>
+</section>
+
+<section class="pv-short" aria-labelledby="pv-short-h">
+  <div class="pv-wrap">
+    <h2 id="pv-short-h" class="pv-short-h"><?= $h($P['short_h']) ?></h2>
+    <div class="pv-short-grid">
+      <?php foreach ($P['short'] as $i => [$t, $d]): ?>
+        <article class="pv-card" style="--i:<?= $i ?>">
+          <span class="pv-card-n num"><?= str_pad((string)($i + 1), 2, '0', STR_PAD_LEFT) ?></span>
+          <h3><?= $h($t) ?></h3>
+          <p><?= $h($d) ?></p>
+        </article>
+      <?php endforeach; ?>
+    </div>
+  </div>
+</section>
+
+<div class="pv-wrap pv-layout">
+  <nav class="pv-toc" aria-label="<?= $h($P['toc']) ?>">
+    <details class="pv-toc-box" id="pv-toc-box" open>
+      <summary><?= $h($P['toc']) ?></summary>
+      <ol>
+        <?php foreach ($P['sections'] as $i => $s): ?>
+          <li><a href="#<?= $h($s['id']) ?>" data-spy="<?= $h($s['id']) ?>"><span class="num"><?= str_pad((string)($i + 1), 2, '0', STR_PAD_LEFT) ?></span><span class="pv-toc-t"><?= $h($s['h']) ?></span><svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M9 6l6 6-6 6"/></svg></a></li>
+        <?php endforeach; ?>
+      </ol>
+    </details>
+  </nav>
+
+  <article class="pv-doc">
+    <?php foreach ($P['sections'] as $i => $s): ?>
+      <section class="pv-sec" id="<?= $h($s['id']) ?>" aria-labelledby="h-<?= $h($s['id']) ?>">
+        <header class="pv-sec-head">
+          <span class="pv-sec-n num"><?= str_pad((string)($i + 1), 2, '0', STR_PAD_LEFT) ?></span>
+          <h2 id="h-<?= $h($s['id']) ?>"><?= $h($s['h']) ?></h2>
+        </header>
+        <?php foreach ($s['blocks'] as $b) { pvBlock($b); } ?>
+        <?php if ($s['id'] === 'contact'): ?>
+          <div class="pv-contact">
+            <div class="pv-contact-art" role="img" aria-label="<?= $h($P['art2_alt']) ?>"><div class="pv-anim" data-lottie="/assets/anim/privacy-rights.json"></div></div>
+            <div>
+              <h3><?= $h($P['contact_h']) ?></h3>
+              <p><?= $h($P['contact_p']) ?></p>
+              <a class="btn btn-primary btn-lg" href="mailto:danielwilfriedtakou@gmail.com?subject=<?= rawurlencode($lang === 'en' ? 'My data' : 'Mes données') ?>">
+                <?= $h($P['contact_cta']) ?>
+                <svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M5 12h14"/><path d="m13 6 6 6-6 6"/></svg>
+              </a>
+            </div>
+          </div>
+        <?php endif; ?>
+      </section>
+    <?php endforeach; ?>
+  </article>
+</div>
+</main>
+
+<footer class="pv-foot"><div class="pv-wrap pv-foot-in">
+  <a href="/index.php" class="brand" aria-label="StudyVibe"><?= Brand::logo('sm') ?></a>
+  <span>© <?= date('Y') ?> StudyVibe · <?= $h($P['version']) ?> · <?= $h($P['updated']) ?></span>
+</div></footer>
+
+<button type="button" class="pv-up" id="pv-up" aria-label="<?= $h($P['top']) ?>" title="<?= $h($P['top']) ?>">
+  <svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 19V5"/><path d="m6 11 6-6 6 6"/></svg>
+</button>
+
+<script>
+(function () {
+  var $ = function (s, r) { return (r || document).querySelector(s); }, $$ = function (s, r) { return Array.prototype.slice.call((r || document).querySelectorAll(s)); };
+
+  /* Language: same endpoint as the rest of the site, then reload in the new language */
+  $$('[data-lang]').forEach(function (a) {
+    a.addEventListener('click', function (e) {
+      e.preventDefault();
+      var lang = a.getAttribute('data-lang');
+      if (document.documentElement.lang === lang) return;
+      fetch('/api/set-language.php', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ lang: lang }) })
+        .then(function (r) { return r.json(); })
+        .then(function (d) { if (d && d.success) location.reload(); })
+        .catch(function () { location.search = '?lang=' + lang; });
+    });
+  });
+
+  /* Theme */
+  $('#pv-theme').addEventListener('click', function () {
+    var dark = document.documentElement.classList.toggle('dark');
+    try { localStorage.setItem('sv_dark', dark ? '1' : '0'); } catch (e) {}
+  });
+
+  /* Reading progress, back-to-top, table of contents follows the section on screen */
+  var bar = $('#pv-bar'), up = $('#pv-up'), top = $('#pv-top');
+  function onScroll() {
+    var max = document.documentElement.scrollHeight - innerHeight;
+    bar.style.width = (max > 0 ? Math.min(100, scrollY / max * 100) : 0) + '%';
+    up.classList.toggle('is-on', scrollY > 700);
+    top.classList.toggle('is-stuck', scrollY > 8);
+  }
+  addEventListener('scroll', onScroll, { passive: true }); onScroll();
+  up.addEventListener('click', function () { scrollTo({ top: 0, behavior: matchMedia('(prefers-reduced-motion: reduce)').matches ? 'auto' : 'smooth' }); });
+
+  var links = {}; $$('[data-spy]').forEach(function (a) { links[a.getAttribute('data-spy')] = a; });
+  if ('IntersectionObserver' in window) {
+    var visible = {};
+    var io = new IntersectionObserver(function (entries) {
+      entries.forEach(function (e) { visible[e.target.id] = e.isIntersecting; });
+      var first = $$('.pv-sec').find(function (s) { return visible[s.id]; });
+      if (first) { Object.keys(links).forEach(function (k) { links[k].classList.toggle('is-on', k === first.id); }); }
+    }, { rootMargin: '-90px 0px -60% 0px' });
+    $$('.pv-sec').forEach(function (s) { io.observe(s); });
+  }
+
+  /* On phones the contents list starts folded */
+  var box = $('#pv-toc-box');
+  if (box && matchMedia('(max-width: 980px)').matches) box.removeAttribute('open');
+  $$('.pv-toc a').forEach(function (a) { a.addEventListener('click', function () { if (matchMedia('(max-width: 980px)').matches) box.removeAttribute('open'); }); });
+
+  /* Sections fade in as they arrive */
+  if ('IntersectionObserver' in window && !matchMedia('(prefers-reduced-motion: reduce)').matches) {
+    var rv = new IntersectionObserver(function (es) { es.forEach(function (e) { if (e.isIntersecting) { e.target.classList.add('in'); rv.unobserve(e.target); } }); }, { threshold: .08 });
+    $$('.pv-sec, .pv-card').forEach(function (el) { el.classList.add('rv'); rv.observe(el); });
+  }
+})();
+</script>
+<script src="/assets/js/auth-page.js"></script>
 </body>
 </html>

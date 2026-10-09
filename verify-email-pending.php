@@ -2,6 +2,7 @@
 declare(strict_types=1);
 
 require_once __DIR__ . '/auth.php';
+require_once __DIR__ . '/lib/Brand.php';
 require_once __DIR__ . '/Mailer.php';
 require_once __DIR__ . '/lib/AuthTokens.php';
 
@@ -18,75 +19,105 @@ if ($verified) {
     header('Location: ' . ($map[$_SESSION['user_role']] ?? '/index.php'));
     exit;
 }
+
+$firstName = trim(explode(' ', trim((string)($user['name'] ?? '')))[0] ?? '');
+$h = fn(string $s): string => htmlspecialchars($s, ENT_QUOTES, 'UTF-8');
 ?>
 <!DOCTYPE html>
-<html lang="fr" class="sv-cream">
+<html lang="fr" class="v2">
 <head>
     <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <meta name="robots" content="noindex">
+    <meta name="theme-color" content="#F5F0E6">
     <title>Vérifiez votre email — StudyVibe</title>
-    <link rel="icon" type="image/svg+xml" href="/assets/img/favicon.svg">
+    <?= Brand::headLinks() ?>
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&family=Plus+Jakarta+Sans:ital,wght@0,300..800;1,300..800&display=swap" rel="stylesheet">
-    <link rel="stylesheet" href="/assets/css/app.css">
+    <link href="https://fonts.googleapis.com/css2?family=Fraunces:ital,opsz,wght,SOFT@0,9..144,300..700,0..100;1,9..144,300..700,0..100&family=Hanken+Grotesk:wght@400;500;600;700&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="/assets/css/sv2.css">
+    <link rel="stylesheet" href="/assets/css/auth-page.css">
     <?= csrfMetaTag(); ?>
-    <style>
-        .pulse-container {
-            display: inline-flex;
-            align-items: center;
-            justify-content: center;
-            width: 72px;
-            height: 72px;
-            background-color: rgba(0, 75, 35, 0.08);
-            color: #004B23;
-            border-radius: 50%;
-            margin-bottom: 1.5rem;
-            animation: pulse-glow 2s infinite ease-in-out;
-        }
-        @keyframes pulse-glow {
-            0% { transform: scale(0.96); box-shadow: 0 0 0 0 rgba(0, 75, 35, 0.2); }
-            50% { transform: scale(1.04); box-shadow: 0 0 0 10px rgba(0, 75, 35, 0); }
-            100% { transform: scale(0.96); box-shadow: 0 0 0 0 rgba(0, 75, 35, 0); }
-        }
-    </style>
+    <script>
+      try { var s = localStorage.getItem('sv_dark'); if (s === '1' || (s === null && matchMedia('(prefers-color-scheme: dark)').matches)) document.documentElement.classList.add('dark'); } catch (e) {}
+    </script>
 </head>
-<body class="sv-landing sv-page flex items-center justify-center min-h-screen">
-<div class="sv-container" style="max-width:480px;margin:2rem auto;padding:3rem 2rem;border:1px solid var(--sv-border-strong);background:var(--sv-surface);text-align:center;border-radius:12px;box-shadow: 0 8px 30px rgba(0, 0, 0, 0.03);">
-    <div class="pulse-container">
-        <svg class="w-8 h-8" fill="none" stroke="currentColor" stroke-width="1.5" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
-            <path stroke-linecap="round" stroke-linejoin="round" d="M21.75 6.75v10.5a2.25 2.25 0 01-2.25 2.25h-15a2.25 2.25 0 01-2.25-2.25V6.75m19.5 0A2.25 2.25 0 0019.5 4.5h-15a2.25 2.25 0 00-2.25 2.25m19.5 0v.243a2.25 2.25 0 01-1.07 1.916l-7.5 4.615a2.25 2.25 0 01-2.36 0L3.32 8.91a2.25 2.25 0 01-1.07-1.916V6.75" />
-        </svg>
+<body class="v2 vp-body">
+<main class="vp-card">
+    <div class="vp-logo"><a href="/index.php" aria-label="StudyVibe" style="text-decoration:none"><?= Brand::logo('md') ?></a></div>
+
+    <div class="vp-art is-wide" role="img" aria-label="Une étudiante qui reçoit un email"><div class="vp-anim" data-lottie="/assets/anim/verify-pending.json"></div></div>
+
+    <h1><?= $firstName !== '' ? 'Plus qu’une étape, <em>' . $h($firstName) . '</em>' : 'Plus qu’une <em>étape</em>' ?></h1>
+    <p class="vp-lead">Nous venons d’envoyer un email de confirmation à</p>
+    <span class="vp-mail"><?= $h((string)$user['email']) ?></span>
+
+    <ol class="vp-steps">
+        <li><span><strong>Ouvrez votre boîte mail</strong> et cherchez le message de StudyVibe.</span></li>
+        <li><span><strong>Cliquez sur « Vérifier mon email »</strong> dans le message. Le lien reste valable 48 heures.</span></li>
+        <li><span><strong>Revenez ici</strong> : vous serez dirigé vers votre espace.</span></li>
+    </ol>
+
+    <div class="vp-actions">
+        <button type="button" id="continue-btn" class="btn btn-primary btn-lg">J’ai confirmé mon email</button>
+        <button type="button" id="resend-btn" class="btn btn-ghost btn-lg">Renvoyer l’email</button>
     </div>
-    
-    <h1 class="font-serif text-3xl font-light text-[#111111] mb-3">Vérifiez votre email</h1>
-    
-    <p class="text-sm text-[#555555] font-light leading-relaxed mb-6">
-        Un email de confirmation a été envoyé à :<br>
-        <span class="font-semibold text-[#004B23] text-base block mt-2"><?= htmlspecialchars($user['email']); ?></span>
-    </p>
-    
-    <p class="text-xs text-[#888888] font-light mb-8 leading-relaxed">
-        Cliquez sur le lien d'activation contenu dans l'email pour valider votre compte. Si vous n'avez rien reçu, vérifiez vos spams ou demandez un renvoi.
-    </p>
-    
-    <button type="button" id="resend-btn" class="sv-btn-submit w-full" style="max-width:280px;margin:0 auto 1.5rem auto;">Renvoyer l'email</button>
-    
-    <p class="text-xs pt-2"><a href="/logout.php" class="text-[#D32F2F] hover:underline font-semibold">Se déconnecter</a></p>
-</div>
+    <div id="vp-msg" class="vp-msg" role="status" aria-live="polite" hidden></div>
+
+    <p class="vp-hint">Rien dans votre boîte ? Regardez dans les courriers indésirables. <br>Mauvaise adresse ? <a href="/logout.php">Se déconnecter</a> et recréer le compte.</p>
+</main>
 <script src="/assets/js/app.js"></script>
+<script src="/assets/js/auth-page.js"></script>
 <script>
-document.getElementById('resend-btn').addEventListener('click', async () => {
-    const btn = document.getElementById('resend-btn');
-    btn.disabled = true;
-    btn.textContent = 'Envoi en cours…';
-    const data = await svPost('/resend-verification-action.php', new FormData());
-    if (typeof Toast !== 'undefined') {
-        Toast[data.success ? 'success' : 'error'](data.message);
+(function () {
+    const resend = document.getElementById('resend-btn'), cont = document.getElementById('continue-btn'), box = document.getElementById('vp-msg');
+    const LABEL = 'Renvoyer l’email', COOLDOWN = 60;
+    let timer = null;
+
+    function show(kind, text) { box.hidden = false; box.className = 'vp-msg is-' + kind; box.textContent = text; }
+
+    function cooldown(sec) {
+        clearInterval(timer);
+        resend.disabled = true;
+        const tick = () => {
+            if (sec <= 0) { clearInterval(timer); resend.disabled = false; resend.textContent = LABEL; return; }
+            resend.textContent = 'Renvoyer dans ' + sec-- + ' s';
+        };
+        tick();
+        timer = setInterval(tick, 1000);
     }
-    btn.disabled = false;
-    btn.textContent = "Renvoyer l'email";
-});
+
+    if (new URLSearchParams(location.search).has('checked')) {
+        show('error', 'Votre email n’est pas encore confirmé. Ouvrez le message de StudyVibe et cliquez sur le bouton, puis revenez ici.');
+    }
+
+    resend.addEventListener('click', async () => {
+        resend.disabled = true;
+        resend.textContent = 'Envoi en cours…';
+        show('busy', 'Nous vous renvoyons l’email…');
+        try {
+            const data = await svPost('/resend-verification-action.php', new FormData());
+            if (data.success) {
+                show('ok', 'C’est parti. Un nouvel email vient d’être envoyé à <?= $h((string)$user['email']) ?>. Pensez à regarder vos indésirables.');
+                cooldown(COOLDOWN);
+                return;
+            }
+            show('error', data.message || 'L’envoi a échoué. Réessayez dans un instant.');
+        } catch (e) {
+            show('error', 'Connexion impossible pour le moment. Vérifiez votre réseau et réessayez.');
+        }
+        resend.disabled = false;
+        resend.textContent = LABEL;
+    });
+
+    // The server sends verified users straight to their dashboard, so a reload is the check
+    cont.addEventListener('click', () => {
+        cont.disabled = true;
+        cont.textContent = 'Vérification…';
+        show('busy', 'Nous vérifions votre confirmation…');
+        setTimeout(() => { location.href = '/verify-email-pending.php?checked=1'; }, 400);
+    });
+})();
 </script>
 </body>
 </html>

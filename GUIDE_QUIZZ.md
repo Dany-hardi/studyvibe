@@ -50,3 +50,21 @@ Une fois que le temps imparti pour la dernière question est écoulé, la sessio
    * Mon système traite les envois de manière **asynchrone par petits lots** pour éviter de saturer ma passerelle SMTP (Gmail).
    * Une barre de progression m'affiche l'avancement exact (ex: `12 / 50 e-mails envoyés`).
    * Chaque étudiant reçoit immédiatement dans sa boîte de réception son score final, le récapitulatif de ses réponses et la correction détaillée de chaque question.
+
+---
+
+## Réponses écrites : plusieurs réponses acceptées et tolérance
+
+Pour une question de type « Réponse écrite ou calcul », le champ de la bonne réponse accepte :
+
+| Écriture | Effet |
+|---|---|
+| `x^2\|x²` | Les deux formes sont acceptées (séparées par `\|`) |
+| `2.5~0.1` | Toute valeur de 2,4 à 2,6 est acceptée (tolérance après `~`) |
+| `2,5` ou `2.50` | Virgule et point sont équivalents, `2.50` vaut `2.5` |
+
+Les espaces et la casse sont ignorés. La même règle sert pour la note de la salle, la page de résultats, le PDF et l'e-mail.
+
+## Vrai / faux
+
+Créez une question à choix multiples et ne remplissez que les propositions A et B (par exemple « Vrai » et « Faux »). Les boutons vides ne sont pas affichés aux étudiants.

@@ -16,8 +16,9 @@ if ($_SERVER['REQUEST_METHOD'] !== 'POST') {
 $token    = trim((string)($_POST['token'] ?? ''));
 $password = (string)($_POST['password'] ?? '');
 
-if ($token === '' || strlen($password) < 6) {
-    echo json_encode(['success' => false, 'message' => 'Mot de passe invalide (6 caractères minimum).']);
+require_once __DIR__ . '/lib/PasswordPolicy.php';
+if ($token === '' || ($pwError = PasswordPolicy::check($password)) !== null) {
+    echo json_encode(['success' => false, 'message' => $pwError ?? 'Lien invalide.']);
     exit;
 }
 

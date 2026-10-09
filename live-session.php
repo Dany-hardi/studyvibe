@@ -16,6 +16,8 @@ declare(strict_types=1);
  */
 
 require_once __DIR__ . '/auth.php';
+require_once __DIR__ . '/lib/Brand.php';
+require_once __DIR__ . '/lib/LiveGuest.php';
 
 // =========================================================================
 // SECTION 1: LOGOUT OR STATE RESET
@@ -79,6 +81,12 @@ if (session_status() === PHP_SESSION_NONE) {
 
 $code = trim((string)($_GET['code'] ?? ''));
 $action = trim((string)($_GET['action'] ?? ''));
+
+require_once __DIR__ . '/lib/Analytics.php';
+Analytics::captureSource();
+if ($_SERVER['REQUEST_METHOD'] === 'GET' && $action === '') {
+    Analytics::hit('view:live_invite');
+}
 
 // Handle participant manual session leave / disconnect logic
 if ($code !== '' && $action === 'disconnect') {
@@ -209,93 +217,31 @@ if (!$error && $_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['register_l
         $email = $currentUser['email'];
         $studentId = $currentUser['id'];
     } else {
-        $email = trim((string)($_POST['email'] ?? ''));
-        $password = (string)($_POST['password'] ?? '');
-        $name = trim((string)($_POST['name'] ?? ''));
-        
-        if (empty($email) || empty($password)) {
-            $regError = "Veuillez remplir les identifiants d'accès.";
-        } elseif (!filter_var($email, FILTER_VALIDATE_EMAIL)) {
-            $regError = "Adresse e-mail invalide.";
-        } else {
+        // No account needed: a working email on an accepted domain and a name are enough.
+        $email = LiveGuest::normalize((string)($_POST['email'] ?? ''));
+        $name  = trim((string)($_POST['name'] ?? ''));
+        $studentId = null;
+
+        $regError = LiveGuest::check($email);
+        if ($regError === null) {
             try {
                 $pdo = Database::getInstance();
-                
-                if ($authAction === 'login') {
-                    // Login Handler logic
-                    $stmt = $pdo->prepare("SELECT id, name, password, role, is_active FROM users WHERE email = :email");
-                    $stmt->execute(['email' => $email]);
-                    $user = $stmt->fetch();
-                    
-                    if (!$user || !password_verify($password, $user['password'])) {
-                        $regError = "Adresse e-mail ou mot de passe incorrect.";
-                    } elseif (!(int)($user['is_active'] ?? 1)) {
-                        $regError = "Ce compte a été désactivé. Veuillez contacter l'administrateur.";
-                    } else {
-                        // Open session
-                        $_SESSION['user_id'] = (int)$user['id'];
-                        $_SESSION['user_role'] = $user['role'];
-                        $_SESSION['last_regen'] = time();
-                        
-                        $name = $user['name'];
-                        $studentId = $user['id'];
-                    }
-                } elseif ($authAction === 'signup') {
-                    // Account Creation logic
-                    if (empty($name)) {
-                        $regError = "Le nom complet est requis pour créer un compte.";
-                    } elseif (strlen($password) < 6) {
-                        $regError = "Le mot de passe doit contenir au moins 6 caractères.";
-                    } else {
-                        // Verify duplicate email constraints
-                        $stmt = $pdo->prepare("SELECT id FROM users WHERE email = :email");
-                        $stmt->execute(['email' => $email]);
-                        if ($stmt->fetch()) {
-                            $regError = "Cette adresse e-mail est déjà associée à un compte StudyVibe. Veuillez vous connecter.";
-                        } else {
-                            // Insert new student record
-                            $hashedPassword = password_hash($password, PASSWORD_DEFAULT);
-                            $stmt = $pdo->prepare("
-                                INSERT INTO users (name, email, password, role, is_approved)
-                                VALUES (:name, :email, :password, 'student', 1)
-                            ");
-                            $stmt->execute([
-                                'name' => $name,
-                                'email' => $email,
-                                'password' => $hashedPassword,
-                            ]);
-                            $newUserId = (int)$pdo->lastInsertId();
-                            
-                            // Establish session auth variables
-                            $_SESSION['user_id'] = $newUserId;
-                            $_SESSION['user_role'] = 'student';
-                            $_SESSION['last_regen'] = time();
-                            
-                            $studentId = $newUserId;
-                            
-                            // Audit log & welcome messages
-                            try {
-                                require_once __DIR__ . '/lib/AuthTokens.php';
-                                require_once __DIR__ . '/Mailer.php';
-                                require_once __DIR__ . '/Newsletter.php';
-                                
-                                $verifyToken = AuthTokens::createEmailVerification($pdo, $newUserId);
-                                Mailer::emailVerification($email, $name, $verifyToken);
-                                Mailer::welcome($email, $name, 'apprenant');
-                            } catch (Exception $e) {
-                                // Non-blocking
-                            }
-                        }
-                    }
-                } else {
-                    $regError = "Action d'authentification invalide.";
+                $known = LiveGuest::findUser($pdo, $email);
+                if ($known) {
+                    // Registered users are recognised by their email and keep the name on their account
+                    $name = $known['name'];
+                    $studentId = $known['id'];
+                } elseif (mb_strlen($name) < 2) {
+                    $regError = "Veuillez saisir votre nom complet pour continuer.";
+                } elseif (mb_strlen($name) > 120) {
+                    $regError = "Ce nom est trop long (120 caractères maximum).";
                 }
             } catch (PDOException $e) {
-                $regError = "Erreur de base de données : " . $e->getMessage();
+                $regError = "Le service est momentanément indisponible. Veuillez réessayer dans un instant.";
             }
         }
     }
-    
+
     // Register the participant for the specific live evaluation session if auth completes successfully
     if ($regError === null) {
         try {
@@ -353,6 +299,7 @@ $regId = 0;
 $registration = null;
 $isReset = false;
 $resultsUrl = '';
+$isGuestParticipant = false;
 if (!$error) {
     $regId = (int)($_SESSION['live_registrations'][$code] ?? 0);
     if ($regId <= 0 && isset($_SESSION['user_id'])) {
@@ -374,7 +321,15 @@ if (!$error) {
             unset($_SESSION['live_registrations'][$code]);
             unset($_SESSION['verified_registrations'][$code]);
         } else {
-            if (defined('APP_SECRET')) {
+            // A participant is a guest when nobody is logged in and the email has no StudyVibe account behind it
+            if (!isLoggedIn() && empty($registration['student_id'])) {
+                try {
+                    $isGuestParticipant = LiveGuest::findUser($pdo, (string)$registration['email']) === null;
+                } catch (Throwable $e) {
+                    $isGuestParticipant = false;
+                }
+            }
+            if (defined('APP_SECRET') && !$isGuestParticipant) {
                 $resultsToken = hash_hmac('sha256', (string)$regId, APP_SECRET);
                 $resultsUrl = "/student/evaluation-results.php?registration_id={$regId}&token={$resultsToken}";
             }
@@ -407,10 +362,11 @@ if (!$error) {
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Téléévaluation StudyVibe LIVE</title>
-    <link rel="icon" type="image/svg+xml" href="/assets/img/favicon.svg">
+    <?= Brand::headLinks() ?>
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600&family=Plus+Jakarta+Sans:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+    <link href="https://fonts.googleapis.com/css2?family=Fraunces:ital,opsz,wght,SOFT@0,9..144,300..700,0..100;1,9..144,300..700,0..100&family=Hanken+Grotesk:wght@400;500;600;700&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="/assets/css/sv2.css">
     <link rel="stylesheet" href="/assets/css/app.css">
     
     <!-- KaTeX mathematical typesetting integrations -->
@@ -422,20 +378,19 @@ if (!$error) {
         *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
 
         :root {
-            --cream:   #EAE6DF;
-            --green:   #004B23;
-            --green2:  #00873F;
-            --ink:     #1A1A1A;
-            --muted:   #5C5C5C;
-            --faint:   #9A9A9A;
-            --gold:    #C9A84C;
-            --surface: #FFFFFF;
+            --cream:   var(--paper);
+            --green:   var(--clay);
+            --green2:  var(--clay-press);
+            --muted:   var(--ink-2);
+            --faint:   var(--ink-3);
+            --gold:    var(--ochre);
+            --surface: var(--card);
         }
 
         html, body {
             height: 100%;
             background: var(--cream);
-            font-family: 'Plus Jakarta Sans', 'Inter', sans-serif;
+            font-family: var(--font-body);
             color: var(--ink);
             overflow-x: hidden;
             -webkit-font-smoothing: antialiased;
@@ -447,7 +402,7 @@ if (!$error) {
             position: fixed;
             inset: 0;
             background-image: 
-                radial-gradient(circle at 0% 0%, rgba(0, 75, 35, 0.08) 0%, transparent 40%),
+                radial-gradient(circle at 0% 0%, rgba(181, 72, 42, 0.08) 0%, transparent 40%),
                 radial-gradient(circle at 100% 100%, rgba(201, 168, 76, 0.08) 0%, transparent 40%),
                 url("data:image/svg+xml,%3Csvg viewBox='0 0 200 200' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.9' numOctaves='4' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)' opacity='0.035'/%3E%3C/svg%3E");
             pointer-events: none;
@@ -465,7 +420,8 @@ if (!$error) {
         }
 
         /* ── Floating particles ── */
-        .floating-particles {
+        .floating-particles { display: none !important; }
+        .floating-particles-legacy {
             position: fixed;
             inset: 0;
             pointer-events: none;
@@ -491,7 +447,7 @@ if (!$error) {
         /* ── Card Layout ── */
         .card {
             background: var(--surface);
-            border: 1px solid rgba(0,75,35,0.08);
+            border: 1px solid rgba(181,72,42,0.08);
             max-width: 1120px;
             width: 100%;
             height: min(720px, 90vh);
@@ -499,7 +455,7 @@ if (!$error) {
             position: relative;
             box-shadow:
                 0 30px 100px -20px rgba(0,0,0,0.08),
-                0 15px 40px -15px rgba(0, 75, 35, 0.04),
+                0 15px 40px -15px rgba(181, 72, 42, 0.04),
                 inset 0 1px 0 rgba(255, 255, 255, 0.6);
             overflow: hidden;
             border-radius: 20px;
@@ -518,7 +474,7 @@ if (!$error) {
         .col-image {
             flex: 1.1;
             position: relative;
-            background: #0f1c14;
+            background: #1E1B16;
             overflow: hidden;
             display: flex;
             align-items: center;
@@ -552,7 +508,7 @@ if (!$error) {
             font-weight: 500;
             letter-spacing: 0.1em;
             text-transform: uppercase;
-            font-family: 'Plus Jakarta Sans', sans-serif;
+            font-family: var(--font-body);
             text-shadow: 0 1px 2px rgba(0,0,0,0.6);
             z-index: 2;
         }
@@ -584,7 +540,7 @@ if (!$error) {
         }
 
         .brand-name {
-            font-family: 'Plus Jakarta Sans', sans-serif;
+            font-family: var(--font-body);
             font-size: 1.2rem;
             font-weight: 700;
             color: var(--ink);
@@ -600,8 +556,8 @@ if (!$error) {
             letter-spacing: 0.12em;
             text-transform: uppercase;
             color: var(--green);
-            border: 1px solid rgba(0, 75, 35, 0.2);
-            background: rgba(0, 75, 35, 0.04);
+            border: 1px solid rgba(181, 72, 42, 0.2);
+            background: rgba(181, 72, 42, 0.04);
             padding: 0.4rem 1rem;
             border-radius: 9999px;
             align-self: flex-start;
@@ -609,7 +565,7 @@ if (!$error) {
             transition: all 0.2s ease;
         }
         .badge:hover {
-            background: rgba(0, 75, 35, 0.08);
+            background: rgba(181, 72, 42, 0.08);
             border-color: var(--green);
         }
 
@@ -622,7 +578,7 @@ if (!$error) {
             -webkit-backdrop-filter: blur(10px);
             color: var(--ink);
             text-align: left;
-            font-family: 'Plus Jakarta Sans', sans-serif;
+            font-family: var(--font-body);
             font-weight: 600;
             font-size: 0.95rem;
             border-radius: 12px;
@@ -636,23 +592,23 @@ if (!$error) {
 
         .option-btn:hover:not(:disabled) {
             border-color: var(--green);
-            background: rgba(0, 75, 35, 0.03);
+            background: rgba(181, 72, 42, 0.03);
             transform: translateY(-2.5px) scale(1.015);
             box-shadow: 
-                0 10px 20px -8px rgba(0, 75, 35, 0.12),
-                0 0 12px rgba(0, 75, 35, 0.05);
+                0 10px 20px -8px rgba(181, 72, 42, 0.12),
+                0 0 12px rgba(181, 72, 42, 0.05);
         }
 
         .option-btn.selected {
             border-color: var(--green2);
-            background: rgba(0, 135, 63, 0.07);
+            background: rgba(181,72,42, 0.07);
             color: var(--green);
             font-weight: 700;
             transform: translateY(-1.5px) scale(1.01);
             box-shadow: 
                 0 0 0 1px var(--green2),
-                0 10px 25px -8px rgba(0, 135, 63, 0.2),
-                0 0 16px rgba(0, 135, 63, 0.15);
+                0 10px 25px -8px rgba(181,72,42, 0.2),
+                0 0 16px rgba(181,72,42, 0.15);
         }
 
         .option-btn.selected span.opt-label {
@@ -670,7 +626,7 @@ if (!$error) {
             width: 26px;
             height: 26px;
             border-radius: 8px;
-            background: #FFF;
+            background: var(--card);
             border: 1px solid rgba(0, 0, 0, 0.08);
             display: flex;
             align-items: center;
@@ -688,7 +644,7 @@ if (!$error) {
         }
 
         .countdown-number {
-            font-family: 'Plus Jakarta Sans', sans-serif;
+            font-family: var(--font-body);
             font-size: 5rem;
             font-weight: 800;
             color: var(--green);
@@ -707,7 +663,7 @@ if (!$error) {
 
         .progress-bar {
             height: 100%;
-            background: linear-gradient(90deg, var(--green), var(--green2));
+            background: var(--clay);
             width: 100%;
             transition: width 1s linear;
             border-radius: 9999px;
@@ -718,7 +674,7 @@ if (!$error) {
             align-items: center;
             justify-content: center;
             gap: 0.6rem;
-            background: var(--ink);
+            background: var(--clay);
             color: #fff;
             font-size: 0.78rem;
             font-weight: 700;
@@ -735,10 +691,10 @@ if (!$error) {
         }
 
         .btn-primary:hover {
-            background: var(--green);
-            border-color: var(--green);
+            background: var(--clay-press);
+            border-color: var(--clay-press);
             transform: translateY(-1.5px);
-            box-shadow: 0 8px 20px -6px rgba(0, 75, 35, 0.25);
+            box-shadow: 0 8px 20px -6px rgba(181, 72, 42, 0.25);
         }
         
         .btn-primary:active {
@@ -750,7 +706,7 @@ if (!$error) {
             padding: 0.95rem 1.15rem;
             border: 1px solid rgba(0, 0, 0, 0.1);
             background: #FCFAF6;
-            font-family: 'Inter', sans-serif;
+            font-family: var(--font-body);
             font-size: 0.88rem;
             outline: none;
             border-radius: 8px;
@@ -759,10 +715,10 @@ if (!$error) {
 
         .input-field:focus {
             border-color: var(--green);
-            background: #FFF;
+            background: var(--card);
             box-shadow: 
                 0 0 0 1px var(--green),
-                0 0 12px rgba(0, 75, 35, 0.15);
+                0 0 12px rgba(181, 72, 42, 0.15);
         }
 
         /* Styled sliding auth tabs options */
@@ -773,7 +729,7 @@ if (!$error) {
             border-radius: 9999px;
             padding: 4px;
             margin-bottom: 2rem;
-            border: 1px solid rgba(0, 75, 35, 0.05);
+            border: 1px solid rgba(181, 72, 42, 0.05);
         }
         .auth-tabs-pill {
             position: absolute;
@@ -783,7 +739,7 @@ if (!$error) {
             width: calc(50% - 4px);
             background: var(--surface);
             border-radius: 9999px;
-            box-shadow: 0 4px 10px rgba(0, 75, 35, 0.06);
+            box-shadow: 0 4px 10px rgba(181, 72, 42, 0.06);
             transition: transform 0.3s cubic-bezier(0.4, 0, 0.2, 1);
             z-index: 1;
         }
@@ -800,7 +756,7 @@ if (!$error) {
             cursor: pointer;
             text-align: center;
             transition: color 0.3s ease;
-            font-family: 'Plus Jakarta Sans', sans-serif;
+            font-family: var(--font-body);
         }
         .auth-tab-btn.active {
             color: var(--green);
@@ -812,8 +768,8 @@ if (!$error) {
             font-size: 0.72rem;
             font-weight: 600;
             color: var(--green);
-            background: rgba(0, 75, 35, 0.035);
-            border: 1px solid rgba(0, 75, 35, 0.08);
+            background: rgba(181, 72, 42, 0.035);
+            border: 1px solid rgba(181, 72, 42, 0.08);
             padding: 0.7rem 1rem;
             margin-top: 2rem;
             display: flex;
@@ -869,11 +825,12 @@ if (!$error) {
         }
 
         /* ── Watermark Timer for Lobby ── */
-        .timer-watermark {
+        .space-y-4 > * + * { margin-top: 1.1rem; }
+        .timer-watermark { display: none;
             position: absolute;
             right: 2.5rem;
             top: 3rem;
-            font-family: 'Plus Jakarta Sans', sans-serif;
+            font-family: var(--font-body);
             font-size: 4rem;
             font-weight: 800;
             color: var(--green);
@@ -1034,8 +991,8 @@ if (!$error) {
             display: flex;
             align-items: center;
             gap: 0.75rem;
-            background: rgba(0, 75, 35, 0.04);
-            border: 1px solid rgba(0, 75, 35, 0.1);
+            background: rgba(181, 72, 42, 0.04);
+            border: 1px solid rgba(181, 72, 42, 0.1);
             padding: 0.85rem 1.2rem;
             border-radius: 12px;
             font-size: 0.85rem;
@@ -1047,7 +1004,7 @@ if (!$error) {
         .lobby-status-banner.async {
             background: rgba(26, 86, 219, 0.04);
             border-color: rgba(26, 86, 219, 0.1);
-            color: #1A56DB;
+            color: #24402F;
         }
         .lobby-pulse-dot {
             width: 8px;
@@ -1056,7 +1013,7 @@ if (!$error) {
             border-radius: 50%;
         }
         .lobby-status-banner.async .lobby-pulse-dot {
-            background: #1A56DB;
+            background: #24402F;
         }
 
         @keyframes softPulse {
@@ -1066,8 +1023,8 @@ if (!$error) {
 
         /* Connected participants badge with live radar ping */
         .participants-badge {
-            background: rgba(0, 75, 35, 0.04);
-            border: 1px solid rgba(0, 75, 35, 0.08);
+            background: rgba(181, 72, 42, 0.04);
+            border: 1px solid rgba(181, 72, 42, 0.08);
             padding: 0.85rem 1.25rem;
             border-radius: 12px;
             display: inline-flex;
@@ -1077,8 +1034,8 @@ if (!$error) {
             transition: all 0.3s ease;
         }
         .participants-badge:hover {
-            background: rgba(0, 75, 35, 0.07);
-            border-color: rgba(0, 75, 35, 0.15);
+            background: rgba(181, 72, 42, 0.07);
+            border-color: rgba(181, 72, 42, 0.15);
         }
         .radar-ping {
             position: relative;
@@ -1091,7 +1048,7 @@ if (!$error) {
         .ping-dot {
             width: 8px;
             height: 8px;
-            background: #22C55E;
+            background: var(--pine);
             border-radius: 50%;
             z-index: 2;
         }
@@ -1099,7 +1056,7 @@ if (!$error) {
             position: absolute;
             width: 100%;
             height: 100%;
-            background: #22C55E;
+            background: var(--pine);
             border-radius: 50%;
             opacity: 0.4;
             animation: radarRipple 1.6s infinite cubic-bezier(0, 0, 0.2, 1);
@@ -1113,7 +1070,7 @@ if (!$error) {
         /* High-contrast container for LaTeX formulas */
         .katex-display {
             background: rgba(0, 0, 0, 0.02);
-            border: 1px solid rgba(0, 75, 35, 0.06);
+            border: 1px solid rgba(181, 72, 42, 0.06);
             padding: 1rem;
             border-radius: 8px;
             margin: 0.75rem 0;
@@ -1150,7 +1107,7 @@ if (!$error) {
             text-transform: uppercase;
             font-size: 0.65rem;
             letter-spacing: 0.08em;
-            background: rgba(0, 75, 35, 0.02);
+            background: rgba(181, 72, 42, 0.02);
             border-bottom: 1px solid rgba(0, 0, 0, 0.04);
         }
         .leaderboard-table tr {
@@ -1161,14 +1118,14 @@ if (!$error) {
             border-bottom: none;
         }
         .leaderboard-table tr:hover {
-            background-color: rgba(0, 75, 35, 0.03);
+            background-color: rgba(181, 72, 42, 0.03);
         }
         .leaderboard-table td {
             padding: 10px 14px;
             color: var(--ink);
         }
         .top-three-row {
-            background-color: rgba(0, 75, 35, 0.02);
+            background-color: rgba(181, 72, 42, 0.02);
         }
 
         @media (max-width: 880px) {
@@ -1180,6 +1137,133 @@ if (!$error) {
             .col-content { padding: 2.5rem 1.75rem; border-radius: 0 0 16px 16px; }
             .card.quiz-mode .col-content { padding: 2rem 1.5rem; border-radius: 16px; }
         }
+
+        /* ═══ v2 exam room: calmer, flatter, readable under stress ═══ */
+        .card::before { display: none; }
+        #live-bar-question { display: none; }
+        .card.quiz-mode { flex-direction: column; }
+        .card.quiz-mode #quiz-live-bar { width: 100%; border-radius: 20px 20px 0 0; padding: .7rem 2rem; }
+        .card.quiz-mode .col-content { border-radius: 0 0 20px 20px; }
+        .option-btn.selected:disabled { opacity: 1; }
+        .progress-bar-fill, .progress-fill { background: var(--clay) !important; }
+        .card { box-shadow: var(--shadow-2); border: 1px solid var(--line); background: var(--card); }
+        .card:hover .col-image img { transform: none; opacity: .75; }
+        .col-content { background: var(--card); }
+        #typewriter-line { display: none; }
+        .illustration-caption { font-family: var(--font-body); letter-spacing: .06em; }
+        .badge { background: var(--clay-soft); border-color: transparent; color: var(--clay-press); }
+        .badge:hover { background: var(--clay-soft); }
+        .input-field { background: var(--paper); border: 1px solid var(--line-2); border-radius: 10px; font-family: var(--font-body); }
+        .input-field:focus { outline: none; border-color: var(--clay); box-shadow: 0 0 0 3px color-mix(in srgb, var(--clay) 22%, transparent); }
+        .btn-primary { border-radius: 10px; text-transform: none; letter-spacing: 0; font-size: .95rem; font-weight: 600; }
+        .auth-tabs-pill { background: var(--card); box-shadow: var(--shadow-1); }
+
+        /* Live bar */
+        #quiz-live-bar { background: var(--paper-2); color: var(--ink-2); border-bottom: 1px solid var(--line); letter-spacing: .06em; font-weight: 600; }
+        .live-dot { background: var(--clay); animation: pulse 1.8s ease-in-out infinite; }
+        .card.quiz-mode { max-width: 780px; }
+
+        /* Two windows when a question has a picture: the question and options on one side, the picture on the other */
+        #quiz-image-container.hidden { display: none !important; }
+        .quiz-body { display: block; }
+        .card.quiz-mode.has-image { max-width: 1100px; }
+        .quiz-pane-image { display: flex; flex-direction: column; align-items: center; gap: .6rem; }
+        .quiz-pane-image img { width: 100%; max-height: 62vh; object-fit: contain; border: 1px solid var(--line); border-radius: 12px; background: #fff; cursor: zoom-in; }
+        .quiz-zoom-btn { background: none; border: 1px solid var(--line-2); border-radius: 10px; padding: .45rem .9rem; min-height: 44px; font: 600 .85rem var(--font-body); color: var(--ink); cursor: pointer; }
+        .quiz-zoom-btn:focus-visible { outline: 2px solid var(--clay); outline-offset: 2px; }
+        @media (min-width: 900px) {
+            .quiz-body.has-image { display: grid; grid-template-columns: minmax(0, 1.05fr) minmax(0, 1fr); gap: 1.75rem; align-items: start; }
+            .quiz-body.has-image .quiz-pane-image { position: sticky; top: 1rem; }
+        }
+        @media (max-width: 899px) {
+            .quiz-body.has-image .quiz-pane-image { order: -1; margin-bottom: 1.25rem; }
+            .quiz-body.has-image { display: flex; flex-direction: column; }
+            .quiz-pane-image img { max-height: 38vh; }
+        }
+        #quiz-zoom { position: fixed; inset: 0; z-index: 10000; background: rgba(0,0,0,.88); display: none; align-items: center; justify-content: center; padding: 1rem; cursor: zoom-out; }
+        #quiz-zoom img { max-width: 100%; max-height: 100%; object-fit: contain; background: #fff; border-radius: 8px; }
+
+        .card.quiz-mode .col-content { padding: 3rem 3.5rem 2.25rem; }
+
+        /* Question + answers */
+        #quiz-question-number { border: 0 !important; padding: 0 !important; border-radius: 0 !important; font-size: .78rem !important; color: var(--clay) !important; letter-spacing: .12em !important; font-variant-numeric: tabular-nums; }
+        #quiz-live-participants-container { background: transparent !important; padding: 0 !important; color: var(--ink-3) !important; font-weight: 500 !important; }
+        #quiz-question-text { font-family: var(--font-display) !important; font-weight: 450 !important; font-size: 1.65rem !important; line-height: 1.35 !important; letter-spacing: -.01em; color: var(--ink) !important; text-wrap: pretty; }
+        #quiz-timer-text { font-family: var(--font-body) !important; font-variant-numeric: tabular-nums; }
+        #quiz-svg-timer-circle { stroke: var(--pine); }
+        #quiz-svg-timer-container circle:first-child { stroke: var(--paper-2); }
+        .option-btn { border: 1.5px solid var(--line-2); background: var(--paper); backdrop-filter: none; -webkit-backdrop-filter: none; border-radius: 12px; font-weight: 500; font-size: 1.02rem; line-height: 1.45; box-shadow: none; padding: 1rem 1.15rem; transition: border-color .15s, background-color .15s; min-height: 56px; }
+        .option-btn:hover:not(:disabled) { transform: none; border-color: var(--ink-3); background: var(--paper); box-shadow: none; }
+        .option-btn:focus-visible { outline: 2px solid var(--clay); outline-offset: 2px; }
+        .option-btn.selected { transform: none; border-color: var(--clay); background: var(--clay-soft); color: var(--ink); font-weight: 600; box-shadow: none; }
+        .option-btn.selected span.opt-label { background: var(--clay); border-color: var(--clay); color: #fff; }
+        .option-btn:disabled { opacity: .6; }
+        .opt-label { border-radius: 8px; background: var(--paper-2); border: 0; color: var(--ink-2); width: 28px; height: 28px; flex: none; box-shadow: none; }
+        .option-btn:hover:not(:disabled) .opt-label { border: 0; color: var(--ink); }
+        #quiz-submit-status { background: color-mix(in srgb, var(--ok) 10%, transparent) !important; border: 1px solid color-mix(in srgb, var(--ok) 35%, transparent) !important; color: var(--ok) !important; border-radius: 10px; font-weight: 600; }
+        #written-answer-input { border-radius: 10px !important; }
+
+        /* Waiting room + countdown */
+        .countdown-number, #final-countdown-num { font-family: var(--font-display) !important; font-weight: 400 !important; color: var(--clay) !important; letter-spacing: -.03em; }
+        .lobby-status-banner { background: var(--clay-soft); border-color: transparent; color: var(--clay-press); border-radius: 999px; }
+        .lobby-status-banner.async { background: var(--pine-soft); color: var(--pine); }
+        .participants-badge { background: var(--paper); border: 1px solid var(--line); border-radius: 12px; }
+
+        /* Results: flat podium, no medals */
+        #podium-wrapper { height: 170px; }
+        .podium-box { border-radius: 8px 8px 0 0 !important; box-shadow: none !important; }
+        .podium-box::before { display: none; }
+        .podium-gold   { background: var(--ochre) !important; border: 0 !important; }
+        .podium-silver { background: var(--line-2) !important; border: 0 !important; }
+        .podium-bronze { background: var(--clay-soft) !important; border: 0 !important; }
+        .podium-rank-icon { color: var(--ink) !important; font-family: var(--font-display); font-weight: 500; }
+        .podium-name, .podium-score { color: var(--ink) !important; font-variant-numeric: tabular-nums; }
+        #live-leaderboard-container { background: var(--card) !important; border: 1px solid var(--line) !important; border-radius: 12px !important; box-shadow: none !important; }
+        .leaderboard-table th { background: transparent; color: var(--ink-3); border-bottom: 1px solid var(--line); }
+        .leaderboard-table tr { border-bottom: 1px solid var(--line); }
+        .leaderboard-table tr:hover, .top-three-row { background: var(--paper); }
+        .leaderboard-table td { font-variant-numeric: tabular-nums; }
+        #finished-view h2 { font-weight: 450 !important; font-size: 2.2rem !important; }
+
+        @media (max-width: 880px) {
+            .card.quiz-mode .col-content { padding: 1.75rem 1.25rem 1.5rem; }
+            #quiz-question-text { font-size: 1.35rem !important; }
+        }
+        @media (prefers-reduced-motion: reduce) { .live-dot, .lobby-pulse-dot, .ping-wave { animation: none !important; } }
+    </style>
+    <style>
+        /* Guest entry form: email check + tick */
+        .guest-email-wrap { position: relative; }
+        .guest-email-wrap .input-field { padding-right: 2.6rem; }
+        .guest-tick { display: inline-flex; align-items: center; justify-content: center; width: 22px; height: 22px; border-radius: 50%; background: #2E7D4F; color: #fff; flex: none; }
+        .guest-email-wrap .guest-tick { position: absolute; right: 10px; top: 50%; transform: translateY(-50%); }
+        .guest-tick[hidden] { display: none; }
+        .guest-hint { font-size: .72rem; line-height: 1.5; color: var(--faint, #6F695C); margin-top: .4rem; min-height: 1.1em; }
+        .guest-hint.is-ok { color: #2E7D4F; font-weight: 600; }
+        .guest-hint.is-err { color: #B3261E; font-weight: 600; }
+        .input-field.is-bad { border-color: #B3261E !important; }
+        .input-field.is-locked { background: #F4F1EA !important; cursor: not-allowed; }
+
+        /* Lobby note for participants without a StudyVibe account: friendly, red, scrolling sideways */
+        .guest-marquee { margin-top: 1.25rem; overflow: hidden; border: 1px solid #E8B7AB; background: #FDF1EE; border-radius: 10px; padding: .65rem 0; position: relative; }
+        .guest-marquee-track { display: flex; width: max-content; animation: guest-scroll 48s linear infinite; }
+        .guest-marquee:hover .guest-marquee-track, .guest-marquee:focus-within .guest-marquee-track { animation-play-state: paused; }
+        .guest-marquee-item { flex: none; padding: 0 3rem; white-space: nowrap; font-size: .88rem; font-weight: 600; color: #B3261E; }
+        .guest-marquee-item a { color: #B3261E; text-decoration: underline; text-underline-offset: 3px; }
+        @keyframes guest-scroll { from { transform: translateX(0); } to { transform: translateX(-50%); } }
+        @media (prefers-reduced-motion: reduce) {
+            .guest-marquee-track { animation: none; width: auto; }
+            .guest-marquee-item { white-space: normal; padding: 0 1rem; }
+            .guest-marquee-item[aria-hidden="true"] { display: none; }
+        }
+        /* Visible lobby countdown: horizontal pill in the top bar */
+        .lobby-countdown { display: inline-flex; flex-direction: row; align-items: center; gap: .55rem; padding: .3rem .8rem; border: 1px solid var(--clay, #B5482A); border-radius: 999px; background: var(--clay-soft, #F1DDD2); white-space: nowrap; }
+        .lobby-countdown.hidden { display: none; }
+        .lobby-countdown-label { font-size: .62rem; font-weight: 700; letter-spacing: .08em; text-transform: uppercase; color: var(--clay-press, #96391E); }
+        .lobby-countdown-time { font-family: var(--font-display); font-size: 1.15rem; line-height: 1; font-weight: 600; color: var(--clay, #B5482A); font-variant-numeric: tabular-nums; }
+        .lobby-countdown.is-soon .lobby-countdown-time { animation: lobby-beat 1s ease-in-out infinite; }
+        @keyframes lobby-beat { 50% { transform: scale(1.05); } }
+        @media (prefers-reduced-motion: reduce) { .lobby-countdown.is-soon .lobby-countdown-time { animation: none; } }
     </style>
 </head>
 <body>
@@ -1211,33 +1295,26 @@ if (!$error) {
                 <div id="col-top-bar">
                     <!-- Brand Identity -->
                     <a href="/" class="brand">
-                        <svg width="22" height="22" viewBox="0 0 64 64" fill="none" xmlns="http://www.w3.org/2000/svg">
-                            <defs>
-                                <linearGradient id="g1" x1="0%" y1="0%" x2="100%" y2="100%">
-                                    <stop offset="0%" stop-color="#004B23"/>
-                                    <stop offset="100%" stop-color="#00873F"/>
-                                </linearGradient>
-                            </defs>
-                            <path d="M32 52 L8 46 L8 16 L32 22 Z" fill="url(#g1)"/>
-                            <path d="M32 52 L56 46 L56 16 L32 22 Z" fill="#003318"/>
-                            <path d="M32 22 L10 17 L10 44 L32 49 Z" fill="#EAE6DF"/>
-                            <path d="M32 22 L54 17 L54 44 L32 49 Z" fill="#F5F3EF"/>
-                            <line x1="32" y1="22" x2="32" y2="52" stroke="#004B23" stroke-width="1.5"/>
-                            <path d="M32 10 L33.2 13.8 L37 15 L33.2 16.2 L32 20 L30.8 16.2 L27 15 L30.8 13.8 Z" fill="#C9A84C"/>
-                        </svg>
-                        <span class="brand-name">StudyVibe <span style="font-size:0.625rem; font-weight:700; color:#FFF; background:var(--green); padding: 1px 6px; border-radius:10px; margin-left:4px;">LIVE</span></span>
+                        <?= Brand::logo('md', true) ?>
+                        <span class="brand-name"><span style="font-size:0.625rem; font-weight:700; letter-spacing:.08em; color:var(--clay); border:1px solid var(--clay); padding: 1px 7px; border-radius:10px; margin-left:4px;">LIVE</span></span>
                     </a>
 
                     <!-- Live Session status badges -->
                     <div style="display: flex; align-items: center; gap: 8px;">
+                        <?php if (!$isAsync): ?>
+                        <div class="lobby-countdown hidden" id="lobby-countdown" role="timer" aria-live="off">
+                            <span class="lobby-countdown-label">Début dans</span>
+                            <span class="lobby-countdown-time" id="lobby-countdown-time">--:--</span>
+                        </div>
+                        <?php endif; ?>
                         <span class="badge" id="state-badge">
                             <svg width="6" height="6" viewBox="0 0 8 8" fill="none" style="margin-right: 2px;">
-                                <circle cx="4" cy="4" r="3" fill="#004B23"/>
+                                <circle cx="4" cy="4" r="3" fill="#B5482A"/>
                             </svg>
                             Téléévaluation
                         </span>
                         <?php if (isset($registration) && $registration): ?>
-                            <a href="live-session.php?code=<?= urlencode($code) ?>&action=disconnect" class="badge" style="background-color: #FDE8E8; color: #E02424; text-decoration: none; border: 1px solid #F8B4B4; font-weight: 600; cursor: pointer; transition: background-color 0.2s;" onmouseover="this.style.backgroundColor='#FBD5D5'" onmouseout="this.style.backgroundColor='#FDE8E8'">
+                            <a href="live-session.php?code=<?= urlencode($code) ?>&action=disconnect" class="badge" style="background-color: var(--clay-soft); color: var(--clay-press); text-decoration: none; border: 1px solid var(--clay); font-weight: 600; cursor: pointer; transition: background-color 0.2s;" onmouseover="this.style.backgroundColor='var(--clay-soft)'" onmouseout="this.style.backgroundColor='var(--clay-soft)'">
                                 Quitter ✕
                             </a>
                         <?php endif; ?>
@@ -1250,7 +1327,7 @@ if (!$error) {
                     <?php if ($error): ?>
                         <!-- Error Message View -->
                         <div class="text-center py-6">
-                            <h2 class="story-title" style="font-family:'Plus Jakarta Sans',sans-serif; font-size:1.8rem; font-weight:500; margin-bottom: 1rem;">
+                            <h2 class="story-title" style="font-family:var(--font-display); letter-spacing:-.01em; font-size:1.8rem; font-weight:500; margin-bottom: 1rem;">
                                 Séance indisponible
                             </h2>
                             <p style="font-size:0.85rem; color:var(--muted); line-height:1.6; margin-bottom: 2rem;">
@@ -1266,11 +1343,11 @@ if (!$error) {
                                 <!-- Excluded or Reset notification banner -->
                                 <div style="display: flex; flex-direction: column; gap: 1.5rem; align-items: center; justify-content: center; text-align: center; margin-bottom: 2rem;">
                                     <div style="max-width: 280px; width: 100%;">
-                                        <img src="/assets/img/reset_eval_illustration.png" alt="Session Reset" style="width: 100%; height: auto; border-radius: 8px; border: 1px solid #E5E5E7; box-shadow: 0 4px 12px rgba(0,0,0,0.05);">
+                                        <img src="/assets/img/reset_eval_illustration.png" alt="Session Reset" style="width: 100%; height: auto; border-radius: 8px; border: 1px solid var(--line); box-shadow: 0 4px 12px rgba(0,0,0,0.05);">
                                     </div>
                                     <div style="max-width: 450px;">
-                                        <span style="font-size:0.65rem; font-weight:700; color:#9B1C1C; background:#FDE8E8; border: 1px solid #F8B4B4; padding: 4px 10px; border-radius:12px; text-transform:uppercase; letter-spacing: 0.05em;">Séance Réinitialisée</span>
-                                        <h2 style="font-family:'Plus Jakarta Sans',sans-serif; font-size:1.4rem; font-weight:600; margin: 1rem 0 0.5rem 0; line-height:1.2; color:#111111;">
+                                        <span style="font-size:0.65rem; font-weight:700; color:var(--clay-press); background:var(--clay-soft); border: 1px solid var(--clay); padding: 4px 10px; border-radius:12px; text-transform:uppercase; letter-spacing: 0.05em;">Séance Réinitialisée</span>
+                                        <h2 style="font-family:var(--font-display); letter-spacing:-.01em; font-size:1.4rem; font-weight:600; margin: 1rem 0 0.5rem 0; line-height:1.2; color:var(--ink);">
                                             L'examen a été réinitialisé
                                         </h2>
                                         <p style="font-size:0.8rem; color:var(--muted); line-height:1.6;">
@@ -1280,7 +1357,7 @@ if (!$error) {
                                 </div>
                             <?php endif; ?>
 
-                            <h2 style="font-family:'Plus Jakarta Sans',sans-serif; font-size:1.6rem; font-weight:500; margin-bottom: 0.5rem; line-height:1.2;">
+                            <h2 style="font-family:var(--font-display); letter-spacing:-.01em; font-size:1.6rem; font-weight:500; margin-bottom: 0.5rem; line-height:1.2;">
                                 <?= htmlspecialchars($session['title']) ?>
                             </h2>
                             <p style="font-size:0.8rem; color:var(--muted); margin-bottom: 0.75rem;">
@@ -1289,29 +1366,29 @@ if (!$error) {
                             
                             <?php if ($isAsync): ?>
                                 <!-- Free Study Mode (Asynchronous) -->
-                                <div style="background-color: rgba(26,86,219,0.04); border: 1px dashed rgba(26,86,219,0.3); border-radius: 6px; padding: 12px 14px; display: flex; flex-direction: column; gap: 6px; margin-bottom: 1.5rem; position: relative;">
+                                <div style="background-color: rgba(36,64,47,0.04); border: 1px dashed rgba(36,64,47,0.3); border-radius: 6px; padding: 12px 14px; display: flex; flex-direction: column; gap: 6px; margin-bottom: 1.5rem; position: relative;">
                                     <div style="display: flex; align-items: center; justify-content: space-between; width: 100%;">
                                         <div style="display: flex; align-items: center; gap: 8px;">
-                                            <svg width="16" height="16" fill="none" stroke="#1A56DB" viewBox="0 0 24 24" style="flex-shrink:0;">
+                                            <svg width="16" height="16" fill="none" stroke="#24402F" viewBox="0 0 24 24" style="flex-shrink:0;">
                                                 <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z"/>
                                             </svg>
-                                            <span style="font-size: 0.8rem; font-weight: 600; color: #1A56DB;">
+                                            <span style="font-size: 0.8rem; font-weight: 600; color: #24402F;">
                                                 Devoir Libre disponible jusqu'au : <strong style="text-transform: capitalize;"><?= htmlspecialchars(getFormattedEvalStartTime($session['async_deadline'] ?? '')) ?></strong>
                                             </span>
                                         </div>
-                                        <button type="button" onclick="toggleAsyncExplanation()" style="background: none; border: none; cursor: pointer; display: flex; align-items: center; justify-content: center; width: 20px; height: 20px; border-radius: 50%; background-color: rgba(26,86,219,0.1); color: #1A56DB; font-size: 0.75rem; font-weight: 700; transition: background-color 0.2s;" onmouseover="this.style.backgroundColor='rgba(26,86,219,0.2)'" onmouseout="this.style.backgroundColor='rgba(26,86,219,0.1)'" title="En savoir plus sur le Devoir Libre">
+                                        <button type="button" onclick="toggleAsyncExplanation()" style="background: none; border: none; cursor: pointer; display: flex; align-items: center; justify-content: center; width: 20px; height: 20px; border-radius: 50%; background-color: rgba(36,64,47,0.1); color: #24402F; font-size: 0.75rem; font-weight: 700; transition: background-color 0.2s;" onmouseover="this.style.backgroundColor='rgba(36,64,47,0.2)'" onmouseout="this.style.backgroundColor='rgba(36,64,47,0.1)'" title="En savoir plus sur le Devoir Libre">
                                             ?
                                         </button>
                                     </div>
                                     
-                                    <div id="async-explanation-box" style="display: none; margin-top: 8px; padding-top: 8px; border-top: 1px solid rgba(26,86,219,0.15); font-size: 0.75rem; color: #1E3A8A; line-height: 1.5;">
+                                    <div id="async-explanation-box" style="display: none; margin-top: 8px; padding-top: 8px; border-top: 1px solid rgba(36,64,47,0.15); font-size: 0.75rem; color: #24402F; line-height: 1.5;">
                                         <strong>Qu'est-ce qu'un Devoir Libre ?</strong><br>
                                         Il s'agit d'une évaluation asynchrone autonome. Contrairement aux sessions en direct animées en temps réel par l'enseignant, vous pouvez réaliser cette évaluation à votre rythme, à n'importe quel moment avant la date limite indiquée.
                                     </div>
                                 </div>
                             <?php else: ?>
                                 <!-- Standard Live Mode start time -->
-                                <div style="background-color: rgba(0,75,35,0.04); border: 1px dashed rgba(0,75,35,0.25); border-radius: 6px; padding: 10px 14px; display: flex; align-items: center; gap: 8px; margin-bottom: 1.5rem;">
+                                <div style="background-color: rgba(181,72,42,0.04); border: 1px dashed rgba(181,72,42,0.25); border-radius: 6px; padding: 10px 14px; display: flex; align-items: center; gap: 8px; margin-bottom: 1.5rem;">
                                     <svg width="16" height="16" fill="none" stroke="var(--green)" viewBox="0 0 24 24" style="flex-shrink:0;">
                                         <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z"/>
                                     </svg>
@@ -1322,16 +1399,16 @@ if (!$error) {
                             <?php endif; ?>
 
                             <?php if (isset($regError)): ?>
-                                <div style="margin-bottom: 1.5rem; padding: 0.8rem 1rem; background-color: #FDF2F2; border: 1px solid #FBD5D5; color: #9B1C1C; font-size: 0.8rem;">
+                                <div style="margin-bottom: 1.5rem; padding: 0.8rem 1rem; background-color: var(--clay-soft); border: 1px solid var(--clay-soft); color: var(--clay-press); font-size: 0.8rem;">
                                     <?= htmlspecialchars($regError) ?>
                                 </div>
                             <?php endif; ?>
 
                             <?php if (isLoggedIn()): ?>
                                 <!-- Logged-in verification state -->
-                                <div style="margin-bottom: 1.5rem; font-size: 0.75rem; color: var(--muted); background-color: rgba(0,75,35,0.03); border: 1px solid rgba(0,75,35,0.1); padding: 8px 12px; border-radius: 6px;">
+                                <div style="margin-bottom: 1.5rem; font-size: 0.75rem; color: var(--muted); background-color: rgba(181,72,42,0.03); border: 1px solid rgba(181,72,42,0.1); padding: 8px 12px; border-radius: 6px;">
                                     Connecté en tant que <strong style="color: var(--ink);"><?= htmlspecialchars($currentUserName) ?></strong> (<?= htmlspecialchars($currentUserEmail) ?>).
-                                    <a href="/live-session.php?code=<?= urlencode($code) ?>&action=logout" style="color: #9B1C1C; text-decoration: underline; margin-left: 0.5rem; font-weight: 600;">
+                                    <a href="/live-session.php?code=<?= urlencode($code) ?>&action=logout" style="color: var(--clay-press); text-decoration: underline; margin-left: 0.5rem; font-weight: 600;">
                                         Changer de compte
                                     </a>
                                 </div>
@@ -1355,70 +1432,108 @@ if (!$error) {
                                     </div>
                                 </form>
                             <?php else: ?>
-                                <!-- Authentication tabs selector -->
-                                <div class="auth-tabs-container">
-                                    <div class="auth-tabs-pill"></div>
-                                    <button type="button" id="tab-login-btn" class="auth-tab-btn active" onclick="switchAuthMode('login')">Se connecter</button>
-                                    <button type="button" id="tab-signup-btn" class="auth-tab-btn" onclick="switchAuthMode('signup')">Créer un compte</button>
-                                </div>
-
-                                <form method="POST" class="space-y-4">
+                                <!-- Guest entry: email (checked in the background) + name, no account required -->
+                                <form method="POST" id="guest-entry-form" class="space-y-4" novalidate>
                                     <input type="hidden" name="register_live" value="1">
-                                    <input type="hidden" name="auth_action" id="auth_action_input" value="login">
-                                    
-                                    <div id="field-name-container" style="display: none;">
-                                        <label style="display:block; font-size:0.65rem; font-weight:600; text-transform:uppercase; letter-spacing:0.08em; color:var(--muted); margin-bottom:0.5rem;">Nom Complet</label>
-                                        <input type="text" name="name" id="auth-name-input" placeholder="Ex: Jean Dupont" class="input-field">
+
+                                    <div>
+                                        <label for="guest-email" style="display:block; font-size:0.65rem; font-weight:600; text-transform:uppercase; letter-spacing:0.08em; color:var(--muted); margin-bottom:0.5rem;">Adresse E-mail</label>
+                                        <div class="guest-email-wrap">
+                                            <input type="email" name="email" id="guest-email" required autocomplete="email" inputmode="email" autocapitalize="off" spellcheck="false" placeholder="Ex: jean.dupont@gmail.com" class="input-field" value="<?= htmlspecialchars((string)($_POST['email'] ?? '')) ?>">
+                                            <span class="guest-tick" id="guest-email-tick" hidden title="Compte StudyVibe reconnu">
+                                                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="m5 12.5 4.5 4.5L19 7.5"/></svg>
+                                            </span>
+                                        </div>
+                                        <p id="guest-email-hint" class="guest-hint" role="status" aria-live="polite">Adresses acceptées : gmail.com, icloud.com ou facsciences-uy1.cm.</p>
                                     </div>
 
                                     <div>
-                                        <label style="display:block; font-size:0.65rem; font-weight:600; text-transform:uppercase; letter-spacing:0.08em; color:var(--muted); margin-bottom:0.5rem;">Adresse E-mail</label>
-                                        <input type="email" name="email" required placeholder="Ex: jean.dupont@email.com" class="input-field">
-                                    </div>
-
-                                    <div>
-                                        <label style="display:block; font-size:0.65rem; font-weight:600; text-transform:uppercase; letter-spacing:0.08em; color:var(--muted); margin-bottom:0.5rem;">Mot de passe</label>
-                                        <input type="password" name="password" required placeholder="Saisissez votre mot de passe" class="input-field">
+                                        <label for="guest-name" style="display:flex; align-items:center; gap:0.5rem; font-size:0.65rem; font-weight:600; text-transform:uppercase; letter-spacing:0.08em; color:var(--muted); margin-bottom:0.5rem;">
+                                            Nom Complet
+                                            <span class="guest-tick" id="guest-name-tick" hidden title="Compte StudyVibe reconnu">
+                                                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="m5 12.5 4.5 4.5L19 7.5"/></svg>
+                                            </span>
+                                        </label>
+                                        <input type="text" name="name" id="guest-name" required maxlength="120" autocomplete="name" placeholder="Ex: Jean Dupont" class="input-field" value="<?= htmlspecialchars((string)($_POST['name'] ?? '')) ?>">
                                     </div>
 
                                     <div style="padding-top: 1rem;">
-                                        <button type="submit" id="submit-auth-btn" class="btn-primary">Se connecter & Rejoindre</button>
+                                        <button type="submit" id="guest-submit" class="btn-primary"><?= $isAsync ? 'Commencer l’évaluation' : 'Entrer dans la salle' ?></button>
                                     </div>
                                 </form>
-                                
-                                <script>
-                                // Client-side toggles for integrated login/signup switch
-                                function switchAuthMode(mode) {
-                                    const nameContainer = document.getElementById('field-name-container');
-                                    const nameInput = document.getElementById('auth-name-input');
-                                    const authActionInput = document.getElementById('auth_action_input');
-                                    const tabLoginBtn = document.getElementById('tab-login-btn');
-                                    const tabSignupBtn = document.getElementById('tab-signup-btn');
-                                    const submitBtn = document.getElementById('submit-auth-btn');
-                                    const pill = document.querySelector('.auth-tabs-pill');
 
-                                    if (mode === 'signup') {
-                                        nameContainer.style.display = 'block';
-                                        nameInput.required = true;
-                                        authActionInput.value = 'signup';
-                                        
-                                        tabLoginBtn.classList.remove('active');
-                                        tabSignupBtn.classList.add('active');
-                                        pill.style.transform = 'translateX(100%)';
-                                        
-                                        submitBtn.textContent = 'Créer mon compte & Rejoindre';
-                                    } else {
-                                        nameContainer.style.display = 'none';
-                                        nameInput.required = false;
-                                        authActionInput.value = 'login';
-                                        
-                                        tabLoginBtn.classList.add('active');
-                                        tabSignupBtn.classList.remove('active');
-                                        pill.style.transform = 'translateX(0)';
-                                        
-                                        submitBtn.textContent = 'Se connecter & Rejoindre';
+                                <script>
+                                (function () {
+                                    const ALLOWED = <?= json_encode(LiveGuest::ALLOWED_DOMAINS) ?>;
+                                    const form = document.getElementById('guest-entry-form');
+                                    const mail = document.getElementById('guest-email');
+                                    const nameIn = document.getElementById('guest-name');
+                                    const tick = document.getElementById('guest-email-tick');
+                                    const nameTick = document.getElementById('guest-name-tick');
+                                    const hint = document.getElementById('guest-email-hint');
+                                    const baseHint = hint.textContent;
+                                    let timer = null, seq = 0, nameLocked = false, ok = false;
+
+                                    function setHint(text, kind) {
+                                        hint.textContent = text;
+                                        hint.className = 'guest-hint' + (kind ? ' is-' + kind : '');
                                     }
-                                }
+                                    function unlockName() {
+                                        if (nameLocked) { nameIn.readOnly = false; nameIn.classList.remove('is-locked'); nameLocked = false; }
+                                        tick.hidden = true; nameTick.hidden = true;
+                                    }
+                                    function localCheck(v) {
+                                        if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(v)) return 'format';
+                                        const dom = v.slice(v.lastIndexOf('@') + 1);
+                                        return ALLOWED.indexOf(dom) === -1 ? 'domain' : null;
+                                    }
+                                    function verify() {
+                                        const v = mail.value.trim().toLowerCase();
+                                        const mine = ++seq;
+                                        unlockName();
+                                        ok = false;
+                                        mail.classList.remove('is-bad');
+                                        if (v === '') { setHint(baseHint); return; }
+                                        const bad = localCheck(v);
+                                        if (bad === 'format') { setHint('Poursuivez la saisie de votre adresse e-mail…'); return; }
+                                        if (bad === 'domain') { mail.classList.add('is-bad'); setHint('Seules les adresses se terminant par gmail.com, icloud.com ou facsciences-uy1.cm sont acceptées.', 'err'); return; }
+                                        ok = true;
+                                        setHint('Vérification en cours…');
+                                        fetch('/api/live-check-email.php?email=' + encodeURIComponent(v), { cache: 'no-store', credentials: 'same-origin' })
+                                            .then(r => r.json())
+                                            .then(d => {
+                                                if (mine !== seq) return;
+                                                if (!d.success) { setHint(baseHint); return; }
+                                                if (d.registered) {
+                                                    tick.hidden = false; nameTick.hidden = false;
+                                                    nameIn.value = d.name; nameIn.readOnly = true; nameIn.classList.add('is-locked'); nameLocked = true;
+                                                    setHint('Compte StudyVibe reconnu. Votre nom est déjà renseigné.', 'ok');
+                                                } else {
+                                                    setHint('Parfait. Indiquez simplement votre nom ci-dessous.');
+                                                }
+                                            })
+                                            .catch(() => { if (mine === seq) setHint(baseHint); });
+                                    }
+                                    mail.addEventListener('input', () => { clearTimeout(timer); timer = setTimeout(verify, 350); });
+                                    mail.addEventListener('blur', () => { clearTimeout(timer); verify(); });
+                                    form.addEventListener('submit', (e) => {
+                                        const v = mail.value.trim().toLowerCase();
+                                        const bad = localCheck(v);
+                                        if (bad) {
+                                            e.preventDefault();
+                                            mail.classList.add('is-bad'); mail.focus();
+                                            setHint(bad === 'domain' ? 'Seules les adresses se terminant par gmail.com, icloud.com ou facsciences-uy1.cm sont acceptées.' : 'Veuillez saisir une adresse e-mail valide.', 'err');
+                                            return;
+                                        }
+                                        if (nameIn.value.trim().length < 2) {
+                                            e.preventDefault(); nameIn.focus();
+                                            setHint('Veuillez saisir votre nom complet pour continuer.', 'err');
+                                            return;
+                                        }
+                                        document.getElementById('guest-submit').disabled = true;
+                                    });
+                                    if (mail.value.trim() !== '') verify();
+                                })();
                                 </script>
                             <?php endif; ?>
                         </div>
@@ -1434,7 +1549,7 @@ if (!$error) {
                                         <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2.5" d="M10 9v6m4-6v6m7-3a9 9 0 11-18 0 9 9 0 0118 0z"/>
                                     </svg>
                                 </div>
-                                <h3 style="font-family:'Plus Jakarta Sans',sans-serif; font-size:1.6rem; font-weight:600; color:#111111; margin-bottom:0.75rem;">
+                                <h3 style="font-family:var(--font-display); letter-spacing:-.01em; font-size:1.6rem; font-weight:600; color:var(--ink); margin-bottom:0.75rem;">
                                     Évaluation suspendue
                                 </h3>
                                 <p style="font-size:0.85rem; color:var(--muted); max-width: 35ch; line-height: 1.6;">
@@ -1444,7 +1559,7 @@ if (!$error) {
                             
                             <!-- Polling/Initial Loading feedback spinner -->
                             <div class="text-center py-8" id="loading-state">
-                                <div style="border: 2px solid rgba(0,75,35,0.1); border-top-color: var(--green); border-radius: 50%; width: 28px; height: 28px; animation: spin 1s linear infinite; margin: 0 auto 1rem auto;"></div>
+                                <div style="border: 2px solid rgba(181,72,42,0.1); border-top-color: var(--green); border-radius: 50%; width: 28px; height: 28px; animation: spin 1s linear infinite; margin: 0 auto 1rem auto;"></div>
                                 <p style="font-size: 0.85rem; color: var(--muted);">Synchronisation avec la séance en cours...</p>
                             </div>
 
@@ -1452,40 +1567,40 @@ if (!$error) {
                             <div id="lobby-view" class="hidden">
                                 <div class="lobby-status-banner <?= $isAsync ? 'async' : '' ?>">
                                     <span class="lobby-pulse-dot"></span>
-                                    <span><?= $isAsync ? "Examen disponible en Devoir Libre" : "Attente du signal de départ par l'enseignant..." ?></span>
+                                    <span><?= $isAsync ? "Examen disponible en Devoir Libre" : "En attente du signal de départ" ?></span>
                                 </div>
 
-                                <h2 style="font-family:'Plus Jakarta Sans',sans-serif; font-size: 2rem; font-weight: 400; line-height: 1.25; color: var(--ink); margin-bottom: 0.75rem;">
-                                    En attente du<br><em>lancement</em>.
+                                <h2 style="font-family:var(--font-display); letter-spacing:-.01em; font-size: 2rem; font-weight: 400; line-height: 1.25; color: var(--ink); margin-bottom: 0.75rem;">
+                                    La salle ouvre,<br><em style="color:var(--clay)">l’examen suit.</em>
                                 </h2>
                                 <?php if ($isAsync): ?>
                                     <p style="font-size: 0.85rem; font-weight: 300; line-height: 1.7; color: var(--muted); margin-bottom: 1rem; max-width: 44ch;">
                                         L'évaluation <strong><?= htmlspecialchars($session['title']) ?></strong> (cours : <em><?= htmlspecialchars($session['course_title']) ?></em>) est disponible en Devoir Libre. Vous pouvez la commencer à tout moment.
                                     </p>
 
-                                    <div style="background-color: rgba(26,86,219,0.04); border: 1px dashed rgba(26,86,219,0.3); border-radius: 6px; padding: 12px 14px; display: flex; flex-direction: column; gap: 6px; margin-bottom: 1.5rem; position: relative;">
+                                    <div style="background-color: rgba(36,64,47,0.04); border: 1px dashed rgba(36,64,47,0.3); border-radius: 6px; padding: 12px 14px; display: flex; flex-direction: column; gap: 6px; margin-bottom: 1.5rem; position: relative;">
                                         <div style="display: flex; align-items: center; justify-content: space-between; width: 100%;">
                                             <div style="display: flex; align-items: center; gap: 8px;">
-                                                <svg width="16" height="16" fill="none" stroke="#1A56DB" viewBox="0 0 24 24" style="flex-shrink:0;">
+                                                <svg width="16" height="16" fill="none" stroke="#24402F" viewBox="0 0 24 24" style="flex-shrink:0;">
                                                     <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z"/>
                                                 </svg>
-                                                <span style="font-size: 0.85rem; font-weight: 600; color: #1A56DB;">
+                                                <span style="font-size: 0.85rem; font-weight: 600; color: #24402F;">
                                                     Disponible en Devoir Libre jusqu'au : <strong style="text-transform: capitalize;"><?= htmlspecialchars(getFormattedEvalStartTime($session['async_deadline'] ?? '')) ?></strong>
                                                 </span>
                                             </div>
-                                            <button type="button" onclick="toggleAsyncExplanationLobby()" style="background: none; border: none; cursor: pointer; display: flex; align-items: center; justify-content: center; width: 20px; height: 20px; border-radius: 50%; background-color: rgba(26,86,219,0.1); color: #1A56DB; font-size: 0.75rem; font-weight: 700; transition: background-color 0.2s;" onmouseover="this.style.backgroundColor='rgba(26,86,219,0.2)'" onmouseout="this.style.backgroundColor='rgba(26,86,219,0.1)'" title="En savoir plus sur le Devoir Libre">
+                                            <button type="button" onclick="toggleAsyncExplanationLobby()" style="background: none; border: none; cursor: pointer; display: flex; align-items: center; justify-content: center; width: 20px; height: 20px; border-radius: 50%; background-color: rgba(36,64,47,0.1); color: #24402F; font-size: 0.75rem; font-weight: 700; transition: background-color 0.2s;" onmouseover="this.style.backgroundColor='rgba(36,64,47,0.2)'" onmouseout="this.style.backgroundColor='rgba(36,64,47,0.1)'" title="En savoir plus sur le Devoir Libre">
                                                 ?
                                             </button>
                                         </div>
                                         
-                                        <div id="async-explanation-box-lobby" style="display: none; margin-top: 8px; padding-top: 8px; border-top: 1px solid rgba(26,86,219,0.15); font-size: 0.75rem; color: #1E3A8A; line-height: 1.5;">
+                                        <div id="async-explanation-box-lobby" style="display: none; margin-top: 8px; padding-top: 8px; border-top: 1px solid rgba(36,64,47,0.15); font-size: 0.75rem; color: #24402F; line-height: 1.5;">
                                             <strong>Qu'est-ce qu'un Devoir Libre ?</strong><br>
                                             Il s'agit d'une évaluation asynchrone autonome. Contrairement aux sessions en direct animées en temps réel par l'enseignant, vous pouvez réaliser cette évaluation à votre rythme, à n'importe quel moment avant la date limite indiquée.
                                         </div>
                                     </div>
                                 <?php else: ?>
                                     <p style="font-size: 0.85rem; font-weight: 300; line-height: 1.7; color: var(--muted); margin-bottom: 1rem; max-width: 44ch;">
-                                        L'évaluation <strong><?= htmlspecialchars($session['title']) ?></strong> (cours : <em><?= htmlspecialchars($session['course_title']) ?></em>) débutera automatiquement à l'heure programmée. Veuillez patienter dans cette salle d'attente.
+                                        L'évaluation <strong><?= htmlspecialchars($session['title']) ?></strong> (cours : <em><?= htmlspecialchars($session['course_title']) ?></em>) débutera automatiquement à l'heure programmée. Restez sur cette page, la séance démarre toute seule.
                                     </p>
 
                                     <div style="margin-bottom: 1.5rem; display: flex; align-items: center; gap: 8px;">
@@ -1505,17 +1620,27 @@ if (!$error) {
                                         <span class="ping-wave"></span>
                                     </div>
                                     <span style="font-size: 0.85rem; font-weight: 500; color: var(--ink);">
-                                        Participants connectés : <strong id="lobby-registered-count">0</strong>
+                                        Dans la salle : <strong class="num" id="lobby-registered-count">0</strong>
                                     </span>
                                 </div>
+
+                                <?php if ($isGuestParticipant): ?>
+                                    <!-- Friendly note for participants who are not registered StudyVibe users -->
+                                    <div class="guest-marquee" role="note" aria-label="Information pour les invités">
+                                        <div class="guest-marquee-track">
+                                            <span class="guest-marquee-item">Bienvenue dans la salle ! Vous participez en tant qu’invité(e) avec votre adresse e-mail, et l’évaluation se déroule pour vous exactement comme pour les autres. Pour profiter de toutes les fonctionnalités de StudyVibe (suivi de vos résultats, relevé de notes, certificats, cours et badges), nous vous invitons à créer votre compte gratuit sur la plateforme quand vous voudrez. Bonne chance et bonne évaluation ! <a href="/index.php" target="_blank" rel="noopener">Créer mon compte</a></span>
+                                            <span class="guest-marquee-item" aria-hidden="true">Bienvenue dans la salle ! Vous participez en tant qu’invité(e) avec votre adresse e-mail, et l’évaluation se déroule pour vous exactement comme pour les autres. Pour profiter de toutes les fonctionnalités de StudyVibe (suivi de vos résultats, relevé de notes, certificats, cours et badges), nous vous invitons à créer votre compte gratuit sur la plateforme quand vous voudrez. Bonne chance et bonne évaluation ! <a href="/index.php" target="_blank" rel="noopener" tabindex="-1">Créer mon compte</a></span>
+                                        </div>
+                                    </div>
+                                <?php endif; ?>
                             </div>
 
                             <!-- View: Launch Countdown (5s before start) -->
                             <div id="countdown-view" class="hidden text-center py-6">
                                 <span style="font-size:0.65rem; font-weight:600; text-transform:uppercase; letter-spacing:0.08em; color:var(--muted); display:block; margin-bottom:1rem;">Lancement imminent</span>
-                                <div style="font-size: 6rem; font-weight: 700; color: var(--green); line-height: 1; animation: bounce 1s infinite;" id="final-countdown-num">5</div>
+                                <div style="font-size: 6rem; font-weight: 700; color: var(--green); line-height: 1; font-family:var(--font-display); font-variant-numeric:tabular-nums;" id="final-countdown-num">5</div>
                                 <p style="font-size:0.9rem; color:var(--ink); font-weight:500; margin-top: 1.5rem;">
-                                    Soyez prêt, l'évaluation commence dans un instant !
+                                    Respirez. Ça commence dans un instant.
                                 </p>
                             </div>
 
@@ -1540,17 +1665,14 @@ if (!$error) {
                                             <circle id="quiz-svg-timer-circle" cx="28" cy="28" r="23" stroke="var(--green)" stroke-width="3.5" fill="transparent" 
                                                     stroke-dasharray="144.51" stroke-dashoffset="0" stroke-linecap="round" style="transition: stroke-dashoffset 0.3s linear, stroke 0.3s ease;" />
                                         </svg>
-                                        <span id="quiz-timer-text" style="position: absolute; font-family:'Plus Jakarta Sans',sans-serif; font-size: 1rem; font-weight: 700; color: var(--ink); tabular-nums: true;">--</span>
+                                        <span id="quiz-timer-text" style="position: absolute; font-family:var(--font-body); font-size: 1rem; font-weight: 700; color: var(--ink); tabular-nums: true;">--</span>
                                     </div>
                                 </div>
 
+                                <div id="quiz-body" class="quiz-body">
+                                <div class="quiz-pane quiz-pane-main">
                                 <!-- Question statement text -->
-                                <h3 id="quiz-question-text" style="font-family:'Plus Jakarta Sans',sans-serif; font-size:1.3rem; font-weight:600; color:var(--ink); line-height:1.45; margin-bottom:1.75rem;">--</h3>
-
-                                <!-- Context Image path (if uploaded) -->
-                                <div id="quiz-image-container" class="hidden" style="margin-bottom:1.5rem; border:1px solid rgba(0,0,0,0.08); overflow:hidden; border-radius:4px; background:#000; display:flex; align-items:center; justify-content:center; max-height:240px;">
-                                    <img src="" id="quiz-image" style="max-width:100%; max-height:240px; object-fit:contain;" alt="Illustration question">
-                                </div>
+                                <h3 id="quiz-question-text" style="font-family:var(--font-display); letter-spacing:-.01em; font-size:1.3rem; font-weight:600; color:var(--ink); line-height:1.45; margin-bottom:1.75rem;">--</h3>
 
                                 <!-- MCQ Options layout -->
                                 <div style="display:flex; flex-direction:column; gap:0.65rem;" id="quiz-options-container">
@@ -1571,7 +1693,7 @@ if (!$error) {
                                 <!-- Written / Numeric input response layout -->
                                 <div id="quiz-written-container" class="hidden" style="display:flex; flex-direction:column; gap:0.85rem;">
                                     <div style="position: relative;">
-                                        <input type="text" id="written-answer-input" placeholder="Saisissez votre réponse (ex: 2.5, x^2, ...)" class="input-field" style="font-size: 1rem; padding: 0.95rem 1.2rem; border-radius: 4px; border: 1px solid rgba(0, 75, 35, 0.2);">
+                                        <input type="text" id="written-answer-input" placeholder="Saisissez votre réponse (ex: 2.5, x^2, ...)" class="input-field" style="font-size: 1rem; padding: 0.95rem 1.2rem; border-radius: 4px; border: 1px solid rgba(181, 72, 42, 0.2);">
                                     </div>
                                     <button onclick="submitWrittenAnswer()" id="btn-submit-written" class="btn-primary" style="background-color: var(--green); border-color: var(--green); font-weight: 700; border-radius: 4px; padding: 0.95rem;">
                                         Soumettre ma réponse
@@ -1579,8 +1701,15 @@ if (!$error) {
                                 </div>
 
                                 <!-- Submit feedback status overlay -->
-                                <div id="quiz-submit-status" class="hidden" style="margin-top:1.25rem; padding:0.9rem 1rem; background:rgba(16,185,129,0.07); border:1px solid rgba(16,185,129,0.25); color:#065F46; font-size:0.82rem; text-align:center; font-weight:600; border-radius:3px;">
+                                <div id="quiz-submit-status" class="hidden" style="margin-top:1.25rem; padding:0.9rem 1rem; background:rgba(62,107,71,0.08); border:1px solid rgba(62,107,71,0.3); color:#3E6B47; font-size:0.82rem; text-align:center; font-weight:600; border-radius:3px;">
                                     ✓ Réponse enregistrée — en attente de la prochaine question...
+                                </div>
+                                </div>
+                                <!-- Picture window: only shown when the question has a picture -->
+                                <aside id="quiz-image-container" class="quiz-pane quiz-pane-image hidden" aria-label="Illustration de la question">
+                                    <img src="" id="quiz-image" alt="Illustration de la question" onclick="openQuizImageZoom()" title="Cliquer pour agrandir">
+                                    <button type="button" class="quiz-zoom-btn" onclick="openQuizImageZoom()">Agrandir l’image</button>
+                                </aside>
                                 </div>
 
                                 <div style="margin-top:1.5rem; padding-top:0.85rem; border-top:1px solid rgba(0,0,0,0.06); display:flex; justify-content:space-between; align-items:center; font-size:0.68rem; color:var(--muted);">
@@ -1590,7 +1719,7 @@ if (!$error) {
 
                             <!-- View: Completed session view -->
                             <div id="finished-view" class="hidden text-center py-4">
-                                <h2 style="font-family:'Plus Jakarta Sans',sans-serif; font-size:1.8rem; font-weight:500; margin-bottom: 1rem; line-height:1.2;">
+                                <h2 style="font-family:var(--font-display); letter-spacing:-.01em; font-size:1.8rem; font-weight:500; margin-bottom: 1rem; line-height:1.2;">
                                     Évaluation terminée !
                                 </h2>
                                 <p style="font-size:0.85rem; color:var(--muted); line-height:1.6; margin-bottom: 1.5rem;">
@@ -1605,7 +1734,7 @@ if (!$error) {
                                 </div>
                                 <?php endif; ?>
                                 
-                                <div style="background: rgba(0,75,35,0.04); border: 1px solid rgba(0,75,35,0.1); padding: 1.25rem; font-size: 0.8rem; line-height: 1.6; color: var(--ink); text-align: left; margin-bottom: 1.5rem; border-radius: 1px;">
+                                <div style="background: rgba(181,72,42,0.04); border: 1px solid rgba(181,72,42,0.1); padding: 1.25rem; font-size: 0.8rem; line-height: 1.6; color: var(--ink); text-align: left; margin-bottom: 1.5rem; border-radius: 1px;">
                                     Vos réponses ont été soumises avec succès. Un e-mail contenant votre score, vos statistiques individuelles et le lien sécurisé vers votre rapport de correction a été envoyé à :
                                     <strong style="display:block; font-size:0.9rem; color:var(--green); margin-top:0.4rem;"><?= htmlspecialchars($registration['email']) ?></strong>
                                     <span style="display:block; margin-top:0.5rem; font-size:0.75rem; color:var(--muted);">
@@ -1614,8 +1743,8 @@ if (!$error) {
                                 </div>
 
                                 <!-- Podium & Leaderboard visual graphics -->
-                                <div id="live-leaderboard-container" class="hidden" style="margin: 2rem 0; padding: 1.5rem; background: #FFFFFF; border: 1px solid #E5E5E7; border-radius: 4px; box-shadow: 0 4px 12px rgba(0,0,0,0.02); text-align: left;">
-                                    <h3 style="font-family:'Plus Jakarta Sans',sans-serif; font-size:1.15rem; font-weight:600; color:var(--ink); margin-bottom:1.5rem; display:flex; align-items:center; gap:8px;">
+                                <div id="live-leaderboard-container" class="hidden" style="margin: 2rem 0; padding: 1.5rem; background: var(--card); border: 1px solid var(--line); border-radius: 4px; box-shadow: 0 4px 12px rgba(0,0,0,0.02); text-align: left;">
+                                    <h3 style="font-family:var(--font-display); letter-spacing:-.01em; font-size:1.15rem; font-weight:600; color:var(--ink); margin-bottom:1.5rem; display:flex; align-items:center; gap:8px;">
                                         <span>Tableau d'Honneur</span> (Classement Live)
                                     </h3>
                                     
@@ -1631,20 +1760,20 @@ if (!$error) {
                                         
                                         <!-- Place 1 (Center) -->
                                         <div id="podium-1" class="podium-bar">
-                                            <div id="podium-name-1" class="podium-name" style="color:#854D0E;">--</div>
+                                            <div id="podium-name-1" class="podium-name" style="color:var(--ink);">--</div>
                                             <div class="podium-box podium-gold" style="height:90px;">
                                                 <span class="podium-rank-icon">#1</span>
                                             </div>
-                                            <div id="podium-score-1" class="podium-score" style="color:#854D0E;">--%</div>
+                                            <div id="podium-score-1" class="podium-score" style="color:var(--ink);">--%</div>
                                         </div>
                                         
                                         <!-- Place 3 (Right) -->
                                         <div id="podium-3" class="podium-bar">
-                                            <div id="podium-name-3" class="podium-name" style="color:#C2410C;">--</div>
+                                            <div id="podium-name-3" class="podium-name" style="color:var(--ink);">--</div>
                                             <div class="podium-box podium-bronze" style="height:45px;">
                                                 <span class="podium-rank-icon">#3</span>
                                             </div>
-                                            <div id="podium-score-3" class="podium-score" style="color:#C2410C;">--%</div>
+                                            <div id="podium-score-3" class="podium-score" style="color:var(--ink);">--%</div>
                                         </div>
                                     </div>
                                     
@@ -1714,7 +1843,14 @@ if (!$error) {
         const registrationId = <?= $registration ? (int)$regId : 'null' ?>;
         const serverStartTimestamp = <?= strtotime($session['start_time']) ?>;
         const serverCurrentTimestamp = <?= time() ?>;
-        const serverTimeOffset = (serverCurrentTimestamp * 1000) - Date.now();
+        let serverTimeOffset = (serverCurrentTimestamp * 1000) - Date.now();
+
+        /** Re-aligns the local clock with the server using the time stamp sent with every poll. */
+        function syncServerClock(data) {
+            if (data && typeof data.server_time_ms === 'number') {
+                serverTimeOffset = data.server_time_ms - Date.now();
+            }
+        }
         const isAsync = <?= $isAsync ? 'true' : 'false' ?>;
 
         /**
@@ -1742,6 +1878,8 @@ if (!$error) {
         let countdownTimer = null;
         let isFinalCountdown = false;
         let currentQuestionId = null;
+        let currentOptionKeys = ['A', 'B', 'C', 'D'];   // original letter behind each displayed button (shuffled per student)
+        let integrityWatch = false;
         let redirectTimer = null;
 
         // Custom typewriter message pipeline
@@ -1803,10 +1941,10 @@ if (!$error) {
         // Setup background floating canvas graphics particles
         const particlesContainer = document.getElementById('floating-particles');
         const particleSVGs = [
-            `<svg width="16" height="16" viewBox="0 0 16 16" fill="none" xmlns="http://www.w3.org/2000/svg"><circle cx="8" cy="8" r="7" stroke="#004B23" stroke-width="1.5" opacity="0.3"/></svg>`,
-            `<svg width="24" height="24" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg"><path d="M12 2 Q14 8 20 12 Q14 16 12 22 Q10 16 4 12 Q10 8 12 2 Z" fill="#C9A84C" opacity="0.35"/></svg>`,
-            `<text x="0" y="16" fill="#004B23" opacity="0.25" font-family="monospace" font-size="16">?</text>`,
-            `<text x="0" y="16" fill="#C9A84C" opacity="0.25" font-family="monospace" font-size="16">✓</text>`
+            `<svg width="16" height="16" viewBox="0 0 16 16" fill="none" xmlns="http://www.w3.org/2000/svg"><circle cx="8" cy="8" r="7" stroke="#B5482A" stroke-width="1.5" opacity="0.3"/></svg>`,
+            `<svg width="24" height="24" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg"><path d="M12 2 Q14 8 20 12 Q14 16 12 22 Q10 16 4 12 Q10 8 12 2 Z" fill="#D9A23B" opacity="0.35"/></svg>`,
+            `<text x="0" y="16" fill="#B5482A" opacity="0.25" font-family="monospace" font-size="16">?</text>`,
+            `<text x="0" y="16" fill="#D9A23B" opacity="0.25" font-family="monospace" font-size="16">✓</text>`
         ];
 
         for (let i = 0; i < 12; i++) {
@@ -1869,6 +2007,14 @@ if (!$error) {
             const msLeft = (serverStartTimestamp * 1000) - getServerTime();
             const seconds = Math.max(0, Math.floor(msLeft / 1000));
             const watermark = document.getElementById('lobby-timer-watermark');
+            const bigTimer = document.getElementById('lobby-countdown-time');
+            if (bigTimer) {
+                const h = Math.floor(seconds / 3600), m = Math.floor((seconds % 3600) / 60), sc = seconds % 60;
+                const pad = (n) => String(n).padStart(2, '0');
+                bigTimer.textContent = h > 0 ? `${h}:${pad(m)}:${pad(sc)}` : `${pad(m)}:${pad(sc)}`;
+                const box = document.getElementById('lobby-countdown');
+                if (box) box.classList.toggle('is-soon', seconds > 0 && seconds <= 60);
+            }
 
             if (seconds > 0) {
                 const mins = Math.floor(seconds / 60);
@@ -1900,6 +2046,7 @@ if (!$error) {
             fetch(`/api/live-eval-poll.php?code=${sessionCode}&action=poll_lobby`)
             .then(res => res.json())
             .then(data => {
+                syncServerClock(data);
                 const loadingEl = document.getElementById('loading-state');
                 if (loadingEl) loadingEl.classList.add('hidden');
                 
@@ -1943,6 +2090,7 @@ if (!$error) {
             fetch(`/api/live-eval-poll.php?code=${sessionCode}&action=poll_quiz`)
             .then(res => res.json())
             .then(data => {
+                syncServerClock(data);
                 if (!data.success) {
                     if (data.not_registered) {
                         window.location.reload();
@@ -2033,7 +2181,13 @@ if (!$error) {
                 }
 
                 if (data.status === 'waiting') {
-                    showView('lobby-view');
+                    // Past the scheduled start (small clock gap): stay on the sync screen and retry quickly
+                    if (!isAsync && getServerTime() >= (serverStartTimestamp * 1000) - 1500) {
+                        showView('loading-state');
+                        setTimeout(pollQuiz, 600);
+                    } else {
+                        showView('lobby-view');
+                    }
                     return;
                 }
 
@@ -2049,6 +2203,7 @@ if (!$error) {
                     remainingEl.textContent = Math.max(0, total - answers);
                 }
 
+                integrityWatch = !!data.integrity_watch;
                 const q = data.question;
                 
                 if (currentQuestionId !== q.id) {
@@ -2064,9 +2219,9 @@ if (!$error) {
                     if (statusEl) {
                         statusEl.classList.remove('hidden');
                         statusEl.innerHTML = '✓ Réponse enregistrée — en attente de la prochaine question...';
-                        statusEl.style.borderColor = 'rgba(16,185,129,0.25)';
-                        statusEl.style.background = 'rgba(16,185,129,0.07)';
-                        statusEl.style.color = '#065F46';
+                        statusEl.style.borderColor = 'rgba(62,107,71,0.3)';
+                        statusEl.style.background = 'rgba(62,107,71,0.08)';
+                        statusEl.style.color = '#3E6B47';
                     }
                 }
 
@@ -2147,8 +2302,8 @@ if (!$error) {
             circle.style.strokeDashoffset = offset;
 
             if (seconds > 10) {
-                circle.style.stroke = '#004B23';
-                circle.style.filter = 'drop-shadow(0 0 6px rgba(0, 75, 35, 0.4))';
+                circle.style.stroke = '#B5482A';
+                circle.style.filter = 'drop-shadow(0 0 6px rgba(181, 72, 42, 0.4))';
                 text.style.color = '#111111';
             } else if (seconds > 5) {
                 circle.style.stroke = '#D97706';
@@ -2232,6 +2387,8 @@ if (!$error) {
             const topBar     = document.getElementById('col-top-bar');
             const bottomBar  = document.getElementById('col-bottom-bar');
             const watermark  = document.getElementById('lobby-timer-watermark');
+            const lobbyTimer = document.getElementById('lobby-countdown');
+            if (lobbyTimer) lobbyTimer.classList.toggle('hidden', viewId !== 'lobby-view');
 
             if (viewId === 'quiz-view') {
                 card.classList.add('quiz-mode');
@@ -2251,7 +2408,7 @@ if (!$error) {
                 if (img) img.src = "/assets/img/live-success-illustration.png";
                 if (caption) caption.textContent = "Téléévaluation terminée. Résultats prêts !";
                 if (badge) {
-                    badge.innerHTML = `<svg width="6" height="6" viewBox="0 0 8 8" fill="none" style="margin-right:2px;"><circle cx="4" cy="4" r="3" fill="#10B981"/></svg> Session Complétée`;
+                    badge.innerHTML = `<svg width="6" height="6" viewBox="0 0 8 8" fill="none" style="margin-right:2px;"><circle cx="4" cy="4" r="3" fill="#3E6B47"/></svg> Session Complétée`;
                 }
 
                 const typewriterLine = document.getElementById('typewriter-line');
@@ -2289,7 +2446,7 @@ if (!$error) {
                     if (watermark) watermark.classList.add('hidden');
                 }
 
-                const color = viewId === 'countdown-view' ? '#F59E0B' : '#004B23';
+                const color = viewId === 'countdown-view' ? '#F59E0B' : '#B5482A';
                 if (badge) {
                     badge.innerHTML = `<svg width="6" height="6" viewBox="0 0 8 8" fill="none" style="margin-right:2px;"><circle cx="4" cy="4" r="3" fill="${color}"/></svg> Salle d'attente`;
                 }
@@ -2361,6 +2518,11 @@ if (!$error) {
             
             const imgContainer = document.getElementById('quiz-image-container');
             const imgEl = document.getElementById('quiz-image');
+            const setHasImage = (on) => {
+                document.getElementById('quiz-body').classList.toggle('has-image', on);
+                const card = document.querySelector('.card');
+                if (card) card.classList.toggle('has-image', on);
+            };
             if (q.image_path) {
                 imgEl.onerror = function() {
                     const fileOnly = q.image_path.split('file=').pop().split('/').pop();
@@ -2369,13 +2531,17 @@ if (!$error) {
                         imgEl.src = '/uploads/live_questions/' + fileOnly;
                     } else {
                         imgContainer.classList.add('hidden');
+                        setHasImage(false);
                     }
                 };
                 imgEl.dataset.fallbackTried = '';
                 imgEl.src = q.image_path;
                 imgContainer.classList.remove('hidden');
+                setHasImage(true);
             } else {
                 imgContainer.classList.add('hidden');
+                imgEl.removeAttribute('src');
+                setHasImage(false);
             }
 
             const qType = q.question_type || 'mcq';
@@ -2397,20 +2563,41 @@ if (!$error) {
                 mcqContainer.classList.remove('hidden');
                 writtenContainer.classList.add('hidden');
                 
+                currentOptionKeys = Array.isArray(q.option_keys) && q.option_keys.length === 4 ? q.option_keys : ['A', 'B', 'C', 'D'];
                 document.getElementById('text-opt-A').textContent = q.option_a;
                 document.getElementById('text-opt-B').textContent = q.option_b;
                 document.getElementById('text-opt-C').textContent = q.option_c;
                 document.getElementById('text-opt-D').textContent = q.option_d;
 
+                const optionTexts = { A: q.option_a, B: q.option_b, C: q.option_c, D: q.option_d };
                 ['A', 'B', 'C', 'D'].forEach(opt => {
                     const btn = document.getElementById(`btn-opt-${opt}`);
                     btn.disabled = false;
                     btn.className = "option-btn";
+                    // True/false questions only fill A and B: the empty buttons are not shown
+                    btn.style.display = String(optionTexts[opt] ?? '').trim() === '' ? 'none' : '';
                 });
             }
 
             document.getElementById('quiz-submit-status').classList.add('hidden');
             setTimeout(renderMath, 50);
+        }
+
+        function openQuizImageZoom() {
+            const src = document.getElementById('quiz-image').getAttribute('src');
+            if (!src) return;
+            let z = document.getElementById('quiz-zoom');
+            if (!z) {
+                z = document.createElement('div');
+                z.id = 'quiz-zoom';
+                z.setAttribute('role', 'dialog');
+                z.innerHTML = '<img alt="">';
+                z.addEventListener('click', () => { z.style.display = 'none'; });
+                document.body.appendChild(z);
+                document.addEventListener('keydown', (e) => { if (e.key === 'Escape') z.style.display = 'none'; });
+            }
+            z.querySelector('img').src = src;
+            z.style.display = 'flex';
         }
 
         function submitLiveAnswer(option) {
@@ -2426,7 +2613,8 @@ if (!$error) {
             });
 
             disableOptions();
-            submitLiveAnswerRaw(option);
+            // The button the student pressed is a display position; the server wants the original letter
+            submitLiveAnswerRaw(currentOptionKeys['ABCD'.indexOf(option)] || option);
         }
 
         function submitWrittenAnswer() {
@@ -2449,9 +2637,9 @@ if (!$error) {
             if (statusEl) {
                 statusEl.classList.remove('hidden');
                 statusEl.innerHTML = 'Enregistrement de votre réponse...';
-                statusEl.style.borderColor = 'rgba(16,185,129,0.25)';
-                statusEl.style.background = 'rgba(16,185,129,0.07)';
-                statusEl.style.color = '#065F46';
+                statusEl.style.borderColor = 'rgba(62,107,71,0.3)';
+                statusEl.style.background = 'rgba(62,107,71,0.08)';
+                statusEl.style.color = '#3E6B47';
             }
             logTelemetry(`Réponse "${option}" soumise. En attente...`);
 
@@ -2481,9 +2669,9 @@ if (!$error) {
                     localStorage.removeItem('pending_live_answer_' + sessionCode);
                     if (statusEl) {
                         statusEl.innerHTML = '✓ Réponse enregistrée — en attente de la prochaine question...';
-                        statusEl.style.borderColor = 'rgba(16,185,129,0.25)';
-                        statusEl.style.background = 'rgba(16,185,129,0.07)';
-                        statusEl.style.color = '#065F46';
+                        statusEl.style.borderColor = 'rgba(62,107,71,0.3)';
+                        statusEl.style.background = 'rgba(62,107,71,0.08)';
+                        statusEl.style.color = '#3E6B47';
                     }
                     playPositiveChime();
                 } else {
@@ -2545,9 +2733,9 @@ if (!$error) {
                     const statusEl = document.getElementById('quiz-submit-status');
                     if (statusEl) {
                         statusEl.innerHTML = '✓ Réponse enregistrée (synchronisée) — en attente de la prochaine question...';
-                        statusEl.style.borderColor = 'rgba(16,185,129,0.25)';
-                        statusEl.style.background = 'rgba(16,185,129,0.07)';
-                        statusEl.style.color = '#065F46';
+                        statusEl.style.borderColor = 'rgba(62,107,71,0.3)';
+                        statusEl.style.background = 'rgba(62,107,71,0.08)';
+                        statusEl.style.color = '#3E6B47';
                     }
                     playPositiveChime();
                 }
@@ -2568,6 +2756,41 @@ if (!$error) {
             const wrBtn = document.getElementById('btn-submit-written');
             if (wrBtn) wrBtn.disabled = true;
         }
+
+        /**
+         * Exam integrity: when the teacher turned it on for this session, leaving the exam tab is counted and the student
+         * is told so on their return. The count is shown to the teacher in the session analysis.
+         */
+        let integrityLeftAt = 0;
+        function reportFocusLoss() {
+            const quiz = document.getElementById('quiz-view');
+            if (!integrityWatch || !quiz || quiz.classList.contains('hidden') || integrityLeftAt) return;
+            integrityLeftAt = Date.now();
+            const fd = new FormData();
+            fd.append('code', sessionCode);
+            fd.append('action', 'report_integrity');
+            try { fetch('/api/live-eval-poll.php', { method: 'POST', body: fd, keepalive: true }); } catch (e) {}
+        }
+        function warnFocusReturn() {
+            if (!integrityLeftAt) return;
+            integrityLeftAt = 0;
+            let bar = document.getElementById('integrity-warning');
+            if (!bar) {
+                bar = document.createElement('div');
+                bar.id = 'integrity-warning';
+                bar.setAttribute('role', 'alert');
+                bar.style.cssText = 'position:fixed;left:50%;top:1rem;transform:translateX(-50%);z-index:9999;max-width:min(92vw,34rem);padding:.75rem 1rem;border-radius:12px;background:var(--ink);color:var(--paper);font:600 .9rem/1.4 inherit;box-shadow:0 8px 30px rgba(0,0,0,.25)';
+                bar.textContent = document.documentElement.lang === 'en'
+                    ? 'You left the exam window. This has been recorded and your teacher can see it.'
+                    : "Vous avez quitté la fenêtre de l'examen. Cela a été enregistré et votre enseignant peut le voir.";
+                document.body.appendChild(bar);
+            }
+            bar.style.display = 'block';
+            setTimeout(() => { bar.style.display = 'none'; }, 7000);
+        }
+        document.addEventListener('visibilitychange', () => { document.hidden ? reportFocusLoss() : warnFocusReturn(); });
+        window.addEventListener('blur', () => { setTimeout(() => { if (!document.hasFocus()) reportFocusLoss(); }, 300); });
+        window.addEventListener('focus', warnFocusReturn);
 
         window.addEventListener('DOMContentLoaded', startApp);
     </script>

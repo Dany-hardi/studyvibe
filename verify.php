@@ -1,6 +1,9 @@
 <?php
 declare(strict_types=1);
 require_once __DIR__ . '/auth.php';
+require_once __DIR__ . '/lib/Analytics.php';
+Analytics::hit('view:verify');
+require_once __DIR__ . '/lib/Brand.php';
 
 $code  = trim((string)($_GET['code'] ?? ''));
 $cert  = null;
@@ -38,8 +41,9 @@ $verifyUrl = APP_URL . '/verify.php?code=' . urlencode($code);
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Vérification de Certificat — StudyVibe</title>
     <link rel="preconnect" href="https://fonts.googleapis.com">
-    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600&family=Playfair+Display:ital,wght@0,400..900;1,400..900&display=swap" rel="stylesheet">
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600&family=Playfair+Display:ital,wght@0,400..900;1,400..900&family=Fraunces:ital,opsz,wght,SOFT@0,9..144,300..700,0..100;1,9..144,300..700,0..100&family=Hanken+Grotesk:wght@400;500;600;700&display=swap" rel="stylesheet">
     <script src="https://cdn.tailwindcss.com"></script>
+    <?= Brand::headLinks() ?>
     <link rel="stylesheet" href="/assets/css/app.css">
     <script>tailwind.config={theme:{extend:{fontFamily:{sans:['Inter','sans-serif'],serif:['Playfair Display','serif']}}}}</script>
 </head>
@@ -47,10 +51,7 @@ $verifyUrl = APP_URL . '/verify.php?code=' . urlencode($code);
 
 <header class="border-b border-[#E5E5E7] py-5 px-12 flex justify-between items-center bg-[#FFFFFF]">
     <a href="/index.php" class="flex items-center gap-3">
-        <svg class="w-7 h-7 text-[#004B23]" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M12 6.253v13m0-13C10.832 5.477 9.246 5 7.5 5S4.168 5.477 3 6.253v13C4.168 18.477 5.754 18 7.5 18s3.332.477 4.5 1.253m0-13C13.168 5.477 14.754 5 16.5 5c1.747 0 3.332.477 4.5 1.253v13C19.832 18.477 18.247 18 16.5 18c-1.746 0-3.332.477-4.5 1.253"/>
-        </svg>
-        <span class="font-serif text-xl font-semibold">StudyVibe</span>
+        <?= Brand::logo('md') ?>
     </a>
     <span class="text-[10px] font-mono uppercase tracking-widest text-[#888888]">Registre de Vérification</span>
 </header>
@@ -73,8 +74,8 @@ $verifyUrl = APP_URL . '/verify.php?code=' . urlencode($code);
         <!-- ── Valide (Stunning Certificate Verification Card) ── -->
         <div class="bg-white border border-[#E5E5E7] rounded-sm shadow-xl overflow-hidden relative">
             <!-- Top brand band with verification badge -->
-            <div class="bg-[#EAF2EC] border-b border-[#004B23]/10 px-8 py-4 flex justify-between items-center">
-                <div class="flex items-center gap-2 text-[#004B23]">
+            <div class="bg-[#EAF2EC] border-b border-[#B5482A]/10 px-8 py-4 flex justify-between items-center">
+                <div class="flex items-center gap-2 text-[#B5482A]">
                     <svg class="w-5 h-5" fill="currentColor" viewBox="0 0 20 20">
                         <path fill-rule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm3.707-9.293a1 1 0 00-1.414-1.414L9 10.586 7.707 9.293a1 1 0 00-1.414 1.414l2 2a1 1 0 001.414 0l5-5z" clip-rule="evenodd"/>
                     </svg>
@@ -134,7 +135,7 @@ $verifyUrl = APP_URL . '/verify.php?code=' . urlencode($code);
                         <!-- Code Unique -->
                         <div class="space-y-1">
                             <span class="text-[11px] text-[#888888] font-medium block">Code de Validation Unique</span>
-                            <span class="font-mono text-xs text-[#004B23] font-bold block bg-green-50 px-2 py-0.5 rounded-sm inline-block border border-green-100">
+                            <span class="font-mono text-xs text-[#B5482A] font-bold block bg-green-50 px-2 py-0.5 rounded-sm inline-block border border-green-100">
                                 <?= htmlspecialchars($cert['certificate_code']) ?>
                             </span>
                         </div>
@@ -164,7 +165,7 @@ $verifyUrl = APP_URL . '/verify.php?code=' . urlencode($code);
                     </div>
                     <?php if (isLoggedIn() && getCurrentUser()['role'] === 'student' && (int)getCurrentUser()['id'] === (int)$cert['student_id']): ?>
                         <a href="/certificate.php?code=<?= urlencode($cert['certificate_code']) ?>" target="_blank"
-                           class="inline-block px-4 py-2 bg-[#111111] text-white text-xs font-semibold uppercase tracking-wider hover:bg-[#004B23] rounded-sm transition-colors shadow-sm">
+                           class="inline-block px-4 py-2 bg-[#111111] text-white text-xs font-semibold uppercase tracking-wider hover:bg-[#B5482A] rounded-sm transition-colors shadow-sm">
                             Afficher le diplôme officiel
                         </a>
                     <?php endif; ?>
@@ -179,9 +180,9 @@ $verifyUrl = APP_URL . '/verify.php?code=' . urlencode($code);
             <form action="/verify.php" method="GET" class="flex gap-3">
                 <input type="text" name="code" placeholder="ex: SV-1-A3F7B2C8"
                        value="<?= htmlspecialchars($code) ?>"
-                       class="flex-1 px-4 py-2 bg-[#F5F5F7] border border-[#E5E5E7] text-sm focus:outline-none focus:border-[#004B23] rounded-sm font-mono">
+                       class="flex-1 px-4 py-2 bg-[#F5F5F7] border border-[#E5E5E7] text-sm focus:outline-none focus:border-[#B5482A] rounded-sm font-mono">
                 <button type="submit"
-                    class="px-5 py-2 bg-[#111111] text-[#FFFFFF] text-xs font-semibold uppercase tracking-wider hover:bg-[#004B23] rounded-sm">
+                    class="px-5 py-2 bg-[#111111] text-[#FFFFFF] text-xs font-semibold uppercase tracking-wider hover:bg-[#B5482A] rounded-sm">
                     Vérifier
                 </button>
             </form>

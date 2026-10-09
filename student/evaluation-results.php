@@ -23,6 +23,9 @@ declare(strict_types=1);
 // =========================================================================
 
 require_once __DIR__ . '/../auth.php';
+require_once __DIR__ . '/../lib/Brand.php';
+require_once __DIR__ . '/../lib/LiveScoring.php';
+require_once __DIR__ . '/../lib/student_i18n.php';
 
 // Exiger que l'utilisateur soit connecté
 if (!isLoggedIn()) {
@@ -119,13 +122,7 @@ $totalQuestions = count($answers);
 $correctCount = 0;
 foreach ($answers as $ans) {
     $isCorrect = false;
-    if (($ans['question_type'] ?? 'mcq') === 'written') {
-        $normalizedSelected = str_replace([',', ' '], ['.', ''], strtolower(trim($ans['selected_option'])));
-        $normalizedCorrect = str_replace([',', ' '], ['.', ''], strtolower(trim($ans['correct_option'])));
-        $isCorrect = ($normalizedSelected === $normalizedCorrect);
-    } else {
-        $isCorrect = ($ans['selected_option'] === $ans['correct_option']);
-    }
+    $isCorrect = LiveScoring::isCorrect((string)($ans['question_type'] ?? 'mcq'), (string)$ans['selected_option'], (string)$ans['correct_option']);
     if ($isCorrect) {
         $correctCount++;
     }
@@ -138,221 +135,106 @@ $hasPassed = $scorePercent >= 50;
 // =========================================================================
 ?>
 <!DOCTYPE html>
-<html lang="fr" class="sv-cream">
+<html lang="<?= sdLang() ?>">
 <head>
     <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Rapport d'Évaluation — StudyVibe</title>
-    
-    <link rel="preconnect" href="https://fonts.googleapis.com">
-    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&family=Plus+Jakarta+Sans:wght@300;400;500;600;700;800&display=swap" rel="stylesheet">
-    
-    <script src="https://cdn.tailwindcss.com"></script>
-    <script>
-        tailwind.config = {
-            theme: {
-                extend: {
-                    colors: {
-                        brand: '#004B23',
-                        brandHover: '#003d1c',
-                        ink: '#111111',
-                    },
-                    fontFamily: {
-                        sans: ['Inter', 'sans-serif'],
-                        serif: ['Plus Jakarta Sans', 'sans-serif'],
-                    }
-                }
-            }
-        }
-    </script>
-
-    <!-- Bibliothèques KaTeX pour le rendu des formules mathématiques et caractères spéciaux en LaTeX -->
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <title><?= sdH(sd('doc_report_title')) ?> — <?= sdH($registration['session_title']) ?> — StudyVibe</title>
+    <?= sdFontsLink() ?>
+    <link rel="stylesheet" href="/assets/css/sv2.css">
+    <?= Brand::headLinks() ?>
+    <link rel="stylesheet" href="/assets/css/student-doc.css">
     <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/katex@0.16.8/dist/katex.min.css">
     <script defer src="https://cdn.jsdelivr.net/npm/katex@0.16.8/dist/katex.min.js"></script>
     <script defer src="https://cdn.jsdelivr.net/npm/katex@0.16.8/dist/contrib/auto-render.min.js" onload="renderMath()"></script>
-
-    <style>
-        .latex-container {
-            font-size: 1.05rem;
-        }
-    </style>
+    <?= sdThemeBoot() ?>
 </head>
-<body class="bg-[#FAFAFA] text-[#111111] font-sans antialiased min-h-screen pb-16">
-    <!-- Navbar -->
-    <nav class="bg-white border-b border-[#E5E5E7] px-8 py-4 flex items-center justify-between">
-        <div class="flex items-center gap-3">
-            <span class="font-serif text-xl font-bold tracking-tight text-brand">StudyVibe</span>
-            <span class="text-xs text-gray-300 font-light">|</span>
-            <span class="text-xs text-gray-500 font-medium">Rapport d'évaluation</span>
-        </div>
-        <div class="flex items-center gap-4">
-            <a href="/student/export-evaluation-pdf.php?registration_id=<?= $regId ?>&token=<?= urlencode($token) ?>" class="text-xs font-semibold uppercase tracking-wider bg-brand text-white hover:bg-brandHover px-3 py-1.5 rounded-sm flex items-center gap-1.5 transition-colors shadow-sm">
-                <svg class="w-4 h-4" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24">
-                    <path stroke-linecap="round" stroke-linejoin="round" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4"/>
-                </svg>
-                <span>Télécharger PDF (LaTeX)</span>
-            </a>
-            <?php if ($currentUser['role'] === 'student'): ?>
-                <a href="/student/dashboard.php" class="text-xs font-semibold uppercase tracking-wider text-brand hover:text-brandHover flex items-center gap-1.5 transition-colors">
-                    <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10 19l-7-7m0 0l7-7m-7 7h18"/>
-                    </svg>
-                    <span>Mon Dashboard</span>
-                </a>
-            <?php else: ?>
-                <button onclick="window.close();" class="text-xs font-semibold uppercase tracking-wider text-gray-600 hover:text-gray-900 transition-colors">Fermer l'onglet</button>
-            <?php endif; ?>
-        </div>
-    </nav>
+<body class="v2 sdoc">
+<div class="doc-bar no-print">
+    <?php if ($currentUser['role'] === 'student'): ?>
+        <a class="doc-back" href="/student/dashboard.php#evals"><?= sdIcon('arrow', 16) ?><?= sdH(sd('doc_back')) ?></a>
+    <?php else: ?>
+        <button type="button" class="doc-back" style="background:none;border:0;cursor:pointer;font-family:inherit" onclick="window.close();"><?= sdIcon('x', 16) ?><?= sdH(sd('doc_close_tab')) ?></button>
+    <?php endif; ?>
+    <div class="doc-actions">
+        <button type="button" class="btn btn-ghost btn-sm" onclick="window.print()"><?= sdIcon('print', 16) ?><?= sdH(sd('doc_print')) ?></button>
+        <a class="btn btn-primary btn-sm" href="/student/export-evaluation-pdf.php?registration_id=<?= $regId ?>&amp;token=<?= urlencode($token) ?>"><?= sdIcon('down', 16) ?><?= sdH(sd('doc_pdf_latex')) ?></a>
+    </div>
+</div>
 
-    <!-- Main Container -->
-    <main class="max-w-4xl mx-auto px-4 mt-12 space-y-8">
-        <!-- Hero card / Overview -->
-        <div class="bg-white border border-[#E5E5E7] rounded-sm p-8 flex flex-col md:flex-row items-center justify-between gap-6 shadow-sm">
-            <div class="space-y-2 text-center md:text-left">
-                <span class="text-[10px] uppercase font-bold text-brand tracking-widest bg-green-50 border border-green-200/50 px-2.5 py-1 rounded-full">Résultats Officiels</span>
-                <h1 class="font-serif text-3xl font-light text-gray-900 mt-2"><?= htmlspecialchars($registration['session_title']) ?></h1>
-                <p class="text-xs text-gray-500">
-                    Cours : <strong class="text-gray-800 font-medium"><?= htmlspecialchars($registration['course_title']) ?></strong> | Candidat : <strong class="text-gray-800 font-medium"><?= htmlspecialchars($registration['name']) ?></strong>
-                </p>
+<main class="doc-wrap">
+<article class="doc-sheet">
+    <header class="res-top">
+        <p class="doc-kicker"><?= sdH(sd('doc_report_title')) ?></p>
+        <h1><?= sdH($registration['session_title']) ?></h1>
+        <p class="doc-meta"><?= sdH(sd('doc_course')) ?> : <strong><?= sdH($registration['course_title']) ?></strong><br><?= sdH(sd('doc_candidate')) ?> : <strong><?= sdH($registration['name']) ?></strong></p>
+    </header>
+
+    <section class="res-score" aria-label="<?= sdH(sd('doc_final_score')) ?>">
+        <div class="res-big num"><?= sdH(sdScore($scorePercent)) ?><small>%</small></div>
+        <div class="res-side">
+            <span class="doc-verdict <?= $hasPassed ? 'is-pass' : 'is-fail' ?>"><?= sdIcon($hasPassed ? 'check' : 'x', 14) ?><?= sdH($hasPassed ? sd('passed') : sd('not_passed')) ?></span>
+            <p class="res-frac num"><?= sdH(sd('doc_summary', ['ok' => $correctCount, 'total' => $totalQuestions])) ?></p>
+            <p class="res-note"><?= sdH(sd('doc_threshold_live')) ?></p>
+        </div>
+    </section>
+
+    <h2 class="res-h2"><?= sdH(sd('doc_review')) ?> <span><?= sdH(sd('doc_questions', ['n' => $totalQuestions])) ?></span></h2>
+
+    <?php foreach ($answers as $index => $qa):
+        $num = $index + 1;
+        $isWritten = ($qa['question_type'] ?? 'mcq') === 'written';
+        $isCorrect = LiveScoring::isCorrect($isWritten ? 'written' : 'mcq', (string)$qa['selected_option'], (string)$qa['correct_option']);
+    ?>
+    <section class="res-q">
+        <div class="res-q-head">
+            <h3 class="res-q-title latex-container"><span class="n num"><?= $num ?>.</span><span><?= sdH($qa['question_text']) ?></span></h3>
+            <span class="res-mark <?= $isCorrect ? 'is-ok' : 'is-bad' ?>"><?= sdIcon($isCorrect ? 'check' : 'x', 13) ?><?= sdH($isCorrect ? sd('doc_correct') : sd('doc_incorrect')) ?></span>
+        </div>
+
+        <?php if ($isWritten): ?>
+            <div class="res-written">
+                <div class="res-box <?= $isCorrect ? 'is-right' : 'is-wrong' ?>"><b><?= sdH(sd('doc_your_answer')) ?></b><span class="latex-container"><?= $qa['selected_option'] === '' || $qa['selected_option'] === null ? '<em>' . sdH(sd('doc_none')) . '</em>' : sdH($qa['selected_option']) ?></span></div>
+                <?php if (!$isCorrect): ?>
+                <div class="res-box is-right"><b><?= sdH(sd('doc_right_answer')) ?></b><span class="latex-container"><?= sdH($qa['correct_option']) ?></span></div>
+                <?php endif; ?>
             </div>
+        <?php else: ?>
+            <ul class="res-opts">
+                <?php foreach (['A', 'B', 'C', 'D'] as $opt):
+                    $optText = $qa['option_' . strtolower($opt)] ?? '';
+                    if ($optText === '' || $optText === null) { continue; }
+                    $isRight = $opt === $qa['correct_option'];
+                    $isPicked = $opt === $qa['selected_option'];
+                    $cls = $isRight ? 'is-right' : ($isPicked ? 'is-picked' : '');
+                ?>
+                <li class="res-opt <?= $cls ?>">
+                    <span class="l"><?= $opt ?></span>
+                    <span class="t latex-container"><?= sdH($optText) ?></span>
+                    <?php if ($isRight): ?><span class="tag"><?= sdIcon('check', 13) ?><?= sdH($isPicked ? sd('doc_correct_opt') : sd('doc_correct_opt')) ?><?= $isPicked ? ' · ' . sdH(sd('doc_yours')) : '' ?></span>
+                    <?php elseif ($isPicked): ?><span class="tag"><?= sdIcon('x', 13) ?><?= sdH(sd('doc_yours')) ?></span><?php endif; ?>
+                </li>
+                <?php endforeach; ?>
+            </ul>
+        <?php endif; ?>
 
-            <!-- Score badge -->
-            <div class="flex flex-col items-center justify-center bg-[#FAFAFA] border border-[#E5E5E7] rounded-sm p-6 min-w-[200px]">
-                <span class="text-[10px] uppercase tracking-wider text-gray-400 font-semibold mb-1">Score final</span>
-                <span class="text-4xl font-light <?= $hasPassed ? 'text-brand' : 'text-red-600' ?>"><?= $correctCount ?> / <?= $totalQuestions ?></span>
-                <span class="text-xs font-semibold mt-1 <?= $hasPassed ? 'text-brand' : 'text-red-600' ?>"><?= round($scorePercent, 1) ?> %</span>
-                
-                <span class="mt-4 px-3 py-1 text-[10px] uppercase tracking-wider font-bold rounded-sm border <?= $hasPassed ? 'bg-green-50 text-brand border-green-200/50' : 'bg-red-50 text-red-600 border-red-200/50' ?>">
-                    <?= $hasPassed ? 'Validé' : 'Non validé' ?>
-                </span>
-            </div>
-        </div>
+        <?php if (!empty($qa['explanation'])): ?>
+        <div class="res-why"><b><?= sdH(sd('doc_explanation')) ?></b><span class="latex-container"><?= nl2br(sdH($qa['explanation'])) ?></span></div>
+        <?php endif; ?>
+    </section>
+    <?php endforeach; ?>
+</article>
+</main>
 
-        <!-- Section header -->
-        <div class="flex items-center justify-between border-b border-[#E5E5E7] pb-3">
-            <h2 class="font-serif text-xl font-light text-gray-900">Analyse détaillée des réponses</h2>
-            <span class="text-xs text-gray-400 font-medium"><?= $totalQuestions ?> Questions</span>
-        </div>
-
-        <!-- Questions loop -->
-        <div class="space-y-6">
-            <?php foreach ($answers as $index => $qa): 
-                $num = $index + 1;
-                $isCorrect = false;
-                if (($qa['question_type'] ?? 'mcq') === 'written') {
-                    $normalizedSelected = str_replace([',', ' '], ['.', ''], strtolower(trim($qa['selected_option'])));
-                    $normalizedCorrect = str_replace([',', ' '], ['.', ''], strtolower(trim($qa['correct_option'])));
-                    $isCorrect = ($normalizedSelected === $normalizedCorrect);
-                } else {
-                    $isCorrect = ($qa['selected_option'] === $qa['correct_option']);
-                }
-            ?>
-                <div class="bg-white border border-[#E5E5E7] rounded-sm p-6 space-y-4 shadow-sm relative overflow-hidden">
-                    <!-- Status indicator line on the left border -->
-                    <div class="absolute left-0 top-0 bottom-0 w-1.5 <?= $isCorrect ? 'bg-brand' : 'bg-red-500' ?>"></div>
-                    
-                    <!-- Question header -->
-                    <div class="flex items-start justify-between gap-4">
-                        <h3 class="font-serif text-lg font-light text-gray-900 latex-container">
-                            <span class="font-mono text-xs font-bold text-gray-400 mr-2">Q<?= $num ?></span>
-                            <?= htmlspecialchars($qa['question_text']) ?>
-                        </h3>
-                        <span class="flex-shrink-0 px-2 py-0.5 text-[10px] uppercase font-bold rounded-sm border <?= $isCorrect ? 'bg-green-50 text-brand border-green-200/50' : 'bg-red-50 text-red-600 border-red-200/50' ?>">
-                            <?= $isCorrect ? 'Correct' : 'Incorrect' ?>
-                        </span>
-                    </div>
-
-                    <!-- For written/calculation questions -->
-                    <?php if (($qa['question_type'] ?? 'mcq') === 'written'): ?>
-                        <div class="space-y-3 pt-2">
-                            <div class="border rounded-sm p-4 text-sm <?= $isCorrect ? 'bg-green-50/50 border-[#A2D190] text-[#385723]' : 'bg-red-50/50 border-[#F8CBAD] text-red-700' ?>">
-                                <div class="font-semibold text-xs uppercase mb-1">Votre réponse :</div>
-                                <span class="latex-container font-mono"><?= empty($qa['selected_option']) ? '<em>(Aucune réponse soumise)</em>' : htmlspecialchars($qa['selected_option']) ?></span>
-                            </div>
-                            <?php if (!$isCorrect): ?>
-                                <div class="border rounded-sm p-4 text-sm bg-green-50/50 border-[#A2D190] text-[#385723]">
-                                    <div class="font-semibold text-xs uppercase mb-1">Réponse correcte :</div>
-                                    <span class="latex-container font-mono"><?= htmlspecialchars($qa['correct_option']) ?></span>
-                                </div>
-                            <?php endif; ?>
-                        </div>
-                    <?php else: ?>
-                        <!-- Options list -->
-                        <div class="grid grid-cols-1 md:grid-cols-2 gap-3 pt-2">
-                            <?php foreach (['A', 'B', 'C', 'D'] as $opt): 
-                                $optText = $qa['option_' . strtolower($opt)] ?? '';
-                                if (empty($optText)) continue;
-                                
-                                $isCorrectOpt = $opt === $qa['correct_option'];
-                                $isSelectedOpt = $opt === $qa['selected_option'];
-                                
-                                $bgClass = 'bg-white border-[#E5E5E7] text-gray-700';
-                                $icon = '';
-                                if ($isCorrectOpt) {
-                                    $bgClass = 'bg-green-50/50 border-[#A2D190] text-[#385723] font-medium';
-                                    $icon = '<svg class="w-4 h-4 text-brand" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2.5" d="M5 13l4 4L19 7"/></svg>';
-                                } elseif ($isSelectedOpt) {
-                                    $bgClass = 'bg-red-50/50 border-[#F8CBAD] text-red-700';
-                                    $icon = '<svg class="w-4 h-4 text-red-600" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2.5" d="M6 18L18 6M6 6l12 12"/></svg>';
-                                }
-                            ?>
-                                <div class="border rounded-sm p-3.5 flex items-center justify-between text-xs transition-all <?= $bgClass ?>">
-                                    <div class="flex items-center gap-2">
-                                        <span class="font-mono font-bold uppercase text-[10px] px-1.5 py-0.5 bg-black/5 rounded-sm"><?= $opt ?></span>
-                                        <span class="latex-container"><?= htmlspecialchars($optText) ?></span>
-                                    </div>
-                                    <?php if ($icon): ?>
-                                        <span class="flex-shrink-0"><?= $icon ?></span>
-                                    <?php endif; ?>
-                                </div>
-                            <?php endforeach; ?>
-                        </div>
-                    <?php endif; ?>
-
-                    <!-- Explanation/Justification block -->
-                    <?php if (!empty($qa['explanation'])): ?>
-                        <div class="bg-blue-50/40 border border-blue-200/50 rounded-sm p-4 mt-4 flex items-start gap-3">
-                            <div class="w-8 h-8 bg-blue-100/80 rounded-full flex items-center justify-center text-blue-700 flex-shrink-0">
-                                <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9.663 17h4.673M12 3v1m6.364 1.636l-.707.707M21 12h-1M4 12H3m3.343-5.657l-.707-.707m2.828 9.9a5 5 0 117.072 0l-.548.547A3.374 3.374 0 0014 18.469V19a2 2 0 11-4 0v-.531c0-.895-.356-1.754-.988-2.386l-.548-.547z"/>
-                                </svg>
-                            </div>
-                            <div class="space-y-1">
-                                <span class="text-[10px] uppercase font-bold text-blue-700 tracking-wider">Justification de l'enseignant</span>
-                                <div class="text-xs text-gray-700 leading-relaxed latex-container">
-                                    <?= nl2br(htmlspecialchars($qa['explanation'])) ?>
-                                </div>
-                            </div>
-                        </div>
-                    <?php endif; ?>
-                </div>
-            <?php endforeach; ?>
-        </div>
-    </main>
-
-    <!-- =========================================================================
-    // SECTION 5: MATHEMATICAL FORMULA RENDERING SCRIPTS
-    // ========================================================================= -->
-    <script>
-        /**
-         * Parses and renders mathematical equations and expressions formatted in LaTeX/KaTeX delimiters.
-         * @return {void}
-         */
-        function renderMath() {
-            if (typeof renderMathInElement === 'function') {
-                renderMathInElement(document.body, {
-                    delimiters: [
-                        {left: '$$', right: '$$', display: true},
-                        {left: '$', right: '$', display: false},
-                        {left: '\\(', right: '\\)', display: false},
-                        {left: '\\[', right: '\\]', display: true}
-                    ],
-                    throwOnError: false
-                });
-            }
-        }
-    </script>
+<script>
+function renderMath() {
+    if (typeof renderMathInElement === 'function') {
+        renderMathInElement(document.body, {
+            delimiters: [{left: '$$', right: '$$', display: true}, {left: '$', right: '$', display: false}, {left: '\\(', right: '\\)', display: false}, {left: '\\[', right: '\\]', display: true}],
+            throwOnError: false
+        });
+    }
+}
+</script>
 </body>
 </html>

@@ -2,6 +2,7 @@
 declare(strict_types=1);
 
 require_once __DIR__ . '/auth.php';
+require_once __DIR__ . '/lib/Brand.php';
 require_once __DIR__ . '/lib/AuthTokens.php';
 
 $token   = trim((string)($_GET['token'] ?? ''));
@@ -24,58 +25,58 @@ if ($token !== '') {
 } else {
     $error = 'Jeton de vérification manquant.';
 }
+
+$h = fn(string $s): string => htmlspecialchars($s, ENT_QUOTES, 'UTF-8');
+$loggedIn = isLoggedIn();
+$home = ['promoter' => '/promoter/dashboard.php', 'teacher' => '/teacher/dashboard.php', 'student' => '/student/dashboard.php'][$_SESSION['user_role'] ?? ''] ?? '/index.php';
 ?>
 <!DOCTYPE html>
-<html lang="fr" class="sv-cream">
+<html lang="fr" class="v2">
 <head>
     <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Vérification email — StudyVibe</title>
-    <link rel="icon" type="image/svg+xml" href="/assets/img/favicon.svg">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <meta name="robots" content="noindex">
+    <meta name="theme-color" content="#F5F0E6">
+    <title><?= $success ? 'Email confirmé' : 'Lien invalide' ?> — StudyVibe</title>
+    <?= Brand::headLinks() ?>
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&family=Plus+Jakarta+Sans:ital,wght@0,300..800;1,300..800&display=swap" rel="stylesheet">
-    <link rel="stylesheet" href="/assets/css/app.css">
-    <style>
-        .status-container {
-            display: inline-flex;
-            align-items: center;
-            justify-content: center;
-            width: 72px;
-            height: 72px;
-            border-radius: 50%;
-            margin-bottom: 1.5rem;
-        }
-    </style>
+    <link href="https://fonts.googleapis.com/css2?family=Fraunces:ital,opsz,wght,SOFT@0,9..144,300..700,0..100;1,9..144,300..700,0..100&family=Hanken+Grotesk:wght@400;500;600;700&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="/assets/css/sv2.css">
+    <link rel="stylesheet" href="/assets/css/auth-page.css">
+    <script>
+      try { var s = localStorage.getItem('sv_dark'); if (s === '1' || (s === null && matchMedia('(prefers-color-scheme: dark)').matches)) document.documentElement.classList.add('dark'); } catch (e) {}
+    </script>
 </head>
-<body class="sv-landing sv-page flex items-center justify-center min-h-screen">
-<div class="sv-container" style="max-width:480px;margin:2rem auto;padding:3rem 2rem;border:1px solid var(--sv-border-strong);background:var(--sv-surface);text-align:center;border-radius:12px;box-shadow: 0 8px 30px rgba(0, 0, 0, 0.03);">
-    <?php if ($success): ?>
-        <div class="status-container bg-[#E8F5E9] text-[#004B23]">
-            <svg class="w-8 h-8" fill="none" stroke="currentColor" stroke-width="2.5" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
-                <path stroke-linecap="round" stroke-linejoin="round" d="M4.5 12.75l6 6 9-13.5" />
-            </svg>
-        </div>
-        <h1 class="font-serif text-3xl font-light text-[#111111] mb-3">Email vérifié</h1>
-        <p class="text-sm text-[#555555] font-light leading-relaxed mb-6">
-            Félicitations ! Votre adresse email a été validée avec succès et votre compte est désormais actif.
-        </p>
-        <a href="/index.php" class="sv-btn-submit block text-center" style="max-width:280px;margin:0 auto;text-decoration:none;line-height:40px;height:40px;padding:0;">Se connecter</a>
-    <?php else: ?>
-        <div class="status-container bg-[#FFEBEE] text-[#D32F2F]">
-            <svg class="w-8 h-8" fill="none" stroke="currentColor" stroke-width="2.5" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
-                <path stroke-linecap="round" stroke-linejoin="round" d="M12 9v3.75m9-.75a9 9 0 11-18 0 9 9 0 0118 0zm-9 3.75h.008v.008H12v-.008z" />
-            </svg>
-        </div>
-        <h1 class="font-serif text-3xl font-light text-[#D32F2F] mb-3">Échec de validation</h1>
-        <p class="text-sm text-[#555555] font-light leading-relaxed mb-6">
-            Le jeton de validation est invalide, expiré ou corrompu.
-        </p>
-        <p class="text-xs text-[#888888] font-light mb-6">
-            Veuillez demander un nouvel email de validation en vous connectant à votre espace.
-        </p>
-        <a href="/verify-email-pending.php" class="sv-btn-submit block text-center" style="max-width:280px;margin:0 auto;text-decoration:none;line-height:40px;height:40px;padding:0;background:#F5F5F7;color:#333;">Renvoyer un email</a>
-    <?php endif; ?>
-</div>
+<body class="v2 vp-body">
+<main class="vp-card">
+    <div class="vp-logo"><a href="/index.php" aria-label="StudyVibe" style="text-decoration:none"><?= Brand::logo('md') ?></a></div>
+
+<?php if ($success): ?>
+    <div class="vp-art is-wide" role="img" aria-label="Deux diplômés qui célèbrent"><div class="vp-anim" data-lottie="/assets/anim/closing-graduates.json"></div></div>
+    <h1>Email <em>confirmé</em></h1>
+    <p class="vp-lead">Votre adresse est validée et votre compte est actif. Il ne reste plus qu’à entrer.</p>
+    <div class="vp-actions">
+        <?php if ($loggedIn): ?>
+            <a class="btn btn-primary btn-lg" href="<?= $h($home) ?>">Aller à mon espace</a>
+        <?php else: ?>
+            <a class="btn btn-primary btn-lg" href="/index.php?auth=login">Se connecter</a>
+        <?php endif; ?>
+    </div>
+<?php else: ?>
+    <div class="vp-art" role="img" aria-label="Une personne qui cherche une solution devant son ordinateur"><div class="vp-anim" data-lottie="/assets/anim/verify-failed.json"></div></div>
+    <h1>Ce lien ne <em>fonctionne plus</em></h1>
+    <p class="vp-lead"><?= $h($error !== '' ? $error : 'Le lien est invalide ou a expiré.') ?> Les liens de confirmation restent valables 48 heures. Rien de grave, on peut vous en envoyer un nouveau.</p>
+    <div class="vp-actions">
+        <?php if ($loggedIn): ?>
+            <a class="btn btn-primary btn-lg" href="/verify-email-pending.php">Recevoir un nouveau lien</a>
+        <?php else: ?>
+            <a class="btn btn-primary btn-lg" href="/index.php?auth=login">Me connecter pour recevoir un nouveau lien</a>
+        <?php endif; ?>
+        <a class="btn btn-ghost btn-lg" href="/index.php">Retour à l’accueil</a>
+    </div>
+<?php endif; ?>
+</main>
+<script src="/assets/js/auth-page.js"></script>
 </body>
 </html>

@@ -4,6 +4,7 @@ declare(strict_types=1);
 require_once __DIR__ . '/../auth.php';
 require_once __DIR__ . '/../Database.php';
 require_once __DIR__ . '/../Mailer.php';
+require_once __DIR__ . '/../lib/LiveScoring.php';
 
 header('Content-Type: application/json');
 
@@ -70,7 +71,7 @@ try {
             $correctCount = 0;
             foreach ($questions as $q) {
                 $selected = $submittedAnswers[$q['id']] ?? '';
-                if ($selected === $q['correct_option']) {
+                if (LiveScoring::isCorrect((string)($q['question_type'] ?? 'mcq'), (string)$selected, (string)$q['correct_option'])) {
                     $correctCount++;
                 }
             }
@@ -122,7 +123,7 @@ try {
             $qasDetails = [];
             foreach ($questions as $q) {
                 $selected = $submittedAnswers[$q['id']] ?? '';
-                $isCorrect = $selected === $q['correct_option'];
+                $isCorrect = LiveScoring::isCorrect((string)($q['question_type'] ?? 'mcq'), (string)$selected, (string)$q['correct_option']);
                 if ($isCorrect) {
                     $correctCount++;
                 }

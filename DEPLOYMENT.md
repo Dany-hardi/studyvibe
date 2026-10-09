@@ -63,7 +63,17 @@ mysql -u studyvibe_user -p studyvibe < schema_v6_content_consumed.sql
 mysql -u studyvibe_user -p studyvibe < schema_v7_teacher_courses.sql
 mysql -u studyvibe_user -p studyvibe < schema_v8_lesson_media.sql
 mysql -u studyvibe_user -p studyvibe < schema_v9_features.sql
+mysql -u studyvibe_user -p studyvibe < schema_v10_quiz_deadline.sql
+mysql -u studyvibe_user -p studyvibe < schema_v11_modern_features.sql
+mysql -u studyvibe_user -p studyvibe < schema_v12_course_cover.sql
+mysql -u studyvibe_user -p studyvibe < schema_v13_compulsory_library.sql
+mysql -u studyvibe_user -p studyvibe < schema_live_evaluation.sql
 ```
+
+> **Les migrations plus récentes sont automatiques.** `Database.php` applique lui-même les changements ajoutés après la v13
+> (séances asynchrones, pause, types de questions, options d'intégrité, badges, file d'e-mails, etc.) une seule fois par
+> déploiement, sous un verrou MySQL (`GET_LOCK`). Après une mise à jour du code, la première requête les exécute. Pour les
+> relancer à la main, supprimez le fichier `studyvibe_schema_*.stamp` du dossier temporaire du serveur.
 
 ### 3.3 Comptes de démonstration (optionnel)
 
@@ -241,6 +251,51 @@ Ouvrez `http://127.0.0.1:8000` et connectez-vous.
 | Notes enseignant | Enseignant → cours sélectionné → **Notes & Évaluations** |
 | Upload PDF leçon | Enseignant → ajouter une leçon PDF |
 | API REST | `GET /api/v1/courses` avec en-tête `X-API-Key` |
+
+---
+
+## 9 bis. Tâche de fond : e-mails de résultats
+
+Les résultats des évaluations en direct sont envoyés en arrière-plan. Le worker démarre tout seul à la fin d'un examen. Par sécurité,
+ajoutez-le aussi au cron pour vider la file si un envoi a été interrompu :
+
+```cron
+*/5 * * * * php /var/www/studyvibe/lib/live-mail-worker.php >/dev/null 2>&1
+```
+
+## 9 quater. SMS, vérification du téléphone et double authentification
+
+Dans `.env` (voir `.env.example`) :
+
+| Variable | Rôle |
+|---|---|
+| `SMS_DRIVER` | `twilio` ou `africastalking` en production. `log` écrit les SMS dans `uploads/sms_log/` et n'est accepté que si `APP_DEBUG=true` (développement). |
+| `TWILIO_SID`, `TWILIO_TOKEN`, `TWILIO_FROM` | Compte Twilio (ou `TWILIO_MESSAGING_SERVICE_SID`). |
+| `AT_USERNAME`, `AT_API_KEY` | Compte Africa's Talking. |
+| `SMS_DEFAULT_COUNTRY` | Indicatif ajouté aux numéros saisis sans indicatif (`237`). |
+| `APP_SECRET` | **Obligatoire, 32 caractères minimum.** Il chiffre les clés de double authentification et signe les codes SMS. Sans lui, la double authentification et la vérification du téléphone refusent de démarrer. |
+| `TRUST_PROXY` | `true` derrière Railway, Render ou Cloudflare, pour lire l'adresse réelle du visiteur (limites d'envoi de SMS et de tentatives). |
+| `REQUIRE_2FA_ROLES` | Rôles obligés d'activer la double authentification (par exemple `promoter,teacher`). Vide : facultatif. |
+| `APP_DEBUG` | `false` en production. |
+
+Les SMS d'annonce d'évaluation partent par une file (`sms_outbox`) traitée en arrière-plan. Ajoutez au cron pour reprendre les envois interrompus :
+
+```cron
+*/5 * * * * php /var/www/studyvibe/lib/sms-worker.php >/dev/null 2>&1
+```
+
+Fichiers téléversés : ils sont copiés dans la base (tables `media_files` et `media_chunks`) et reviennent automatiquement après un redéploiement qui efface le disque. Pour copier les fichiers déjà présents : `php scripts/backfill-media.php`.
+
+Tests : `php tests/unit/run.php` (rapide, sans base) et, sur une machine de développement avec `APP_DEBUG=true` et `SMS_DRIVER=log`,
+`php tests/integration/account_security_flow.php` et `php tests/integration/media_store.php`.
+
+## 9 ter. Tests automatiques
+
+```bash
+php tests/unit/run.php
+```
+
+La CI (`.github/workflows/ci.yml`) vérifie la syntaxe de tous les fichiers PHP, lance ces tests et refuse un secret réel dans `.env.example`.
 
 ---
 

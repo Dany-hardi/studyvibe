@@ -1,5 +1,6 @@
 <?php
 declare(strict_types=1);
+require_once __DIR__ . '/lib/Brand.php';
 
 // Si inclus directement ou appelé via GET
 $errorCode = $errorCode ?? (int)($_GET['code'] ?? 404);
@@ -49,18 +50,17 @@ if (!isset($typewriterLines) || empty($typewriterLines)) {
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title><?= htmlspecialchars($errorTitle) ?> — StudyVibe</title>
-    <link rel="icon" type="image/svg+xml" href="/assets/img/favicon.svg">
-    <link rel="icon" type="image/png" href="/assets/img/favicon.png">
+    <?= Brand::headLinks() ?>
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600&family=Plus+Jakarta+Sans:ital,wght@0,300..800;1,300..800&display=swap" rel="stylesheet">
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600&family=Plus+Jakarta+Sans:ital,wght@0,300..800;1,300..800&family=Fraunces:ital,opsz,wght,SOFT@0,9..144,300..700,0..100;1,9..144,300..700,0..100&family=Hanken+Grotesk:wght@400;500;600;700&display=swap" rel="stylesheet">
     <style>
         *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
 
         :root {
             --cream:   #EAE6DF;
-            --green:   #004B23;
-            --green2:  #00873F;
+            --green:   #B5482A;
+            --green2:  #96391E;
             --ink:     #1A1A1A;
             --muted:   #5C5C5C;
             --faint:   #9A9A9A;
@@ -122,7 +122,7 @@ if (!isset($typewriterLines) || empty($typewriterLines)) {
         /* ── Card ── */
         .card {
             background: var(--surface);
-            border: 1px solid rgba(0,75,35,0.15);
+            border: 1px solid rgba(181,72,42,0.15);
             max-width: 1080px;
             width: 100%;
             height: min(640px, 90vh);
@@ -147,7 +147,7 @@ if (!isset($typewriterLines) || empty($typewriterLines)) {
         .col-image {
             flex: 1.1;
             position: relative;
-            background: #0f1c14;
+            background: #1E1B16;
             overflow: hidden;
             display: flex;
             align-items: center;
@@ -200,7 +200,7 @@ if (!isset($typewriterLines) || empty($typewriterLines)) {
         }
 
         .brand-name {
-            font-family: 'Plus Jakarta Sans', sans-serif;
+            font-family: 'Fraunces', sans-serif;
             font-size: 1.125rem;
             font-weight: 600;
             color: var(--ink);
@@ -227,7 +227,7 @@ if (!isset($typewriterLines) || empty($typewriterLines)) {
             position: absolute;
             right: 2rem;
             top: 1rem;
-            font-family: 'Plus Jakarta Sans', sans-serif;
+            font-family: 'Fraunces', sans-serif;
             font-size: 8rem;
             font-weight: 600;
             color: var(--green);
@@ -239,7 +239,7 @@ if (!isset($typewriterLines) || empty($typewriterLines)) {
 
         /* ── Story text ── */
         .story-title {
-            font-family: 'Plus Jakarta Sans', sans-serif;
+            font-family: 'Fraunces', sans-serif;
             font-size: clamp(1.6rem, 2.5vw, 2.2rem);
             font-weight: 400;
             line-height: 1.15;
@@ -266,8 +266,8 @@ if (!isset($typewriterLines) || empty($typewriterLines)) {
             font-family: monospace;
             font-size: 0.72rem;
             color: var(--green);
-            background: rgba(0,75,35,0.05);
-            border: 1px solid rgba(0,75,35,0.12);
+            background: rgba(181,72,42,0.05);
+            border: 1px solid rgba(181,72,42,0.12);
             padding: 0.6rem 0.8rem;
             margin-bottom: 1.5rem;
             display: block;
@@ -410,27 +410,13 @@ if (!isset($typewriterLines) || empty($typewriterLines)) {
                 <div>
                     <!-- Brand header -->
                     <a href="/" class="brand">
-                        <svg width="22" height="22" viewBox="0 0 64 64" fill="none" xmlns="http://www.w3.org/2000/svg">
-                            <defs>
-                                <linearGradient id="g1" x1="0%" y1="0%" x2="100%" y2="100%">
-                                    <stop offset="0%" stop-color="#004B23"/>
-                                    <stop offset="100%" stop-color="#00873F"/>
-                                </linearGradient>
-                            </defs>
-                            <path d="M32 52 L8 46 L8 16 L32 22 Z" fill="url(#g1)"/>
-                            <path d="M32 52 L56 46 L56 16 L32 22 Z" fill="#003318"/>
-                            <path d="M32 22 L10 17 L10 44 L32 49 Z" fill="#EAE6DF"/>
-                            <path d="M32 22 L54 17 L54 44 L32 49 Z" fill="#F5F3EF"/>
-                            <line x1="32" y1="22" x2="32" y2="52" stroke="#004B23" stroke-width="1.5"/>
-                            <path d="M32 10 L33.2 13.8 L37 15 L33.2 16.2 L32 20 L30.8 16.2 L27 15 L30.8 13.8 Z" fill="#C9A84C"/>
-                        </svg>
-                        <span class="brand-name">StudyVibe</span>
+                        <?= Brand::logo('md') ?>
                     </a>
 
                     <!-- Status badge -->
                     <span class="badge">
                         <svg width="6" height="6" viewBox="0 0 8 8" fill="none" style="margin-right: 2px;">
-                            <circle cx="4" cy="4" r="3" fill="#004B23"/>
+                            <circle cx="4" cy="4" r="3" fill="#B5482A"/>
                         </svg>
                         <?= htmlspecialchars($badgeText) ?>
                     </span>
@@ -479,9 +465,9 @@ if (!isset($typewriterLines) || empty($typewriterLines)) {
     // ── Floating book particles ──────────────────────────────
     const booksContainer = document.getElementById('floating-books');
     const bookSVGs = [
-        `<svg width="28" height="36" viewBox="0 0 28 36" fill="none" xmlns="http://www.w3.org/2000/svg"><rect x="2" y="2" width="22" height="32" rx="1" fill="#004B23" opacity="0.7"/><rect x="4" y="2" width="2" height="32" fill="#003318" opacity="0.5"/><rect x="7" y="8" width="12" height="1.5" rx="0.5" fill="#EAE6DF" opacity="0.5"/><rect x="7" y="12" width="10" height="1.5" rx="0.5" fill="#EAE6DF" opacity="0.4"/><rect x="7" y="16" width="11" height="1.5" rx="0.5" fill="#EAE6DF" opacity="0.3"/></svg>`,
-        `<svg width="40" height="28" viewBox="0 0 40 28" fill="none" xmlns="http://www.w3.org/2000/svg"><path d="M20 24 L2 20 L2 4 L20 8 Z" fill="#00873F" opacity="0.6"/><path d="M20 24 L38 20 L38 4 L20 8 Z" fill="#004B23" opacity="0.6"/><path d="M20 8 L3 4 L3 20 L20 24 Z" fill="#EAE6DF" opacity="0.7"/><path d="M20 8 L37 4 L37 20 L20 24 Z" fill="#F5F3EF" opacity="0.7"/><line x1="20" y1="8" x2="20" y2="24" stroke="#004B23" stroke-width="1" opacity="0.5"/></svg>`,
-        `<svg width="20" height="40" viewBox="0 0 20 40" fill="none" xmlns="http://www.w3.org/2000/svg"><rect x="2" y="1" width="16" height="38" rx="1" fill="#003318" opacity="0.65"/><rect x="2" y="1" width="3" height="38" fill="#002210" opacity="0.5"/><path d="M7 12 L14 12" stroke="#C9A84C" stroke-width="1.5" opacity="0.6"/><path d="M7 16 L13 16" stroke="#EAE6DF" stroke-width="1" opacity="0.4"/><path d="M7 20 L14 20" stroke="#EAE6DF" stroke-width="1" opacity="0.3"/></svg>`,
+        `<svg width="28" height="36" viewBox="0 0 28 36" fill="none" xmlns="http://www.w3.org/2000/svg"><rect x="2" y="2" width="22" height="32" rx="1" fill="#B5482A" opacity="0.7"/><rect x="4" y="2" width="2" height="32" fill="#96391E" opacity="0.5"/><rect x="7" y="8" width="12" height="1.5" rx="0.5" fill="#EAE6DF" opacity="0.5"/><rect x="7" y="12" width="10" height="1.5" rx="0.5" fill="#EAE6DF" opacity="0.4"/><rect x="7" y="16" width="11" height="1.5" rx="0.5" fill="#EAE6DF" opacity="0.3"/></svg>`,
+        `<svg width="40" height="28" viewBox="0 0 40 28" fill="none" xmlns="http://www.w3.org/2000/svg"><path d="M20 24 L2 20 L2 4 L20 8 Z" fill="#96391E" opacity="0.6"/><path d="M20 24 L38 20 L38 4 L20 8 Z" fill="#B5482A" opacity="0.6"/><path d="M20 8 L3 4 L3 20 L20 24 Z" fill="#EAE6DF" opacity="0.7"/><path d="M20 8 L37 4 L37 20 L20 24 Z" fill="#F5F3EF" opacity="0.7"/><line x1="20" y1="8" x2="20" y2="24" stroke="#B5482A" stroke-width="1" opacity="0.5"/></svg>`,
+        `<svg width="20" height="40" viewBox="0 0 20 40" fill="none" xmlns="http://www.w3.org/2000/svg"><rect x="2" y="1" width="16" height="38" rx="1" fill="#96391E" opacity="0.65"/><rect x="2" y="1" width="3" height="38" fill="#1E1B16" opacity="0.5"/><path d="M7 12 L14 12" stroke="#C9A84C" stroke-width="1.5" opacity="0.6"/><path d="M7 16 L13 16" stroke="#EAE6DF" stroke-width="1" opacity="0.4"/><path d="M7 20 L14 20" stroke="#EAE6DF" stroke-width="1" opacity="0.3"/></svg>`,
         `<svg width="24" height="30" viewBox="0 0 24 30" fill="none" xmlns="http://www.w3.org/2000/svg"><path d="M2 2 L18 2 L22 6 L22 28 L2 28 Z" fill="#F5F3EF" stroke="#D5D0C8" stroke-width="0.8" opacity="0.8"/><path d="M18 2 L18 6 L22 6" fill="none" stroke="#D5D0C8" stroke-width="0.8"/><line x1="5" y1="11" x2="19" y2="11" stroke="#9A9A9A" stroke-width="0.8" opacity="0.5"/><line x1="5" y1="15" x2="16" y2="15" stroke="#9A9A9A" stroke-width="0.8" opacity="0.4"/><line x1="5" y1="19" x2="17" y2="19" stroke="#9A9A9A" stroke-width="0.8" opacity="0.3"/></svg>`,
     ];
 

@@ -7,6 +7,7 @@ declare(strict_types=1);
 
 require_once __DIR__ . '/../auth.php';
 require_once __DIR__ . '/../lib/LatexCompiler.php';
+require_once __DIR__ . '/../lib/Brand.php';
 
 if (!isLoggedIn() || $_SESSION['user_role'] !== 'teacher') {
     header('Location: /index.php');
@@ -96,7 +97,7 @@ function escapeLatex(?string $text): string
         '⊂' => '\subset',
         '⊃' => '\supset',
         '⊆' => '\subseteq',
-        '⊇' => '\supplement',
+        '⊇' => '\supseteq',
     ];
 
     // Découper le texte pour isoler les équations mathématiques ($...$ et $$...$$)
@@ -136,7 +137,7 @@ function escapeLatex(?string $text): string
             }
         }
     }
-    return implode('', $parts);
+    return LatexCompiler::sanitize(implode('', $parts));
 }
 
 try {
@@ -246,6 +247,8 @@ try {
 
     $questionsString = implode("\n", $latexQuestions);
 
+    $brandPre = Brand::latexPreamble();
+
     // Source LaTeX
     $latexTemplate = <<<LATEX
 \\documentclass[10pt,twocolumn,a4paper]{article}
@@ -259,6 +262,7 @@ try {
 \\usepackage{fancyhdr}
 \\usepackage{helvet}
 \\renewcommand{\\familydefault}{\\sfdefault}
+{$brandPre}
 
 \\newtcolorbox{questionbox}[1]{
     blanker,
@@ -311,6 +315,7 @@ LATEX;
 \\fbox{%
 \\begin{minipage}{\\dimexpr\\textwidth-2\\fboxsep-2\\fboxrule\\relax}
 \\begin{center}
+    \\svlogomono[3.6cm]\\\\[0.4em]
     {\\large \\textbf{STUDYVIBE LMS ~--~ CLEF DE CORRECTION}} \\\\
     \\vspace{0.3em}
     \\textbf{Cours :} {$courseTitle} \\\\
@@ -332,6 +337,7 @@ LATEX;
 \\fbox{%
 \\begin{minipage}{\\dimexpr\\textwidth-2\\fboxsep-2\\fboxrule\\relax}
 \\begin{center}
+    \\svlogomono[3.6cm]\\\\[0.4em]
     {\\large \\textbf{STUDYVIBE LMS ~--~ \\'{E}PREUVE \\'{E}CRITE}} \\\\
     \\vspace{0.3em}
     \\textbf{Cours :} {$courseTitle} \\\\
@@ -359,11 +365,17 @@ LATEX;
 \\end{document}
 LATEX;
 
+    $texSlug = ($mode === 'correction' ? 'corrige_' : 'sujet_') . ($session['title'] ?? 'live_eval') . '_' . date('Y-m-d');
+    if (($_GET['format'] ?? '') === 'tex') {
+        auditLog('export_live_questions_latex_source', "Session #{$sessionId} (Mode: {$mode})");
+        LatexCompiler::sendSource($latexTemplate, $texSlug);
+    }
+
     $pdfData = LatexCompiler::compile($latexTemplate);
 
     if (!$pdfData) {
-        http_response_code(500);
-        exit('Erreur lors de la compilation de l\'épreuve PDF via LaTeX.');
+        // pdflatex missing or failed on this server: hand over the source so the export still works
+        LatexCompiler::sendSource($latexTemplate, $texSlug);
     }
 
     $prefix = $mode === 'correction' ? 'corrigé_exam_' : 'sujet_exam_';

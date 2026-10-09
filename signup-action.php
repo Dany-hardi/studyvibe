@@ -21,6 +21,7 @@ if ($_SERVER['REQUEST_METHOD'] !== 'POST') {
 $name = isset($_POST['name']) ? trim((string)$_POST['name']) : '';
 $email = isset($_POST['email']) ? trim((string)$_POST['email']) : '';
 $password = isset($_POST['password']) ? (string)$_POST['password'] : '';
+$phoneRaw = isset($_POST['phone']) ? trim((string)$_POST['phone']) : '';
 $role = isset($_POST['role']) ? trim((string)$_POST['role']) : '';
 
 if (empty($name) || empty($email) || empty($password) || empty($role)) {
@@ -47,10 +48,20 @@ if (!filter_var($email, FILTER_VALIDATE_EMAIL)) {
     exit;
 }
 
-if (strlen($password) < 6) {
+require_once __DIR__ . '/lib/Phone.php';
+$phonePending = Phone::normalize($phoneRaw);
+if ($phonePending === null) {
     echo json_encode([
         'success' => false,
-        'message' => 'Le mot de passe doit contenir au moins 6 caractères.'
+        'message' => 'Le numéro de téléphone n’est pas valide. Exemple : 6 12 34 56 78 ou +237 612 345 678.'
+    ]);
+    exit;
+}
+require_once __DIR__ . '/lib/PasswordPolicy.php';
+if (($pwError = PasswordPolicy::check($password, $email)) !== null) {
+    echo json_encode([
+        'success' => false,
+        'message' => $pwError
     ]);
     exit;
 }
@@ -72,8 +83,8 @@ try {
     $isApproved = ($role === 'teacher') ? 0 : 1;
     $hashedPassword = password_hash($password, PASSWORD_DEFAULT);
     $stmt = $pdo->prepare("
-        INSERT INTO users (name, email, password, role, is_approved)
-        VALUES (:name, :email, :password, :role, :is_approved)
+        INSERT INTO users (name, email, password, role, is_approved, plan_id, signup_source, phone_pending)
+        VALUES (:name, :email, :password, :role, :is_approved, :plan_id, :src, :phone)
     ");
     $stmt->execute([
         'name' => $name,
@@ -81,6 +92,9 @@ try {
         'password' => $hashedPassword,
         'role' => $role,
         'is_approved' => $isApproved,
+        'plan_id' => defaultPlanId($pdo, $role),
+        'src' => ($_SESSION['sv_src'] ?? '') !== '' ? substr((string)$_SESSION['sv_src'], 0, 40) : null,
+        'phone' => $phonePending,
     ]);
 
     $newUserId = (int)$pdo->lastInsertId();

@@ -19,20 +19,78 @@ declare(strict_types=1);
  */
 
 require_once __DIR__ . '/../Database.php';
+require_once __DIR__ . '/../lib/LiveScoring.php';
 
 header('Content-Type: application/json');
 
-if (session_status() === PHP_SESSION_NONE) {
+$action = $_GET['action'] ?? $_POST['action'] ?? '';
+
+// The lobby poll never touches the session, so it does not open (and lock) one. Every other action does.
+if ($action !== 'poll_lobby' && session_status() === PHP_SESSION_NONE) {
     session_start();
 }
-
-$action = $_GET['action'] ?? $_POST['action'] ?? '';
 $code   = trim((string)($_GET['code'] ?? $_POST['code'] ?? ''));
 
 // Stop request if session code parameter is missing
 if ($code === '') {
     echo json_encode(['success' => false, 'message' => 'Code de session manquant.']);
     exit;
+}
+
+
+// =========================================================================
+// SMALL FILE CACHE (atomic writes, no stampede)
+// =========================================================================
+
+/** Returns the cached string while it is younger than $ttl seconds, else null. */
+function liveCacheGet(string $file, int $ttl): ?string
+{
+    $age = @filemtime($file);
+    if ($age === false || (time() - $age) >= $ttl) {
+        return null;
+    }
+    $v = @file_get_contents($file);
+    return $v === false ? null : $v;
+}
+
+/** Writes through a temp file and rename, so a reader never sees half a file. */
+function liveCachePut(string $file, string $value): void
+{
+    $tmp = $file . '.' . getmypid() . '.tmp';
+    if (@file_put_contents($tmp, $value) !== false) {
+        @rename($tmp, $file);
+    }
+}
+
+/**
+ * Returns a cached value, refreshing it through $compute when it is older than $ttl.
+ * When many requests find it expired at the same moment, one refreshes and the rest keep serving the previous value
+ * for up to 4x the TTL, so a burst of polls costs one query instead of one query each.
+ */
+function liveCacheRemember(string $file, int $ttl, callable $compute): string
+{
+    $fresh = liveCacheGet($file, $ttl);
+    if ($fresh !== null) {
+        return $fresh;
+    }
+    $lock = @fopen($file . '.lock', 'c');
+    if ($lock && !flock($lock, LOCK_EX | LOCK_NB)) {
+        $stale = liveCacheGet($file, $ttl * 4);
+        if ($stale !== null) {
+            fclose($lock);
+            return $stale;
+        }
+        flock($lock, LOCK_EX);               // nothing to serve yet: wait for the refresher
+        $fresh = liveCacheGet($file, $ttl);
+        if ($fresh !== null) {
+            flock($lock, LOCK_UN); fclose($lock);
+            return $fresh;
+        }
+    }
+    $value = (string)$compute();
+    liveCachePut($file, $value);
+    if ($lock) { flock($lock, LOCK_UN); fclose($lock); }
+    return $value;
 }
 
 // =========================================================================
@@ -54,37 +112,21 @@ function getCachedSessionData(PDO $pdo, string $code): ?array
         @mkdir($cacheDir, 0755, true);
     }
     $cacheFile = $cacheDir . '/session_' . md5($code) . '.json';
-    
-    // Validate if cache exists and is newer than 2 seconds
-    if (file_exists($cacheFile) && (time() - filemtime($cacheFile)) < 2) {
-        $cached = json_decode((string)@file_get_contents($cacheFile), true);
-        if ($cached) {
-            return $cached;
+
+    $json = liveCacheRemember($cacheFile, 2, function () use ($pdo, $code) {
+        $stmt = $pdo->prepare("SELECT * FROM live_eval_sessions WHERE session_code = :code");
+        $stmt->execute(['code' => $code]);
+        $session = $stmt->fetch(PDO::FETCH_ASSOC);
+        if (!$session) {
+            return 'null';
         }
-    }
-    
-    // Fetch live session details
-    $stmt = $pdo->prepare("SELECT * FROM live_eval_sessions WHERE session_code = :code");
-    $stmt->execute(['code' => $code]);
-    $session = $stmt->fetch(PDO::FETCH_ASSOC);
-    
-    if (!$session) {
-        return null;
-    }
-    
-    // Fetch related questions in correct sorted order
-    $stmt = $pdo->prepare("SELECT * FROM live_eval_questions WHERE session_id = :sid ORDER BY sort_order ASC, id ASC");
-    $stmt->execute(['sid' => $session['id']]);
-    $questions = $stmt->fetchAll(PDO::FETCH_ASSOC);
-    
-    $data = [
-        'session' => $session,
-        'questions' => $questions
-    ];
-    
-    // Save generated array to local cache
-    @file_put_contents($cacheFile, json_encode($data));
-    return $data;
+        $stmt = $pdo->prepare("SELECT * FROM live_eval_questions WHERE session_id = :sid ORDER BY sort_order ASC, id ASC");
+        $stmt->execute(['sid' => $session['id']]);
+        return json_encode(['session' => $session, 'questions' => $stmt->fetchAll(PDO::FETCH_ASSOC)]);
+    });
+
+    $data = json_decode($json, true);
+    return is_array($data) ? $data : null;
 }
 
 // =========================================================================
@@ -130,34 +172,22 @@ try {
     // ACTION 1: LOBBY STATUS UPDATES (POLL LOBBY)
     // =========================================================================
     if ($action === 'poll_lobby') {
-        // Cache the registration count for 2 seconds to reduce DB pressure
-        $lobbyCacheFile = __DIR__ . '/../uploads/live_cache/lobby_count_' . $session['id'] . '.json';
-        $registeredCount = 0;
-        
-        if (file_exists($lobbyCacheFile) && (time() - filemtime($lobbyCacheFile)) < 2) {
-            $registeredCount = (int)@file_get_contents($lobbyCacheFile);
-        } else {
-            $countStmt = $pdo->prepare("SELECT COUNT(*) FROM live_eval_registrations WHERE session_id = :sid");
-            $countStmt->execute(['sid' => $session['id']]);
-            $registeredCount = (int)$countStmt->fetchColumn();
-            @file_put_contents($lobbyCacheFile, (string)$registeredCount);
-        }
+        $cacheDir = __DIR__ . '/../uploads/live_cache';
+        $sid = (int)$session['id'];
 
-        // Count connected active participants (activity in the last 10 seconds)
-        $onlineCount = 0;
-        $onlineCacheFile = __DIR__ . '/../uploads/live_cache/online_count_' . $session['id'] . '.json';
-        if (file_exists($onlineCacheFile) && (time() - filemtime($onlineCacheFile)) < 2) {
-            $onlineCount = (int)@file_get_contents($onlineCacheFile);
-        } else {
-            $onlineStmt = $pdo->prepare("
-                SELECT COUNT(*) 
-                FROM live_eval_registrations 
-                WHERE session_id = :sid AND last_activity >= NOW() - INTERVAL 10 SECOND
-            ");
-            $onlineStmt->execute(['sid' => $session['id']]);
-            $onlineCount = (int)$onlineStmt->fetchColumn();
-            @file_put_contents($onlineCacheFile, (string)$onlineCount);
-        }
+        // Counts are shared by everyone in the room, so one request refreshes them and the others reuse the value
+        $registeredCount = (int)liveCacheRemember($cacheDir . '/lobby_count_' . $sid . '.json', 2, function () use ($pdo, $sid) {
+            $st = $pdo->prepare("SELECT COUNT(*) FROM live_eval_registrations WHERE session_id = :sid");
+            $st->execute(['sid' => $sid]);
+            return (string)(int)$st->fetchColumn();
+        });
+
+        // Connected participants: activity in the last 10 seconds
+        $onlineCount = (int)liveCacheRemember($cacheDir . '/online_count_' . $sid . '.json', 2, function () use ($pdo, $sid) {
+            $st = $pdo->prepare("SELECT COUNT(*) FROM live_eval_registrations WHERE session_id = :sid AND last_activity >= NOW() - INTERVAL 10 SECOND");
+            $st->execute(['sid' => $sid]);
+            return (string)(int)$st->fetchColumn();
+        });
 
         // Determine if evaluation room is active or waiting for start
         $secondsToStart = $startTime - $now;
@@ -173,6 +203,7 @@ try {
             'registered_count' => $registeredCount,
             'online_count'     => $onlineCount,
             'seconds_to_start' => max(0, $secondsToStart),
+            'server_time_ms'   => (int)round(microtime(true) * 1000),
             'start_time'       => $session['start_time'],
         ]);
         exit;
@@ -195,14 +226,36 @@ try {
         echo json_encode(['success' => false, 'message' => 'Votre inscription a été réinitialisée ou annulée par l\'enseignant.', 'not_registered' => true]);
         exit;
     }
-    $_SESSION['verified_registrations'][$code] = $registration;
+    if (empty($_SESSION['verified_registrations'][$code])) {
+        $_SESSION['verified_registrations'][$code] = true;
+    }
 
-    // Track active connection timestamp
-    try {
-        $updateActStmt = $pdo->prepare("UPDATE live_eval_registrations SET last_activity = NOW() WHERE id = :id");
-        $updateActStmt->execute(['id' => $regId]);
-    } catch (PDOException $e) {
-        // Fail silently
+    // Track active connection timestamp. The "online" window is 10 s, so one write every 4 s per participant is plenty.
+    if (($_SESSION['live_last_seen'][$code] ?? 0) < time() - 4) {
+        try {
+            $updateActStmt = $pdo->prepare("UPDATE live_eval_registrations SET last_activity = NOW() WHERE id = :id");
+            $updateActStmt->execute(['id' => $regId]);
+            $_SESSION['live_last_seen'][$code] = time();
+        } catch (PDOException $e) {
+            // Fail silently
+        }
+    }
+
+    // A student's browser reports leaving the exam tab. One counter per student; a report per 2 seconds at most.
+    if ($action === 'report_integrity') {
+        if (empty($session['integrity_watch'])) {
+            echo json_encode(['success' => true, 'counted' => false]);
+            exit;
+        }
+        if (($_SESSION['live_focus_report'][$code] ?? 0) > time() - 2) {
+            echo json_encode(['success' => true, 'counted' => false]);
+            exit;
+        }
+        $_SESSION['live_focus_report'][$code] = time();
+        $pdo->prepare("UPDATE live_eval_registrations SET focus_losses = focus_losses + 1, last_focus_loss_at = NOW() WHERE id = :id")
+            ->execute(['id' => $regId]);
+        echo json_encode(['success' => true, 'counted' => true, 'count' => (int)$registration['focus_losses'] + 1]);
+        exit;
     }
 
     // Calculate virtual session time offsets for pause states (synchronous mode only)
@@ -326,35 +379,26 @@ try {
                 // Calculate score and trigger automatic results email
                 $scorePercent = calculateAndSaveScore($pdo, $session, $registration, $questions);
                 $registration['score'] = $scorePercent;
-                $_SESSION['verified_registrations'][$code]['score'] = $scorePercent;
             }
             
-            $regCountCacheFile = __DIR__ . '/../uploads/live_cache/lobby_count_' . $session['id'] . '.json';
-            $totalRegistered = 0;
-            if (file_exists($regCountCacheFile) && (time() - filemtime($regCountCacheFile)) < 5) {
-                $totalRegistered = (int)@file_get_contents($regCountCacheFile);
-            } else {
-                $totalRegStmt = $pdo->prepare("SELECT COUNT(*) FROM live_eval_registrations WHERE session_id = :sid");
-                $totalRegStmt->execute(['sid' => $session['id']]);
-                $totalRegistered = (int)$totalRegStmt->fetchColumn();
-                @file_put_contents($regCountCacheFile, (string)$totalRegistered);
-            }
+            $totalRegistered = (int)liveCacheRemember(__DIR__ . '/../uploads/live_cache/lobby_count_' . (int)$session['id'] . '.json', 5, function () use ($pdo, $session) {
+                $st = $pdo->prepare("SELECT COUNT(*) FROM live_eval_registrations WHERE session_id = :sid");
+                $st->execute(['sid' => $session['id']]);
+                return (string)(int)$st->fetchColumn();
+            });
 
-            // Fetch Top-10 leaderboard data
-            $leaderStmt = $pdo->prepare("
-                SELECT name, score 
-                FROM live_eval_registrations 
-                WHERE session_id = :sid AND score IS NOT NULL 
-                ORDER BY score DESC, name ASC 
-                LIMIT 10
-            ");
-            $leaderStmt->execute(['sid' => $session['id']]);
-            $leaderboard = $leaderStmt->fetchAll(PDO::FETCH_ASSOC);
+            // Top-10 leaderboard: the same for everybody, so it is computed once every 3 seconds
+            $leaderboard = json_decode(liveCacheRemember(__DIR__ . '/../uploads/live_cache/leaderboard_' . (int)$session['id'] . '.json', 3, function () use ($pdo, $session) {
+                $st = $pdo->prepare("SELECT name, score FROM live_eval_registrations WHERE session_id = :sid AND score IS NOT NULL ORDER BY score DESC, name ASC LIMIT 10");
+                $st->execute(['sid' => $session['id']]);
+                return json_encode($st->fetchAll(PDO::FETCH_ASSOC));
+            }), true) ?: [];
 
             echo json_encode([
                 'success'          => true,
                 'status'           => 'finished',
                 'is_finished'      => true,
+                'server_time_ms'   => (int)round(microtime(true) * 1000),
                 'total_registered' => $totalRegistered,
                 'leaderboard'      => $leaderboard
             ]);
@@ -364,23 +408,19 @@ try {
         // Return waiting status if active question window is empty
         if (!$activeQ) {
             echo json_encode([
-                'success'     => true,
-                'status'      => 'waiting',
-                'is_finished' => false
+                'success'        => true,
+                'status'         => 'waiting',
+                'is_finished'    => false,
+                'server_time_ms' => (int)round(microtime(true) * 1000),
             ]);
             exit;
         }
 
-        $regCountCacheFile = __DIR__ . '/../uploads/live_cache/lobby_count_' . $session['id'] . '.json';
-        $totalRegistered = 0;
-        if (file_exists($regCountCacheFile) && (time() - filemtime($regCountCacheFile)) < 3) {
-            $totalRegistered = (int)@file_get_contents($regCountCacheFile);
-        } else {
-            $totalRegStmt = $pdo->prepare("SELECT COUNT(*) FROM live_eval_registrations WHERE session_id = :sid");
-            $totalRegStmt->execute(['sid' => $session['id']]);
-            $totalRegistered = (int)$totalRegStmt->fetchColumn();
-            @file_put_contents($regCountCacheFile, (string)$totalRegistered);
-        }
+        $totalRegistered = (int)liveCacheRemember(__DIR__ . '/../uploads/live_cache/lobby_count_' . (int)$session['id'] . '.json', 3, function () use ($pdo, $session) {
+            $st = $pdo->prepare("SELECT COUNT(*) FROM live_eval_registrations WHERE session_id = :sid");
+            $st->execute(['sid' => $session['id']]);
+            return (string)(int)$st->fetchColumn();
+        });
 
         // Check if student has already answered the active question
         $alreadyAnswered = false;
@@ -396,17 +436,21 @@ try {
             }
         }
 
-        // Count answers submitted for the active question
-        $answersCacheFile = __DIR__ . '/../uploads/live_cache/answers_count_' . $qid . '.json';
-        $answersReceived = 0;
-        if (file_exists($answersCacheFile) && (time() - filemtime($answersCacheFile)) < 1) {
-            $answersReceived = (int)@file_get_contents($answersCacheFile);
-        } else {
-            $answersStmt = $pdo->prepare("SELECT COUNT(*) FROM live_eval_answers WHERE question_id = :qid");
-            $answersStmt->execute(['qid' => $qid]);
-            $answersReceived = (int)$answersStmt->fetchColumn();
-            @file_put_contents($answersCacheFile, (string)$answersReceived);
+        // Answers received for the active question: one shared count, refreshed every second
+        $answersReceived = (int)liveCacheRemember(__DIR__ . '/../uploads/live_cache/answers_count_' . $qid . '.json', 1, function () use ($pdo, $qid) {
+            $st = $pdo->prepare("SELECT COUNT(*) FROM live_eval_answers WHERE question_id = :qid");
+            $st->execute(['qid' => $qid]);
+            return (string)(int)$st->fetchColumn();
+        });
+
+        // Per-student option order when the teacher asked for it. option_keys tells the browser which original letter
+        // each displayed button stands for; scoring always works on the original letters.
+        $optionKeys = ['A', 'B', 'C', 'D'];
+        if (!empty($session['shuffle_options']) && ($activeQ['question_type'] ?? 'mcq') === 'mcq') {
+            $optionKeys = LiveScoring::optionOrder($regId, $qid);
         }
+        $optionTexts = array_map(fn(string $k) => $activeQ['option_' . strtolower($k)], $optionKeys);
+        $integrityWatch = !empty($session['integrity_watch']);
 
         echo json_encode([
             'success' => true,
@@ -416,10 +460,11 @@ try {
             'question' => [
                 'id'            => $qid,
                 'question_text' => $activeQ['question_text'],
-                'option_a'      => $activeQ['option_a'],
-                'option_b'      => $activeQ['option_b'],
-                'option_c'      => $activeQ['option_c'],
-                'option_d'      => $activeQ['option_d'],
+                'option_a'      => $optionTexts[0],
+                'option_b'      => $optionTexts[1],
+                'option_c'      => $optionTexts[2],
+                'option_d'      => $optionTexts[3],
+                'option_keys'   => $optionKeys,
                 'image_path'    => !empty($activeQ['image_path']) ? '/download.php?type=live_question&file=' . urlencode(basename($activeQ['image_path'])) : null,
                 'seconds_left'  => $secondsLeft,
                 'question_type' => $activeQ['question_type'] ?? 'mcq',
@@ -429,6 +474,9 @@ try {
             'already_answered' => $alreadyAnswered,
             'is_finished'      => false,
             'is_paused'        => $isPaused,
+            'integrity_watch'  => $integrityWatch,
+            'focus_losses'     => (int)$registration['focus_losses'],
+            'server_time_ms'   => (int)round(microtime(true) * 1000),
         ]);
         exit;
     }
@@ -532,17 +580,8 @@ function calculateAndSaveScore(PDO $pdo, array $session, array $registration, ar
     // Evaluate answers
     foreach ($questions as $q) {
         $selected = $submittedAnswers[$q['id']] ?? '';
-        $isCorrect = false;
-        
-        if (($q['question_type'] ?? 'mcq') === 'written') {
-            // Normalize spaces and commas to resolve typos in mathematical entries
-            $normalizedSelected = str_replace([',', ' '], ['.', ''], strtolower(trim($selected)));
-            $normalizedCorrect = str_replace([',', ' '], ['.', ''], strtolower(trim($q['correct_option'])));
-            $isCorrect = ($normalizedSelected === $normalizedCorrect);
-        } else {
-            $isCorrect = ($selected === $q['correct_option']);
-        }
-        
+        $isCorrect = LiveScoring::isCorrect((string)($q['question_type'] ?? 'mcq'), (string)$selected, (string)$q['correct_option']);
+
         if ($isCorrect) {
             $correctCount++;
         }
@@ -565,17 +604,19 @@ function calculateAndSaveScore(PDO $pdo, array $session, array $registration, ar
     $updateStmt = $pdo->prepare("UPDATE live_eval_registrations SET score = :score WHERE id = :id");
     $updateStmt->execute(['score' => $scorePercent, 'id' => $regId]);
 
-    // Dispatch results via Email using the Mailer utility
-    require_once __DIR__ . '/../Mailer.php';
-    @Mailer::sendLiveEvalResults(
-        $registration['email'],
-        $registration['name'],
-        $session['title'],
-        $correctCount,
-        $totalQuestions,
-        $qasDetails,
-        (int)$regId
-    );
+    // The results email is queued and sent in the background (see lib/LiveMailQueue.php): sending it here made every
+    // student wait 1 to 3 seconds for the mail server, all at the same moment, when the exam ended.
+    require_once __DIR__ . '/../lib/LiveMailQueue.php';
+    try {
+    LiveMailQueue::enqueue($pdo, $regId, [
+        'email'         => $registration['email'],
+        'name'          => $registration['name'],
+        'session_title' => $session['title'],
+        'correct'       => $correctCount,
+        'total'         => $totalQuestions,
+        'qas'           => $qasDetails,
+    ]);
+    } catch (Throwable $e) { error_log('live mail queue: ' . $e->getMessage()); }
 
     return (float)$scorePercent;
 }

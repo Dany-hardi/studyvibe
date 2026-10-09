@@ -7,6 +7,7 @@ declare(strict_types=1);
 
 require_once __DIR__ . '/../auth.php';
 require_once __DIR__ . '/../lib/LatexCompiler.php';
+require_once __DIR__ . '/../lib/Brand.php';
 
 if (!isLoggedIn() || $_SESSION['user_role'] !== 'teacher') {
     header('Location: /index.php');
@@ -85,7 +86,7 @@ try {
             $rawScore = round(((float)$r['score'] / 100) * $totalQuestions);
             $scoreDisplay = "{$rawScore} / {$totalQuestions}";
             $percentDisplay = round((float)$r['score'], 1) . '\%';
-            $statusDisplay = ((float)$r['score'] >= 50) ? '\textbf{\color{green!50!black}Admis}' : '\color{red!60!black}Ajourné';
+            $statusDisplay = ((float)$r['score'] >= 50) ? '\textbf{\color{svink}Admis}' : '\color{red!60!black}Ajourné';
         } else {
             $scoreDisplay = 'Non finalisé';
             $percentDisplay = '--';
@@ -97,7 +98,7 @@ try {
     
     $rowsString = implode("\n\\midrule\n", $latexRows);
     if (empty($rowsString)) {
-        $rowsString = "\multicolumn{5}{c}{\textit{Aucun participant enregistré.}} \\\\";
+        $rowsString = '\\multicolumn{5}{c}{\\textit{Aucun participant enregistré.}} \\\\';
     }
 
     // Escape metadata
@@ -106,23 +107,25 @@ try {
     $reportDate = date('d/m/Y H:i');
     $sessionMode = (int)($session['is_async'] ?? 0) === 1 ? 'Devoir Libre (Asynchrone)' : 'Téléévaluation (Synchrone)';
 
+    $brandPre = Brand::latexPreamble();
+
     // Source LaTeX
-    $latexTemplate = <<<LATEX
+    // Nowdoc: backslashes stay literal (a heredoc would turn \t, \r, \v, \f into control characters)
+    $latexTemplate = <<<'LATEX'
 \documentclass[11pt,a4paper]{article}
 \usepackage[utf8]{inputenc}
 \usepackage[T1]{fontenc}
 \usepackage{geometry}
 \geometry{a4paper, margin=0.7in}
 \usepackage{booktabs}
-\usepackage{xcolor}
-\usepackage{fancyhdr}
+@@brandPre@@\usepackage{fancyhdr}
 \usepackage{tcolorbox}
 \usepackage{helvet}
 \usepackage{tabularx}
 \renewcommand{\familydefault}{\sfdefault}
 
-\definecolor{studyvibegreen}{HTML}{004B23}
-\definecolor{studyvibedark}{HTML}{111111}
+\definecolor{studyvibegreen}{HTML}{B5482A}
+\definecolor{studyvibedark}{HTML}{1E1B16}
 
 \pagestyle{fancy}
 \fancyhf{}
@@ -133,14 +136,16 @@ try {
 
 \begin{document}
 
+\noindent\svlogo[5.2cm]\par\vspace{0.9em}
+
 \begin{tcolorbox}[colback=studyvibegreen!8!white,colframe=studyvibegreen,arc=2mm,title={\Large \textbf{StudyVibe — Rapport Synthetique de Téléévaluation}}]
 \vspace{0.2em}
 \begin{tabular}{ll}
-\textbf{Cours :} & {$courseTitle} \\
-\textbf{Session :} & {$sessionTitle} \\
-\textbf{Mode d'évaluation :} & {$sessionMode} \\
-\textbf{Date d'extraction :} & {$reportDate} \\
-\textbf{Total d'épreuves :} & {$totalQuestions} question(s) au barème
+\textbf{Cours :} & @@courseTitle@@ \\
+\textbf{Session :} & @@sessionTitle@@ \\
+\textbf{Mode d'évaluation :} & @@sessionMode@@ \\
+\textbf{Date d'extraction :} & @@reportDate@@ \\
+\textbf{Total d'épreuves :} & @@totalQuestions@@ question(s) au barème
 \end{tabular}
 \end{tcolorbox}
 
@@ -149,7 +154,7 @@ try {
 \begin{tcolorbox}[colback=gray!5!white,colframe=studyvibedark,title={\textbf{Statistiques Globlales de la Promotion}},arc=1mm]
 \begin{tabularx}{\textwidth}{XXXXX}
 \textbf{Inscrits} & \textbf{Soumissions} & \textbf{Moyenne} & \textbf{Meilleur Score} & \textbf{Taux de Réussite} \\
-{$totalCount} élève(s) & {$submittedCount} copie(s) & {$avgScore}\% & {$maxScorePercent}\% & {$passRate}\%
+@@totalCount@@ élève(s) & @@submittedCount@@ copie(s) & @@avgScore@@\% & @@maxScorePercent@@\% & @@passRate@@\%
 \end{tabularx}
 \end{tcolorbox}
 
@@ -162,7 +167,7 @@ try {
 \toprule
 \textbf{Nom complet} & \textbf{Adresse e-mail} & \textbf{Note brut} & \textbf{Score (\%)} & \textbf{Statut} \\
 \midrule
-{$rowsString}
+@@rowsString@@
 \bottomrule
 \end{tabularx}
 \end{center}
@@ -176,12 +181,32 @@ Signature numérique d'authenticité institutionnelle.
 
 \end{document}
 LATEX;
+    $latexTemplate = strtr($latexTemplate, [
+        '@@avgScore@@' => (string)$avgScore,
+        '@@brandPre@@' => (string)$brandPre,
+        '@@courseTitle@@' => (string)$courseTitle,
+        '@@maxScorePercent@@' => (string)$maxScorePercent,
+        '@@passRate@@' => (string)$passRate,
+        '@@reportDate@@' => (string)$reportDate,
+        '@@rowsString@@' => (string)$rowsString,
+        '@@sessionMode@@' => (string)$sessionMode,
+        '@@sessionTitle@@' => (string)$sessionTitle,
+        '@@submittedCount@@' => (string)$submittedCount,
+        '@@totalCount@@' => (string)$totalCount,
+        '@@totalQuestions@@' => (string)$totalQuestions,
+    ]);
+
+    $texSlug = 'notes_' . ($session['title'] ?? 'live_eval') . '_' . date('Y-m-d');
+    if (($_GET['format'] ?? '') === 'tex') {
+        auditLog('export_live_grades_latex_source', "Session #{$sessionId}");
+        LatexCompiler::sendSource($latexTemplate, $texSlug);
+    }
 
     $pdfData = LatexCompiler::compile($latexTemplate);
 
     if (!$pdfData) {
-        http_response_code(500);
-        exit('Erreur lors de la compilation du document PDF via LaTeX.');
+        // pdflatex missing or failed on this server: hand over the source so the export still works
+        LatexCompiler::sendSource($latexTemplate, $texSlug);
     }
 
     $slug = preg_replace('/[^a-z0-9_-]+/i', '_', (string)$session['title']) ?: 'live_eval';

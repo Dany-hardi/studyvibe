@@ -1,6 +1,11 @@
 <?php
 declare(strict_types=1);
 require_once __DIR__ . '/auth.php';
+require_once __DIR__ . '/lib/Brand.php';
+
+require_once __DIR__ . '/lib/Analytics.php';
+Analytics::captureSource();
+Analytics::hit('view:join');
 
 $courseId = isset($_GET['course']) ? (int)$_GET['course'] : 0;
 
@@ -48,10 +53,10 @@ if ($isStudent) {
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Rejoindre — <?= htmlspecialchars($course['title']) ?> — StudyVibe</title>
     <meta name="description" content="Rejoignez le cours <?= htmlspecialchars($course['title']) ?> sur StudyVibe.">
-    <link rel="icon" type="image/svg+xml" href="/assets/img/favicon.svg">
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&family=Plus+Jakarta+Sans:ital,wght@0,300..800;1,300..800&display=swap" rel="stylesheet">
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&family=Plus+Jakarta+Sans:ital,wght@0,300..800;1,300..800&family=Fraunces:ital,opsz,wght,SOFT@0,9..144,300..700,0..100;1,9..144,300..700,0..100&family=Hanken+Grotesk:wght@400;500;600;700&display=swap" rel="stylesheet">
+    <?= Brand::headLinks() ?>
     <link rel="stylesheet" href="/assets/css/app.css">
     <?= csrfMetaTag(); ?>
     <style>
@@ -95,7 +100,7 @@ if ($isStudent) {
             margin-bottom: 0.5rem;
         }
         .join-title {
-            font-family: 'Plus Jakarta Sans', sans-serif;
+            font-family: 'Fraunces', sans-serif;
             font-size: 1.8rem;
             font-weight: 500;
             line-height: 1.3;
@@ -132,7 +137,7 @@ if ($isStudent) {
             text-transform: uppercase;
             color: #555555;
             margin-bottom: 1.25rem;
-            border-left: 3px solid #004B23;
+            border-left: 3px solid #B5482A;
             padding-left: 0.5rem;
         }
         .pw-bar-wrap {
@@ -153,17 +158,7 @@ if ($isStudent) {
 
 <!-- Navbar -->
 <nav class="sv-navbar" role="navigation" aria-label="Navigation principale">
-    <a href="/index.php" class="sv-navbar-brand">
-        <svg class="w-9 h-9" viewBox="0 0 100 100" fill="none" xmlns="http://www.w3.org/2000/svg" style="width: 36px; height: 36px;">
-            <circle cx="50" cy="50" r="46" stroke="#006630" stroke-width="3.5" />
-            <line x1="33" y1="31" x2="62" y2="25" stroke="#111111" stroke-width="2.5" stroke-linecap="round" />
-            <line x1="33" y1="31" x2="49" y2="53" stroke="#111111" stroke-width="2.5" stroke-linecap="round" />
-            <circle cx="62" cy="25" r="6" fill="#006630" />
-            <circle cx="49" cy="53" r="6" fill="#006630" />
-            <circle cx="33" cy="31" r="6" fill="#006630" />
-        </svg>
-        StudyVibe
-    </a>
+    <a href="/index.php" class="sv-navbar-brand"><?= Brand::logo('md') ?></a>
 </nav>
 
 <div class="join-container">
@@ -172,7 +167,7 @@ if ($isStudent) {
         $hasCover = !empty($course['cover_image']);
         $coverUrl = $hasCover ? '/download.php?type=cover&file=' . urlencode($course['cover_image']) : '';
         ?>
-        <div class="join-card-header" style="<?= $hasCover ? "background-image: url('{$coverUrl}');" : "background-image: linear-gradient(135deg, #004B23 0%, #006630 100%);" ?>">
+        <div class="join-card-header" style="<?= $hasCover ? "background-image: url('{$coverUrl}');" : "background-image: linear-gradient(135deg, #B5482A 0%, #B5482A 100%);" ?>">
             <div class="join-header-content">
                 <div class="join-module"><?= htmlspecialchars($course['module_title']) ?></div>
                 <h1 class="join-title"><?= htmlspecialchars($course['title']) ?></h1>
@@ -258,8 +253,13 @@ if ($isStudent) {
                         <!-- Step 2: password -->
                         <div id="reg-s2" class="space-y-4" style="display:none;">
                             <div class="sv-field">
-                                <label class="sv-field-label" for="reg-pass">Mot de passe <span class="text-[#888888] font-normal">(min. 6 car.)</span></label>
-                                <input type="password" id="reg-pass" name="password" class="sv-field-input" placeholder="6 caractères minimum" minlength="6" required>
+                                <label class="sv-field-label" for="reg-phone">Numéro de téléphone</label>
+                                <input type="tel" inputmode="tel" id="reg-phone" name="phone" class="sv-field-input" placeholder="6 12 34 56 78" autocomplete="tel" maxlength="30" required>
+                                <p class="text-[11px] text-[#888888] mt-1">Pour les rappels d'examens. Il sera vérifié par SMS après votre connexion.</p>
+                            </div>
+                            <div class="sv-field">
+                                <label class="sv-field-label" for="reg-pass">Mot de passe <span class="text-[#888888] font-normal">(min. 8 car.)</span></label>
+                                <input type="password" id="reg-pass" name="password" class="sv-field-input" placeholder="8 caractères minimum" minlength="8" required>
                                 <div class="pw-bar-wrap"><div class="pw-bar" id="reg-pw-bar"></div></div>
                             </div>
                             <div class="flex gap-2">
@@ -290,7 +290,7 @@ if ($isStudent) {
             <?php endif; ?>
         </div>
     </div>
-    <p class="text-center mt-6 text-xs"><a href="/index.php" class="text-[#004B23] hover:underline font-medium">← Retour à l'accueil StudyVibe</a></p>
+    <p class="text-center mt-6 text-xs"><a href="/index.php" class="text-[#B5482A] hover:underline font-medium">← Retour à l'accueil StudyVibe</a></p>
 </div>
 
 <script src="/assets/js/app.js"></script>
@@ -331,9 +331,16 @@ document.getElementById('reg-pass')?.addEventListener('input', function() {
     const strength = Math.min(100, len * 12 + (/\d/.test(this.value) ? 20 : 0) + (/[A-Z]/.test(this.value) ? 15 : 0));
     if (bar) {
         bar.style.width  = len ? strength + '%' : '0';
-        bar.style.background = strength < 40 ? '#D32F2F' : strength < 70 ? '#E6A817' : '#004B23';
+        bar.style.background = strength < 40 ? '#D32F2F' : strength < 70 ? '#E6A817' : '#B5482A';
     }
-    document.getElementById('reg-submit-btn').disabled = len < 6;
+    document.getElementById('reg-submit-btn').disabled = len < 8 || !regPhoneOk();
+});
+function regPhoneOk() {
+    const v = (document.getElementById('reg-phone')?.value || '').trim();
+    return v.replace(/\D/g, '').length >= 8 && /^[+\d\s().-]+$/.test(v);
+}
+document.getElementById('reg-phone')?.addEventListener('input', function() {
+    document.getElementById('reg-submit-btn').disabled = (document.getElementById('reg-pass')?.value.length || 0) < 8 || !regPhoneOk();
 });
 
 document.getElementById('reg-form')?.addEventListener('submit', async (e) => {
@@ -371,7 +378,9 @@ document.getElementById('login-form-join')?.addEventListener('submit', async (e)
     try {
         const r = await fetch('/login-action.php', { method: 'POST', body: fd });
         const d = await r.json();
-        if (d.success) {
+        if (d.success && d.requires_2fa) {
+            window.location.href = '/two-factor.php';   // second step: code from the authenticator app
+        } else if (d.success) {
             if (typeof Toast !== 'undefined') Toast.success('Connexion réussie !');
             btn.textContent = 'Connexion réussie…';
             window.location.href = d.redirect;

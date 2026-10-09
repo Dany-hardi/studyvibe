@@ -7,6 +7,8 @@ declare(strict_types=1);
  * Produit des PDF 1.4 lisibles avec en-tête StudyVibe, sections et tableaux.
  * Les caractères accentués sont translittérés en Latin-1 pour Helvetica intégrée.
  */
+require_once __DIR__ . '/Brand.php';
+
 class PdfReportBuilder
 {
     private const PAGE_WIDTH  = 595.28;
@@ -58,7 +60,7 @@ class PdfReportBuilder
     {
         $font = $bold ? '/F2' : '/F1';
         $encoded = self::encodeText($text);
-        $this->pages[$this->pageIndex] .= "BT {$font} {$fontSize} Tf {$x} {$y} Td ({$encoded}) Tj ET\n";
+        $this->pages[$this->pageIndex] .= "0.118 0.106 0.086 rg\nBT {$font} {$fontSize} Tf {$x} {$y} Td ({$encoded}) Tj ET\n";
     }
 
     /**
@@ -84,7 +86,7 @@ class PdfReportBuilder
     public function drawLine(float $x1, float $y1, float $x2, float $y2, float $width = 0.8): void
     {
         $this->pages[$this->pageIndex] .= sprintf(
-            "%.2F w %.2F %.2F m %.2F %.2F l S\n",
+            "0.867 0.835 0.765 RG %.2F w %.2F %.2F m %.2F %.2F l S\n",
             $width,
             $x1,
             $y1,
@@ -117,25 +119,40 @@ class PdfReportBuilder
 
         $top = self::PAGE_HEIGHT - self::MARGIN;
 
-        // Barre verte de marque (#004B23)
-        $this->drawFilledRect(self::MARGIN, $top - 8, self::PAGE_WIDTH - 2 * self::MARGIN, 6, 0.0, 0.294, 0.137);
+        // Barre de marque (argile) + logo vectoriel StudyVibe
+        $clay = Brand::rgb(Brand::CLAY);
+        $this->drawFilledRect(self::MARGIN, $top - 8, self::PAGE_WIDTH - 2 * self::MARGIN, 6, $clay[0], $clay[1], $clay[2]);
+        $this->drawLogo(self::MARGIN, $top - 24 - Brand::pdfHeight(190.0), 190.0);
+        $this->setInk();
+        $this->drawText(self::MARGIN, $top - 24 - Brand::pdfHeight(190.0) - 18, 'Plateforme Academique LMS', 10, false);
 
-        // Nom de la plateforme (équivalent logo textuel)
-        $this->drawText(self::MARGIN, $top - 36, 'StudyVibe', 26, true);
-        $this->drawText(self::MARGIN, $top - 54, 'Plateforme Academique LMS', 10, false);
+        $this->drawLine(self::MARGIN, $top - 100, self::PAGE_WIDTH - self::MARGIN, $top - 100, 0.5);
 
-        $this->drawLine(self::MARGIN, $top - 68, self::PAGE_WIDTH - self::MARGIN, $top - 68, 0.5);
+        $this->drawText(self::MARGIN, $top - 140, $title, 20, true);
+        $this->drawText(self::MARGIN, $top - 165, $subtitle, 12, false);
 
-        $this->drawText(self::MARGIN, $top - 110, $title, 20, true);
-        $this->drawText(self::MARGIN, $top - 135, $subtitle, 12, false);
-
-        $y = $top - 175;
+        $y = $top - 205;
         foreach ($metaLines as $line) {
             $this->drawText(self::MARGIN, $y, $line, 10, false);
             $y -= 18;
         }
 
-        $this->cursorY = $top - 220;
+        $this->cursorY = $top - 250;
+    }
+
+    /**
+     * Dessine le logo StudyVibe en vectoriel natif (coin bas-gauche en $x,$y, largeur $w en points).
+     */
+    public function drawLogo(float $x, float $y, float $w = 120.0, bool $mono = false): void
+    {
+        $this->pages[$this->pageIndex] .= Brand::pdfOps($x, $y, $w, $mono);
+    }
+
+    /** Remet la couleur de remplissage et de trait sur l'encre de la marque. */
+    private function setInk(): void
+    {
+        $i = Brand::rgb(Brand::INK);
+        $this->pages[$this->pageIndex] .= sprintf("%.3F %.3F %.3F rg %.3F %.3F %.3F RG\n", $i[0], $i[1], $i[2], $i[0], $i[1], $i[2]);
     }
 
     /**
@@ -260,7 +277,7 @@ class PdfReportBuilder
 
         if ($header) {
             $this->pages[$this->pageIndex] .= sprintf(
-                "0.94 0.94 0.94 rg %.2F %.2F %.2F %.2F re f\n",
+                "0.925 0.898 0.839 rg %.2F %.2F %.2F %.2F re f\n",
                 $x,
                 $bottomY,
                 array_sum($colWidths),
@@ -314,7 +331,7 @@ class PdfReportBuilder
         $bottom = $topY - $height;
         $totalW = array_sum($colWidths);
 
-        $this->pages[$this->pageIndex] .= "0.75 w 0 0 0 RG\n";
+        $this->pages[$this->pageIndex] .= "0.75 w 0.867 0.835 0.765 RG\n";
         $this->pages[$this->pageIndex] .= sprintf(
             "%.2F %.2F %.2F %.2F re S\n",
             $x,

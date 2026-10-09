@@ -35,8 +35,9 @@ if (!in_array($role, ['teacher', 'promoter', 'student'], true)) {
     echo json_encode(['success' => false, 'message' => 'Rôle invalide.']);
     exit;
 }
-if (strlen($password) < 6) {
-    echo json_encode(['success' => false, 'message' => 'Le mot de passe doit contenir au moins 6 caractères.']);
+require_once __DIR__ . '/../lib/PasswordPolicy.php';
+if (($pwError = PasswordPolicy::check($password, $email ?? '')) !== null) {
+    echo json_encode(['success' => false, 'message' => $pwError]);
     exit;
 }
 
@@ -53,8 +54,8 @@ try {
 
     $hashed = password_hash($password, PASSWORD_DEFAULT);
 
-    $stmt = $pdo->prepare("INSERT INTO users (name, email, password, role, email_verified_at) VALUES (:name, :email, :password, :role, NOW())");
-    $stmt->execute(['name' => $name, 'email' => $email, 'password' => $hashed, 'role' => $role]);
+    $stmt = $pdo->prepare("INSERT INTO users (name, email, password, role, email_verified_at, plan_id) VALUES (:name, :email, :password, :role, NOW(), :plan_id)");
+    $stmt->execute(['name' => $name, 'email' => $email, 'password' => $hashed, 'role' => $role, 'plan_id' => defaultPlanId($pdo, $role)]);
 
     $newId = (int)$pdo->lastInsertId();
     echo json_encode([

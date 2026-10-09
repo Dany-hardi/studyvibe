@@ -157,6 +157,9 @@ const Toast = (() => {
     if (!container) {
       container = document.createElement('div');
       container.id = 'toast-container';
+      container.setAttribute('aria-live', 'polite');
+      /* A popover sits in the top layer, so toasts stay visible above an open modal <dialog> (login, signup) */
+      if ('showPopover' in container) container.setAttribute('popover', 'manual');
       document.body.appendChild(container);
     }
     return container;
@@ -186,7 +189,11 @@ const Toast = (() => {
     el.querySelector('.toast-close').addEventListener('click', close);
     if (duration > 0) setTimeout(close, duration);
 
-    getContainer().appendChild(el);
+    const box = getContainer();
+    box.appendChild(el);
+    if (box.hasAttribute('popover')) {
+      try { if (box.matches(':popover-open')) box.hidePopover(); box.showPopover(); } catch (e) { /* older engines: plain fixed box */ }
+    }
     return el;
   }
 
@@ -642,7 +649,7 @@ const CertCelebration = (() => {
     overlay.innerHTML = `
       <div class="sv-cert-card">
         <div class="sv-cert-icon"></div>
-        <h2 style="font-family:'Plus Jakarta Sans',sans-serif;font-size:1.5rem;font-weight:500;margin-bottom:0.5rem;">Certification validée</h2>
+        <h2 style="font-family:'Fraunces',sans-serif;font-size:1.5rem;font-weight:500;margin-bottom:0.5rem;">Certification validée</h2>
         <p style="font-size:0.875rem;color:var(--sv-text-muted,#555);line-height:1.6;">
           Félicitations ! Vous avez obtenu <strong>${score}%</strong> — seuil de 80% atteint.
         </p>
@@ -882,46 +889,42 @@ const LessonContentGate = (() => {
   return { init, reset, markDone };
 })();
 
-// ── Politique de Confidentialité — Modal de Consentement ──
+// ── Privacy notice ──
+// A quiet card in the corner, not a blocking modal. Styled with the v2 tokens, FR/EN from <html lang>.
 document.addEventListener('DOMContentLoaded', () => {
-  if (!localStorage.getItem('sv_privacy_accepted')) {
-    const overlay = document.createElement('div');
-    overlay.id = 'privacy-consent-modal';
-    overlay.className = 'sv-cert-overlay';
-    overlay.style.zIndex = '10001';
-    overlay.innerHTML = `
-      <div class="sv-cert-card" style="max-width: 500px; text-align: left; padding: 2.25rem;">
-        <h2 style="font-family: 'Plus Jakarta Sans', sans-serif; font-size: 1.375rem; font-weight: 500; margin-bottom: 1rem; color: var(--sv-text);">
-          Confidentialité & Données
-        </h2>
-        <p style="font-size: 0.8125rem; color: var(--sv-text-muted); line-height: 1.5; margin-bottom: 1rem; font-weight: 300;">
-          StudyVibe s'engage à protéger vos informations personnelles et à garantir une transparence totale. En accédant à notre plateforme, vous consentez à notre politique de traitement des données :
-        </p>
-        <ul style="font-size: 0.75rem; color: var(--sv-text-muted); line-height: 1.5; margin-bottom: 1rem; padding-left: 1rem; list-style-type: square; font-weight: 300;">
-          <li style="margin-bottom: 0.4rem;"><strong>Identification sécurisée :</strong> Vos identifiants et e-mails servent exclusivement à gérer votre accès et à délivrer vos diplômes officiels.</li>
-          <li style="margin-bottom: 0.4rem;"><strong>Progression & Quiz :</strong> Vos temps d'étude, lectures et réponses aux évaluations sont suivis pour mesurer la réussite académique.</li>
-          <li style="margin-bottom: 0.4rem;"><strong>Transparence & RGPD :</strong> Aucun traceur publicitaire tiers. Vous conservez le contrôle total (accès, modification, suppression).</li>
-        </ul>
-        <p style="font-size: 0.75rem; color: var(--sv-text-muted); margin-bottom: 1.25rem; font-weight: 300;">
-          Pour en savoir plus, consultez notre <a href="/privacy.php" target="_blank" style="color: #004B23; text-decoration: underline; font-weight: 500;">Politique de Confidentialité complète</a>.
-        </p>
-        <div style="display: flex; gap: 0.75rem; justify-content: flex-end; border-top: 1px solid var(--sv-border-strong); padding-top: 1rem;">
-          <button id="privacy-accept-btn" class="sv-btn sv-btn-primary" style="min-height: 36px; padding: 0.35rem 1.25rem; font-size: 0.75rem;">
-            Accepter et continuer
-          </button>
-        </div>
-      </div>
-    `;
-    document.body.appendChild(overlay);
-
-    document.getElementById('privacy-accept-btn').addEventListener('click', () => {
-      overlay.classList.add('hiding');
-      setTimeout(() => {
-        overlay.remove();
-        localStorage.setItem('sv_privacy_accepted', '1');
-      }, 300);
-    });
-  }
+  try { if (localStorage.getItem('sv_privacy_accepted')) return; } catch (e) { return; }
+  const en = (document.documentElement.lang || 'fr').toLowerCase().startsWith('en');
+  const t = en ? {
+    h: 'Your data, plainly', p: 'We keep your email and name to run your account, and your study time and quiz answers to compute your results. There are no advertising trackers. You can ask to see, fix or delete your data at any time.',
+    more: 'Read the full privacy policy', ok: 'Got it'
+  } : {
+    h: 'Vos données, simplement', p: 'Nous gardons votre e-mail et votre nom pour gérer votre compte, ainsi que votre temps d’étude et vos réponses aux quiz pour calculer vos résultats. Aucun traceur publicitaire. Vous pouvez demander à consulter, corriger ou supprimer vos données à tout moment.',
+    more: 'Lire la politique de confidentialité', ok: 'Compris'
+  };
+  const css = document.createElement('style');
+  css.textContent = `
+    #privacy-notice{position:fixed;left:16px;bottom:16px;z-index:10001;max-width:380px;width:calc(100vw - 32px);background:var(--card,var(--sv-surface,#FBF8F2));color:var(--ink,var(--sv-text,#1E1B16));border:1px solid var(--line,var(--sv-border,#DDD5C3));border-radius:14px;padding:18px 18px 16px;box-shadow:0 12px 32px -12px rgba(30,27,22,.28);font-family:var(--font-body,'Hanken Grotesk',system-ui,sans-serif);animation:pnIn .45s cubic-bezier(.2,.7,.2,1) both}
+    #privacy-notice h2{font-family:var(--font-display,'Fraunces',Georgia,serif);font-weight:500;font-size:1.15rem;margin:0 0 6px;letter-spacing:-.01em}
+    #privacy-notice p{margin:0;font-size:.86rem;line-height:1.55;color:var(--ink-2,var(--sv-text-muted,#4A453C))}
+    #privacy-notice .pn-row{display:flex;align-items:center;justify-content:space-between;gap:12px;margin-top:14px}
+    #privacy-notice a{font-size:.84rem;font-weight:600;color:var(--clay,var(--sv-accent,#B5482A));text-underline-offset:3px}
+    #privacy-notice button{font:600 .88rem var(--font-body,system-ui,sans-serif);background:var(--clay,#B5482A);color:#fff;border:0;border-radius:9px;padding:.6rem 1rem;cursor:pointer;min-height:40px}
+    #privacy-notice button:hover{background:var(--clay-press,#96391E)}
+    #privacy-notice.out{opacity:0;transform:translateY(8px);transition:opacity .25s,transform .25s}
+    @keyframes pnIn{from{opacity:0;transform:translateY(10px)}to{opacity:1;transform:none}}
+    @media (prefers-reduced-motion:reduce){#privacy-notice{animation:none}}
+    @media print{#privacy-notice{display:none}}`;
+  document.head.appendChild(css);
+  const box = document.createElement('aside');
+  box.id = 'privacy-notice';
+  box.setAttribute('role', 'region');
+  box.setAttribute('aria-label', t.h);
+  box.innerHTML = `<h2>${t.h}</h2><p>${t.p}</p><div class="pn-row"><a href="/privacy.php" target="_blank" rel="noopener">${t.more}</a><button type="button" id="privacy-accept-btn">${t.ok}</button></div>`;
+  document.body.appendChild(box);
+  document.getElementById('privacy-accept-btn').addEventListener('click', () => {
+    box.classList.add('out');
+    setTimeout(() => { box.remove(); try { localStorage.setItem('sv_privacy_accepted', '1'); } catch (e) {} }, 260);
+  });
 });
 
 function changeLanguage(lang) {

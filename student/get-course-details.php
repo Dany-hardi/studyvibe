@@ -22,6 +22,7 @@ declare(strict_types=1);
 // =========================================================================
 
 require_once __DIR__ . '/../auth.php';
+require_once __DIR__ . '/../lib/LessonFlow.php';
 
 header('Content-Type: application/json');
 
@@ -78,6 +79,8 @@ try {
     $chapterStmt->execute(['course_id' => $courseId]);
     $chapters = $chapterStmt->fetchAll();
 
+    $flow = LessonFlow::status($pdo, (int)$studentId, $courseId);
+
     foreach ($chapters as &$ch) {
         // Fetch Lessons for this chapter
         $lessonStmt = $pdo->prepare("
@@ -93,6 +96,12 @@ try {
             'chapter_id' => $ch['id']
         ]);
         $ch['lessons'] = $lessonStmt->fetchAll();
+        foreach ($ch['lessons'] as &$lesRow) {
+            $st = $flow[(int)$lesRow['id']] ?? ['locked' => false, 'blocker' => null];
+            $lesRow['locked']  = $st['locked'] ? 1 : 0;
+            $lesRow['blocker'] = $st['blocker'];
+        }
+        unset($lesRow);
     }
     unset($ch);
 

@@ -7,6 +7,8 @@ declare(strict_types=1);
  * Aucune dépendance Composer : le format XML SpreadsheetML est ouvert par
  * Microsoft Excel, LibreOffice Calc et Google Sheets.
  */
+require_once __DIR__ . '/Brand.php';
+
 class SpreadsheetExporter
 {
     /**
@@ -27,9 +29,13 @@ class SpreadsheetExporter
         $xml = '<?xml version="1.0" encoding="UTF-8"?>' . "\n";
         $xml .= '<?mso-application progid="Excel.Sheet"?>' . "\n";
         $xml .= '<Workbook xmlns="urn:schemas-microsoft-com:office:spreadsheet" ';
-        $xml .= 'xmlns:ss="urn:schemas-microsoft-com:office:spreadsheet">' . "\n";
+        $xml .= 'xmlns:ss="urn:schemas-microsoft-com:office:spreadsheet" ';
+        $xml .= 'xmlns:html="http://www.w3.org/TR/REC-html40">' . "\n";
         $xml .= '<Styles>' . "\n";
-        $xml .= '<Style ss:ID="Header"><Font ss:Bold="1"/><Interior ss:Color="#E8F5E9" ss:Pattern="Solid"/></Style>' . "\n";
+        $xml .= '<Style ss:ID="Header"><Font ss:Bold="1" ss:Color="' . Brand::INK . '"/><Interior ss:Color="#ECE5D6" ss:Pattern="Solid"/>'
+              . '<Borders><Border ss:Position="Bottom" ss:LineStyle="Continuous" ss:Weight="2" ss:Color="' . Brand::CLAY . '"/></Borders></Style>' . "\n";
+        $xml .= '<Style ss:ID="Brand"><Font ss:FontName="Arial Rounded MT Bold" ss:Size="20" ss:Bold="1" ss:Color="' . Brand::WORD . '"/><Alignment ss:Vertical="Center"/></Style>' . "\n";
+        $xml .= '<Style ss:ID="BrandSub"><Font ss:Size="9" ss:Color="' . Brand::INK2 . '"/></Style>' . "\n";
         $xml .= '</Styles>' . "\n";
 
         foreach ($sheets as $sheet) {
@@ -54,6 +60,14 @@ class SpreadsheetExporter
     {
         $safeName = self::escapeXml(mb_substr($name, 0, 31));
         $xml  = '<Worksheet ss:Name="' . $safeName . '"><Table>' . "\n";
+
+        // Brand banner: the wordmark set as rich text (Excel cells cannot hold the vector logo), V in clay
+        $xml .= '<Row ss:Height="30"><Cell ss:StyleID="Brand"><ss:Data ss:Type="String" xmlns="http://www.w3.org/TR/REC-html40">'
+              . '<Font html:Face="Arial Rounded MT Bold" html:Size="20" html:Color="' . Brand::WORD . '"><B>study</B></Font>'
+              . '<Font html:Face="Arial Rounded MT Bold" html:Size="20" html:Color="' . Brand::CLAY . '"><B>vibe</B></Font>'
+              . '</ss:Data></Cell></Row>' . "\n";
+        $xml .= '<Row><Cell ss:StyleID="BrandSub"><Data ss:Type="String">' . self::escapeXml($name . ' · ' . date('d/m/Y H:i')) . '</Data></Cell></Row>' . "\n";
+        $xml .= '<Row/>' . "\n";
 
         $xml .= '<Row>';
         foreach ($headers as $header) {

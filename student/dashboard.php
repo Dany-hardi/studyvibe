@@ -2,31 +2,33 @@
 declare(strict_types=1);
 
 /**
- * StudyVibe LMS - Student Dashboard Portal View
- * 
- * Serves as the primary client-facing portal for registered students. Handles 
- * data queries for courses, certifications, badges, study statistics, 
- * live assessments, and initializes the modal system structures.
- * 
+ * StudyVibe LMS - Student space (v2)
+ *
+ * One page, six destinations: Today, Courses (mine / catalogue / library), Evaluations,
+ * Results, Certificates, Profile. The lesson reader is a full-screen layer on top of it.
+ * Markup and styles live here and in assets/css/student.css; behaviour in assets/js/student.js.
+ *
  * @package    StudyVibe
  * @subpackage Student
- * @author     Advanced Engineering Team
  */
 
 // =========================================================================
-// SECTION 1: AUTHENTICATION, ACCESS GATES & DATA QUERY CONTROLLER
+// SECTION 1: AUTHENTICATION, ACCESS GATES & DATA QUERIES
 // =========================================================================
 
 require_once __DIR__ . '/../auth.php';
+require_once __DIR__ . '/../lib/StudentLiveEvals.php';
 require_once __DIR__ . '/../lib/CourseSchedule.php';
+require_once __DIR__ . '/../lib/Brand.php';
+require_once __DIR__ . '/../lib/student_i18n.php';
 requireRole('student');
 
 $user = getCurrentUser();
 $pdo = Database::getInstance();
+$lang = sdLang();
 
 try {
-    // 1. Fetch available courses
-    // We fetch all courses, indicating if the current student is enrolled, and what their progress is.
+    // 1. Courses the student can see (published or already enrolled) with their progress
     $stmt = $pdo->prepare("
         SELECT c.*, m.title AS module_title, COALESCE(u.name, 'Non assigné') AS teacher_name,
                e.progress_percent,
@@ -41,7 +43,7 @@ try {
     $stmt->execute(['student_id' => $user['id']]);
     $courses = $stmt->fetchAll();
 
-    // 2. Fetch completed certificates
+    // 2. Certificates
     $stmt = $pdo->prepare("
         SELECT cert.*, c.title AS course_title
         FROM certificates cert
@@ -51,15 +53,23 @@ try {
     ");
     $stmt->execute(['student_id' => $user['id']]);
     $myCertificates = $stmt->fetchAll();
+    $certByCourse = [];
+    foreach ($myCertificates as $cert) {
+        if (!empty($cert['course_id']) && !isset($certByCourse[(int)$cert['course_id']])) {
+            $certByCourse[(int)$cert['course_id']] = $cert;
+        }
+    }
 
-    // 3. Stats KPI apprenant
+    // 3. Figures
     $stmt = $pdo->prepare("SELECT COUNT(*) FROM enrollments WHERE student_id = :sid AND progress_percent = 100");
     $stmt->execute(['sid' => $user['id']]);
     $statCompleted = (int)$stmt->fetchColumn();
 
-    $stmt = $pdo->prepare("SELECT COALESCE(AVG(score), 0) FROM certification_attempts WHERE student_id = :sid");
+    $stmt = $pdo->prepare("SELECT COALESCE(AVG(score), 0), COUNT(*) FROM certification_attempts WHERE student_id = :sid");
     $stmt->execute(['sid' => $user['id']]);
-    $statAvgScore = round((float)$stmt->fetchColumn(), 1);
+    [$avgRaw, $statAttempts] = array_map('floatval', $stmt->fetch(PDO::FETCH_NUM));
+    $statAvgScore = round($avgRaw, 1);
+    $statAttempts = (int)$statAttempts;
 
     $stmt = $pdo->prepare("SELECT COALESCE(SUM(seconds_spent), 0) FROM study_sessions WHERE student_id = :sid");
     $stmt->execute(['sid' => $user['id']]);
@@ -67,19 +77,97 @@ try {
     $statStudyH = (int)floor($statStudySecs / 3600);
     $statStudyM = (int)floor(($statStudySecs % 3600) / 60);
 
-    $continueStmt = $pdo->prepare("
-        SELECT e.course_id, e.last_lesson_id, c.title AS course_title, l.title AS lesson_title
+    // 4. Lesson counts per course (for "2 of 4 lessons")
+    $stmt = $pdo->prepare("
+        SELECT ch.course_id, COUNT(l.id) AS total, SUM(COALESCE(lp.completed, 0) = 1) AS done
+        FROM lessons l
+        JOIN chapters ch ON ch.id = l.chapter_id
+        LEFT JOIN lesson_progress lp ON lp.lesson_id = l.id AND lp.student_id = :sid
+        GROUP BY ch.course_id
+    ");
+    $stmt->execute(['sid' => $user['id']]);
+    $lessonCounts = [];
+    foreach ($stmt->fetchAll() as $r) {
+        $lessonCounts[(int)$r['course_id']] = ['total' => (int)$r['total'], 'done' => (int)$r['done']];
+    }
+
+    // 5. Where to resume: the enrolled, unfinished course touched most recently, and its next lesson
+    $resume = null;
+    $stmt = $pdo->prepare("
+        SELECT e.course_id, e.last_lesson_id, e.progress_percent, e.enrolled_at,
+               c.title AS course_title, m.title AS module_title,
+               (SELECT MAX(ss.updated_at) FROM study_sessions ss
+                  JOIN lessons l2 ON l2.id = ss.lesson_id
+                  JOIN chapters ch2 ON ch2.id = l2.chapter_id
+                 WHERE ch2.course_id = e.course_id AND ss.student_id = e.student_id) AS last_activity
         FROM enrollments e
         JOIN courses c ON c.id = e.course_id
-        LEFT JOIN lessons l ON l.id = e.last_lesson_id
-        WHERE e.student_id = :sid AND e.last_lesson_id IS NOT NULL AND e.progress_percent < 100
-        ORDER BY e.enrolled_at DESC LIMIT 1
+        JOIN modules m ON m.id = c.module_id
+        WHERE e.student_id = :sid AND e.progress_percent < 100
     ");
-    $continueStmt->execute(['sid' => $user['id']]);
-    $continueCourse = $continueStmt->fetch() ?: null;
+    $stmt->execute(['sid' => $user['id']]);
+    $openEnrollments = $stmt->fetchAll();
+    usort($openEnrollments, function ($a, $b) {
+        return strcmp((string)($b['last_activity'] ?? $b['enrolled_at']), (string)($a['last_activity'] ?? $a['enrolled_at']));
+    });
+    foreach ($openEnrollments as $en) {
+        $ls = $pdo->prepare("
+            SELECT l.id, l.title, l.content_type, CHAR_LENGTH(COALESCE(l.text_content, '')) AS text_len,
+                   l.quiz_deadline, COALESCE(lp.completed, 0) AS completed
+            FROM lessons l
+            JOIN chapters ch ON ch.id = l.chapter_id
+            LEFT JOIN lesson_progress lp ON lp.lesson_id = l.id AND lp.student_id = :sid
+            WHERE ch.course_id = :cid
+            ORDER BY ch.sort_order ASC, ch.id ASC, l.sort_order ASC, l.id ASC
+        ");
+        $ls->execute(['sid' => $user['id'], 'cid' => $en['course_id']]);
+        $lessons = array_values(array_filter($ls->fetchAll(), function ($l) {
+            return !((int)$l['completed'] === 0 && !empty($l['quiz_deadline']) && strtotime((string)$l['quiz_deadline']) < time());
+        }));
+        if (!$lessons) {
+            continue;
+        }
+        $target = null;
+        $lastIdx = -1;
+        foreach ($lessons as $i => $l) {
+            if ((int)$l['id'] === (int)$en['last_lesson_id']) {
+                $lastIdx = $i;
+            }
+        }
+        if ($lastIdx >= 0 && (int)$lessons[$lastIdx]['completed'] === 0) {
+            $target = $lastIdx;
+        } else {
+            for ($i = max(0, $lastIdx + 1); $i < count($lessons); $i++) {
+                if ((int)$lessons[$i]['completed'] === 0) { $target = $i; break; }
+            }
+            if ($target === null) {
+                foreach ($lessons as $i => $l) { if ((int)$l['completed'] === 0) { $target = $i; break; } }
+            }
+        }
+        if ($target === null) {
+            continue;
+        }
+        $tl = $lessons[$target];
+        $words = (int)round(((int)$tl['text_len']) / 6);
+        $resume = [
+            'course_id'    => (int)$en['course_id'],
+            'course_title' => $en['course_title'],
+            'module_title' => $en['module_title'],
+            'lesson_id'    => (int)$tl['id'],
+            'lesson_title' => $tl['title'],
+            'type'         => $tl['content_type'],
+            'minutes'      => ($words > 0 && $tl['content_type'] === 'text') ? max(1, (int)ceil($words / 220)) : 0,
+            'position'     => $target + 1,
+            'total'        => count($lessons),
+            'progress'     => (int)$en['progress_percent'],
+            'resumed'      => $en['last_activity'] !== null,
+        ];
+        break;
+    }
 
     $deadlineAlerts = CourseSchedule::deadlineAlerts($pdo, (int)$user['id']);
-    // --- Gamification Badges Logic ---
+
+    // 6. Badges
     require_once __DIR__ . '/../lib/BadgeHelper.php';
     $myBadges = BadgeHelper::evaluateBadges($pdo, (int)$user['id']);
     $earnedBadgesLookup = [];
@@ -88,7 +176,7 @@ try {
     }
     $allBadgesConfig = BadgeHelper::getAllBadgesConfig();
 
-    // --- Course Library Items for student (isolated — self-healing if table is missing) ---
+    // 7. Course library (isolated: self-healing if the table is missing)
     $studentLibraryItems = [];
     try {
         $libraryStmt = $pdo->prepare("
@@ -105,7 +193,7 @@ try {
         $studentLibraryItems = [];
     }
 
-    // 4. Récupérer les téléévaluations de l'étudiant
+    // 8. The student's tele-evaluations
     $stmt = $pdo->prepare("
         SELECT r.id AS registration_id, r.score, r.registered_at, s.id AS session_id, s.title AS session_title, s.session_code, s.status AS session_status, s.is_async, c.title AS course_title
         FROM live_eval_registrations r
@@ -117,3490 +205,987 @@ try {
     $stmt->execute(['student_id' => $user['id'], 'email' => $user['email']]);
     $myEvaluations = $stmt->fetchAll();
 
+    // 9. What is coming: live sessions not over, open async sessions, on enrolled courses
+    $upcoming = [];
+    try {
+        $upcoming = StudentLiveEvals::upcoming($pdo, (int)$user['id'], (string)$user['email']);
+    } catch (Throwable $upEx) {
+        $upcoming = [];
+    }
 
+    // 10. Certification attempts (for "latest result")
+    $stmt = $pdo->prepare("
+        SELECT ca.id, ca.score, ca.passed, ca.attempted_at, c.title AS course_title
+        FROM certification_attempts ca JOIN courses c ON c.id = ca.course_id
+        WHERE ca.student_id = :sid ORDER BY ca.attempted_at DESC
+    ");
+    $stmt->execute(['sid' => $user['id']]);
+    $myAttempts = $stmt->fetchAll();
 
+    // 11. Transcript
+    $stmt = $pdo->prepare("
+        SELECT c.title AS course_title, m.title AS module_title, e.course_id, e.progress_percent,
+               (SELECT MAX(ca.score) FROM certification_attempts ca WHERE ca.student_id = e.student_id AND ca.course_id = e.course_id) AS best_score,
+               (SELECT COUNT(*) FROM certification_attempts ca WHERE ca.student_id = e.student_id AND ca.course_id = e.course_id) AS attempts
+        FROM enrollments e
+        JOIN courses c ON c.id = e.course_id
+        JOIN modules m ON m.id = c.module_id
+        WHERE e.student_id = :sid
+        ORDER BY e.enrolled_at DESC
+    ");
+    $stmt->execute(['sid' => $user['id']]);
+    $transcriptCourses = $stmt->fetchAll();
+
+    $stmt = $pdo->prepare("
+        SELECT l.title AS lesson_title, c.title AS course_title, lp.score, lp.completed_at
+        FROM lesson_progress lp
+        JOIN lessons l ON l.id = lp.lesson_id
+        JOIN chapters ch ON ch.id = l.chapter_id
+        JOIN courses c ON c.id = ch.course_id
+        WHERE lp.student_id = :sid AND lp.completed = 1 AND lp.score IS NOT NULL
+        ORDER BY lp.completed_at DESC
+        LIMIT 100
+    ");
+    $stmt->execute(['sid' => $user['id']]);
+    $lessonScores = $stmt->fetchAll();
 } catch (PDOException $e) {
     dieSafe('Erreur serveur. Veuillez réessayer.', $e, 'student/dashboard');
 }
+
+// ---- Derived values for the Today screen ----
+$firstName = trim(explode(' ', trim((string)$user['name']))[0] ?? '');
+$hour = (int)date('G');
+$greetKey = $hour < 5 ? 'greet_evening' : ($hour < 18 ? ($hour < 12 ? 'greet_morning' : 'greet_afternoon') : 'greet_evening');
+
+$latest = null;
+foreach ($myEvaluations as $ev) {
+    if ($ev['score'] === null) { continue; }
+    $when = strtotime((string)$ev['registered_at']);
+    if ($latest === null || $when > $latest['when']) {
+        $latest = [
+            'when'   => $when,
+            'title'  => $ev['session_title'],
+            'course' => $ev['course_title'],
+            'score'  => (float)$ev['score'],
+            'pass'   => (float)$ev['score'] >= 50,
+            'kind'   => 'live',
+            'url'    => '/student/evaluation-results.php?registration_id=' . (int)$ev['registration_id'] . '&token=' . hash_hmac('sha256', (string)$ev['registration_id'], APP_SECRET),
+        ];
+    }
+}
+foreach ($myAttempts as $at) {
+    $when = strtotime((string)$at['attempted_at']);
+    if ($latest === null || $when > $latest['when']) {
+        $passed = (int)$at['passed'] === 1;
+        $latest = [
+            'when'   => $when,
+            'title'  => sd('final_exam'),
+            'course' => $at['course_title'],
+            'score'  => (float)$at['score'],
+            'pass'   => $passed,
+            'kind'   => 'cert',
+            'url'    => $passed ? '#certs' : '/student/certification-report.php?attempt_id=' . (int)$at['id'],
+        ];
+    }
+}
+
+$enrolledCourses = array_values(array_filter($courses, fn($c) => $c['is_enrolled']));
+// in progress first, then not started, then finished
+usort($enrolledCourses, function ($a, $b) {
+    $rank = fn($c) => ((int)$c['progress_percent'] >= 100 ? 2 : ((int)$c['progress_percent'] > 0 ? 0 : 1));
+    return $rank($a) <=> $rank($b);
+});
+$avatarSrc = $user['avatar_path'] ? mediaUrl('avatar', $user['avatar_path']) : 'https://www.gravatar.com/avatar/' . md5(strtolower(trim($user['email']))) . '?d=mp';
+$studyTimeLabel = $statStudyH . ' h ' . str_pad((string)$statStudyM, 2, '0', STR_PAD_LEFT);
+
+$badgeText = [
+    'first_lesson'    => ['Pionnier', 'Pioneer', 'Complétez votre première leçon.', 'Complete your first lesson.'],
+    'study_hour'      => ['Une heure d\'étude', 'First hour', 'Cumulez plus d\'une heure d\'étude.', 'Study for more than one hour in total.'],
+    'course_complete' => ['Cours terminé', 'Course finished', 'Terminez un cours à 100 %.', 'Finish a course at 100%.'],
+    'certified'       => ['Certifié', 'Certified', 'Obtenez votre premier certificat.', 'Earn your first certificate.'],
+    'perfect_score'   => ['Sans faute', 'Perfect score', 'Obtenez 100 % à un quiz de leçon ou à un examen final.', 'Score 100% on a lesson quiz or a final exam.'],
+    'multitasker'     => ['Trois cours', 'Three courses', 'Inscrivez-vous à au moins 3 cours.', 'Enrol in at least 3 courses.'],
+    'night_owl'       => ['Travail de nuit', 'Night work', 'Terminez une leçon ou un examen entre 22 h et 4 h.', 'Finish a lesson or exam between 10 pm and 4 am.'],
+    'note_taker'      => ['Prise de notes', 'Note taker', 'Enregistrez une note pendant une vidéo.', 'Save a note while watching a video.'],
+    'speed_demon'     => ['Cinq en un jour', 'Five in a day', 'Terminez 5 leçons le même jour.', 'Finish 5 lessons on the same day.'],
+    'marathoner'      => ['Dix heures', 'Ten hours', 'Cumulez 10 heures d\'étude.', 'Reach 10 hours of study.'],
+    'quiz_master'     => ['Quiz maîtrisés', 'Quizzes mastered', 'Réussissez 10 quiz de leçon à 80 % ou plus.', 'Pass 10 lesson quizzes with 80% or more.'],
+    'early_bird'      => ['Tôt le matin', 'Early start', 'Terminez une leçon ou un examen entre 5 h et 8 h.', 'Finish a lesson or exam between 5 am and 8 am.'],
+    'bibliophile'     => ['Bibliothèque', 'Library', 'Ayez accès à 3 ressources de bibliothèque ou plus.', 'Have access to 3 or more library resources.'],
+    'assignment_ace'  => ['Premier devoir', 'First assignment', 'Rendez un devoir à votre enseignant.', 'Hand in an assignment to your teacher.'],
+    'tele_champion'   => ['En direct', 'Live session', 'Participez à une téléévaluation.', 'Take part in a tele-evaluation.'],
+    'community_voice' => ['Dans la discussion', 'In the discussion', 'Postez au moins 3 questions ou réponses.', 'Post at least 3 questions or replies.'],
+    'streak_master'   => ['Trois jours', 'Three days', 'Étudiez sur au moins 3 jours différents.', 'Study on at least 3 different days.'],
+    'scholar_god'     => ['Trois certificats', 'Three certificates', 'Obtenez 3 certificats.', 'Earn 3 certificates.'],
+];
+
+/** One enrolled-course row: title, where they are, what to do next. */
+function sdCourseRow(array $c, array $certByCourse, array $lessonCounts): string
+{
+    $id = (int)$c['id'];
+    $p = (int)$c['progress_percent'];
+    $lc = $lessonCounts[$id] ?? ['total' => 0, 'done' => 0];
+    $cert = $certByCourse[$id] ?? null;
+    ob_start(); ?>
+    <li class="sd-row sd-course" data-course-id="<?= $id ?>">
+        <div class="sd-course-main">
+            <p class="sd-kicker"><?= sdH($c['module_title']) ?></p>
+            <h3 class="sd-course-title"><?= sdH($c['title']) ?></h3>
+            <p class="sd-meta"><?= sdH($c['teacher_name']) ?> · <?= $lc['total'] > 0 ? sdH(sd('lessons_of', ['done' => $lc['done'], 'total' => $lc['total']])) : sdH(sd('no_lessons')) ?></p>
+        </div>
+        <div class="sd-course-progress">
+            <div class="sd-bar" role="progressbar" aria-valuemin="0" aria-valuemax="100" aria-valuenow="<?= $p ?>" aria-label="<?= sdH(sd('progress')) ?>"><i style="width:<?= $p ?>%"></i></div>
+            <span class="num sd-pct"><?= $p ?> %</span>
+        </div>
+        <div class="sd-course-act">
+            <button type="button" class="btn btn-ghost btn-sm" data-study="<?= $id ?>"><?= sdH($p > 0 && $p < 100 ? sd('continue') : sd('open')) ?></button>
+            <?php if ($cert): ?>
+                <a class="btn btn-text" href="/certificate.php?code=<?= urlencode($cert['certificate_code']) ?>"><?= sdH(sd('see_certificate')) ?></a>
+            <?php elseif ($p === 100): ?>
+                <button type="button" class="btn btn-primary btn-sm" data-start-exam="<?= $id ?>" data-title="<?= sdH($c['title']) ?>"><?= sdH(sd('take_exam')) ?></button>
+            <?php else: ?>
+                <span class="sd-hint"><?= sdH(sd('exam_locked')) ?></span>
+            <?php endif; ?>
+        </div>
+    </li>
+    <?php
+    return (string)ob_get_clean();
+}
 ?>
-<!-- =========================================================================
-     SECTION 2: HTML HEAD, META ASSETS & TAILWIND CONFIGURATION
-     ========================================================================= -->
 <!DOCTYPE html>
-<html lang="fr" class="h-full sv-cream">
+<html lang="<?= $lang ?>">
 <head>
     <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <title><?= sdH(sd('page_title')) ?> — StudyVibe</title>
+    <meta name="theme-color" content="#F5F0E6">
     <link rel="icon" type="image/svg+xml" href="/assets/img/favicon.svg">
     <link rel="icon" type="image/png" href="/assets/img/favicon.png" sizes="32x32">
-    <link rel="apple-touch-icon" href="/assets/img/favicon.png">
-
-    <title>Espace Étudiant — StudyVibe</title>
-    
-    <link rel="preconnect" href="https://fonts.googleapis.com">
-    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&family=Plus+Jakarta+Sans:ital,wght@0,300..800;1,300..800&display=swap" rel="stylesheet">
-    <link rel="stylesheet" href="/assets/css/app.css">
-    
-    <!-- KaTeX et Marked.js pour le rendu des équations LaTeX et le formatage Markdown des leçons -->
+    <link rel="apple-touch-icon" href="/assets/img/apple-touch-icon.png">
+    <?= sdFontsLink() ?>
+    <link rel="stylesheet" href="/assets/css/sv2.css">
+    <?= Brand::headLinks() ?>
+    <link rel="stylesheet" href="/assets/css/student.css">
+    <link rel="stylesheet" href="/assets/css/reader-flow.css">
     <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/katex@0.16.8/dist/katex.min.css">
     <script defer src="https://cdn.jsdelivr.net/npm/katex@0.16.8/dist/katex.min.js"></script>
     <script defer src="https://cdn.jsdelivr.net/npm/katex@0.16.8/dist/contrib/auto-render.min.js"></script>
     <script src="https://cdn.jsdelivr.net/npm/marked@9.1.6/marked.min.js"></script>
-
     <?= csrfMetaTag(); ?>
-    <script src="https://cdn.jsdelivr.net/npm/gsap@3.12.5/dist/gsap.min.js"></script>
-    <script src="https://cdn.jsdelivr.net/npm/gsap@3.12.5/dist/ScrollTrigger.min.js"></script>
-    
-    <script src="https://cdn.tailwindcss.com"></script>
-    <script>
-        tailwind.config = {
-            theme: {
-                extend: {
-                    fontFamily: {
-                        sans: ['Inter', 'sans-serif'],
-                        serif: ['Plus Jakarta Sans', 'sans-serif'],
-                    }
-                }
-            }
-        }
-    </script>
-    <style>
-        .fade-in {
-            animation: fadeIn 0.4s ease-out forwards;
-        }
-        @keyframes fadeIn {
-            from { opacity: 0; }
-            to { opacity: 1; }
-        }
-        /* Glassmorphic-like dialog style */
-        .modal-active {
-            animation: modalFadeIn 0.3s cubic-bezier(0.16, 1, 0.3, 1) forwards;
-        }
-        @keyframes modalFadeIn {
-            from { opacity: 0; transform: scale(0.97); }
-            to { opacity: 1; transform: scale(1); }
-        }
-        /* WhatsApp iOS Chat Style */
-        .wa-chat-bg {
-            background-color: #efeae2;
-            background-image: radial-gradient(#dfdcd6 0.8px, transparent 0), radial-gradient(#dfdcd6 0.8px, #efeae2 0);
-            background-size: 8px 8px;
-            background-position: 0 0, 4px 4px;
-        }
-        /* Hide scrollbars but keep functionality */
-        .scrollbar-none::-webkit-scrollbar {
-            display: none;
-        }
-        .scrollbar-none {
-            -ms-overflow-style: none;
-            scrollbar-width: none;
-        }
-        /* Bouncing Dots Animation */
-        .wa-dot {
-            width: 6px;
-            height: 6px;
-            background-color: #8e8e93;
-            border-radius: 50%;
-            display: inline-block;
-            animation: waBouncing 1.4s infinite ease-in-out both;
-        }
-        .wa-dot:nth-child(1) { animation-delay: -0.32s; }
-        .wa-dot:nth-child(2) { animation-delay: -0.16s; }
-        @keyframes waBouncing {
-            0%, 80%, 100% { transform: scale(0.3); opacity: 0.3; }
-            40% { transform: scale(1.1); opacity: 1; }
-        }
-    </style>
+    <?= sdThemeBoot() ?>
 </head>
-<body class="font-sans antialiased text-[#111111] dark:text-white bg-[#FAF9F6] dark:bg-[#121212] min-h-screen flex flex-col md:flex-row overflow-x-hidden">
+<body class="v2 sd">
+<a class="sd-skip" href="#sd-main"><?= sdH(sd('skip')) ?></a>
 
-    <!-- =========================================================================
-         SECTION 3: HTML LAYOUT STRUCTURE (BODY, SIDEBAR & MAIN PORTAL VIEWS)
-         ========================================================================= -->
-
-    <!-- MOBILE TOP BAR -->
-    <div class="w-full md:hidden bg-[#004B23] text-white py-4 px-4 flex justify-between items-center sticky top-0 z-30 shadow-md">
-        <div class="flex items-center gap-3">
-            <button onclick="toggleMobileDrawer()" class="p-1 text-white hover:text-white/80 focus:outline-none">
-                <svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 6h16M4 12h16M4 18h16"></path></svg>
-            </button>
-            <span class="font-serif text-lg font-bold tracking-tight">StudyVibe</span>
-        </div>
-        <div class="flex items-center gap-3">
-            <!-- Notifications (Mobile) -->
-            <div class="relative" id="mobile-notif-wrap">
-                <button type="button" onclick="toggleMobileNotifs()" class="relative p-1.5 text-white hover:text-white/80 transition-colors rounded-full" aria-label="Notifications">
-                    <svg class="w-5 h-5" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24">
-                        <path stroke-linecap="round" stroke-linejoin="round" d="M14.857 17.082a23.848 23.848 0 005.454-1.31A8.967 8.967 0 0118 9.75v-.7V9A6 6 0 006 9v.75a8.967 8.967 0 01-2.312 6.022c1.733.64 3.56 1.085 5.455 1.31m5.714 0a24.255 24.255 0 01-5.714 0m5.714 0a3 3 0 11-5.714 0" />
-                    </svg>
-                    <span id="mobile-notif-count" class="hidden absolute -top-1 -right-1 bg-[#D32F2F] text-white text-[9px] font-bold px-1 py-0.2 rounded-full min-w-[15px] text-center border border-white">0</span>
-                </button>
-                <div id="mobile-notif-panel-container" class="hidden absolute right-0 top-full mt-2 w-72 bg-white dark:bg-[#1E1E1E] border border-[#E5E5E7] dark:border-[#2C2C2C] shadow-xl z-50 text-left text-sm rounded-lg overflow-hidden flex flex-col max-h-[300px]">
-                    <div class="p-3 border-b border-[#E5E5E7] dark:border-[#2C2C2C] flex justify-between items-center bg-[#F9F7F4] dark:bg-[#252525] flex-shrink-0">
-                        <span class="font-serif font-semibold text-xs uppercase tracking-wider text-[#111111] dark:text-white">Notifications</span>
-                        <button onclick="markAllNotificationsRead(event)" class="text-[10px] text-[#004B23] dark:text-[#34C759] hover:underline font-semibold">Tout marquer comme lu</button>
-                    </div>
-                    <div id="mobile-notif-panel" class="overflow-y-auto flex-grow max-h-[250px] dark:text-white/80"></div>
-                </div>
+<!-- =========================================================================
+     SECTION 2: APP SHELL — slim rail on desktop, top bar + bottom bar on phones
+     ========================================================================= -->
+<?php
+$nav = [
+    'home'    => ['home',    sd('nav_home')],
+    'courses' => ['book',    sd('nav_courses')],
+    'evals'   => ['exam',    sd('nav_evals')],
+    'results' => ['results', sd('nav_results')],
+    'certs'   => ['cert',    sd('nav_certs')],
+];
+?>
+<aside class="sd-rail" aria-label="<?= sdH(sd('nav_label')) ?>">
+    <a class="sd-logo" href="#home" data-nav="home" aria-label="StudyVibe"><?= Brand::logo('md') ?></a>
+    <nav>
+        <ul class="sd-navlist">
+            <?php foreach ($nav as $key => [$ic, $label]): ?>
+            <li><button type="button" class="sd-nav" data-nav="<?= $key ?>" id="tab-btn-<?= $key ?>"><?= sdIcon($ic) ?><span><?= sdH($label) ?></span></button></li>
+            <?php endforeach; ?>
+        </ul>
+    </nav>
+    <div class="sd-rail-foot">
+        <div class="sd-tools">
+            <button type="button" class="sd-iconbtn" id="notif-btn" aria-haspopup="dialog" aria-label="<?= sdH(sd('notifications')) ?>"><?= sdIcon('bell') ?><span class="notif-count hidden" aria-live="polite">0</span></button>
+            <button type="button" class="sd-iconbtn" data-dark-toggle aria-label="<?= sdH(sd('theme')) ?>"><span class="ic-sun"><?= sdIcon('sun') ?></span><span class="ic-moon"><?= sdIcon('moon') ?></span></button>
+            <div class="seg" role="group" aria-label="<?= sdH(sd('language')) ?>">
+                <a href="#" data-lang="fr" <?= $lang === 'fr' ? 'aria-current="true"' : '' ?>>FR</a>
+                <a href="#" data-lang="en" <?= $lang === 'en' ? 'aria-current="true"' : '' ?>>EN</a>
             </div>
-            <a href="/logout.php" class="text-xs text-red-300 uppercase tracking-wider font-semibold hover:underline">Déconnexion</a>
         </div>
+        <button type="button" class="sd-me" data-nav="profile" id="tab-btn-profile">
+            <img id="header-avatar" src="<?= sdH($avatarSrc) ?>" alt="" width="36" height="36">
+            <span class="sd-me-t"><strong class="id-student-name"><?= sdH($user['name']) ?></strong><small><?= sdH(sd('my_profile')) ?></small></span>
+        </button>
+        <a class="sd-logout" href="/logout.php"><?= sdIcon('out', 16) ?><span><?= sdH(sd('logout')) ?></span></a>
     </div>
+</aside>
 
-    <!-- MOBILE DRAWER -->
-    <div id="mobile-drawer" class="fixed inset-0 z-50 md:hidden hidden">
-        <div onclick="toggleMobileDrawer()" class="fixed inset-0 bg-black/50 transition-opacity"></div>
-        <div class="relative flex-1 flex flex-col max-w-xs w-full bg-[#004B23] pt-5 pb-4 transition-transform duration-300">
-            <div class="absolute top-0 right-0 -mr-12 pt-2">
-                <button onclick="toggleMobileDrawer()" class="ml-1 flex items-center justify-center h-10 w-10 rounded-full focus:outline-none focus:ring-2 focus:ring-inset focus:ring-white">
-                    <span class="sr-only">Close sidebar</span>
-                    <svg class="h-6 w-6 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12" /></svg>
-                </button>
-            </div>
-            <div class="flex-shrink-0 flex items-center px-6 gap-3 border-b border-[#003619] pb-4">
-                <span class="font-serif text-xl font-bold tracking-tight text-white">StudyVibe</span>
-                <span class="text-[10px] uppercase tracking-widest bg-[#003619] text-white px-2 py-0.5 border border-[#002610] font-mono">Apprenant</span>
-            </div>
-            <div class="mt-5 flex-1 h-0 overflow-y-auto">
-                <nav class="px-3 space-y-1">
-                    <button onclick="switchTab('catalogue'); toggleMobileDrawer();" id="mobile-tab-btn-catalogue" class="w-full flex items-center gap-3 px-4 py-3 rounded-lg text-sm font-medium transition-all text-white/70 hover:text-white hover:bg-white/10 text-left">
-                        Catalogue
-                    </button>
-                    <button onclick="switchTab('mes-cours'); toggleMobileDrawer();" id="mobile-tab-btn-mes-cours" class="w-full flex items-center gap-3 px-4 py-3 rounded-lg text-sm font-medium transition-all text-white/70 hover:text-white hover:bg-white/10 text-left">
-                        Mes Études
-                    </button>
-                    <button onclick="switchTab('bibliotheque'); toggleMobileDrawer();" id="mobile-tab-btn-bibliotheque" class="w-full flex items-center gap-3 px-4 py-3 rounded-lg text-sm font-medium transition-all text-white/70 hover:text-white hover:bg-white/10 text-left">
-                        Bibliothèque
-                    </button>
-                    <button onclick="switchTab('releve'); toggleMobileDrawer();" id="mobile-tab-btn-releve" class="w-full flex items-center gap-3 px-4 py-3 rounded-lg text-sm font-medium transition-all text-white/70 hover:text-white hover:bg-white/10 text-left">
-                        Relevé de Notes
-                    </button>
-                    <button onclick="switchTab('certifications'); toggleMobileDrawer();" id="mobile-tab-btn-certifications" class="w-full flex items-center gap-3 px-4 py-3 rounded-lg text-sm font-medium transition-all text-white/70 hover:text-white hover:bg-white/10 text-left">
-                        Certifications
-                    </button>
-                    <button onclick="switchTab('achievements'); toggleMobileDrawer();" id="mobile-tab-btn-achievements" class="w-full flex items-center gap-3 px-4 py-3 rounded-lg text-sm font-medium transition-all text-white/70 hover:text-white hover:bg-white/10 text-left">
-                        Succès & Badges
-                    </button>
-                    <button onclick="switchTab('tele-evaluations'); toggleMobileDrawer();" id="mobile-tab-btn-tele-evaluations" class="w-full flex items-center gap-3 px-4 py-3 rounded-lg text-sm font-medium transition-all text-white/70 hover:text-white hover:bg-white/10 text-left">
-                        Téléévaluations
-                    </button>
-
-                    <button onclick="switchTab('profil'); toggleMobileDrawer();" id="mobile-tab-btn-profil" class="w-full flex items-center gap-3 px-4 py-3 rounded-lg text-sm font-medium transition-all text-white/70 hover:text-white hover:bg-white/10 text-left">
-                        Mon Profil
-                    </button>
-                    <a href="/evaluations.php" class="w-full flex items-center gap-3 px-4 py-3 rounded-lg text-sm font-medium transition-all text-white/70 hover:text-white hover:bg-white/10 text-left">
-                        Évaluations
-                    </a>
-                </nav>
-            </div>
-            <div class="flex-shrink-0 flex border-t border-[#003619] p-4 bg-[#003c1c] items-center gap-3">
-                <img src="<?= $user['avatar_path'] ? htmlspecialchars(mediaUrl('avatar', $user['avatar_path'])) : 'https://www.gravatar.com/avatar/' . md5(strtolower(trim($user['email']))) . '?d=mp'; ?>" 
-                     alt="Photo de profil" class="w-8 h-8 rounded-full object-cover border border-white/20">
-                <div class="flex-grow overflow-hidden">
-                    <div class="text-xs font-semibold text-white truncate id-student-name"><?= htmlspecialchars($user['name']); ?></div>
-                    <div class="text-[10px] text-white/60 truncate"><?= htmlspecialchars($user['email']); ?></div>
-                </div>
-            </div>
-        </div>
+<header class="sd-topbar">
+    <a class="sd-topbar-logo" href="#home" data-nav="home" aria-label="StudyVibe"><?= Brand::logo('sm') ?></a>
+    <div class="sd-topbar-tools">
+        <button type="button" class="sd-iconbtn" id="notif-btn-m" aria-haspopup="dialog" aria-label="<?= sdH(sd('notifications')) ?>"><?= sdIcon('bell') ?><span class="notif-count hidden">0</span></button>
+        <button type="button" class="sd-iconbtn" data-nav="profile" aria-label="<?= sdH(sd('my_profile')) ?>"><img src="<?= sdH($avatarSrc) ?>" alt="" width="28" height="28" class="sd-avatar-sm"></button>
     </div>
+</header>
 
-    <!-- LEFT SIDEBAR (Desktop) -->
-    <aside class="w-64 bg-[#004B23] text-white flex flex-col justify-between h-screen sticky top-0 border-r border-[#003619] hidden md:flex flex-shrink-0 z-40">
-        <!-- Logo / Brand Header -->
-        <div class="p-6 border-b border-[#003619] flex items-center gap-3">
-            <svg class="w-8 h-8" viewBox="0 0 100 100" fill="none" xmlns="http://www.w3.org/2000/svg">
-                <circle cx="50" cy="50" r="46" stroke="#FFFFFF" stroke-width="3.5" />
-                <line x1="33" y1="31" x2="62" y2="25" stroke="#FFFFFF" stroke-width="2.5" stroke-linecap="round" />
-                <line x1="33" y1="31" x2="49" y2="53" stroke="#FFFFFF" stroke-width="2.5" stroke-linecap="round" />
-                <line x1="33" y1="31" x2="14" y2="13" stroke="#FFFFFF" stroke-width="2.5" stroke-linecap="round" />
-                <line x1="33" y1="31" x2="42" y2="11" stroke="#FFFFFF" stroke-width="2.5" stroke-linecap="round" />
-                <line x1="33" y1="31" x2="20" y2="53" stroke="#FFFFFF" stroke-width="2.5" stroke-linecap="round" />
-                <line x1="49" y1="53" x2="62" y2="25" stroke="#FFFFFF" stroke-width="2.5" stroke-linecap="round" />
-                <circle cx="62" cy="25" r="6" fill="#34C759" />
-                <circle cx="49" cy="53" r="6" fill="#34C759" />
-                <circle cx="33" cy="31" r="6" fill="#34C759" />
-                <circle cx="14" cy="13" r="6" fill="#34C759" />
-                <circle cx="42" cy="11" r="6" fill="#34C759" />
-                <circle cx="20" cy="53" r="6" fill="#34C759" />
-                <path d="M56 10 C52 14, 52 24, 52 29 C52 31, 50 33, 49 33 L45 33 L49 35 C50 37, 51 38, 50 40 C49 41, 47 42, 49 44 C51 45, 54 46, 56 46 C59 46, 65 38, 66 41 C68 46, 60 52, 56 60 C51 68, 50 78, 53 88" stroke="#FFFFFF" stroke-width="3" stroke-linecap="round" stroke-linejoin="round" />
-                <path d="M33 55 C32 52, 32 48, 33 46 C34 44, 36 44, 37 47 C37 50, 37 53, 37 55 C37 51, 38 46, 39 44 C40 42, 42 42, 43 45 C43 48, 43 51, 43 54 C43 51, 44 47, 45 45 C46 43, 48 43, 49 46 C50 49, 51 57, 51 68 C51 75, 49 81, 47 85" stroke="#FFFFFF" stroke-width="3" stroke-linecap="round" stroke-linejoin="round" />
-                <path d="M33 55 C34 61, 35 68, 37 75 C38 81, 39 84, 40 86" stroke="#FFFFFF" stroke-width="3" stroke-linecap="round" stroke-linejoin="round" />
-            </svg>
-            <span class="font-serif text-lg font-semibold tracking-tight text-white">StudyVibe</span>
-            <span class="text-[9px] uppercase tracking-widest bg-[#003619] text-white px-2 py-0.5 border border-[#002610] ml-2 font-mono">Apprenant</span>
-        </div>
+<nav class="sd-bar-nav" aria-label="<?= sdH(sd('nav_label')) ?>">
+    <?php foreach ($nav as $key => [$ic, $label]): ?>
+    <button type="button" class="sd-nav" data-nav="<?= $key ?>"><?= sdIcon($ic, 22) ?><span><?= sdH($label) ?></span></button>
+    <?php endforeach; ?>
+</nav>
 
-        <!-- Navigation Menu -->
-        <nav class="flex-grow py-6 px-4 space-y-1.5 overflow-y-auto">
-            <button onclick="switchTab('catalogue')" id="tab-btn-catalogue" class="w-full flex items-center gap-3 px-4 py-3 rounded-lg text-sm font-semibold transition-all text-white bg-white/10 border-l-4 border-white text-left">
-                Catalogue
-            </button>
-            <button onclick="switchTab('mes-cours')" id="tab-btn-mes-cours" class="w-full flex items-center gap-3 px-4 py-3 rounded-lg text-sm font-medium transition-all text-white/70 hover:text-white hover:bg-white/10 text-left">
-                Mes Études
-            </button>
-            <button onclick="switchTab('bibliotheque')" id="tab-btn-bibliotheque" class="w-full flex items-center gap-3 px-4 py-3 rounded-lg text-sm font-medium transition-all text-white/70 hover:text-white hover:bg-white/10 text-left">
-                Bibliothèque
-            </button>
-            <button onclick="switchTab('releve')" id="tab-btn-releve" class="w-full flex items-center gap-3 px-4 py-3 rounded-lg text-sm font-medium transition-all text-white/70 hover:text-white hover:bg-white/10 text-left">
-                Relevé de Notes
-            </button>
-            <button onclick="switchTab('certifications')" id="tab-btn-certifications" class="w-full flex items-center gap-3 px-4 py-3 rounded-lg text-sm font-medium transition-all text-white/70 hover:text-white hover:bg-white/10 text-left">
-                Certifications
-            </button>
-            <button onclick="switchTab('achievements')" id="tab-btn-achievements" class="w-full flex items-center gap-3 px-4 py-3 rounded-lg text-sm font-medium transition-all text-white/70 hover:text-white hover:bg-white/10 text-left">
-                Succès & Badges
-            </button>
-            <button onclick="switchTab('tele-evaluations')" id="tab-btn-tele-evaluations" class="w-full flex items-center gap-3 px-4 py-3 rounded-lg text-sm font-medium transition-all text-white/70 hover:text-white hover:bg-white/10 text-left">
-                Téléévaluations
-            </button>
-
-            <button onclick="switchTab('profil')" id="tab-btn-profil" class="w-full flex items-center gap-3 px-4 py-3 rounded-lg text-sm font-medium transition-all text-white/70 hover:text-white hover:bg-white/10 text-left">
-                Mon Profil
-            </button>
-            <a href="/evaluations.php" class="w-full flex items-center gap-3 px-4 py-3 rounded-lg text-sm font-medium transition-all text-white/70 hover:text-white hover:bg-white/10 text-left">
-                Évaluations
-            </a>
-        </nav>
-
-        <!-- Profile / Sidebar Footer -->
-        <div class="p-4 border-t border-[#003619] bg-[#003c1c] flex items-center justify-between gap-3">
-            <div class="flex items-center gap-3 overflow-hidden">
-                <img id="header-avatar" 
-                     src="<?= $user['avatar_path'] ? htmlspecialchars(mediaUrl('avatar', $user['avatar_path'])) : 'https://www.gravatar.com/avatar/' . md5(strtolower(trim($user['email']))) . '?d=mp'; ?>" 
-                     alt="Photo de profil" class="w-9 h-9 rounded-full object-cover border border-white/20">
-                <div class="flex-grow overflow-hidden">
-                    <div class="text-xs font-semibold text-white truncate id-student-name"><?= htmlspecialchars($user['name']); ?></div>
-                    <div class="text-[10px] text-white/60 truncate"><?= htmlspecialchars($user['email']); ?></div>
-                </div>
-            </div>
-            <a href="/logout.php" title="Déconnexion" class="text-white/60 hover:text-red-400 transition-colors flex-shrink-0">
-                <svg class="w-4 h-4" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M17 16l4-4m0 0l-4-4m4 4H7m6 4v1a3 3 0 01-3 3H6a3 3 0 01-3-3V7a3 3 0 013-3h4a3 3 0 013 3v1" /></svg>
-            </a>
-        </div>
-    </aside>
-
-    <!-- MAIN CONTAINER -->
-    <div class="flex-grow flex flex-col min-h-screen overflow-x-hidden">
-
-        <!-- Top Header Controls (Desktop) -->
-        <header class="hidden md:flex justify-between items-center py-4 px-8 border-b border-[#E5E5E7] dark:border-[#2C2C2C] bg-white dark:bg-[#1A1A1A] sticky top-0 z-30">
-            <div class="flex items-center gap-2">
-                <span class="text-xs text-[#888888] dark:text-[#AAAAAA] uppercase tracking-wider font-semibold">Tableau de Bord</span>
-            </div>
-            <div class="flex items-center gap-4">
-                <!-- Notifications -->
-                <div class="relative" id="notif-wrap">
-                    <button type="button" id="notif-btn" class="relative p-1.5 text-[#555555] dark:text-[#AAAAAA] hover:text-[#004B23] dark:hover:text-[#34C759] transition-colors rounded-full hover:bg-[#F5F5F7] dark:hover:bg-[#252525]" aria-label="Notifications">
-                        <svg class="w-5 h-5" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
-                            <path stroke-linecap="round" stroke-linejoin="round" d="M14.857 17.082a23.848 23.848 0 005.454-1.31A8.967 8.967 0 0118 9.75v-.7V9A6 6 0 006 9v.75a8.967 8.967 0 01-2.312 6.022c1.733.64 3.56 1.085 5.455 1.31m5.714 0a24.255 24.255 0 01-5.714 0m5.714 0a3 3 0 11-5.714 0" />
-                        </svg>
-                        <span id="notif-count" class="hidden absolute -top-1 -right-1 bg-[#D32F2F] text-white text-[9px] font-bold px-1 py-0.2 rounded-full min-w-[15px] text-center border border-white">0</span>
-                    </button>
-                    <div id="notif-panel-container" class="hidden absolute right-0 top-full mt-2 w-80 bg-white dark:bg-[#1A1A1A] border border-[#E5E5E7] dark:border-[#2C2C2C] shadow-xl z-50 text-left text-sm rounded-lg overflow-hidden flex flex-col max-h-[360px]">
-                        <div class="p-3 border-b border-[#E5E5E7] dark:border-[#2C2C2C] flex justify-between items-center bg-[#F9F7F4] dark:bg-[#252525] flex-shrink-0">
-                            <span class="font-serif font-semibold text-xs uppercase tracking-wider text-[#111111] dark:text-white">Notifications</span>
-                            <button onclick="markAllNotificationsRead(event)" class="text-[10px] text-[#004B23] dark:text-[#34C759] hover:underline font-semibold">Tout marquer comme lu</button>
-                        </div>
-                        <div id="notif-panel" class="overflow-y-auto flex-grow max-h-[300px] dark:text-white/80"></div>
-                    </div>
-                </div>
-
-                <button class="sv-dark-toggle" data-dark-toggle title="Mode sombre"></button>
-                
-                <div class="relative inline-block text-left">
-                    <select id="lang-selector" onchange="changeLanguage(this.value)" class="bg-transparent text-xs border border-[#E5E5E7] dark:border-[#2C2C2C] text-[#555555] dark:text-[#AAAAAA] rounded-sm py-1 px-2 focus:outline-none focus:border-[#004B23] dark:focus:border-[#34C759]">
-                        <option value="fr" <?= TranslationService::getLang() === 'fr' ? 'selected' : ''; ?>>FR</option>
-                        <option value="en" <?= TranslationService::getLang() === 'en' ? 'selected' : ''; ?>>EN</option>
-                    </select>
-                </div>
-            </div>
-        </header>
-
-        <!-- Main Workspace Area -->
-        <main class="flex-grow p-6 md:p-10 lg:p-12 space-y-10 max-w-7xl w-full mx-auto">
-
-        <!-- 1. Onglet CATALOGUE -->
-        <div id="tab-catalogue" class="tab-content space-y-12">
-            <?php if ($continueCourse): ?>
-            <div class="border border-[#004B23] dark:border-[#34C759] bg-[#f8fcf9] dark:bg-[#1a2e22] p-5 rounded-xl flex flex-wrap items-center justify-between gap-4 shadow-sm hover:shadow transition-shadow duration-300">
-                <div>
-                    <div class="text-[10px] uppercase tracking-widest text-[#004B23] dark:text-[#34C759] font-bold mb-1">Continuer l'apprentissage</div>
-                    <div class="font-serif text-lg text-[#111111] dark:text-white"><?= htmlspecialchars($continueCourse['course_title']); ?></div>
-                    <div class="text-xs text-[#555555] dark:text-[#AAAAAA] mt-0.5"><?= htmlspecialchars($continueCourse['lesson_title'] ?? 'Reprendre la leçon'); ?></div>
-                </div>
-                <button type="button" class="px-5 py-2.5 bg-[#004B23] dark:bg-[#34C759] text-white hover:bg-[#003619] dark:hover:bg-[#28a148] text-xs font-semibold uppercase tracking-wider transition-colors rounded-lg cursor-pointer"
-                    onclick="resumeCourse(<?= (int)$continueCourse['course_id']; ?>, <?= (int)$continueCourse['last_lesson_id']; ?>)">
-                    Reprendre
-                </button>
-            </div>
-            <?php endif; ?>
-
-            <?php if (!empty($deadlineAlerts)): ?>
-            <div class="border border-[#E6A817] bg-[#fffbeb] dark:bg-[#2b2413] p-4 rounded-xl space-y-2">
-                <div class="text-xs uppercase tracking-widest text-[#E6A817] font-semibold">Échéances de leçons proches</div>
-                <?php foreach ($deadlineAlerts as $alert): ?>
-                <p class="text-sm text-[#555555] dark:text-[#DDDDDD]">
-                    <strong><?= htmlspecialchars($alert['title']); ?></strong> —
-                    évaluation obligatoire avant le <?= date('d/m/Y', strtotime($alert['eval_deadline'])); ?>
-                </p>
-                <?php endforeach; ?>
-            </div>
-            <?php endif; ?>
-
-            <!-- KPI Apprenant Grid -->
-            <div class="grid grid-cols-2 lg:grid-cols-4 gap-4 md:gap-6" id="student-kpi">
-                <!-- Card 1 -->
-                <div class="bg-white dark:bg-[#1A1A1A] border border-[#E5E5E7] dark:border-[#2C2C2C] p-5 rounded-2xl flex items-center justify-between shadow-sm hover:shadow-md transition-all duration-300 group cursor-pointer" onclick="switchTab('mes-cours')">
-                    <div class="space-y-1">
-                        <span class="text-2xl md:text-3xl font-serif font-bold text-[#004B23] dark:text-[#34C759] transition-transform duration-300 inline-block group-hover:scale-110" id="kpi-completed"><?= $statCompleted; ?></span>
-                        <div class="text-[10px] font-medium text-[#555555] dark:text-[#AAAAAA] uppercase tracking-wider">Cours terminés</div>
-                    </div>
-                    <div class="w-11 h-11 rounded-xl bg-[#004B23]/10 dark:bg-[#34C759]/10 flex items-center justify-center">
-                        <svg class="w-5 h-5 text-[#004B23] dark:text-[#34C759]" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M12 6.253v13m0-13C10.832 5.477 9.246 5 7.5 5S4.168 5.477 3 6.253v13C4.168 18.477 5.754 18 7.5 18s3.332.477 4.5 1.253m0-13C13.168 5.477 14.754 5 16.5 5c1.747 0 3.332.477 4.5 1.253v13C19.832 18.477 18.247 18 16.5 18c-1.746 0-3.332.477-4.5 1.253" /></svg>
-                    </div>
-                </div>
-                <!-- Card 2 -->
-                <div class="bg-white dark:bg-[#1A1A1A] border border-[#E5E5E7] dark:border-[#2C2C2C] p-5 rounded-2xl flex items-center justify-between shadow-sm hover:shadow-md transition-all duration-300 group cursor-pointer" onclick="switchTab('releve')">
-                    <div class="space-y-1">
-                        <span class="text-2xl md:text-3xl font-serif font-bold text-[#004B23] dark:text-[#34C759] transition-transform duration-300 inline-block group-hover:scale-110" id="kpi-score"><?= $statAvgScore; ?>%</span>
-                        <div class="text-[10px] font-medium text-[#555555] dark:text-[#AAAAAA] uppercase tracking-wider">Score moyen</div>
-                    </div>
-                    <div class="w-11 h-11 rounded-xl bg-[#004B23]/10 dark:bg-[#34C759]/10 flex items-center justify-center">
-                        <svg class="w-5 h-5 text-[#004B23] dark:text-[#34C759]" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" /></svg>
-                    </div>
-                </div>
-                <!-- Card 3 -->
-                <div class="bg-white dark:bg-[#1A1A1A] border border-[#E5E5E7] dark:border-[#2C2C2C] p-5 rounded-2xl flex items-center justify-between shadow-sm hover:shadow-md transition-all duration-300 group">
-                    <div class="space-y-1">
-                        <span class="text-2xl md:text-3xl font-serif font-bold text-[#004B23] dark:text-[#34C759] transition-transform duration-300 inline-block group-hover:scale-110" id="kpi-time"><?= $statStudyH; ?>h<?= str_pad((string)$statStudyM, 2, '0', STR_PAD_LEFT); ?></span>
-                        <div class="text-[10px] font-medium text-[#555555] dark:text-[#AAAAAA] uppercase tracking-wider">Temps d'étude</div>
-                    </div>
-                    <div class="w-11 h-11 rounded-xl bg-[#004B23]/10 dark:bg-[#34C759]/10 flex items-center justify-center">
-                        <svg class="w-5 h-5 text-[#004B23] dark:text-[#34C759]" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" /></svg>
-                    </div>
-                </div>
-                <!-- Card 4 -->
-                <div class="bg-white dark:bg-[#1A1A1A] border border-[#E5E5E7] dark:border-[#2C2C2C] p-5 rounded-2xl flex items-center justify-between shadow-sm hover:shadow-md transition-all duration-300 group cursor-pointer" onclick="switchTab('certifications')">
-                    <div class="space-y-1">
-                        <span class="text-2xl md:text-3xl font-serif font-bold text-[#004B23] dark:text-[#34C759] transition-transform duration-300 inline-block group-hover:scale-110" id="kpi-certs"><?= count($myCertificates); ?></span>
-                        <div class="text-[10px] font-medium text-[#555555] dark:text-[#AAAAAA] uppercase tracking-wider">Certifications</div>
-                    </div>
-                    <div class="w-11 h-11 rounded-xl bg-[#004B23]/10 dark:bg-[#34C759]/10 flex items-center justify-center">
-                        <svg class="w-5 h-5 text-[#004B23] dark:text-[#34C759]" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M9 12l2 2 4-4M7.835 4.697a3.42 3.42 0 001.946-.806 3.42 3.42 0 014.438 0 3.42 3.42 0 001.946.806 3.42 3.42 0 013.138 3.138 3.42 3.42 0 00.806 1.946 3.42 3.42 0 010 4.438 3.42 3.42 0 00-.806 1.946 3.42 3.42 0 01-3.138 3.138 3.42 3.42 0 00-1.946.806 3.42 3.42 0 01-4.438 0 3.42 3.42 0 00-1.946-.806 3.42 3.42 0 01-3.138-3.138 3.42 3.42 0 00-.806-1.946 3.42 3.42 0 010-4.438 3.42 3.42 0 00.806-1.946 3.42 3.42 0 013.138-3.138z" /></svg>
-                    </div>
-                </div>
-            </div>
-
-            <?php if (!empty($myBadges)): ?>
-            <div class="flex flex-wrap gap-2 items-center" id="badges-row">
-                <span class="text-[10px] font-mono uppercase tracking-widest text-[#888888]">Badges Obtenus :</span>
-                <?php
-                $badgeLabels = ['study_hour' => '1h d\'étude', 'first_lesson' => 'Première leçon', 'certified' => 'Certifié', 'course_complete' => 'Cours terminé'];
-                foreach ($myBadges as $b): ?>
-                    <span class="text-[11px] px-3 py-1 border border-[#004B23] dark:border-[#34C759] text-[#004B23] dark:text-[#34C759] rounded-full bg-white dark:bg-[#1C2C21] font-medium shadow-sm"><?= $badgeLabels[$b['badge_type']] ?? $b['badge_type']; ?></span>
-                <?php endforeach; ?>
-            </div>
-            <?php endif; ?>
-            <div class="space-y-3">
-                <h2 class="font-serif text-3xl font-light">Catalogue des Enseignements</h2>
-                <p class="text-sm font-light text-[#555555] max-w-xl">
-                    Découvrez les programmes disponibles. Certains cours requièrent une clé de connexion fournie par l'enseignant.
-                </p>
-                <input type="search" id="course-search" placeholder="Rechercher un cours, module ou enseignant…"
-                    class="w-full max-w-md px-4 py-2 bg-[#F5F5F7] border border-[#E5E5E7] text-sm focus:outline-none focus:border-[#004B23] rounded-sm">
-            </div>
-
-            <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-8" id="course-grid">
-                <?php foreach ($courses as $c): ?>
-                    <div class="bg-white border border-[#E5E5E7] hover:border-[#004B23] hover:shadow-lg transition-all duration-300 rounded-lg overflow-hidden flex flex-col justify-between"
-                         data-course-card
-                         data-search="<?= htmlspecialchars(strtolower($c['title'] . ' ' . $c['module_title'] . ' ' . $c['teacher_name'] . ' ' . $c['description'])); ?>">
-                        <!-- Image ou Gradient de couverture -->
-                        <div class="w-full h-44 flex-shrink-0 relative overflow-hidden select-none bg-gradient-to-br from-[#004B23] to-[#006630]">
-                            <?php if (!empty($c['cover_image'])): ?>
-                                <img src="/download.php?type=cover&file=<?= urlencode($c['cover_image']); ?>" 
-                                     alt="Illustration <?= htmlspecialchars($c['title']); ?>" 
-                                     class="w-full h-full object-cover transition-transform duration-500 hover:scale-105">
-                            <?php else: ?>
-                                <!-- Motif géométrique premium minimaliste de fallback -->
-                                <div class="absolute inset-0 opacity-20 bg-[radial-gradient(#ffffff_1.5px,transparent_1.5px)] [background-size:16px_16px]"></div>
-                                <div class="absolute bottom-4 left-4 right-4 flex items-center justify-between">
-                                    <div class="h-10 w-10 bg-white/10 backdrop-blur-md flex items-center justify-center rounded-lg text-white">
-                                        <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M12 14l9-5-9-5-9 5 9 5z"/><path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M12 14l6.16-3.422a12.083 12.083 0 01.665 6.479A11.952 11.952 0 0112 20.055a11.952 11.952 0 01-6.824-2.998 12.078 12.078 0 01.665-6.479L12 14z"/></svg>
-                                    </div>
-                                </div>
-                            <?php endif; ?>
-                        </div>
-                        
-                        <div class="p-6 flex-grow flex flex-col justify-between space-y-4">
-                            <div class="space-y-2">
-                                <span class="text-[10px] font-mono uppercase tracking-widest text-[#888888] block">
-                                    <?= htmlspecialchars($c['module_title']); ?>
-                                </span>
-                                <h3 class="font-serif text-lg font-semibold text-[#111111] leading-snug">
-                                    <?= htmlspecialchars($c['title']); ?>
-                                </h3>
-                                <p class="text-xs text-[#888888] font-light">
-                                    Enseigné par : <span class="font-normal text-[#555555]"><?= htmlspecialchars($c['teacher_name']); ?></span>
-                                </p>
-                                <p class="text-sm font-light text-[#555555] line-clamp-3 pt-2 leading-relaxed">
-                                    <?= htmlspecialchars($c['description']); ?>
-                                </p>
-                            </div>
-
-                            <div class="pt-4 border-t border-[#E5E5E7] flex justify-between items-center">
-                                <?php if ($c['is_enrolled']): ?>
-                                    <span class="text-xs text-[#004B23] font-semibold flex items-center gap-1.5">
-                                        ✓ Déjà inscrit (<?= (int)$c['progress_percent']; ?>%)
-                                    </span>
-                                    <button onclick="switchTab('mes-cours')" class="text-xs font-semibold uppercase tracking-wider text-[#004B23] hover:underline">
-                                        Étudier
-                                    </button>
-                                <?php else: ?>
-                                    <span class="text-xs font-mono text-[#888888]">
-                                        <?= $c['enrollment_key'] ? 'Clé requise' : 'Accès Libre'; ?>
-                                    </span>
-                                    <button onclick="attemptEnroll(<?= $c['id']; ?>, <?= $c['enrollment_key'] ? 'true' : 'false'; ?>)"
-                                        class="px-4 py-2 bg-[#111111] hover:bg-[#004B23] text-[#FFFFFF] text-xs font-semibold uppercase tracking-wider transition-colors rounded-sm">
-                                        S'inscrire
-                                    </button>
-                                <?php endif; ?>
-                            </div>
-                        </div>
-                    </div>
-                <?php endforeach; ?>
-            </div>
-        </div>
-
-        <!-- 2. Onglet MES ÉTUDES -->
-        <div id="tab-mes-cours" class="tab-content hidden space-y-12">
-            <div class="space-y-3">
-                <h2 class="font-serif text-3xl font-light">Mes Cours Actifs</h2>
-                <p class="text-sm font-light text-[#555555]">
-                    Consultez vos cours, étudiez les chapitres et passez les évaluations finales pour obtenir vos certifications.
-                </p>
-            </div>
-
-            <div class="space-y-8">
-                <?php 
-                $enrolledCourses = array_filter($courses, fn($c) => $c['is_enrolled']);
-                if (empty($enrolledCourses)):
-                ?>
-                    <div class="p-12 border border-dashed border-[#E5E5E7] text-center text-sm font-light text-[#888888]">
-                        Vous n'êtes inscrit à aucun cours pour le moment. Parcourez le catalogue pour vous inscrire.
-                    </div>
-                <?php else: ?>
-                    <?php foreach ($enrolledCourses as $ec): ?>
-                        <div class="border border-[#E5E5E7] bg-white rounded-lg overflow-hidden shadow-sm hover:shadow-md transition-shadow duration-300">
-                            <!-- Banner image / gradient -->
-                            <div class="w-full h-32 flex-shrink-0 relative overflow-hidden select-none bg-gradient-to-r from-[#004B23] to-[#006630]">
-                                <?php if (!empty($ec['cover_image'])): ?>
-                                    <img src="/download.php?type=cover&file=<?= urlencode($ec['cover_image']); ?>" 
-                                         alt="Illustration" 
-                                         class="w-full h-full object-cover">
-                                <?php else: ?>
-                                    <div class="absolute inset-0 opacity-15 bg-[radial-gradient(#ffffff_1px,transparent_1px)] [background-size:12px_12px]"></div>
-                                <?php endif; ?>
-                            </div>
-
-                            <div class="p-6 space-y-6">
-                                <div class="flex flex-col md:flex-row justify-between items-start md:items-center gap-4">
-                                <div>
-                                    <span class="text-[10px] font-mono uppercase tracking-widest text-[#888888]">
-                                        <?= htmlspecialchars($ec['module_title']); ?>
-                                    </span>
-                                    <h3 class="font-serif text-2xl font-light text-[#111111]">
-                                        <?= htmlspecialchars($ec['title']); ?>
-                                    </h3>
-                                    <p class="text-xs text-[#888888] font-light mt-0.5">
-                                        Responsable : <?= htmlspecialchars($ec['teacher_name']); ?>
-                                    </p>
-                                </div>
-                                <div class="flex items-center gap-4 flex-shrink-0">
-                                    <!-- Boutons actions -->
-                                    <button onclick="studyCourse(<?= $ec['id']; ?>)" 
-                                        class="px-5 py-2.5 bg-[#111111] text-[#FFFFFF] text-xs font-semibold uppercase tracking-wider hover:bg-[#004B23] transition-colors rounded-sm">
-                                        Accéder aux Leçons
-                                    </button>
-                                    
-                                    <!-- Bouton Certif (inactif si progress < 100) -->
-                                    <?php if ((int)$ec['progress_percent'] === 100): ?>
-                                        <button onclick="startFinalExam(<?= $ec['id']; ?>, '<?= htmlspecialchars($ec['title'], ENT_QUOTES); ?>')"
-                                            class="px-5 py-2.5 bg-[#004B23] text-[#FFFFFF] text-xs font-semibold uppercase tracking-wider hover:bg-[#111111] transition-colors rounded-sm">
-                                            Passer la Certification
-                                        </button>
-                                    <?php else: ?>
-                                        <button disabled title="Complétez le cours à 100% pour débloquer le QCM final"
-                                            class="px-5 py-2.5 bg-[#F5F5F7] border border-[#E5E5E7] text-[#888888] text-xs font-semibold uppercase tracking-wider cursor-not-allowed rounded-sm">
-                                            Certifier (Bloqué)
-                                        </button>
-                                    <?php endif; ?>
-                                </div>
-                            </div>
-
-                            <!-- Barre de Progression Fine Verte s'animant -->
-                            <div class="space-y-2">
-                                <div class="flex justify-between text-xs font-light text-[#555555]">
-                                    <span>Progression</span>
-                                    <span class="font-semibold text-[#111111]"><?= (int)$ec['progress_percent']; ?>%</span>
-                                </div>
-                                <div class="h-1 w-full bg-[#F5F5F7] rounded-full overflow-hidden">
-                                    <div class="h-full bg-[#004B23] transition-all duration-1000 ease-out" style="width: <?= (int)$ec['progress_percent']; ?>%"></div>
-                                </div>
-                            </div>
-                        </div>
-                        </div>
-                    <?php endforeach; ?>
-                <?php endif; ?>
-            </div>
-        </div>
-
-        <!-- 2b. Onglet BIBLIOTHÈQUE DE COURS -->
-        <div id="tab-bibliotheque" class="tab-content hidden space-y-8">
-            <div class="flex flex-col md:flex-row md:items-end justify-between gap-4 border-b border-[#E5E5E7] pb-6">
-                <div class="space-y-2">
-                    <div class="inline-flex items-center gap-2 px-3 py-1 bg-[#004B23]/10 text-[#004B23] text-xs font-semibold uppercase tracking-wider rounded-full">
-                        <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 6.253v13m0-13C10.832 5.477 9.246 5 7.5 5S4.168 5.477 3 6.253v13C4.168 18.477 5.754 18 7.5 18s3.332.477 4.5 1.253m0-13C13.168 5.477 14.754 5 16.5 5c1.747 0 3.332.477 4.5 1.253v13C19.832 18.477 18.247 18 16.5 18c-1.746 0-3.332.477-4.5 1.253"/></svg>
-                        Ressources Pédagogiques
-                    </div>
-                    <h2 class="font-serif text-3xl font-light">Bibliothèque du Cours</h2>
-                    <p class="text-sm text-[#555555]">Consultez et téléchargez tous les supports d'étude, syllabi officiels, fichiers PDF (jusqu'à 64Mo), vidéos et notes de cours rédigées par vos enseignants.</p>
-                </div>
-            </div>
-
-            <?php if (empty($studentLibraryItems)): ?>
-                <div class="p-12 text-center border border-dashed border-[#E5E5E7] rounded-sm bg-gray-50/50">
-                    <svg class="w-12 h-12 text-gray-300 mx-auto mb-3" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M12 6.253v13m0-13C10.832 5.477 9.246 5 7.5 5S4.168 5.477 3 6.253v13C4.168 18.477 5.754 18 7.5 18s3.332.477 4.5 1.253m0-13C13.168 5.477 14.754 5 16.5 5c1.747 0 3.332.477 4.5 1.253v13C19.832 18.477 18.247 18 16.5 18c-1.746 0-3.332.477-4.5 1.253"/></svg>
-                    <h3 class="text-sm font-semibold text-[#111111] mb-1">Aucune ressource disponible pour l'instant</h3>
-                    <p class="text-xs text-[#888888]">Vos enseignants publieront ici les documents PDF, corrigés et guides au fil de votre progression.</p>
-                </div>
-            <?php else: ?>
-                <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
-                    <?php foreach ($studentLibraryItems as $item): 
-                        $cat = !empty($item['category']) ? $item['category'] : (!empty($item['item_type']) ? $item['item_type'] : 'document');
-                        $vUrl = !empty($item['video_url']) ? $item['video_url'] : (!empty($item['external_url']) ? $item['external_url'] : '');
-                    ?>
-                        <div class="p-5 border border-[#E5E5E7] dark:border-[#2C2C2C] bg-white dark:bg-[#1E1E1E] rounded-sm hover:shadow-md transition-all flex flex-col justify-between space-y-4">
-                            <div class="space-y-2">
-                                <div class="flex items-center justify-between gap-2">
-                                    <span class="px-2.5 py-0.5 text-[10px] font-bold uppercase tracking-wider bg-gray-100 dark:bg-gray-800 text-[#111111] dark:text-white rounded-sm">
-                                        <?= htmlspecialchars(strtoupper((string)$cat)) ?>
-                                    </span>
-                                    <span class="text-[11px] text-[#888888] font-mono">
-                                        <?= date('d/m/Y', strtotime($item['created_at'])) ?>
-                                    </span>
-                                </div>
-                                <h3 class="text-base font-semibold text-[#111111] dark:text-white line-clamp-1"><?= htmlspecialchars($item['title']) ?></h3>
-                                <p class="text-xs text-[#004B23] dark:text-[#34C759] font-medium"><?= htmlspecialchars($item['course_title'] ?? '') ?></p>
-                                <?php if (!empty($item['description'])): ?>
-                                    <p class="text-xs text-[#555555] dark:text-[#AAAAAA] line-clamp-2"><?= htmlspecialchars($item['description']) ?></p>
-                                <?php endif; ?>
-                            </div>
-
-                            <div class="pt-3 border-t border-[#E5E5E7] dark:border-[#2C2C2C] flex items-center justify-between gap-3">
-                                <?php if (!empty($item['file_path'])): ?>
-                                    <a href="/download.php?type=library&file=<?= urlencode(basename($item['file_path'])) ?>" target="_blank"
-                                        class="px-4 py-2 bg-[#004B23] text-white text-xs font-semibold uppercase tracking-wider rounded-sm hover:bg-[#003d1c] transition-colors inline-flex items-center gap-2">
-                                        <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4"/></svg>
-                                        Télécharger (PDF / Fichier)
-                                    </a>
-                                <?php elseif (!empty($vUrl)): ?>
-                                    <a href="<?= htmlspecialchars($vUrl) ?>" target="_blank"
-                                        class="px-4 py-2 bg-red-700 text-white text-xs font-semibold uppercase tracking-wider rounded-sm hover:bg-red-800 transition-colors inline-flex items-center gap-2">
-                                        <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M14.752 11.168l-3.197-2.132A1 1 0 0010 9.87v4.263a1 1 0 001.555.832l3.197-2.132a1 1 0 000-1.664z"/></svg>
-                                        Visionner Vidéo
-                                    </a>
-                                <?php elseif (!empty($item['content_markdown'])): ?>
-                                    <button type="button" onclick="viewLibraryTextModal(<?= htmlspecialchars(json_encode($item)) ?>)"
-                                        class="px-4 py-2 bg-[#111111] text-white text-xs font-semibold uppercase tracking-wider rounded-sm hover:bg-[#004B23] transition-colors inline-flex items-center gap-2">
-                                        <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z"/><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M2.458 12C3.732 7.943 7.523 5 12 5c4.478 0 8.268 2.943 9.542 7-1.274 4.057-5.064 7-9.542 7-4.477 0-8.268-2.943-9.542-7z"/></svg>
-                                        Consulter Texte (LaTeX)
-                                    </button>
-                                <?php else: ?>
-                                    <span class="text-xs text-[#888888] italic">Ressource en ligne</span>
-                                <?php endif; ?>
-                            </div>
-                        </div>
-                    <?php endforeach; ?>
-                </div>
-            <?php endif; ?>
-        </div>
-
-        <!-- 2c. Onglet RELEVÉ DE NOTES -->
-        <div id="tab-releve" class="tab-content hidden space-y-8">
-            <div class="flex flex-col md:flex-row md:items-end justify-between gap-4">
-                <div class="space-y-3">
-                    <h2 class="font-serif text-3xl font-light">Relevé de Notes</h2>
-                    <p class="text-sm font-light text-[#555555]">Historique de progression, scores par leçon et relevés de tentatives de certification.</p>
-                </div>
-                <a href="/student/releve.php" target="_blank"
-                    class="inline-flex items-center px-5 py-2.5 bg-[#111111] text-white text-xs font-semibold uppercase tracking-wider hover:bg-[#004B23] transition-colors rounded-sm flex-shrink-0">
-                    Voir / Télécharger le relevé PDF
-                </a>
-            </div>
-            <div id="transcript-container" class="space-y-6">
-                <p class="text-sm text-[#888888] italic">Chargement du relevé…</p>
-            </div>
-        </div>
-
-        <!-- 3. Onglet CERTIFICATIONS -->
-        <div id="tab-certifications" class="tab-content hidden space-y-12">
-            <div class="space-y-3">
-                <h2 class="font-serif text-3xl font-light">Mes Certifications Obtenues</h2>
-                <p class="text-sm font-light text-[#555555]">
-                    Vos diplômes officiels délivrés après validation d'un module entier à la suite d'un score minimum de 80% au QCM.
-                </p>
-            </div>
-
-            <div class="space-y-6">
-                <?php if (empty($myCertificates)): ?>
-                    <div class="p-12 border border-dashed border-[#E5E5E7] text-center text-sm font-light text-[#888888]">
-                        Vous n'avez pas encore obtenu de certificat. Progressez dans vos cours et validez les examens finaux à plus de 80%.
-                    </div>
-                <?php else: ?>
-                    <div class="grid grid-cols-1 md:grid-cols-2 gap-8">
-                        <?php foreach ($myCertificates as $cert): ?>
-                            <div class="border border-[#111111] p-8 space-y-6 bg-[var(--sv-cream-light)] flex flex-col justify-between">
-                                <div class="space-y-4">
-                                    <div class="text-[10px] font-mono uppercase tracking-widest text-[#004B23] font-semibold">
-                                        ✓ Certificat de Validation
-                                    </div>
-                                    <h3 class="font-serif text-2xl font-light text-[#111111] leading-tight">
-                                        <?= htmlspecialchars($cert['course_title'] ?? 'Cours Inconnu'); ?>
-                                    </h3>
-                                    <p class="text-xs text-[#555555] font-light leading-relaxed">
-                                        Délivré officiellement à <span class="font-semibold text-[#111111]"><?= htmlspecialchars($user['name']); ?></span> pour la validation réglementaire du cours de formation.
-                                    </p>
-                                </div>
-                                <div class="pt-6 border-t border-[#E5E5E7] flex justify-between items-center text-xs flex-wrap gap-2">
-                                    <span class="font-mono text-[#888888]">Code : <span class="text-[#111111] font-semibold"><?= htmlspecialchars($cert['certificate_code']); ?></span></span>
-                                    <div class="flex gap-3">
-                                        <a href="/certificate.php?code=<?= urlencode($cert['certificate_code']); ?>"
-                                           class="text-[#004B23] font-semibold uppercase tracking-wider hover:underline">Voir / Imprimer PDF</a>
-                                        <a href="/verify.php?code=<?= urlencode($cert['certificate_code']); ?>" target="_blank"
-                                           class="text-[#888888] hover:underline">Vérifier</a>
-                                    </div>
-                                    <span class="text-[#888888]"><?= date('d/m/Y', strtotime($cert['issued_at'])); ?></span>
-                                </div>
-                            </div>
-                        <?php endforeach; ?>
-                    </div>
-                <?php endif; ?>
-            </div>
-        </div>
-
-        <!-- 3a. Onglet ACHIEVEMENTS -->
-        <div id="tab-achievements" class="tab-content hidden space-y-12">
-            <div class="space-y-3">
-                <h2 class="font-serif text-3xl font-light">Mes Succès & Badges</h2>
-                <p class="text-sm font-light text-[#555555]">
-                    Débloquez des badges uniques en complétant vos cours, en obtenant de parfaits scores ou en étudiant à toute heure.
-                </p>
-            </div>
-
-            <!-- Progression & Level Dashboard -->
-            <?php
-            $unlockedCount = count($myBadges);
-            $totalBadges = count($allBadgesConfig);
-            $percentUnlocked = $totalBadges > 0 ? round(($unlockedCount / $totalBadges) * 100) : 0;
-            
-            // Determine Level Rank
-            if ($unlockedCount <= 1) {
-                $rankTitle = "Novice Académique";
-                $rankColor = "bg-zinc-100 text-zinc-800 border-zinc-200 dark:bg-zinc-900/50 dark:text-zinc-300 dark:border-zinc-800";
-            } elseif ($unlockedCount <= 3) {
-                $rankTitle = "Initié Studieux";
-                $rankColor = "bg-emerald-50 text-emerald-800 border-emerald-200 dark:bg-emerald-950/20 dark:text-emerald-400 dark:border-emerald-900/50";
-            } elseif ($unlockedCount <= 5) {
-                $rankTitle = "Spécialiste Éclairé";
-                $rankColor = "bg-indigo-50 text-indigo-800 border-indigo-200 dark:bg-indigo-950/20 dark:text-indigo-400 dark:border-indigo-900/50";
-            } elseif ($unlockedCount <= 7) {
-                $rankTitle = "Expert Émérite";
-                $rankColor = "bg-amber-50 text-amber-800 border-amber-200 dark:bg-amber-950/20 dark:text-amber-400 dark:border-amber-900/50";
-            } else {
-                $rankTitle = "Grand Maître StudyVibe";
-                $rankColor = "bg-gradient-to-r from-yellow-500/10 via-pink-500/10 to-purple-500/10 text-purple-900 border-purple-300 dark:from-yellow-500/20 dark:to-purple-500/20 dark:text-purple-300 dark:border-purple-800";
-            }
-            ?>
-
-            <div class="border border-[#111111] dark:border-zinc-800 p-8 bg-[var(--sv-cream-light)] dark:bg-[#1E1E1E]/50 space-y-6">
-                <div class="flex flex-col md:flex-row md:items-center justify-between gap-6">
-                    <div class="flex items-center gap-4">
-                        <div class="w-16 h-16 rounded-full bg-[#004B23] text-white flex items-center justify-center font-serif text-2xl font-bold">
-                            <?= strtoupper(substr($user['name'], 0, 1)); ?>
-                        </div>
-                        <div>
-                            <div class="text-xs uppercase tracking-widest text-[#888888] font-mono">Rang actuel</div>
-                            <h3 class="font-serif text-2xl font-light text-[#111111] dark:text-white mt-0.5"><?= htmlspecialchars($user['name']); ?></h3>
-                            <span class="inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full text-xs font-semibold border <?= $rankColor ?> mt-1.5">
-                                <?= $rankTitle ?>
-                            </span>
-                        </div>
-                    </div>
-                    
-                    <div class="text-left md:text-right">
-                        <div class="text-xs uppercase tracking-widest text-[#888888] font-mono">Taux de Complétion</div>
-                        <div class="text-3xl font-light text-[#111111] dark:text-white mt-0.5"><?= $unlockedCount ?> / <?= $totalBadges ?> Badges</div>
-                        <p class="text-xs text-[#555555] dark:text-zinc-400 mt-1 font-light">
-                            Prochain niveau après <?= min($totalBadges, $unlockedCount + 1) ?> badge<?= ($unlockedCount + 1 > 1) ? 's' : '' ?>.
-                        </p>
-                    </div>
-                </div>
-
-                <!-- Custom Progress Bar -->
-                <div class="space-y-2 pt-2">
-                    <div class="flex justify-between text-xs font-light text-[#555555] dark:text-zinc-400">
-                        <span>Progression Générale</span>
-                        <span class="font-semibold text-[#111111] dark:text-white"><?= $percentUnlocked ?>%</span>
-                    </div>
-                    <div class="h-3 w-full bg-white dark:bg-zinc-900 border border-[#111111] dark:border-zinc-800 rounded-full overflow-hidden p-0.5">
-                        <div class="h-full bg-gradient-to-r from-[#004B23] to-[#34C759] rounded-full transition-all duration-1000 ease-out" style="width: <?= $percentUnlocked ?>%"></div>
-                    </div>
-                </div>
-            </div>
-
-            <!-- Badges Grid -->
-            <div id="badges-grid-container" class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-6">
-                <?php foreach ($allBadgesConfig as $key => $config): ?>
-                    <?php 
-                    $isEarned = isset($earnedBadgesLookup[$key]);
-                    $earnedDate = $isEarned ? $earnedBadgesLookup[$key] : null;
-                    ?>
-                    <div data-badge-key="<?= $key ?>"
-                         onclick="openBadgeModal('<?= $key ?>', '<?= addslashes($config['title']) ?>', '<?= addslashes($config['desc']) ?>', '<?= $isEarned ? 'unlocked' : 'locked' ?>', '<?= $earnedDate ? date('d/m/Y', strtotime($earnedDate)) : '' ?>')" 
-                         class="cursor-pointer border border-[#111111] dark:border-zinc-800 p-6 bg-white dark:bg-[#1E1E1E] transition-all hover:shadow-[4px_4px_0px_#111111] dark:hover:shadow-[4px_4px_0px_#34C759] duration-300 flex flex-col justify-between items-center text-center space-y-4 <?= $isEarned ? 'hover:scale-[1.02]' : 'opacity-65' ?> sv-badge-card">
-                        
-                        <!-- Icon Wrapper with status styling -->
-                        <div class="relative w-20 h-20 flex items-center justify-center rounded-full border-2 <?= $isEarned ? 'bg-gradient-to-br ' . $config['color'] . ' text-white ' . $config['border'] : 'bg-zinc-100 text-zinc-400 border-dashed border-zinc-300 dark:bg-zinc-800 dark:border-zinc-700' ?> transition-all duration-500">
-                            <?= $config['icon'] ?>
-                            
-                            <?php if (!$isEarned): ?>
-                                <!-- Lock Badge -->
-                                <div class="absolute -bottom-1 -right-1 bg-zinc-800 text-white rounded-full p-1 border border-white dark:border-zinc-900">
-                                    <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" stroke-width="2.5" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M16.5 10.5V6.75a4.5 4.5 0 10-9 0v3.75m-.75 11.25h10.5a2.25 2.25 0 002.25-2.25v-6.75a2.25 2.25 0 00-2.25-2.25H6.75a2.25 2.25 0 00-2.25 2.25v6.75a2.25 2.25 0 002.25 2.25z" /></svg>
-                                </div>
-                            <?php else: ?>
-                                <!-- Glow Effect -->
-                                <div class="absolute inset-0 rounded-full bg-gradient-to-br <?= $config['color'] ?> opacity-25 blur-md -z-10 animate-pulse"></div>
-                            <?php endif; ?>
-                        </div>
-
-                        <!-- Card text details -->
-                        <div class="space-y-1 w-full">
-                            <h4 class="font-serif text-lg font-semibold text-[#111111] dark:text-white"><?= htmlspecialchars($config['title']) ?></h4>
-                            <p class="text-xs text-[#555555] dark:text-zinc-400 font-light line-clamp-2 leading-relaxed">
-                                <?= htmlspecialchars($config['desc']) ?>
-                            </p>
-                        </div>
-
-                        <!-- Earned status / Date tag -->
-                        <div class="w-full pt-3 border-t border-[#E5E5E7] dark:border-zinc-800">
-                            <?php if ($isEarned): ?>
-                                <span class="inline-flex items-center gap-1 text-[10px] font-mono text-[#004B23] dark:text-[#34C759] font-bold">
-                                    <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" stroke-width="3" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M4.5 12.75l6 6 9-13.5" /></svg>
-                                    Obtenu le <?= date('d/m/Y', strtotime($earnedDate)) ?>
-                                </span>
-                            <?php else: ?>
-                                <span class="text-[10px] font-mono text-zinc-500 uppercase tracking-wider">Verrouillé</span>
-                            <?php endif; ?>
-                        </div>
-                    </div>
-                <?php endforeach; ?>
-            </div>
-        </div>
-
-        <!-- 3b. Onglet TÉLÉÉVALUATIONS -->
-        <div id="tab-tele-evaluations" class="tab-content hidden space-y-12">
-            <div class="space-y-3">
-                <h2 class="font-serif text-3xl font-light">Mes Téléévaluations</h2>
-                <p class="text-sm font-light text-[#555555]">
-                    Retrouvez ici toutes vos séances d'évaluation en direct et asynchrones, vos scores et vos rapports de correction détaillés.
-                </p>
-            </div>
-
-            <div class="space-y-6">
-                <?php if (empty($myEvaluations)): ?>
-                    <div class="p-12 border border-dashed border-[#E5E5E7] text-center text-sm font-light text-[#888888]">
-                        Vous n'avez participé à aucune téléévaluation pour le moment.<br>
-                        <a href="/evaluations.php" class="text-brand font-semibold hover:underline mt-2 inline-block">Parcourir les évaluations disponibles</a>
-                    </div>
-                <?php else: ?>
-                    <div class="overflow-x-auto border border-[#E5E5E7] rounded-sm bg-white shadow-sm">
-                        <table class="w-full text-sm">
-                            <thead>
-                                <tr class="border-b border-[#111111] text-xs uppercase text-[#555555] bg-[#FAFAFA]">
-                                    <th class="p-4 text-left font-medium">Session / Cours</th>
-                                    <th class="p-4 text-center font-medium">Type</th>
-                                    <th class="p-4 text-center font-medium">Date d'inscription</th>
-                                    <th class="p-4 text-center font-medium">Score / Résultat</th>
-                                    <th class="p-4 text-right font-medium">Actions</th>
-                                </tr>
-                            </thead>
-                            <tbody>
-                                <?php foreach ($myEvaluations as $eval): 
-                                    $isFinished = $eval['score'] !== null;
-                                    $token = $isFinished ? hash_hmac('sha256', (string)$eval['registration_id'], APP_SECRET) : '';
-                                ?>
-                                    <tr class="border-b border-[#E5E5E7] hover:bg-[#FAFAFA]/50 transition-colors">
-                                        <td class="p-4">
-                                            <div class="font-serif font-semibold text-[#111111] text-base"><?= htmlspecialchars($eval['session_title']); ?></div>
-                                            <div class="text-xs text-[#888888] font-light mt-0.5"><?= htmlspecialchars($eval['course_title']); ?></div>
-                                        </td>
-                                        <td class="p-4 text-center">
-                                            <span class="px-2.5 py-1 text-[10px] uppercase font-bold rounded-sm border <?= $eval['is_async'] ? 'bg-blue-50 text-blue-700 border-blue-200/50' : 'bg-orange-50 text-orange-700 border-orange-200/50' ?>">
-                                                <?= $eval['is_async'] ? 'Asynchrone' : 'En direct' ?>
-                                            </span>
-                                        </td>
-                                        <td class="p-4 text-center text-xs text-[#555555]">
-                                            <?= date('d/m/Y H:i', strtotime($eval['registered_at'])); ?>
-                                        </td>
-                                        <td class="p-4 text-center">
-                                            <?php if ($isFinished): ?>
-                                                <span class="text-brand font-semibold text-sm"><?= round((float)$eval['score'], 1); ?> %</span>
-                                            <?php else: ?>
-                                                <span class="text-xs font-medium text-orange-600 bg-orange-50 px-2 py-0.5 border border-orange-200/50 rounded-sm">En attente</span>
-                                            <?php endif; ?>
-                                        </td>
-                                        <td class="p-4 text-right">
-                                            <?php if ($isFinished): ?>
-                                                <a href="/student/evaluation-results.php?registration_id=<?= $eval['registration_id']; ?>&token=<?= $token; ?>"
-                                                   class="inline-block px-4 py-2 bg-[#111111] hover:bg-brand text-[#FFFFFF] text-xs font-semibold uppercase tracking-wider transition-colors rounded-sm shadow-sm">
-                                                    Rapport détaillé
-                                                </a>
-                                            <?php else: ?>
-                                                <a href="/live-session.php?code=<?= urlencode($eval['session_code']); ?>"
-                                                   class="inline-block px-4 py-2 bg-brand hover:bg-brandHover text-[#FFFFFF] text-xs font-semibold uppercase tracking-wider transition-colors rounded-sm shadow-sm">
-                                                    Rejoindre
-                                                </a>
-                                            <?php endif; ?>
-                                        </td>
-                                    </tr>
-                                <?php endforeach; ?>
-                            </tbody>
-                        </table>
-                    </div>
-                <?php endif; ?>
-            </div>
-        </div>
-
-
-
-        <!-- 4. Onglet MON PROFIL -->
-        <div id="tab-profil" class="tab-content hidden space-y-12">
-            <div class="space-y-3">
-                <h2 class="font-serif text-3xl font-light">Profil & Paramètres</h2>
-                <p class="text-sm font-light text-[#555555]">
-                    Gérez vos informations personnelles et votre avatar de profil académique.
-                </p>
-            </div>
-
-            <div class="max-w-xl border border-[#E5E5E7] p-8 space-y-8 bg-[var(--sv-cream-light)]">
-                <!-- Zone Avatar avec prévisualisation et upload asynchrone -->
-                <div class="flex flex-col sm:flex-row items-center gap-6 pb-6 border-b border-[#E5E5E7]">
-                    <div class="relative group">
-                        <img id="profile-avatar-preview" 
-                            src="<?= $user['avatar_path'] ? htmlspecialchars(mediaUrl('avatar', $user['avatar_path'])) : 'https://www.gravatar.com/avatar/' . md5(strtolower(trim($user['email']))) . '?d=mp'; ?>" 
-                            alt="Avatar" class="w-24 h-24 rounded-full object-cover border border-[#E5E5E7] transition-opacity duration-300">
-                    </div>
-                    <div class="space-y-2 text-center sm:text-left">
-                        <h4 class="text-sm font-semibold uppercase tracking-wider text-[#555555]">Avatar Académique</h4>
-                        <input type="file" id="avatar-input" accept="image/*" class="hidden" onchange="uploadAvatar()">
-                        <button onclick="document.getElementById('avatar-input').click()"
-                            class="px-4 py-2 bg-[#F5F5F7] border border-[#E5E5E7] text-xs font-semibold uppercase tracking-wider hover:border-[#111111] transition-all rounded-sm">
-                            Téléverser une image
-                        </button>
-                        <p class="text-[10px] text-[#888888] font-light">Formats autorisés : JPG, PNG, GIF. Max 2 Mo.</p>
-                    </div>
-                </div>
-
-                <!-- Formulaire de nom -->
-                <div class="space-y-4">
-                    <div>
-                        <label class="block text-xs font-semibold uppercase tracking-wider text-[#555555] mb-2">Adresse électronique (Non modifiable)</label>
-                        <input type="email" disabled value="<?= htmlspecialchars($user['email']); ?>"
-                            class="w-full px-4 py-2 bg-[#F5F5F7] border border-[#E5E5E7] text-sm text-[#888888] cursor-not-allowed rounded-sm">
-                    </div>
-                    <div>
-                        <label for="profile-name" class="block text-xs font-semibold uppercase tracking-wider text-[#555555] mb-2">Nom Complet</label>
-                        <input type="text" id="profile-name" value="<?= htmlspecialchars($user['name']); ?>"
-                            class="w-full px-4 py-2 bg-[#F5F5F7] border border-[#E5E5E7] text-sm focus:outline-none focus:border-[#004B23] focus:bg-[#FFFFFF] transition-all rounded-sm">
-                    </div>
-
-                    <div>
-                        <label for="profile-matricule" class="block text-xs font-semibold uppercase tracking-wider text-[#555555] mb-2">Matricule Académique</label>
-                        <input type="text" id="profile-matricule" value="<?= htmlspecialchars($user['matricule'] ?? ''); ?>" placeholder="ex: 24U0123"
-                            class="w-full px-4 py-2 bg-[#F5F5F7] border border-[#E5E5E7] text-sm focus:outline-none focus:border-[#004B23] focus:bg-[#FFFFFF] transition-all rounded-sm font-mono uppercase tracking-wider">
-                    </div>
-                    
-                    <button onclick="updateProfileName()"
-                        class="px-6 py-2.5 bg-[#111111] text-[#FFFFFF] text-xs font-semibold uppercase tracking-widest hover:bg-[#004B23] transition-all rounded-sm">
-                        Enregistrer les Modifications
-                    </button>
-                    <span id="profile-status" class="text-xs text-[#004B23] font-medium ml-4 hidden">Modifications enregistrées.</span>
-                </div>
-            </div>
-        </div>
-
-    </main>
-
-    <!-- Pied de Page -->
-    <footer class="border-t border-[#E5E5E7] dark:border-[#2C2C2C] py-6 px-12 flex justify-between items-center bg-white dark:bg-[#1A1A1A] text-xs text-[#888888] dark:text-[#AAAAAA] font-light">
-        <div>StudyVibe Académique — Espace d'Étude</div>
-        <div>Console Apprenant</div>
-    </footer>
+<!-- Notifications popover (one element, opened from the rail or the top bar) -->
+<div id="notif-panel-container" class="sd-pop hidden" role="dialog" aria-label="<?= sdH(sd('notifications')) ?>">
+    <div class="sd-pop-head">
+        <strong><?= sdH(sd('notifications')) ?></strong>
+        <button type="button" class="btn btn-text" onclick="markAllNotificationsRead(event)"><?= sdH(sd('mark_all_read')) ?></button>
+    </div>
+    <div id="notif-panel" class="sd-pop-body"></div>
 </div>
-    <!-- Modal : Liseuse / Étude de Cours (Zen, spacieux) -->
-    <div id="study-modal" class="hidden fixed inset-0 bg-[#FAF9F6] dark:bg-[#121212] z-50 flex flex-col justify-between">
-        <!-- En-tête Liseuse -->
-        <header id="study-header" class="border-b border-[#E5E5E7] dark:border-[#2C2C2C] py-4 px-6 md:px-12 flex justify-between items-center bg-white dark:bg-[#1E1E1E]">
-            <div class="flex items-center gap-4">
-                <button onclick="toggleOutline()" class="p-2 text-xs font-semibold border border-[#E5E5E7] dark:border-[#2C2C2C] hover:bg-[#F5F5F7] dark:hover:bg-[#252525] rounded transition-all" title="Afficher/Masquer le programme">
-                    Programme
-                </button>
+
+<main id="sd-main" class="sd-main">
+
+<!-- =========================================================================
+     SECTION 3: TODAY — continue, what is next, latest result, certificates
+     ========================================================================= -->
+<section id="tab-home" class="sd-panel" aria-labelledby="home-title">
+    <?php if (!empty($deadlineAlerts)): ?>
+    <div class="sd-notice" role="note">
+        <strong><?= sdH(sd('deadline_title')) ?></strong>
+        <?php foreach ($deadlineAlerts as $alert): ?>
+        <span><?= sdH($alert['title']) ?> — <?= sdH(sd('deadline_before', ['date' => sdDate($alert['eval_deadline'], 'year')])) ?></span>
+        <?php endforeach; ?>
+    </div>
+    <?php endif; ?>
+
+    <header class="sd-head">
+        <p class="sd-date"><?= sdH(sdDate(time(), 'full')) ?></p>
+        <h1 id="home-title"><?= sdH(sd($greetKey)) ?><?= $firstName !== '' ? ', <em>' . sdH($firstName) . '</em>' : '' ?>.</h1>
+    </header>
+
+    <div class="sd-today">
+        <!-- Continue -->
+        <article class="sd-continue">
+            <?php if ($resume): ?>
+                <p class="sd-kicker"><?= sdH($resume['resumed'] ? sd('continue_kicker') : sd('start_kicker')) ?></p>
+                <p class="sd-continue-course"><?= sdH($resume['course_title']) ?></p>
+                <h2 class="sd-continue-lesson"><?= sdH($resume['lesson_title']) ?></h2>
+                <p class="sd-meta">
+                    <?= sdH(sd('lesson_pos', ['n' => $resume['position'], 'total' => $resume['total']])) ?>
+                    · <?= sdH(sd('type_' . $resume['type'])) ?>
+                    <?php if ($resume['minutes'] > 0): ?> · <?= sdH(sd('read_min', ['n' => $resume['minutes']])) ?><?php endif; ?>
+                </p>
+                <div class="sd-continue-foot">
+                    <div class="sd-bar sd-bar-lg" role="progressbar" aria-valuemin="0" aria-valuemax="100" aria-valuenow="<?= $resume['progress'] ?>" aria-label="<?= sdH(sd('progress')) ?>"><i style="width:<?= $resume['progress'] ?>%"></i></div>
+                    <span class="num sd-pct"><?= $resume['progress'] ?> %</span>
+                    <button type="button" class="btn btn-primary btn-lg" onclick="resumeCourse(<?= $resume['course_id'] ?>, <?= $resume['lesson_id'] ?>)"><?= sdH($resume['resumed'] ? sd('resume') : sd('start')) ?> <?= sdIcon('arrow', 18) ?></button>
+                </div>
+                <p class="sd-study-total"><?= sdH(sd('study_total')) ?> <span class="num" data-kpi="time"><?= sdH($studyTimeLabel) ?></span></p>
+            <?php elseif (empty($enrolledCourses)): ?>
+                <p class="sd-kicker"><?= sdH(sd('first_kicker')) ?></p>
+                <h2 class="sd-continue-lesson"><?= sdH(sd('empty_home_title')) ?></h2>
+                <p class="sd-meta"><?= sdH(sd('empty_home_text')) ?></p>
+                <div class="sd-continue-foot"><button type="button" class="btn btn-primary btn-lg" data-nav="courses" data-sub="catalogue"><?= sdH(sd('browse_catalogue')) ?> <?= sdIcon('arrow', 18) ?></button></div>
+            <?php else: ?>
+                <p class="sd-kicker"><?= sdH(sd('uptodate_kicker')) ?></p>
+                <h2 class="sd-continue-lesson"><?= sdH(sd('uptodate_title')) ?></h2>
+                <p class="sd-meta"><?= sdH(sd('uptodate_text')) ?></p>
+                <div class="sd-continue-foot"><button type="button" class="btn btn-ghost btn-lg" data-nav="courses" data-sub="catalogue"><?= sdH(sd('browse_catalogue')) ?></button></div>
+                <p class="sd-study-total"><?= sdH(sd('study_total')) ?> <span class="num" data-kpi="time"><?= sdH($studyTimeLabel) ?></span></p>
+            <?php endif; ?>
+        </article>
+
+        <!-- Next / latest / certificates -->
+        <div class="sd-side">
+            <section class="sd-mini" aria-labelledby="mini-next">
+                <h2 id="mini-next" class="sd-mini-title"><?= sdH(sd('next_eval')) ?></h2>
+                <?php if (!empty($upcoming)): $u = $upcoming[0]; $isAsync = (int)$u['is_async'] === 1; ?>
+                    <p class="sd-mini-when num"><?= $isAsync
+                        ? (!empty($u['async_deadline']) ? sdH(sd('until', ['date' => sdDate($u['async_deadline'], 'dt')])) : sdH(sd('open_now')))
+                        : sdH(sdDate($u['start_time'], 'dt')) ?></p>
+                    <p class="sd-mini-name"><?= sdH($u['title']) ?></p>
+                    <p class="sd-meta"><?= sdH($u['course_title']) ?> · <?= sdH($isAsync ? sd('async') : sd('live')) ?><?php
+                        $rel = $isAsync ? (!empty($u['async_deadline']) ? sdRelative($u['async_deadline']) : '') : sdRelative($u['start_time']);
+                        if ($rel !== '') { echo ' · ' . sdH($rel); } ?><?php if (!$isAsync): ?> · <strong class="sd-live-count" data-start-in="<?= (int)$u['seconds_to_start'] ?>"><?= sdH($u['is_running'] ? sd('live_now') : sd('starts_in', ['t' => gmdate('i:s', min(5999, (int)$u['seconds_to_start']))])) ?></strong><?php endif; ?></p>
+                    <a class="btn btn-ghost btn-sm" href="/live-session.php?code=<?= urlencode($u['session_code']) ?>"><?= sdH($isAsync ? sd('start_eval') : ((int)$u['registered'] > 0 ? sd('join_room') : sd('register'))) ?></a>
+                    <?php if (count($upcoming) > 1): ?><button type="button" class="btn btn-text" data-nav="evals"><?= sdH(sd('n_more', ['n' => count($upcoming) - 1])) ?></button><?php endif; ?>
+                <?php else: ?>
+                    <p class="sd-empty"><?= sdH(sd('no_upcoming')) ?></p>
+                <?php endif; ?>
+            </section>
+
+            <section class="sd-mini" aria-labelledby="mini-latest">
+                <h2 id="mini-latest" class="sd-mini-title"><?= sdH(sd('latest_result')) ?></h2>
+                <?php if ($latest): ?>
+                    <p class="sd-mini-score"><span class="num"><?= sdH(sdScore($latest['score'])) ?></span><small>%</small>
+                        <span class="sd-verdict <?= $latest['pass'] ? 'is-pass' : 'is-fail' ?>"><?= sdIcon($latest['pass'] ? 'check' : 'x', 14) ?><?= sdH($latest['pass'] ? sd('passed') : sd('not_passed')) ?></span></p>
+                    <p class="sd-mini-name"><?= sdH($latest['title']) ?></p>
+                    <p class="sd-meta"><?= sdH($latest['course']) ?> · <?= sdH(sdDate($latest['when'], 'short')) ?></p>
+                    <a class="btn btn-text" href="<?= sdH($latest['url']) ?>"><?= sdH($latest['kind'] === 'cert' && $latest['pass'] ? sd('see_certificate') : sd('see_report')) ?></a>
+                <?php else: ?>
+                    <p class="sd-empty"><?= sdH(sd('no_result')) ?></p>
+                <?php endif; ?>
+            </section>
+
+            <section class="sd-mini" aria-labelledby="mini-certs">
+                <h2 id="mini-certs" class="sd-mini-title"><?= sdH(sd('nav_certs')) ?></h2>
+                <?php if (!empty($myCertificates)): ?>
+                    <p class="sd-mini-name"><span class="num" data-kpi="certs"><?= count($myCertificates) ?></span> · <?= sdH($myCertificates[0]['course_title'] ?? '') ?></p>
+                    <p class="sd-meta num"><?= sdH(sd('issued_on', ['date' => sdDate($myCertificates[0]['issued_at'], 'year')])) ?></p>
+                    <a class="btn btn-text" href="/certificate.php?code=<?= urlencode($myCertificates[0]['certificate_code']) ?>"><?= sdH(sd('see_certificate')) ?></a>
+                    <?php if (count($myCertificates) > 1): ?><button type="button" class="btn btn-text" data-nav="certs"><?= sdH(sd('all_certs')) ?></button><?php endif; ?>
+                <?php else: ?>
+                    <p class="sd-empty"><?= sdH(sd('no_cert_yet')) ?> <span class="hidden"><span data-kpi="certs">0</span></span></p>
+                <?php endif; ?>
+            </section>
+        </div>
+    </div>
+
+    <?php if (!empty($enrolledCourses)): ?>
+    <section class="sd-block" aria-labelledby="home-courses">
+        <div class="sd-block-head">
+            <h2 id="home-courses"><?= sdH(sd('my_courses')) ?></h2>
+            <button type="button" class="btn btn-text" data-nav="courses" data-sub="mine"><?= sdH(sd('all_my_courses')) ?></button>
+        </div>
+        <ul class="sd-list">
+            <?php foreach (array_slice($enrolledCourses, 0, 4) as $ec) { echo sdCourseRow($ec, $certByCourse, $lessonCounts); } ?>
+        </ul>
+    </section>
+    <?php endif; ?>
+</section>
+
+<!-- =========================================================================
+     SECTION 4: COURSES — mine / catalogue / library
+     ========================================================================= -->
+<section id="tab-courses" class="sd-panel hidden" aria-labelledby="courses-title">
+    <header class="sd-head sd-head-row">
+        <div>
+            <h1 id="courses-title"><?= sdH(sd('nav_courses')) ?></h1>
+        </div>
+        <div class="sd-tabs" role="tablist" aria-label="<?= sdH(sd('nav_courses')) ?>">
+            <button type="button" role="tab" class="sd-tab" id="cs-btn-mine" data-sub="mine"><?= sdH(sd('sub_mine')) ?></button>
+            <button type="button" role="tab" class="sd-tab" id="cs-btn-catalogue" data-sub="catalogue"><?= sdH(sd('sub_catalogue')) ?></button>
+            <button type="button" role="tab" class="sd-tab" id="cs-btn-library" data-sub="library"><?= sdH(sd('sub_library')) ?><?php if (!empty($studentLibraryItems)): ?> <span class="num sd-count"><?= count($studentLibraryItems) ?></span><?php endif; ?></button>
+        </div>
+    </header>
+
+    <!-- Mine -->
+    <div id="cs-mine" role="tabpanel">
+        <?php if (empty($enrolledCourses)): ?>
+            <div class="sd-emptybox">
+                <p><?= sdH(sd('no_enrolment')) ?></p>
+                <button type="button" class="btn btn-primary" data-sub="catalogue"><?= sdH(sd('browse_catalogue')) ?></button>
+            </div>
+        <?php else: ?>
+            <ul class="sd-list">
+                <?php foreach ($enrolledCourses as $ec) { echo sdCourseRow($ec, $certByCourse, $lessonCounts); } ?>
+            </ul>
+        <?php endif; ?>
+    </div>
+
+    <!-- Catalogue -->
+    <div id="cs-catalogue" class="hidden" role="tabpanel">
+        <div class="sd-search">
+            <label class="sr-only" for="course-search"><?= sdH(sd('search_label')) ?></label>
+            <input type="search" id="course-search" class="input" placeholder="<?= sdH(sd('search_ph')) ?>" autocomplete="off">
+        </div>
+        <p class="sd-meta sd-nores hidden" id="course-nores"><?= sdH(sd('no_match')) ?></p>
+        <div class="sd-grid" id="course-grid">
+            <?php foreach ($courses as $c): ?>
+            <article class="sd-card" data-course-card data-search="<?= sdH(strtolower($c['title'] . ' ' . $c['module_title'] . ' ' . $c['teacher_name'] . ' ' . $c['description'])) ?>">
+                <div class="sd-card-cover">
+                    <?php if (!empty($c['cover_image'])): ?>
+                        <img src="/download.php?type=cover&amp;file=<?= urlencode($c['cover_image']) ?>" alt="" loading="lazy">
+                    <?php else: ?>
+                        <?= Brand::mark(30) ?>
+                    <?php endif; ?>
+                </div>
+                <div class="sd-card-body">
+                    <p class="sd-kicker"><?= sdH($c['module_title']) ?></p>
+                    <h3 class="sd-card-title"><?= sdH($c['title']) ?></h3>
+                    <p class="sd-meta"><?= sdH(sd('taught_by', ['name' => $c['teacher_name']])) ?></p>
+                    <p class="sd-card-desc"><?= sdH($c['description']) ?></p>
+                </div>
+                <div class="sd-card-foot">
+                    <?php if ($c['is_enrolled']): ?>
+                        <span class="sd-state is-in"><?= sdIcon('check', 14) ?><?= sdH(sd('enrolled_pct', ['p' => (int)$c['progress_percent']])) ?></span>
+                        <button type="button" class="btn btn-ghost btn-sm" data-study="<?= (int)$c['id'] ?>"><?= sdH(sd('open')) ?></button>
+                    <?php else: ?>
+                        <span class="sd-state"><?= $c['enrollment_key'] ? sdIcon('lock', 14) : '' ?><?= sdH($c['enrollment_key'] ? sd('key_required') : sd('free_access')) ?></span>
+                        <button type="button" class="btn btn-primary btn-sm" onclick="attemptEnroll(<?= (int)$c['id'] ?>, <?= $c['enrollment_key'] ? 'true' : 'false' ?>)"><?= sdH(sd('enrol')) ?></button>
+                    <?php endif; ?>
+                </div>
+            </article>
+            <?php endforeach; ?>
+        </div>
+    </div>
+
+    <!-- Library -->
+    <div id="cs-library" class="hidden" role="tabpanel">
+        <p class="sd-lede"><?= sdH(sd('library_lede')) ?></p>
+        <?php if (empty($studentLibraryItems)): ?>
+            <div class="sd-emptybox"><p><?= sdH(sd('library_empty')) ?></p></div>
+        <?php else: ?>
+        <ul class="sd-list">
+            <?php foreach ($studentLibraryItems as $item):
+                $cat = !empty($item['category']) ? $item['category'] : (!empty($item['item_type']) ? $item['item_type'] : 'document');
+                $vUrl = !empty($item['video_url']) ? $item['video_url'] : (!empty($item['external_url']) ? $item['external_url'] : '');
+            ?>
+            <li class="sd-row sd-lib">
+                <div class="sd-lib-main">
+                    <p class="sd-kicker"><?= sdH((string)$cat) ?> · <?= sdH($item['course_title'] ?? '') ?></p>
+                    <h3 class="sd-lib-title"><?= sdH($item['title']) ?></h3>
+                    <?php if (!empty($item['description'])): ?><p class="sd-meta"><?= sdH($item['description']) ?></p><?php endif; ?>
+                </div>
+                <span class="sd-meta num"><?= sdH(sdDate($item['created_at'], 'date')) ?></span>
+                <div class="sd-lib-act">
+                    <?php if (!empty($item['file_path'])): ?>
+                        <a class="btn btn-ghost btn-sm" href="/download.php?type=library&amp;file=<?= urlencode(basename($item['file_path'])) ?>" target="_blank" rel="noopener"><?= sdIcon('down', 16) ?><?= sdH(sd('download')) ?></a>
+                    <?php elseif (!empty($vUrl)): ?>
+                        <a class="btn btn-ghost btn-sm" href="<?= sdH($vUrl) ?>" target="_blank" rel="noopener"><?= sdIcon('play', 16) ?><?= sdH(sd('watch')) ?></a>
+                    <?php elseif (!empty($item['content_markdown'])): ?>
+                        <button type="button" class="btn btn-ghost btn-sm" data-lib-text='<?= sdH(json_encode(['title' => $item['title'], 'md' => $item['content_markdown']], JSON_UNESCAPED_UNICODE)) ?>'><?= sdIcon('note', 16) ?><?= sdH(sd('read')) ?></button>
+                    <?php else: ?>
+                        <span class="sd-meta"><?= sdH(sd('online_resource')) ?></span>
+                    <?php endif; ?>
+                </div>
+            </li>
+            <?php endforeach; ?>
+        </ul>
+        <?php endif; ?>
+    </div>
+</section>
+
+<!-- =========================================================================
+     SECTION 5: EVALUATIONS — upcoming, then past
+     ========================================================================= -->
+<section id="tab-evals" class="sd-panel hidden" aria-labelledby="evals-title">
+    <header class="sd-head sd-head-row">
+        <h1 id="evals-title"><?= sdH(sd('nav_evals')) ?></h1>
+        <a class="btn btn-ghost" href="/evaluations.php"><?= sdH(sd('open_evals')) ?></a>
+    </header>
+
+    <section class="sd-block" aria-labelledby="ev-up">
+        <h2 id="ev-up" class="sd-h2" data-ev-ids="<?= sdH(implode(',', array_map(fn($u) => (int)$u['id'] . ('' . ($u['is_running'] ? 'r' : 'w')), $upcoming))) ?>"><?= sdH(sd('upcoming')) ?></h2>
+        <?php if (empty($upcoming)): ?>
+            <p class="sd-empty"><?= sdH(sd('no_upcoming_long')) ?></p>
+        <?php else: ?>
+        <ul class="sd-list">
+            <?php foreach ($upcoming as $u): $isAsync = (int)$u['is_async'] === 1; ?>
+            <li class="sd-row sd-ev">
+                <div class="sd-ev-when num">
+                    <?php if ($isAsync): ?>
+                        <strong><?= !empty($u['async_deadline']) ? sdH(sdDate($u['async_deadline'], 'short')) : '—' ?></strong>
+                        <small><?= sdH(!empty($u['async_deadline']) ? sd('deadline') : sd('open_now')) ?></small>
+                    <?php else: ?>
+                        <strong><?= sdH(sdDate($u['start_time'], 'short')) ?></strong>
+                        <small><?= sdH(sdDate($u['start_time'], 'time')) ?></small>
+                    <?php endif; ?>
+                </div>
+                <div class="sd-ev-main">
+                    <h3 class="sd-course-title"><?= sdH($u['title']) ?></h3>
+                    <p class="sd-meta"><?= sdH($u['course_title']) ?> · <?= sdH($isAsync ? sd('async') : sd('live')) ?><?php
+                        $rel = $isAsync ? (!empty($u['async_deadline']) ? sdRelative($u['async_deadline']) : '') : sdRelative($u['start_time']);
+                        if ($rel !== '') { echo ' · ' . sdH($rel); } ?><?php if (!$isAsync): ?> · <strong class="sd-live-count" data-start-in="<?= (int)$u['seconds_to_start'] ?>"><?= sdH($u['is_running'] ? sd('live_now') : sd('starts_in', ['t' => gmdate('i:s', min(5999, (int)$u['seconds_to_start']))])) ?></strong><?php endif; ?></p>
+                </div>
+                <div class="sd-ev-act">
+                    <a class="btn btn-primary btn-sm" href="/live-session.php?code=<?= urlencode($u['session_code']) ?>"><?= sdH($isAsync ? sd('start_eval') : ((int)$u['registered'] > 0 ? sd('join_room') : sd('register'))) ?></a>
+                </div>
+            </li>
+            <?php endforeach; ?>
+        </ul>
+        <?php endif; ?>
+    </section>
+
+    <section class="sd-block" aria-labelledby="ev-past">
+        <h2 id="ev-past" class="sd-h2"><?= sdH(sd('past')) ?></h2>
+        <?php if (empty($myEvaluations)): ?>
+            <p class="sd-empty"><?= sdH(sd('no_evals')) ?></p>
+        <?php else: ?>
+        <ul class="sd-list">
+            <?php foreach ($myEvaluations as $eval):
+                $isFinished = $eval['score'] !== null;
+                $token = $isFinished ? hash_hmac('sha256', (string)$eval['registration_id'], APP_SECRET) : '';
+                $pass = $isFinished && (float)$eval['score'] >= 50;
+            ?>
+            <li class="sd-row sd-ev">
+                <div class="sd-ev-when num">
+                    <strong><?= sdH(sdDate($eval['registered_at'], 'short')) ?></strong>
+                    <small><?= sdH(sdDate($eval['registered_at'], 'time')) ?></small>
+                </div>
+                <div class="sd-ev-main">
+                    <h3 class="sd-course-title"><?= sdH($eval['session_title']) ?></h3>
+                    <p class="sd-meta"><?= sdH($eval['course_title']) ?> · <?= sdH($eval['is_async'] ? sd('async') : sd('live')) ?></p>
+                </div>
+                <div class="sd-ev-score">
+                    <?php if ($isFinished): ?>
+                        <span class="num sd-score"><?= sdH(sdScore($eval['score'])) ?> %</span>
+                        <span class="sd-verdict <?= $pass ? 'is-pass' : 'is-fail' ?>"><?= sdIcon($pass ? 'check' : 'x', 14) ?><?= sdH($pass ? sd('passed') : sd('not_passed')) ?></span>
+                    <?php else: ?>
+                        <span class="sd-verdict is-wait"><?= sdH(sd('pending')) ?></span>
+                    <?php endif; ?>
+                </div>
+                <div class="sd-ev-act">
+                    <?php if ($isFinished): ?>
+                        <a class="btn btn-ghost btn-sm" href="/student/evaluation-results.php?registration_id=<?= (int)$eval['registration_id'] ?>&amp;token=<?= $token ?>"><?= sdH(sd('see_report')) ?></a>
+                    <?php else: ?>
+                        <a class="btn btn-primary btn-sm" href="/live-session.php?code=<?= urlencode($eval['session_code']) ?>"><?= sdH(sd('join')) ?></a>
+                    <?php endif; ?>
+                </div>
+            </li>
+            <?php endforeach; ?>
+        </ul>
+        <?php endif; ?>
+    </section>
+</section>
+
+<!-- =========================================================================
+     SECTION 6: RESULTS — a transcript
+     ========================================================================= -->
+<section id="tab-results" class="sd-panel hidden" aria-labelledby="results-title">
+    <header class="sd-head sd-head-row">
+        <h1 id="results-title"><?= sdH(sd('nav_results')) ?></h1>
+        <a class="btn btn-ghost" href="/student/releve.php" target="_blank" rel="noopener"><?= sdIcon('print', 16) ?><?= sdH(sd('transcript_pdf')) ?></a>
+    </header>
+
+    <dl class="sd-figures">
+        <div><dt><?= sdH(sd('fig_completed')) ?></dt><dd class="num"><span data-kpi="completed"><?= $statCompleted ?></span><small> / <?= count($enrolledCourses) ?></small></dd></div>
+        <div><dt><?= sdH(sd('fig_avg')) ?></dt><dd class="num"><?= $statAttempts > 0 ? '<span data-kpi="score">' . sdH(sdScore($statAvgScore)) . '</span><small> %</small>' : '<span data-kpi="score">—</span>' ?></dd></div>
+        <div><dt><?= sdH(sd('fig_time')) ?></dt><dd class="num"><span data-kpi="time2"><?= sdH($studyTimeLabel) ?></span></dd></div>
+    </dl>
+
+    <section class="sd-block" aria-labelledby="r-courses">
+        <h2 id="r-courses" class="sd-h2"><?= sdH(sd('by_course')) ?></h2>
+        <?php if (empty($transcriptCourses)): ?>
+            <p class="sd-empty"><?= sdH(sd('no_enrolment')) ?></p>
+        <?php else: ?>
+        <div class="sd-tablewrap">
+        <table class="sd-table">
+            <thead><tr><th scope="col"><?= sdH(sd('th_course')) ?></th><th scope="col" class="r"><?= sdH(sd('th_progress')) ?></th><th scope="col" class="r"><?= sdH(sd('th_best')) ?></th><th scope="col" class="r"><?= sdH(sd('th_attempts')) ?></th></tr></thead>
+            <tbody>
+            <?php foreach ($transcriptCourses as $tc): ?>
+                <tr>
+                    <th scope="row"><?= sdH($tc['course_title']) ?><small><?= sdH($tc['module_title']) ?></small></th>
+                    <td class="r num" data-label="<?= sdH(sd('th_progress')) ?>"><?= (int)$tc['progress_percent'] ?> %</td>
+                    <td class="r num" data-label="<?= sdH(sd('th_best')) ?>"><?= $tc['best_score'] !== null ? sdH(sdScore($tc['best_score'])) . ' %' : '—' ?></td>
+                    <td class="r num" data-label="<?= sdH(sd('th_attempts')) ?>"><?= (int)$tc['attempts'] ?></td>
+                </tr>
+            <?php endforeach; ?>
+            </tbody>
+        </table>
+        </div>
+        <?php endif; ?>
+    </section>
+
+    <?php if (!empty($lessonScores)): ?>
+    <section class="sd-block" aria-labelledby="r-lessons">
+        <h2 id="r-lessons" class="sd-h2"><?= sdH(sd('lesson_quizzes')) ?></h2>
+        <div class="sd-tablewrap">
+        <table class="sd-table">
+            <thead><tr><th scope="col"><?= sdH(sd('th_lesson')) ?></th><th scope="col" class="r"><?= sdH(sd('th_date')) ?></th><th scope="col" class="r"><?= sdH(sd('th_score')) ?></th></tr></thead>
+            <tbody>
+            <?php foreach ($lessonScores as $ls): ?>
+                <tr>
+                    <th scope="row"><?= sdH($ls['lesson_title']) ?><small><?= sdH($ls['course_title']) ?></small></th>
+                    <td class="r num" data-label="<?= sdH(sd('th_date')) ?>"><?= sdH(sdDate($ls['completed_at'], 'date')) ?></td>
+                    <td class="r num" data-label="<?= sdH(sd('th_score')) ?>"><?= (int)$ls['score'] ?> %</td>
+                </tr>
+            <?php endforeach; ?>
+            </tbody>
+        </table>
+        </div>
+    </section>
+    <?php endif; ?>
+
+    <?php $failed = array_values(array_filter($myAttempts, fn($a) => (int)$a['passed'] === 0)); ?>
+    <?php if (!empty($failed)): ?>
+    <section class="sd-block" aria-labelledby="r-failed">
+        <h2 id="r-failed" class="sd-h2"><?= sdH(sd('failed_attempts')) ?></h2>
+        <p class="sd-meta"><?= sdH(sd('failed_hint')) ?></p>
+        <ul class="sd-list">
+            <?php foreach ($failed as $a): ?>
+            <li class="sd-row sd-ev">
+                <div class="sd-ev-when num"><strong><?= sdH(sdDate($a['attempted_at'], 'short')) ?></strong><small><?= sdH(sdDate($a['attempted_at'], 'time')) ?></small></div>
+                <div class="sd-ev-main"><h3 class="sd-course-title"><?= sdH($a['course_title']) ?></h3></div>
+                <div class="sd-ev-score"><span class="num sd-score"><?= sdH(sdScore($a['score'])) ?> %</span><span class="sd-verdict is-fail"><?= sdIcon('x', 14) ?><?= sdH(sd('not_passed')) ?></span></div>
+                <div class="sd-ev-act"><a class="btn btn-ghost btn-sm" href="/student/certification-report.php?attempt_id=<?= (int)$a['id'] ?>" target="_blank" rel="noopener"><?= sdH(sd('see_report')) ?></a></div>
+            </li>
+            <?php endforeach; ?>
+        </ul>
+    </section>
+    <?php endif; ?>
+</section>
+
+<!-- =========================================================================
+     SECTION 7: CERTIFICATES & ACHIEVEMENTS
+     ========================================================================= -->
+<section id="tab-certs" class="sd-panel hidden" aria-labelledby="certs-title">
+    <header class="sd-head">
+        <h1 id="certs-title"><?= sdH(sd('nav_certs')) ?></h1>
+        <p class="sd-lede"><?= sdH(sd('certs_lede')) ?></p>
+    </header>
+
+    <?php if (empty($myCertificates)): ?>
+        <div class="sd-emptybox"><p><?= sdH(sd('no_cert_long')) ?></p><button type="button" class="btn btn-ghost" data-nav="courses" data-sub="mine"><?= sdH(sd('my_courses')) ?></button></div>
+    <?php else: ?>
+    <ul class="sd-certs">
+        <?php foreach ($myCertificates as $cert): ?>
+        <li class="sd-cert">
+            <div class="sd-cert-seal" aria-hidden="true"><?= Brand::mark(28) ?></div>
+            <div class="sd-cert-main">
+                <p class="sd-kicker"><?= sdH(sd('cert_kicker')) ?></p>
+                <h3 class="sd-cert-title"><?= sdH($cert['course_title'] ?? sd('unknown_course')) ?></h3>
+                <p class="sd-meta"><?= sdH(sd('issued_to', ['name' => $user['name']])) ?> · <span class="num"><?= sdH(sdDate($cert['issued_at'], 'year')) ?></span></p>
+                <p class="sd-code"><?= sdH(sd('code')) ?> <span class="num"><?= sdH($cert['certificate_code']) ?></span></p>
+            </div>
+            <div class="sd-cert-act">
+                <a class="btn btn-primary btn-sm" href="/certificate.php?code=<?= urlencode($cert['certificate_code']) ?>"><?= sdH(sd('open_print')) ?></a>
+                <a class="btn btn-text" href="/verify.php?code=<?= urlencode($cert['certificate_code']) ?>" target="_blank" rel="noopener"><?= sdH(sd('verify')) ?></a>
+            </div>
+        </li>
+        <?php endforeach; ?>
+    </ul>
+    <?php endif; ?>
+
+    <section class="sd-block" aria-labelledby="ach-title">
+        <div class="sd-block-head">
+            <h2 id="ach-title"><?= sdH(sd('achievements')) ?></h2>
+            <span class="sd-meta num"><?= sdH(sd('n_of_total', ['n' => count($myBadges), 'total' => count($allBadgesConfig)])) ?></span>
+        </div>
+        <ul class="sd-badges" id="badges-grid-container">
+            <?php foreach ($allBadgesConfig as $key => $config):
+                $isEarned = isset($earnedBadgesLookup[$key]);
+                $bt = $badgeText[$key] ?? [$config['title'], $config['title'], $config['desc'], $config['desc']];
+                $title = $bt[$lang === 'en' ? 1 : 0];
+                $desc = $bt[$lang === 'en' ? 3 : 2];
+            ?>
+            <li class="sd-badge <?= $isEarned ? 'is-on' : 'is-off' ?>" data-badge-key="<?= sdH($key) ?>">
+                <span class="sd-badge-ic"><?= $isEarned ? sdIcon('cert', 22) : sdIcon('lock', 20) ?></span>
                 <div>
-                    <span id="study-course-module" class="text-[10px] font-mono uppercase tracking-widest text-[#888888] dark:text-[#AAAAAA]">Module</span>
-                    <h2 id="study-course-title" class="font-serif text-base font-semibold text-[#111111] dark:text-white leading-tight">Titre du Cours</h2>
+                    <h3><?= sdH($title) ?></h3>
+                    <p><?= sdH($desc) ?></p>
+                    <p class="sd-badge-state num"><?= $isEarned ? sdH(sd('earned_on', ['date' => sdDate($earnedBadgesLookup[$key], 'date')])) : sdH(sd('not_yet')) ?></p>
                 </div>
-            </div>
-            
-            <div class="flex items-center gap-6">
-                <div class="flex items-center gap-2 text-xs text-[#555555] dark:text-[#AAAAAA]">
-                    <span class="w-2 h-2 rounded-full bg-[#004B23] dark:bg-[#34C759] animate-pulse"></span>
-                    <span>Temps d'étude :</span>
-                    <span id="lesson-session-timer" class="sv-timer font-mono font-semibold text-[#004B23] dark:text-[#34C759]">00:00</span>
-                </div>
-                <button onclick="toggleCompanion()" class="p-2 text-xs font-semibold border border-[#E5E5E7] dark:border-[#2C2C2C] hover:bg-[#F5F5F7] dark:hover:bg-[#252525] rounded transition-all" title="Ouvrir le compagnon d'étude">
-                    Compagnon d'étude
-                </button>
-                <button onclick="closeStudyModal()" class="px-3 py-1.5 bg-[#D32F2F] text-white text-xs uppercase tracking-wider font-semibold hover:bg-[#B71C1C] rounded transition-all">
-                    Quitter ✕
-                </button>
-            </div>
-        </header>
+            </li>
+            <?php endforeach; ?>
+        </ul>
+    </section>
+</section>
 
-        <!-- Contenu principal split : leçons à gauche, visualiseur au centre, compagnon à droite -->
-        <div class="flex-grow flex flex-col md:flex-row overflow-hidden relative">
-            
-            <!-- Sidebar : Arborescence du cours -->
-            <div id="study-sidebar" class="w-full md:w-80 border-r border-[#E5E5E7] dark:border-[#2C2C2C] bg-white dark:bg-[#1C1C1E] p-6 overflow-y-auto flex-shrink-0 space-y-6">
-                <div class="flex justify-between items-center pb-2 border-b border-[#E5E5E7] dark:border-[#2C2C2C]">
-                    <h3 class="text-xs font-semibold uppercase tracking-widest text-[#888888] dark:text-[#AAAAAA]">Programme du cours</h3>
-                    <button onclick="toggleOutline()" class="text-xs text-[#888888] hover:text-[#111111] dark:hover:text-white font-bold">✕</button>
-                </div>
-                <div id="study-chapters-container" class="space-y-4">
-                    <!-- Généré dynamiquement en JS -->
+<!-- =========================================================================
+     SECTION 8: PROFILE
+     ========================================================================= -->
+<section id="tab-profile" class="sd-panel hidden" aria-labelledby="profile-title">
+    <header class="sd-head"><h1 id="profile-title"><?= sdH(sd('profile_title')) ?></h1><p class="sd-lede"><?= sdH(sd('profile_lede')) ?></p></header>
+
+    <div class="sd-profile">
+        <div class="sd-profile-avatar">
+            <img id="profile-avatar-preview" src="<?= sdH($avatarSrc) ?>" alt="" width="96" height="96">
+            <div>
+                <input type="file" id="avatar-input" accept="image/*" class="hidden" onchange="uploadAvatar()">
+                <button type="button" class="btn btn-ghost btn-sm" onclick="document.getElementById('avatar-input').click()"><?= sdH(sd('upload_photo')) ?></button>
+                <p class="hint"><?= sdH(sd('photo_hint')) ?></p>
+            </div>
+        </div>
+
+        <div class="field">
+            <label for="profile-email"><?= sdH(sd('email')) ?></label>
+            <input type="email" id="profile-email" class="input" disabled value="<?= sdH($user['email']) ?>">
+            <span class="hint"><?= sdH(sd('email_locked')) ?></span>
+        </div>
+        <div class="field">
+            <label for="profile-name"><?= sdH(sd('full_name')) ?></label>
+            <input type="text" id="profile-name" class="input" value="<?= sdH($user['name']) ?>" autocomplete="name">
+        </div>
+        <div class="field">
+            <label for="profile-matricule"><?= sdH(sd('matricule')) ?></label>
+            <input type="text" id="profile-matricule" class="input sd-mat" value="<?= sdH($user['matricule'] ?? '') ?>" placeholder="<?= sdH(sd('mat_ph')) ?>" maxlength="7" autocomplete="off" autocapitalize="characters" spellcheck="false" oninput="clearMatError()">
+            <div id="profile-matricule-error" class="hint err hidden" role="alert"></div>
+            <span class="hint"><?= sdH(sd('matricule_hint')) ?></span>
+        </div>
+        <div class="field">
+            <label><?= sdH($lang === 'en' ? 'Security' : 'Sécurité') ?></label>
+            <a class="btn btn-ghost btn-sm" href="/account/security.php"><?= sdH($lang === 'en' ? 'Phone number and two-factor authentication' : 'Téléphone et double authentification') ?></a>
+        </div>
+        <div class="sd-profile-act">
+            <button type="button" class="btn btn-primary" onclick="updateProfileName()"><?= sdH(sd('save')) ?></button>
+            <span id="profile-status" class="sd-saved hidden" role="status"><?= sdIcon('check', 14) ?><?= sdH(sd('saved')) ?></span>
+        </div>
+
+        <div class="sd-prefs">
+            <h2 class="sd-h2"><?= sdH(sd('preferences')) ?></h2>
+            <div class="sd-pref"><span><?= sdH(sd('language')) ?></span>
+                <div class="seg" role="group" aria-label="<?= sdH(sd('language')) ?>">
+                    <a href="#" data-lang="fr" <?= $lang === 'fr' ? 'aria-current="true"' : '' ?>>FR</a>
+                    <a href="#" data-lang="en" <?= $lang === 'en' ? 'aria-current="true"' : '' ?>>EN</a>
                 </div>
             </div>
+            <div class="sd-pref"><span><?= sdH(sd('theme')) ?></span>
+                <button type="button" class="sd-iconbtn" data-dark-toggle aria-label="<?= sdH(sd('theme')) ?>"><span class="ic-sun"><?= sdIcon('sun') ?></span><span class="ic-moon"><?= sdIcon('moon') ?></span></button>
+            </div>
+            <a class="sd-logout sd-logout-m" href="/logout.php"><?= sdIcon('out', 16) ?><span><?= sdH(sd('logout')) ?></span></a>
+        </div>
+    </div>
+</section>
 
-            <!-- Viewer central (Spacieux, Scrollable) -->
-            <div id="study-viewer-content" class="flex-grow p-6 md:p-10 overflow-y-auto space-y-8 bg-[#FFFFFF] dark:bg-[#121212] flex flex-col">
-                <!-- Titre leçon et type -->
-                <div id="lesson-viewer-header" class="border-b border-[#E5E5E7] dark:border-[#2C2C2C] pb-4 hidden flex justify-between items-start gap-4">
+</main>
+
+<!-- =========================================================================
+     SECTION 9: THE READER — a calm full-screen layer
+     ========================================================================= -->
+<div id="study-modal" class="rd hidden" role="dialog" aria-modal="true" aria-labelledby="study-lesson-title">
+    <header id="study-header" class="rd-top">
+        <button type="button" class="rd-leave" onclick="closeStudyModal()"><?= sdIcon('arrow', 16) ?><span><?= sdH(sd('leave')) ?></span></button>
+        <div class="rd-crumb">
+            <span id="study-course-module" class="rd-crumb-mod"></span>
+            <span id="study-course-title" class="rd-crumb-title"></span>
+        </div>
+        <div class="rd-tools">
+            <span class="rd-timer" title="<?= sdH(sd('study_time')) ?>"><span class="sr-only"><?= sdH(sd('study_time')) ?></span><span id="lesson-session-timer" class="sv-timer num">00:00</span></span>
+            <button type="button" class="rd-toolbtn" id="btn-outline" onclick="toggleOutline()" aria-expanded="true" aria-controls="study-sidebar"><?= sdIcon('list', 18) ?><span><?= sdH(sd('outline')) ?></span></button>
+            <button type="button" class="rd-toolbtn" id="btn-companion" onclick="toggleCompanion()" aria-expanded="false" aria-controls="study-companion-panel"><?= sdIcon('chat', 18) ?><span><?= sdH(sd('companion')) ?></span></button>
+        </div>
+        <div class="rd-progress" aria-hidden="true"><i id="rd-progress-bar"></i></div>
+    </header>
+
+    <div class="rd-body" id="rd-body">
+        <nav id="study-sidebar" class="rd-outline" aria-label="<?= sdH(sd('outline')) ?>">
+            <div class="rd-outline-head">
+                <p class="sd-kicker"><?= sdH(sd('course_plan')) ?></p>
+                <p class="rd-outline-count num" id="rd-outline-count"></p>
+                <div class="sd-bar" aria-hidden="true"><i id="rd-course-bar"></i></div>
+            </div>
+            <div id="study-chapters-container" class="rd-chapters"></div>
+        </nav>
+        <div class="rd-scrim" onclick="closeSheets()"></div>
+
+        <main id="study-viewer-content" class="rd-main" tabindex="-1">
+            <article class="rd-article">
+                <div id="lesson-viewer-header" class="rd-head hidden">
+                    <p class="sd-kicker"><span id="study-lesson-badge"></span><span id="rd-readtime"></span></p>
+                    <h1 id="study-lesson-title"></h1>
+                </div>
+
+                <div id="study-media-container" class="rd-media"></div>
+
+                <div id="lesson-complete-bar" class="rd-foot hidden">
                     <div>
-                        <h3 id="study-lesson-title" class="font-serif text-2xl font-light text-[#111111] dark:text-white">Titre de la leçon</h3>
-                        <span id="study-lesson-badge" class="text-[9px] font-mono uppercase tracking-widest bg-[#F5F5F7] dark:bg-[#252525] border border-[#E5E5E7] dark:border-[#2C2C2C] px-2 py-0.5 mt-2 inline-block text-[#555555] dark:text-[#AAAAAA]">Badge</span>
+                        <p class="rd-foot-title"><?= sdH(sd('lesson_progress')) ?></p>
+                        <p id="lesson-complete-hint" class="sd-meta"><?= sdH(sd('js_hint_finish')) ?></p>
                     </div>
+                    <p id="lesson-complete-status" class="sd-verdict is-pass hidden"><?= sdIcon('check', 14) ?><?= sdH(sd('lesson_done')) ?></p>
+                    <button type="button" id="mark-lesson-complete-btn" class="btn btn-primary"><?= sdH(sd('mark_done')) ?></button>
                 </div>
 
-                <!-- Zone d'affichage des médias -->
-                <div id="study-media-container" class="space-y-6 dark:text-white/95">
-                    <!-- Texte, PDF, Vidéo injectés ici -->
-                </div>
+                <section id="lesson-quiz-locked" class="rd-card hidden">
+                    <h2 class="rd-card-title"><?= sdH(sd('lesson_quiz')) ?></h2>
+                    <p class="sd-meta"><?= sdH(sd('quiz_locked_text')) ?></p>
+                    <p id="lesson-content-progress" class="sd-meta num"></p>
+                </section>
 
-                <!-- Marquer la leçon comme terminée -->
-                <div id="lesson-complete-bar" class="hidden flex flex-wrap items-center justify-between gap-4 p-5 border border-[#E5E5E7] dark:border-[#2C2C2C] bg-[#FAF9F6] dark:bg-[#1C1C1E] rounded-xl shadow-sm">
-                    <div>
-                        <p class="text-sm font-semibold text-[#111111] dark:text-white">Progression de la leçon</p>
-                        <p id="lesson-complete-hint" class="text-xs text-[#555555] dark:text-[#AAAAAA] mt-0.5">Une fois le contenu lu, marquez la leçon comme terminée pour mettre à jour votre avancement.</p>
-                    </div>
-                    <p id="lesson-complete-status" class="hidden text-sm text-[#004B23] dark:text-[#34C759] font-semibold flex items-center gap-1.5">✓ Leçon terminée</p>
-                    <button type="button" id="mark-lesson-complete-btn"
-                        class="px-5 py-2.5 bg-[#111111] dark:bg-[#FFFFFF] text-[#FFFFFF] dark:text-[#111111] text-xs font-semibold uppercase tracking-wider hover:bg-[#004B23] dark:hover:bg-[#34C759] dark:hover:text-white transition-colors rounded-lg flex-shrink-0">
-                        Marquer la leçon comme terminée
-                    </button>
-                </div>
-
-                <!-- Zone mini-quizz de leçon (une question à la fois) -->
-                <div id="lesson-quiz-locked" class="hidden p-6 border border-[#E5E5E7] dark:border-[#2C2C2C] bg-[#FAFAFA] dark:bg-[#1A1A1A] rounded-xl space-y-2">
-                    <h4 class="font-serif text-lg font-semibold text-[#111111] dark:text-white">Évaluation de Leçon</h4>
-                    <p class="text-xs text-[#555555] dark:text-[#AAAAAA] font-light">Terminez la lecture, le document PDF ou la vidéo pour débloquer l'évaluation de cette leçon.</p>
-                    <p id="lesson-content-progress" class="text-[10px] text-[#888888] dark:text-[#AAAAAA] font-mono uppercase tracking-wider"></p>
-                </div>
-                
-                <div id="lesson-quiz-container" class="hidden p-6 border border-[#E5E5E7] dark:border-[#2C2C2C] bg-[#FAF9F6] dark:bg-[#1C1C1E] rounded-xl space-y-4">
-                    <h4 class="font-serif text-lg font-semibold text-[#111111] dark:text-white">Évaluation de Leçon</h4>
-                    <div id="lesson-completed-success-msg" class="hidden p-4 bg-[#E8F5E9] dark:bg-[#1B5E20]/20 border border-[#C8E6C9] dark:border-[#1B5E20]/40 text-[#2E7D32] dark:text-[#81C784] text-xs rounded-lg font-medium flex items-center gap-2">
-                        <span class="text-sm">✓</span>
-                        <span>Félicitations ! Le contenu de la leçon a été entièrement lu/visionné. La leçon est achevée, vous pouvez maintenant passer à l'évaluation ci-dessous.</span>
-                    </div>
-                    <p id="lesson-quiz-hint" class="text-xs font-light text-[#555555] dark:text-[#AAAAAA]">Répondez à chaque question pour valider la leçon.</p>
-                    <p id="lesson-quiz-complete-msg" class="hidden text-sm text-[#004B23] dark:text-[#34C759] font-medium">✓ Évaluation terminée — leçon validée.</p>
-
+                <section id="lesson-quiz-container" class="rd-card hidden">
+                    <h2 class="rd-card-title"><?= sdH(sd('lesson_quiz')) ?></h2>
+                    <div id="lesson-completed-success-msg" class="sd-note is-ok hidden"><?= sdIcon('check', 16) ?><span><?= sdH(sd('quiz_unlocked')) ?></span></div>
+                    <p id="lesson-quiz-hint" class="sd-meta"><?= sdH(sd('quiz_hint')) ?></p>
+                    <p id="lesson-quiz-complete-msg" class="sd-verdict is-pass hidden"><?= sdIcon('check', 14) ?><?= sdH(sd('quiz_done')) ?></p>
                     <div id="lesson-quiz-active">
-                        <form id="lesson-quiz-form" class="space-y-4">
+                        <form id="lesson-quiz-form">
                             <input type="hidden" id="quiz-lesson-id" name="lesson_id" value="">
                             <input type="hidden" id="quiz-question-id" name="question_id" value="">
-                            <div id="lesson-quiz-question-box" class="space-y-3"></div>
-                            <div class="pt-2 flex items-center gap-4">
-                                <button type="submit" id="lesson-quiz-submit-btn"
-                                    class="px-5 py-2 bg-[#111111] dark:bg-[#FFFFFF] text-white dark:text-[#111111] text-xs font-semibold uppercase tracking-wider hover:bg-[#004B23] dark:hover:bg-[#34C759] dark:hover:text-white transition-colors rounded-lg">
-                                    Soumettre
-                                </button>
-                                <span id="lesson-quiz-feedback" class="text-xs font-medium"></span>
+                            <div id="lesson-quiz-question-box"></div>
+                            <div class="rd-quiz-act">
+                                <button type="submit" id="lesson-quiz-submit-btn" class="btn btn-primary"><?= sdH(sd('submit')) ?></button>
+                                <span id="lesson-quiz-feedback" class="rd-feedback" role="status"></span>
                             </div>
                         </form>
                     </div>
-                </div>
+                </section>
 
-                <!-- Dépôt de devoir pour cette leçon -->
-                <div id="lesson-assignment-container" class="hidden p-6 border border-[#E5E5E7] dark:border-[#2C2C2C] bg-white dark:bg-[#1C1C1E] rounded-xl space-y-5 shadow-sm">
-                    <div class="flex items-center justify-between border-b border-[#E5E5E7] dark:border-[#2C2C2C] pb-3">
-                        <div class="flex items-center gap-2">
-                            <span class="px-2.5 py-0.5 text-[10px] font-bold uppercase tracking-wider bg-emerald-100 text-emerald-800 dark:bg-emerald-900/40 dark:text-emerald-400 rounded-full">Devoir / Travail Pratique</span>
-                            <h4 id="assignment-display-title" class="font-serif text-lg font-semibold text-[#111111] dark:text-white">Devoir de la Leçon</h4>
+                <section id="lesson-assignment-container" class="rd-card hidden">
+                    <header class="rd-card-head">
+                        <div>
+                            <p class="sd-kicker"><?= sdH(sd('assignment')) ?></p>
+                            <h2 id="assignment-display-title" class="rd-card-title"><?= sdH(sd('assignment_default')) ?></h2>
                         </div>
-                        <span id="assignment-display-deadline" class="text-[10px] font-mono text-gray-500 dark:text-gray-400"></span>
-                    </div>
+                        <span id="assignment-display-deadline" class="sd-meta num"></span>
+                    </header>
+                    <div id="assignment-display-instructions" class="rd-instr"></div>
 
-                    <!-- Consignes & Instructions formatées en Markdown & LaTeX -->
-                    <div id="assignment-display-instructions" class="text-sm font-light text-[#333333] dark:text-[#E8E8E8] leading-relaxed bg-[#FAF9F6] dark:bg-[#252525] p-4 rounded-lg border border-[#E5E5E7] dark:border-[#333333]"></div>
-
-                    <!-- Zone de dépôt / soumission -->
-                    <form id="student-assignment-form" class="space-y-4 pt-2" onsubmit="submitStudentAssignment(event)">
+                    <form id="student-assignment-form" onsubmit="submitStudentAssignment(event)">
                         <input type="hidden" id="assignment-lesson-id" value="">
-                        
-                        <!-- Status soumission existante -->
-                        <div id="assignment-existing-status" class="hidden p-3 bg-emerald-50 dark:bg-emerald-900/20 border border-emerald-200 dark:border-emerald-800 rounded-lg text-xs text-emerald-800 dark:text-emerald-300">
-                            <div class="font-semibold flex items-center gap-1.5 mb-1">
-                                <svg class="w-4 h-4 text-emerald-600" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7"/></svg>
-                                <span id="assignment-status-text">Devoir déposé avec succès.</span>
-                            </div>
-                            <div id="assignment-existing-details" class="space-y-1 text-[11px] font-mono mt-1 text-emerald-700 dark:text-emerald-400"></div>
+                        <div id="assignment-existing-status" class="sd-note is-ok hidden">
+                            <?= sdIcon('check', 16) ?>
+                            <div><strong id="assignment-status-text"><?= sdH(sd('assignment_sent')) ?></strong><div id="assignment-existing-details" class="rd-sub"></div></div>
                         </div>
-
-                        <!-- Informations Obligatoires de l'Étudiant -->
-                        <div class="grid grid-cols-1 md:grid-cols-2 gap-4 pb-2 border-b border-[#E5E5E7] dark:border-[#2C2C2C]">
-                            <div class="space-y-1.5">
-                                <label class="block text-xs font-semibold text-[#555555] dark:text-[#AAAAAA]">Nom &amp; Prénom de l'Étudiant <span class="text-red-500">*</span></label>
-                                <input type="text" id="assignment-student-name" required value="<?= htmlspecialchars($user['name'] ?? '') ?>" placeholder="ex: Dany Hardy" class="w-full px-3 py-2 bg-[#F5F5F7] dark:bg-[#252525] border border-[#E5E5E7] dark:border-[#333333] text-xs focus:outline-none focus:border-[#004B23] rounded-lg dark:text-white font-medium">
-                            </div>
-                            <div class="space-y-1.5">
-                                <label class="block text-xs font-semibold text-[#555555] dark:text-[#AAAAAA]">Matricule Étudiant <span class="text-red-500">*</span></label>
-                                <input type="text" id="assignment-student-matricule" required placeholder="ex: 21U2458" class="w-full px-3 py-2 bg-[#F5F5F7] dark:bg-[#252525] border border-[#E5E5E7] dark:border-[#333333] text-xs focus:outline-none focus:border-[#004B23] rounded-lg dark:text-white font-mono uppercase">
-                            </div>
+                        <div class="rd-two">
+                            <div class="field"><label for="assignment-student-name"><?= sdH(sd('full_name')) ?> *</label>
+                                <input type="text" id="assignment-student-name" class="input" required value="<?= sdH($user['name'] ?? '') ?>"></div>
+                            <div class="field"><label for="assignment-student-matricule"><?= sdH(sd('matricule')) ?> *</label>
+                                <input type="text" id="assignment-student-matricule" class="input sd-mat" required value="<?= sdH($user['matricule'] ?? '') ?>" placeholder="<?= sdH(sd('mat_ph')) ?>" maxlength="7"></div>
                         </div>
-
-                        <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
-                            <!-- Input Fichier -->
-                            <div id="assignment-file-wrapper" class="space-y-1.5">
-                                <label class="block text-xs font-semibold text-[#555555] dark:text-[#AAAAAA]">Document Rendu (&le; 20 Mo)</label>
-                                <input type="file" id="assignment-file-input" accept=".pdf,.docx,.doc" class="w-full text-xs text-[#555555] dark:text-[#AAAAAA] file:mr-3 file:py-2 file:px-3 file:rounded-lg file:border-0 file:text-xs file:font-semibold file:bg-[#004B23] file:text-white hover:file:bg-[#003619] cursor-pointer">
-                                <p id="assignment-allowed-types-label" class="text-[10px] text-gray-400">Formats acceptés : PDF, DOCX</p>
-                            </div>
-
-                            <!-- Input Lien -->
-                            <div id="assignment-link-wrapper" class="space-y-1.5">
-                                <label class="block text-xs font-semibold text-[#555555] dark:text-[#AAAAAA]">Lien du Projet / Application (GitHub, Drive...)</label>
-                                <input type="url" id="assignment-link-input" placeholder="https://github.com/... ou https://drive.google.com/..." class="w-full px-3 py-2 bg-[#F5F5F7] dark:bg-[#252525] border border-[#E5E5E7] dark:border-[#333333] text-xs focus:outline-none focus:border-[#004B23] rounded-lg dark:text-white">
-                                <p class="text-[10px] text-gray-400">Lien externe direct vers votre travail</p>
-                            </div>
+                        <div class="rd-two">
+                            <div id="assignment-file-wrapper" class="field"><label for="assignment-file-input"><?= sdH(sd('as_file')) ?></label>
+                                <input type="file" id="assignment-file-input" class="input" accept=".pdf,.docx,.doc">
+                                <span id="assignment-allowed-types-label" class="hint"></span></div>
+                            <div id="assignment-link-wrapper" class="field"><label for="assignment-link-input"><?= sdH(sd('as_link')) ?></label>
+                                <input type="url" id="assignment-link-input" class="input" placeholder="https://…">
+                                <span class="hint"><?= sdH(sd('as_link_hint')) ?></span></div>
                         </div>
-
-                        <!-- Remarques -->
-                        <div class="space-y-1.5">
-                            <label class="block text-xs font-semibold text-[#555555] dark:text-[#AAAAAA]">Commentaires / Note pour l'enseignant (Optionnel)</label>
-                            <textarea id="assignment-comment-input" rows="2" placeholder="Précisez tout détail ou note utile concernant votre rendu..." class="w-full px-3 py-2 bg-[#F5F5F7] dark:bg-[#252525] border border-[#E5E5E7] dark:border-[#333333] text-xs focus:outline-none focus:border-[#004B23] rounded-lg dark:text-white"></textarea>
-                        </div>
-
-                        <div class="flex items-center justify-between pt-2">
-                            <button type="submit" id="assignment-submit-btn" class="px-5 py-2.5 bg-[#004B23] hover:bg-[#003619] text-white text-xs font-semibold uppercase tracking-wider rounded-lg transition-colors flex items-center gap-2 shadow-sm">
-                                <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4"/></svg>
-                                <span>Déposer mon Devoir</span>
-                            </button>
-                            <span id="assignment-form-message" class="text-xs font-medium"></span>
+                        <div class="field"><label for="assignment-comment-input"><?= sdH(sd('as_comment')) ?></label>
+                            <textarea id="assignment-comment-input" class="input" rows="2"></textarea></div>
+                        <div class="rd-quiz-act">
+                            <button type="submit" id="assignment-submit-btn" class="btn btn-primary"><span><?= sdH(sd('as_submit')) ?></span></button>
+                            <span id="assignment-form-message" class="rd-feedback" role="status"></span>
                         </div>
                     </form>
-                </div>
+                </section>
+            </article>
+        </main>
+
+        <aside id="study-companion-panel" class="rd-side hidden" aria-label="<?= sdH(sd('companion')) ?>">
+            <div class="rd-side-head" role="tablist">
+                <button type="button" role="tab" id="companion-btn-ai" class="rd-stab is-on" onclick="switchCompanionTab('ai')"><?= sdH(sd('tab_ai')) ?></button>
+                <button type="button" role="tab" id="companion-btn-notes" class="rd-stab" onclick="switchCompanionTab('notes')"><?= sdH(sd('tab_notes')) ?></button>
+                <button type="button" role="tab" id="companion-btn-qa" class="rd-stab" onclick="switchCompanionTab('qa')"><?= sdH(sd('tab_qa')) ?></button>
+                <button type="button" class="rd-side-close" onclick="toggleCompanion()" aria-label="<?= sdH(sd('close')) ?>"><?= sdIcon('x', 18) ?></button>
             </div>
 
-            <!-- COMPAGNON SIDEBAR (Right) : Tabbed Companion Widget -->
-            <div id="study-companion-panel" class="w-full md:w-96 border-l border-[#E5E5E7] dark:border-[#2C2C2C] bg-[#FAF9F6] dark:bg-[#1C1C1E] flex flex-col flex-shrink-0 overflow-hidden relative shadow-lg">
-                <!-- Companion Tab Header -->
-                <div class="px-4 pt-3 pb-2 border-b border-[#E5E5E7] dark:border-[#2C2C2C] bg-white dark:bg-[#1E1E1E] flex justify-between items-center">
-                    <div class="flex gap-4">
-                        <button onclick="switchCompanionTab('ai')" id="companion-btn-ai" class="pb-2 text-xs font-semibold border-b-2 border-[#004B23] text-[#004B23] dark:text-[#34C759] uppercase tracking-wider transition-all">Assistant IA</button>
-                        <button onclick="switchCompanionTab('notes')" id="companion-btn-notes" class="pb-2 text-xs font-medium border-b-2 border-transparent text-[#555555] dark:text-[#AAAAAA] uppercase tracking-wider transition-all">Notes</button>
-                        <button onclick="switchCompanionTab('qa')" id="companion-btn-qa" class="pb-2 text-xs font-medium border-b-2 border-transparent text-[#555555] dark:text-[#AAAAAA] uppercase tracking-wider transition-all">Q&R</button>
+            <div class="rd-side-body">
+                <div id="companion-tab-ai" class="rd-pane">
+                    <div id="ai-chat-messages" class="rd-chat" aria-live="polite">
+                        <div class="rd-msg is-bot"><?= sdH(sd('ai_hello')) ?></div>
                     </div>
-                    <button onclick="toggleCompanion()" class="text-xs text-[#888888] hover:text-[#111111] dark:hover:text-white font-bold pb-2" title="Fermer">✕</button>
+                    <div class="rd-chips">
+                        <button type="button" onclick="triggerAiAction('summarize')"><?= sdH(sd('ai_summarize')) ?></button>
+                        <button type="button" onclick="triggerAiAction('explain')"><?= sdH(sd('ai_explain')) ?></button>
+                        <button type="button" onclick="triggerAiAction('generate_quiz')"><?= sdH(sd('ai_quiz')) ?></button>
+                    </div>
+                    <form id="ai-chat-form" class="rd-chatform" onsubmit="sendAiMessage(event)">
+                        <label class="sr-only" for="ai-chat-input"><?= sdH(sd('ai_ph')) ?></label>
+                        <input type="text" id="ai-chat-input" class="input" placeholder="<?= sdH(sd('ai_ph')) ?>" autocomplete="off">
+                        <button type="submit" class="btn btn-primary btn-sm" aria-label="<?= sdH(sd('send')) ?>"><?= sdIcon('arrow', 16) ?></button>
+                    </form>
                 </div>
 
-                <!-- COMPANION TABS CONTENT -->
-                <div class="flex-grow flex flex-col overflow-hidden relative">
-
-                    <!-- Tab 1: AI Assistant (WhatsApp style) -->
-                    <div id="companion-tab-ai" class="flex-grow flex flex-col overflow-hidden">
-                        <!-- AI chat messages area -->
-                        <div id="ai-chat-messages" class="flex-grow p-4 overflow-y-auto space-y-4 font-light text-sm leading-relaxed text-[#111111] wa-chat-bg flex flex-col dark:text-white">
-                            <div class="flex justify-start w-full my-2">
-                                <div class="px-4 py-2 bg-[#FFFFFF] dark:bg-[#2C2C2E] text-[#000000] dark:text-white text-xs rounded-[16px_16px_16px_4px] max-w-[85%] shadow-sm border border-[#E5E5E7] dark:border-[#2C2C2C] relative break-words">
-                                    Bonjour. Je suis votre assistant StudyVibe. Comment puis-je vous aider à comprendre cette leçon aujourd'hui ?
-                                </div>
-                            </div>
+                <div id="companion-tab-notes" class="rd-pane hidden">
+                    <div id="video-notes-section">
+                        <p class="sd-meta" id="notes-intro"><?= sdH(sd('notes_intro')) ?></p>
+                        <div id="video-notes-list" class="rd-notes">
+                            <p id="no-notes-msg" class="sd-meta"><?= sdH(sd('no_notes')) ?></p>
                         </div>
-
-                        <!-- Quick reply pills -->
-                        <div class="px-4 py-2 bg-white/40 dark:bg-[#1E1E1E]/40 backdrop-blur-md border-t border-[#E5E5E7]/80 dark:border-[#2C2C2C] flex gap-2 overflow-x-auto scrollbar-none select-none relative z-10 flex-shrink-0">
-                            <button type="button" onclick="triggerAiAction('summarize')" class="flex-shrink-0 px-3 py-1.5 bg-[#FFFFFF]/60 hover:bg-[#FFFFFF]/90 dark:bg-[#2C2C2E]/60 dark:hover:bg-[#2C2C2E]/90 border border-[#FFFFFF]/60 dark:border-[#2C2C2C] text-[11px] font-semibold text-[#004B23] dark:text-[#34C759] transition-all rounded-full shadow-sm">
-                                Résumer le cours
-                            </button>
-                            <button type="button" onclick="triggerAiAction('explain')" class="flex-shrink-0 px-3 py-1.5 bg-[#FFFFFF]/60 hover:bg-[#FFFFFF]/90 dark:bg-[#2C2C2E]/60 dark:hover:bg-[#2C2C2E]/90 border border-[#FFFFFF]/60 dark:border-[#2C2C2C] text-[11px] font-semibold text-[#004B23] dark:text-[#34C759] transition-all rounded-full shadow-sm">
-                                Expliquer simplement
-                            </button>
-                            <button type="button" onclick="triggerAiAction('generate_quiz')" class="flex-shrink-0 px-3 py-1.5 bg-[#FFFFFF]/60 hover:bg-[#FFFFFF]/90 dark:bg-[#2C2C2E]/60 dark:hover:bg-[#2C2C2E]/90 border border-[#FFFFFF]/60 dark:border-[#2C2C2C] text-[11px] font-semibold text-[#004B23] dark:text-[#34C759] transition-all rounded-full shadow-sm">
-                                S'auto-évaluer
-                            </button>
-                        </div>
-
-                        <!-- AI message input bar -->
-                        <form id="ai-chat-form" class="p-3 border-t border-[#E5E5E7] dark:border-[#2C2C2C] bg-white dark:bg-[#1E1E1E] flex items-center gap-2" onsubmit="sendAiMessage(event)">
-                            <div class="flex-grow relative">
-                                <input type="text" id="ai-chat-input" placeholder="Posez une question sur le cours..." autocomplete="off"
-                                    class="w-full px-4 py-2 border border-[#E5E5E7] dark:border-[#2C2C2C] text-xs focus:outline-none focus:border-[#D5D0C8] rounded-full bg-[#F5F5F7] dark:bg-[#2C2C2E] text-[#111111] dark:text-white placeholder-[#888888]">
+                        <form id="video-note-form" class="rd-noteform">
+                            <div class="rd-noterow">
+                                <div class="field" id="note-ts-field"><label for="note-timestamp"><?= sdH(sd('note_time')) ?></label>
+                                    <input type="text" id="note-timestamp" class="input num" placeholder="04:32" maxlength="8" inputmode="numeric"></div>
+                                <div class="field rd-grow"><label for="note-text"><?= sdH(sd('note_text')) ?></label>
+                                    <input type="text" id="note-text" class="input" required></div>
                             </div>
-                            <button type="submit"
-                                class="w-8 h-8 flex items-center justify-center bg-[#004B23] dark:bg-[#34C759] hover:bg-[#003619] text-[#FFFFFF] rounded-full transition-colors shadow-md flex-shrink-0">
-                                <svg class="w-4 h-4 fill-current rotate-45 transform translate-x-[-1px] translate-y-[1px]" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
-                                    <path d="M2.01 21L23 12 2.01 3 2 10l15 2-15 2z"/>
-                                </svg>
-                            </button>
+                            <button type="submit" class="btn btn-ghost btn-sm"><?= sdH(sd('add_note')) ?></button>
                         </form>
                     </div>
+                </div>
 
-                    <!-- Tab 2: Timestamp Notes -->
-                    <div id="companion-tab-notes" class="flex-grow flex flex-col overflow-y-auto p-4 space-y-4 hidden">
-                        <div id="video-notes-section" class="space-y-4 flex flex-col h-full justify-between">
-                            <div class="space-y-3">
-                                <div class="flex items-center gap-2 border-b pb-2 dark:border-[#2C2C2C]">
-                                    <span class="text-xs font-semibold uppercase tracking-wider text-[#888888] dark:text-[#AAAAAA]">Mes Notes Vidéo</span>
-                                    <span class="text-[9px] font-mono uppercase tracking-wider text-[#888888] bg-[#F5F5F7] dark:bg-[#252525] px-2 py-0.5 rounded-sm">calées sur les timestamps</span>
-                                </div>
-                                <div id="video-notes-list" class="flex flex-col gap-2 min-h-[5rem] max-h-[300px] overflow-y-auto">
-                                    <p id="no-notes-msg" class="text-xs text-[#888888] italic">Aucune note. Ajoutez-en ci-dessous pendant la vidéo.</p>
-                                </div>
-                            </div>
-                            
-                            <form id="video-note-form" class="border-t pt-4 dark:border-[#2C2C2C] flex flex-col gap-3">
-                                <div class="flex gap-2">
-                                    <div class="flex flex-col gap-1 w-24">
-                                        <label class="text-[9px] uppercase tracking-wider text-[#555555] dark:text-[#AAAAAA] font-bold">Timestamp</label>
-                                        <input type="text" id="note-timestamp" placeholder="04:32" maxlength="6"
-                                            class="w-full px-2 py-1.5 bg-white dark:bg-[#2C2C2E] border border-[#E5E5E7] dark:border-[#2C2C2C] text-xs focus:outline-none focus:border-[#004B23] rounded font-mono text-center">
-                                    </div>
-                                    <div class="flex flex-col gap-1 flex-1">
-                                        <label class="text-[9px] uppercase tracking-wider text-[#555555] dark:text-[#AAAAAA] font-bold">Votre note</label>
-                                        <input type="text" id="note-text" placeholder="Ma remarque à ce moment…" required
-                                            class="w-full px-3 py-1.5 bg-white dark:bg-[#2C2C2E] border border-[#E5E5E7] dark:border-[#2C2C2C] text-xs focus:outline-none focus:border-[#004B23] rounded">
-                                    </div>
-                                </div>
-                                <button type="submit" class="w-full py-2 bg-[#004B23] dark:bg-[#34C759] text-white text-xs font-semibold uppercase tracking-wider hover:bg-[#111111] transition-colors rounded-lg flex justify-center items-center gap-1.5 shadow-sm">
-                                    <span>+ Ajouter la note</span>
-                                </button>
-                            </form>
-                        </div>
+                <div id="companion-tab-qa" class="rd-pane hidden">
+                    <div id="lesson-qa-container" class="rd-qa">
+                        <div id="lesson-comments-list" class="rd-comments"></div>
+                        <form id="lesson-comment-form" class="rd-chatform">
+                            <input type="hidden" id="comment-lesson-id" value="">
+                            <label class="sr-only" for="comment-input"><?= sdH(sd('qa_ph')) ?></label>
+                            <input type="text" id="comment-input" class="input" placeholder="<?= sdH(sd('qa_ph')) ?>" required>
+                            <button type="submit" class="btn btn-ghost btn-sm"><?= sdH(sd('send')) ?></button>
+                        </form>
                     </div>
-
-                    <!-- Tab 3: Q&A Comments -->
-                    <div id="companion-tab-qa" class="flex-grow flex flex-col overflow-hidden hidden p-4">
-                        <div id="lesson-qa-container" class="flex flex-col h-full justify-between space-y-4 overflow-hidden">
-                            <div class="flex-grow flex flex-col overflow-hidden space-y-2">
-                                <h4 class="text-xs font-semibold uppercase tracking-widest text-[#888888] dark:text-[#AAAAAA] border-b pb-2 dark:border-[#2C2C2C]">Questions &amp; Réponses</h4>
-                                <div id="lesson-comments-list" class="flex-grow overflow-y-auto space-y-3 pr-1"></div>
-                            </div>
-                            
-                            <form id="lesson-comment-form" class="border-t pt-3 dark:border-[#2C2C2C] flex gap-2 flex-shrink-0">
-                                <input type="hidden" id="comment-lesson-id" value="">
-                                <input type="text" id="comment-input" placeholder="Poser une question…" required
-                                    class="flex-1 px-3 py-2 bg-white dark:bg-[#2C2C2E] border border-[#E5E5E7] dark:border-[#2C2C2C] text-xs focus:outline-none focus:border-[#004B23] rounded-lg">
-                                <button type="submit" class="px-4 py-2 bg-[#111111] dark:bg-[#FFFFFF] text-white dark:text-[#111111] text-xs font-semibold uppercase tracking-wider hover:bg-[#004B23] rounded-lg transition-all flex-shrink-0">Envoyer</button>
-                            </form>
-                        </div>
-                    </div>
-
                 </div>
             </div>
-
-        </div>
+        </aside>
     </div>
+</div>
 
-    <!-- Modal : QCM Final de Certification (30 Questions minimum) -->
-    <div id="final-exam-modal" class="hidden fixed inset-0 bg-black bg-opacity-50 backdrop-blur-sm z-50 flex items-center justify-center p-6">
-        <div class="bg-[#FFFFFF] p-8 md:p-12 max-w-3xl w-full border border-[#E5E5E7] space-y-8 max-h-[90vh] overflow-y-auto sv-modal-enter">
-            <div class="border-b border-[#E5E5E7] pb-4 flex justify-between items-start gap-4">
-                <div>
-                    <h3 class="font-serif text-3xl font-light" id="exam-course-title">Examen Final</h3>
-                    <p class="text-xs font-light text-[#888888] mt-1">
-                        Épreuve de certification officielle. Seuil d'admission : 80%.
-                        <span id="exam-attempts-info" class="block mt-1"></span>
-                    </p>
-                </div>
-                <div class="text-right flex-shrink-0">
-                    <div class="text-[10px] uppercase tracking-wider text-[#888888] mb-1">Temps restant</div>
-                    <div id="exam-timer" class="sv-timer text-2xl font-mono font-semibold text-[#111111]">90:00</div>
-                    <button type="button" onclick="toggleModal('final-exam-modal'); ExamTimer.stop();" class="text-xs text-[#D32F2F] mt-2 uppercase font-semibold">Abandonner</button>
-                </div>
+<!-- =========================================================================
+     SECTION 10: DIALOGS — final exam, enrolment key, library text
+     ========================================================================= -->
+<div id="final-exam-modal" class="sd-modal hidden" role="dialog" aria-modal="true" aria-labelledby="exam-course-title">
+    <div class="sd-sheet sd-sheet-wide">
+        <header class="sd-sheet-head">
+            <div>
+                <p class="sd-kicker"><?= sdH(sd('final_exam')) ?></p>
+                <h2 id="exam-course-title">—</h2>
+                <p class="sd-meta"><?= sdH(sd('exam_threshold')) ?> <span id="exam-attempts-info"></span></p>
             </div>
-
-            <!-- Questionnaire -->
-            <form id="final-exam-form" class="space-y-8">
-                <input type="hidden" id="exam-course-id" name="course_id" value="">
-                
-                <div id="exam-questions-container" class="space-y-8 divide-y divide-[#E5E5E7] max-h-96 overflow-y-auto pr-4">
-                    <!-- Questions générées dynamiquement -->
-                </div>
-
-                <div class="pt-6 border-t border-[#E5E5E7] flex justify-between items-center">
-                    <span id="exam-error-alert" class="text-xs text-[#D32F2F] font-medium hidden">Veuillez répondre à toutes les questions avant de valider.</span>
-                    <button type="submit"
-                        class="px-6 py-3 bg-[#111111] text-[#FFFFFF] text-sm font-semibold uppercase tracking-widest hover:bg-[#004B23] transition-colors rounded-sm">
-                        Valider l'Épreuve
-                    </button>
-                </div>
-            </form>
-        </div>
+            <div class="sd-exam-clock">
+                <span class="sd-meta"><?= sdH(sd('time_left')) ?></span>
+                <span id="exam-timer" class="sv-timer num">90:00</span>
+                <button type="button" class="btn btn-text sd-danger" onclick="abandonExam()"><?= sdH(sd('abandon')) ?></button>
+            </div>
+        </header>
+        <form id="final-exam-form">
+            <input type="hidden" id="exam-course-id" name="course_id" value="">
+            <div id="exam-questions-container" class="sd-exam-q"></div>
+            <footer class="sd-sheet-foot">
+                <span id="exam-error-alert" class="sd-feedback is-bad hidden" role="alert"><?= sdH(sd('exam_answer_all')) ?></span>
+                <button type="submit" class="btn btn-primary btn-lg"><?= sdH(sd('exam_submit')) ?></button>
+            </footer>
+        </form>
     </div>
+</div>
 
-    <!-- Modal : Clé d'inscription -->
-    <div id="enroll-modal" class="hidden fixed inset-0 bg-black bg-opacity-40 backdrop-blur-sm z-50 flex items-center justify-center p-6">
-        <div class="bg-[#FFFFFF] p-8 max-w-sm w-full border border-[#E5E5E7] space-y-6 modal-active">
-            <h3 class="font-serif text-2xl font-light">Clé de Connexion Secrète</h3>
-            <p class="text-xs font-light text-[#555555]">Ce cours est protégé. Veuillez saisir la clé d'inscription fournie par le professeur.</p>
-            
-            <form id="enroll-form" class="space-y-4">
-                <input type="hidden" id="enroll-course-id" name="course_id" value="">
-                <div>
-                    <label class="block text-xs font-semibold uppercase tracking-wider text-[#555555] mb-2">Clé d'inscription</label>
-                    <input type="text" id="enroll-key-input" name="enrollment_key" required placeholder="ex: ALGO2026"
-                        class="w-full px-4 py-2 bg-[#F5F5F7] border border-[#E5E5E7] text-sm focus:outline-none focus:border-[#004B23] rounded-sm">
-                </div>
-                <div id="enroll-error" class="hidden text-xs text-[#D32F2F] font-medium">Clé incorrecte. Veuillez réessayer.</div>
-                
-                <div class="flex justify-end gap-3 pt-2">
-                    <button type="button" onclick="toggleModal('enroll-modal')"
-                        class="px-4 py-2 bg-[#F5F5F7] text-[#111111] text-xs font-semibold uppercase tracking-wider border border-[#E5E5E7] rounded-sm">
-                        Annuler
-                    </button>
-                    <button type="submit"
-                        class="px-4 py-2 bg-[#111111] text-[#FFFFFF] text-xs font-semibold uppercase tracking-wider hover:bg-[#004B23] rounded-sm">
-                        S'inscrire
-                    </button>
-                </div>
-            </form>
-        </div>
+<div id="enroll-modal" class="sd-modal hidden" role="dialog" aria-modal="true" aria-labelledby="enroll-title">
+    <div class="sd-sheet">
+        <h2 id="enroll-title"><?= sdH(sd('key_title')) ?></h2>
+        <p class="sd-meta"><?= sdH(sd('key_text')) ?></p>
+        <form id="enroll-form">
+            <input type="hidden" id="enroll-course-id" name="course_id" value="">
+            <div class="field"><label for="enroll-key-input"><?= sdH(sd('key_label')) ?></label>
+                <input type="text" id="enroll-key-input" name="enrollment_key" class="input" required placeholder="ALGO2026" autocomplete="off" autocapitalize="off" autocorrect="off" spellcheck="false" enterkeyhint="go"></div>
+            <div id="enroll-error" class="hint err hidden" role="alert"></div>
+            <div class="sd-sheet-act">
+                <button type="button" class="btn btn-ghost" onclick="toggleModal('enroll-modal')"><?= sdH(sd('cancel')) ?></button>
+                <button type="submit" class="btn btn-primary"><?= sdH(sd('enrol')) ?></button>
+            </div>
+        </form>
     </div>
-
-    <!-- =========================================================================
-         SECTION 4: CLIENT-SIDE JAVASCRIPT CONTROLLERS (STATE & INTERACTION LOGIC)
-         ========================================================================= -->
-    <script src="/assets/js/app.js"></script>
-    <script>
-        /**
-         * Toggles the visibility of the course outline sidebar in the learning liseuse.
-         * @return {void}
-         */
-        function toggleOutline() {
-            const container = document.getElementById('study-chapters-container')?.parentElement;
-            if (container) {
-                container.classList.toggle('hidden');
-            }
-        }
-
-        /**
-         * Toggles the visibility of the study companion sidebar panel.
-         * @return {void}
-         */
-        function toggleCompanion() {
-            const companion = document.getElementById('study-companion-panel');
-            if (companion) {
-                companion.classList.toggle('hidden');
-            }
-        }
-
-        /**
-         * Switches the active tab in the study companion panel.
-         * @param {string} tabId - Target tab identifier ('ai' | 'notes' | 'qa').
-         * @return {void}
-         */
-        function switchCompanionTab(tabId) {
-            const tabs = ['ai', 'notes', 'qa'];
-            tabs.forEach(t => {
-                const btn = document.getElementById('companion-btn-' + t);
-                const content = document.getElementById('companion-tab-' + t);
-                if (btn) {
-                    if (t === tabId) {
-                        btn.classList.remove('border-transparent', 'text-[#555555]', 'dark:text-[#AAAAAA]', 'font-medium');
-                        btn.classList.add('border-[#004B23]', 'dark:border-[#34C759]', 'text-[#004B23]', 'dark:text-[#34C759]', 'font-semibold');
-                    } else {
-                        btn.classList.remove('border-[#004B23]', 'dark:border-[#34C759]', 'text-[#004B23]', 'dark:text-[#34C759]', 'font-semibold');
-                        btn.classList.add('border-transparent', 'text-[#555555]', 'dark:text-[#AAAAAA]', 'font-medium');
-                    }
-                }
-                if (content) {
-                    content.classList.toggle('hidden', t !== tabId);
-                }
-            });
-        }
-
-        /**
-         * Opens or closes the mobile navigation drawer menu.
-         * @return {void}
-         */
-        function toggleMobileDrawer() {
-            const drawer = document.getElementById('mobile-drawer');
-            if (drawer) {
-                if (drawer.classList.contains('hidden')) {
-                    drawer.classList.remove('hidden');
-                    drawer.classList.add('flex');
-                } else {
-                    drawer.classList.add('hidden');
-                    drawer.classList.remove('flex');
-                }
-            }
-        }
-
-        /**
-         * Opens or closes the mobile notification panel drawer.
-         * @return {void}
-         */
-        function toggleMobileNotifs() {
-            const panel = document.getElementById('mobile-notif-panel-container');
-            if (panel) {
-                panel.classList.toggle('hidden');
-                if (!panel.classList.contains('hidden')) {
-                    loadNotifications();
-                }
-            }
-        }
-        const STUDENT_TABS = ['catalogue', 'mes-cours', 'bibliotheque', 'releve', 'certifications', 'achievements', 'profil', 'tele-evaluations', 'webinaires'];
-
-        document.addEventListener('DOMContentLoaded', () => {
-            initCourseSearch('course-search', 'course-grid');
-
-            // GSAP Number Counter Animations for Student KPIs
-            const completedEl = document.getElementById('kpi-completed');
-            const scoreEl = document.getElementById('kpi-score');
-            const timeEl = document.getElementById('kpi-time');
-            const certsEl = document.getElementById('kpi-certs');
-
-            if (completedEl && scoreEl && timeEl && certsEl) {
-                // Parse values from HTML content
-                const completedVal = parseInt(completedEl.textContent.trim()) || 0;
-                const scoreVal = parseFloat(scoreEl.textContent.replace('%', '').trim()) || 0.0;
-                
-                // Parse time (e.g. 5h32)
-                const timeText = timeEl.textContent.trim();
-                const timeParts = timeText.split('h');
-                const timeHVal = parseInt(timeParts[0]) || 0;
-                const timeMVal = parseInt(timeParts[1]) || 0;
-                
-                const certsVal = parseInt(certsEl.textContent.trim()) || 0;
-
-                const counterObj = { completed: 0, score: 0, timeH: 0, timeM: 0, certs: 0 };
-                
-                gsap.to(counterObj, {
-                    completed: completedVal,
-                    score: scoreVal,
-                    timeH: timeHVal,
-                    timeM: timeMVal,
-                    certs: certsVal,
-                    duration: 1.6,
-                    ease: "power2.out",
-                    onUpdate: () => {
-                        completedEl.textContent = Math.floor(counterObj.completed);
-                        scoreEl.textContent = counterObj.score.toFixed(1) + '%';
-                        const minsStr = String(Math.floor(counterObj.timeM)).padStart(2, '0');
-                        timeEl.textContent = Math.floor(counterObj.timeH) + 'h' + minsStr;
-                        certsEl.textContent = Math.floor(counterObj.certs);
-                    }
-                });
-            }
-
-            // Stagger load the Course grid cards
-            gsap.from("#course-grid [data-course-card]", {
-                opacity: 0,
-                y: 35,
-                stagger: 0.1,
-                duration: 0.85,
-                ease: "power2.out"
-            });
-        });
-
-        /**
-         * Updates visual states of side navigation buttons to reflect active tab.
-         * @param {string} activeTab - The newly active tab key.
-         * @return {void}
-         */
-        function updateSidebarButtons(activeTab) {
-            STUDENT_TABS.forEach(t => {
-                const btn = document.getElementById('tab-btn-' + t);
-                if (btn) {
-                    if (t === activeTab) {
-                        btn.className = "w-full flex items-center gap-3 px-4 py-3 rounded-lg text-sm font-semibold transition-all text-white bg-white/10 border-l-4 border-white text-left";
-                    } else {
-                        btn.className = "w-full flex items-center gap-3 px-4 py-3 rounded-lg text-sm font-medium transition-all text-white/70 hover:text-white hover:bg-white/10 text-left";
-                    }
-                }
-                const mBtn = document.getElementById('mobile-tab-btn-' + t);
-                if (mBtn) {
-                    if (t === activeTab) {
-                        mBtn.className = "w-full flex items-center gap-3 px-4 py-3 rounded-lg text-sm font-semibold transition-all text-white bg-white/10 border-l-4 border-white text-left";
-                    } else {
-                        mBtn.className = "w-full flex items-center gap-3 px-4 py-3 rounded-lg text-sm font-medium transition-all text-white/70 hover:text-white hover:bg-white/10 text-left";
-                    }
-                }
-            });
-        }
-
-        /**
-         * Orchestrates tab transitions with custom GSAP fade-in micro-animations.
-         * @param {string} tabName - Target tab key.
-         * @return {void}
-         */
-        function switchTab(tabName) {
-            switchTabAnimated(tabName, STUDENT_TABS);
-            updateSidebarButtons(tabName);
-            if (tabName === 'releve') loadTranscript();
-            if (tabName === 'achievements') animateBadgesEntrance();
-        }
-
-        /**
-         * Asynchronously loads student academic transcript, including lesson grades and exam failures.
-         * @return {void}
-         */
-        function loadTranscript() {
-            const container = document.getElementById('transcript-container');
-            fetch('/student/get-transcript.php')
-            .then(r => r.json())
-            .then(data => {
-                if (!data.success) { container.innerHTML = '<p class="text-sm text-[#D32F2F]">Erreur de chargement.</p>'; return; }
-                let html = '<div class="overflow-x-auto border border-[#E5E5E7]"><table class="w-full text-sm"><thead><tr class="border-b border-[#111111] text-xs uppercase text-[#555555]"><th class="p-3 text-left">Cours</th><th class="p-3">Progression</th><th class="p-3">Meilleur score</th><th class="p-3">Tentatives</th></tr></thead><tbody>';
-                data.courses.forEach(c => {
-                    html += `<tr class="border-b border-[#E5E5E7]"><td class="p-3"><strong>${c.course_title}</strong><br><span class="text-xs text-[#888]">${c.module_title}</span></td><td class="p-3 text-center">${c.progress_percent}%</td><td class="p-3 text-center">${c.best_score ? c.best_score + '%' : '—'}</td><td class="p-3 text-center">${c.attempts}</td></tr>`;
-                });
-                html += '</tbody></table></div>';
-                if (data.lesson_scores.length) {
-                    html += '<h3 class="font-serif text-xl mt-8 mb-4">Leçons complétées</h3><div class="space-y-2 border border-[#E5E5E7] p-4">';
-                    data.lesson_scores.forEach(l => {
-                        html += `<div class="flex justify-between text-xs border-b border-[#E5E5E7] py-2"><span>${l.lesson_title} <span class="text-[#888]">(${l.course_title})</span></span><span class="font-semibold">${l.score}%</span></div>`;
-                    });
-                    html += '</div>';
-                }
-                if (data.failed_attempts && data.failed_attempts.length) {
-                    html += '<h3 class="font-serif text-xl mt-8 mb-4">Tentatives de certification non validées</h3>';
-                    html += '<p class="text-xs text-[#555555] mb-4">Récapitulatif sans détail des réponses — consultez ou téléchargez chaque relevé.</p>';
-                    html += '<div class="space-y-3">';
-                    data.failed_attempts.forEach(a => {
-                        const d = new Date(a.attempted_at).toLocaleString('fr-FR');
-                        html += `<div class="flex flex-wrap justify-between items-center gap-3 p-4 border border-[#E5E5E7] bg-[#F5F5F7]">
-                            <div><strong class="text-sm">${a.course_title}</strong><br>
-                            <span class="text-xs text-[#888]">${a.module_title} · ${d}</span><br>
-                            <span class="text-xs text-[#D32F2F] font-semibold">Score : ${parseFloat(a.score).toFixed(1)} % — Non validé (seuil 80 %)</span></div>
-                            <div class="flex gap-2">
-                                <a href="${a.report_url}" target="_blank" class="px-4 py-2 bg-[#111111] text-white text-xs font-semibold uppercase tracking-wider hover:bg-[#004B23] rounded-sm">Voir / Télécharger</a>
-                            </div></div>`;
-                    });
-                    html += '</div>';
-                }
-                container.innerHTML = html;
-            });
-        }
-
-        /**
-         * Fetches and refreshes global KPIs displayed on the student dashboard main panel.
-         * @return {void}
-         */
-        function refreshDashboard() {
-            fetch('/student/get-stats.php').then(r => r.json()).then(data => {
-                if (!data.success) return;
-                document.getElementById('kpi-completed').textContent = data.completed_courses;
-                document.getElementById('kpi-score').textContent = data.avg_score + '%';
-                document.getElementById('kpi-time').textContent = data.study_time.hours + 'h' + String(data.study_time.minutes).padStart(2,'0');
-                document.getElementById('kpi-certs').textContent = data.certificates;
-            });
-        }
-
-        /**
-         * Initiates enrollment action for a course, checking if access key is needed.
-         * @param {number} courseId - The unique course database ID.
-         * @param {boolean} needsKey - Indication if course is locked by key.
-         * @return {void}
-         */
-        function attemptEnroll(courseId, needsKey) {
-            if (needsKey) {
-                document.getElementById('enroll-course-id').value = courseId;
-                document.getElementById('enroll-key-input').value = '';
-                document.getElementById('enroll-error').classList.add('hidden');
-                toggleModal('enroll-modal');
-            } else {
-                submitEnrollment(courseId, null);
-            }
-        }
-
-        document.getElementById('enroll-form').addEventListener('submit', function(e) {
-            e.preventDefault();
-            const courseId = parseInt(document.getElementById('enroll-course-id').value);
-            const key = document.getElementById('enroll-key-input').value.trim();
-            submitEnrollment(courseId, key);
-        });
-
-        /**
-         * Dispatches secure AJAX request to enroll in target course.
-         * @param {number} courseId - Target course unique key.
-         * @param {string|null} key - Password enrollment key.
-         * @return {void}
-         */
-        function submitEnrollment(courseId, key) {
-            const formData = new FormData();
-            formData.append('course_id', courseId);
-            formData.append('csrf_token', document.querySelector('meta[name="csrf-token"]').content);
-            if (key) formData.append('enrollment_key', key);
-
-            fetch('/student/enroll.php', { method: 'POST', body: formData })
-            .then(res => res.json())
-            .then(data => {
-                if (data.success) {
-                    Toast.success('Inscription réussie !');
-                    toggleModal('enroll-modal');
-                    refreshDashboard();
-                    setTimeout(() => location.reload(), 800);
-                } else {
-                    if (key) {
-                        const errorDiv = document.getElementById('enroll-error');
-                        errorDiv.textContent = data.message || 'Clé incorrecte.';
-                        errorDiv.classList.remove('hidden');
-                    } else {
-                        Toast.error(data.message || 'Erreur lors de l\'inscription.');
-                    }
-                }
-            })
-            .catch(err => Toast.error('Erreur réseau: ' + err.message));
-        }
-
-        /**
-         * Asynchronously updates student's public profile name.
-         * @return {void}
-         */
-        function updateProfileName() {
-            const newName = document.getElementById('profile-name').value.trim();
-            const newMatricule = document.getElementById('profile-matricule')?.value.trim() || '';
-            const statusLabel = document.getElementById('profile-status');
-            
-            if (newName === '') return;
-
-            const formData = new FormData();
-            formData.append('name', newName);
-            formData.append('matricule', newMatricule);
-
-            fetch('/student/update-profile.php', {
-                method: 'POST',
-                body: formData
-            })
-            .then(res => res.json())
-            .then(data => {
-                if (data.success) {
-                    statusLabel.classList.remove('hidden');
-                    
-                    // Update layout values
-                    document.querySelectorAll('.id-student-name').forEach(el => {
-                        el.textContent = newName;
-                    });
-
-                    // Hide prompt modal if present
-                    const alertModal = document.getElementById('matricule-alert-modal');
-                    if (alertModal && newMatricule !== '') {
-                        alertModal.remove();
-                    }
-                    
-                    setTimeout(() => statusLabel.classList.add('hidden'), 3000);
-                } else {
-                    Toast.error('Erreur: ' + data.message);
-                }
-            })
-            .catch(err => Toast.error('Erreur réseau: ' + err.message));
-        }
-
-        /**
-         * Submits selected avatar image file to profile upload controller.
-         * @return {void}
-         */
-        function uploadAvatar() {
-            const avatarInput = document.getElementById('avatar-input');
-            const file = avatarInput.files[0];
-            if (!file) return;
-
-            const formData = new FormData();
-            formData.append('avatar', file);
-
-            fetch('/student/update-profile.php', {
-                method: 'POST',
-                body: formData
-            })
-            .then(res => res.json())
-            .then(data => {
-                if (data.success) {
-                    // Update preview images
-                    const newPath = '/download.php?type=avatar&file=' + encodeURIComponent(data.avatar_path);
-                    document.getElementById('profile-avatar-preview').src = newPath;
-                    document.getElementById('header-avatar').src = newPath;
-                    Toast.success('Avatar mis à jour.');
-                } else {
-                    Toast.error('Erreur: ' + data.message);
-                }
-            })
-            .catch(err => Toast.error('Erreur réseau: ' + err.message));
-        }
-
-        // =========================================================================
-        // SECTION 5: STUDY MODAL, LESSON CONSOLE & AI COMPANION CONTROLLERS
-        // =========================================================================
-        let currentLessonId = 0;
-        let studyCourseIdGlobal = 0;
-
-        /**
-         * Loads and presents the study course modal layout with chapter hierarchy.
-         * @param {number} courseId - The course identifier to read.
-         * @return {void}
-         */
-        let currentCourseLessons = [];
-        let currentNextLesson = null;
-
-        /**
-         * Loads and presents the study course modal layout with chapter hierarchy.
-         * @param {number} courseId - The course identifier to read.
-         * @param {number|null} stayOnLessonId - Optional lesson ID to remain focused on.
-         * @return {void}
-         */
-        function studyCourse(courseId, stayOnLessonId = null) {
-            studyCourseIdGlobal = courseId;
-            fetch(`/student/get-course-details.php?course_id=${courseId}`)
-            .then(res => res.json())
-            .then(data => {
-                if (data.success) {
-                    document.getElementById('study-course-module').textContent = data.course.module_title;
-                    document.getElementById('study-course-title').textContent = data.course.title;
-                    
-                    // Render Chapters and Lessons
-                    const allLessons = [];
-                    const container = document.getElementById('study-chapters-container');
-                    container.innerHTML = '';
-                    
-                    data.chapters.forEach(ch => {
-                        const chapterDiv = document.createElement('div');
-                        chapterDiv.className = 'space-y-2';
-                        
-                        const titleEl = document.createElement('h4');
-                        titleEl.className = 'text-xs font-semibold uppercase tracking-wider text-[#555555] dark:text-[#AAAAAA]';
-                        titleEl.textContent = ch.title;
-                        chapterDiv.appendChild(titleEl);
-                        
-                        const lessonsList = document.createElement('div');
-                        lessonsList.className = 'space-y-1.5 pl-2 border-l border-[#E5E5E7] dark:border-[#2C2C2C]';
-                        
-                        ch.lessons.forEach(les => {
-                            let isExpired = false;
-                            if (les.quiz_deadline && parseInt(les.completed) === 0) {
-                                if (new Date() > new Date(les.quiz_deadline)) {
-                                    isExpired = true;
-                                }
-                            }
-
-                            if (!isExpired) {
-                                allLessons.push(les);
-                            }
-
-                            const lessonBtn = document.createElement('button');
-                            if (isExpired) {
-                                lessonBtn.className = `w-full text-left text-xs py-1 px-2 text-[#888888] cursor-not-allowed flex justify-between items-center opacity-60`;
-                                lessonBtn.onclick = () => {
-                                    Toast.error("Le délai d'accès à cette leçon/quiz a expiré.");
-                                };
-                            } else {
-                                const isCurrent = currentLessonId && currentLessonId == les.id;
-                                const isDone = parseInt(les.completed) === 1;
-                                lessonBtn.className = `w-full text-left text-xs py-1.5 px-2.5 transition-all hover:bg-[#E5E5E7] dark:hover:bg-[#252525] rounded-lg flex justify-between items-center ${isCurrent ? 'bg-[#004B23]/10 dark:bg-[#34C759]/10 font-bold text-[#004B23] dark:text-[#34C759]' : (isDone ? 'text-[#004B23] dark:text-[#34C759] font-medium' : 'text-[#555555] dark:text-[#AAAAAA]')}`;
-                                lessonBtn.onclick = () => loadLesson(les.id);
-                            }
-                            
-                            const titleSpan = document.createElement('span');
-                            titleSpan.textContent = les.title + (isExpired ? ' (Expiré)' : '');
-                            lessonBtn.appendChild(titleSpan);
-                            
-                            if (parseInt(les.completed) === 1) {
-                                const checkSpan = document.createElement('span');
-                                checkSpan.textContent = '✓';
-                                checkSpan.className = 'font-bold text-[#004B23] dark:text-[#34C759]';
-                                lessonBtn.appendChild(checkSpan);
-                            }
-                            
-                            lessonsList.appendChild(lessonBtn);
-                        });
-                        
-                        chapterDiv.appendChild(lessonsList);
-                        container.appendChild(chapterDiv);
-                    });
-
-                    currentCourseLessons = allLessons;
-                    
-                    // Open study modal
-                    const modal = document.getElementById('study-modal');
-                    if (modal) modal.classList.remove('hidden');
-
-                    if (stayOnLessonId) {
-                        const curIdx = currentCourseLessons.findIndex(l => l.id == stayOnLessonId);
-                        currentNextLesson = (curIdx !== -1 && curIdx + 1 < currentCourseLessons.length) ? currentCourseLessons[curIdx + 1] : null;
-                        loadLesson(stayOnLessonId);
-                    } else {
-                        let targetLesson = null;
-                        if (data.course.last_lesson_id) {
-                            const lastIdx = currentCourseLessons.findIndex(l => l.id == data.course.last_lesson_id);
-                            if (lastIdx !== -1) {
-                                const lastLes = currentCourseLessons[lastIdx];
-                                if (parseInt(lastLes.completed) === 0) {
-                                    // Student was working on this lesson, not finished -> return to this lesson
-                                    targetLesson = lastLes;
-                                } else if (lastIdx + 1 < currentCourseLessons.length) {
-                                    // Student finished this lesson -> move to the NEXT lesson
-                                    targetLesson = currentCourseLessons[lastIdx + 1];
-                                } else {
-                                    targetLesson = lastLes;
-                                }
-                            }
-                        }
-
-                        if (!targetLesson) {
-                            // Pick first uncompleted lesson in the course
-                            targetLesson = currentCourseLessons.find(l => parseInt(l.completed) === 0);
-                        }
-
-                        if (!targetLesson && currentCourseLessons.length > 0) {
-                            // All lessons completed -> load last lesson
-                            targetLesson = currentCourseLessons[currentCourseLessons.length - 1];
-                        }
-
-                        if (targetLesson) {
-                            loadLesson(targetLesson.id);
-                        } else if (data.chapters.length > 0 && data.chapters[0].lessons.length > 0) {
-                            document.getElementById('lesson-viewer-header').classList.add('hidden');
-                            document.getElementById('study-media-container').innerHTML = '<p class="text-sm italic text-[#888888]">Toutes les leçons de ce cours ont expiré.</p>';
-                        } else {
-                            document.getElementById('lesson-viewer-header').classList.add('hidden');
-                            document.getElementById('study-media-container').innerHTML = '<p class="text-sm italic text-[#888888]">Aucune leçon disponible.</p>';
-                        }
-                    }
-                } else {
-                    Toast.error('Erreur: ' + data.message);
-                }
-            })
-            .catch(err => Toast.error('Erreur réseau: ' + err.message));
-        }
-
-        /**
-         * Helper returning local current time formatted as HH:MM.
-         * @return {string} Formatted time string.
-         */
-        function getCurrentTime() {
-            const now = new Date();
-            const hours = String(now.getHours()).padStart(2, '0');
-            const minutes = String(now.getMinutes()).padStart(2, '0');
-            return `${hours}:${minutes}`;
-        }
-
-        /**
-         * Toggles the study companion's AI chat drawer panel.
-         * @return {void}
-         */
-        function toggleAiDrawer() {
-            const drawer = document.getElementById('ai-chat-drawer');
-            if (drawer.classList.contains('hidden')) {
-                drawer.classList.remove('hidden');
-                // Scroll to bottom
-                const msgs = document.getElementById('ai-chat-messages');
-                msgs.scrollTop = msgs.scrollHeight;
-            } else {
-                drawer.classList.add('hidden');
-            }
-        }
-
-        /**
-         * Dispatches pre-defined actions to the AI Student Assistant (e.g., summarize, explain, generate quiz).
-         * @param {string} action - Action key ('summarize' | 'explain' | 'generate_quiz').
-         * @return {void}
-         */
-        function triggerAiAction(action) {
-            if (!currentLessonId) {
-                Toast.error("Veuillez d'abord charger une lecon.");
-                return;
-            }
-            
-            const msgs = document.getElementById('ai-chat-messages');
-            
-            // Message de chargement temporaire
-            const loaderId = 'ai-loader-' + Date.now();
-            let actionLabel = "Assistant prépare le résumé";
-            if (action === 'explain') actionLabel = "Assistant simplifie les concepts";
-            if (action === 'generate_quiz') actionLabel = "Assistant prépare le quiz";
-
-            const loaderHTML = `<div class="px-4 py-3 bg-[#FFFFFF] text-[#555555] text-sm rounded-[16px_16px_16px_4px] max-w-[85%] shadow-sm border border-[#E5E5E7] flex items-center gap-2">`
-                             + `<span class="text-xs italic">${actionLabel}</span>`
-                             + `<div class="flex gap-1 items-center justify-center">`
-                             + `<span class="wa-dot"></span>`
-                             + `<span class="wa-dot"></span>`
-                             + `<span class="wa-dot"></span>`
-                             + `</div>`
-                             + `</div>`;
-            
-            const loaderDiv = document.createElement('div');
-            loaderDiv.id = loaderId;
-            loaderDiv.className = 'flex justify-start w-full my-2';
-            loaderDiv.innerHTML = loaderHTML;
-            msgs.appendChild(loaderDiv);
-            msgs.scrollTop = msgs.scrollHeight;
-
-            fetch('/api/ai-student.php', {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ lesson_id: currentLessonId, action: action })
-            })
-            .then(res => res.json())
-            .then(data => {
-                const loader = document.getElementById(loaderId);
-                if (loader) loader.remove();
-
-                if (data.success) {
-                    if (action === 'generate_quiz' && data.quiz) {
-                        renderAiQuiz(data.quiz);
-                    } else if (data.response) {
-                        appendAiMessage('Assistant', data.response, false);
-                    }
-                } else {
-                    appendAiMessage('Systeme', 'Une erreur est survenue : ' + data.error, true);
-                }
-            })
-            .catch(err => {
-                const loader = document.getElementById(loaderId);
-                if (loader) loader.remove();
-                appendAiMessage('Systeme', 'Erreur reseau : ' + err.message, true);
-            });
-        }
-
-        /**
-         * Dynamically builds and inserts an interactive AI-generated MCQ inside the chat flow.
-         * @param {Array<Object>} questions - List of questions generated by AI Client.
-         * @return {void}
-         */
-        function renderAiQuiz(questions) {
-            const msgs = document.getElementById('ai-chat-messages');
-            const container = document.createElement('div');
-            container.className = 'p-4 bg-white border border-[#E5E5E7] rounded-[16px] space-y-4 my-2 shadow-sm max-w-[90%] mr-auto';
-            
-            const title = document.createElement('h5');
-            title.className = 'font-serif text-sm font-semibold text-[#111111]';
-            title.textContent = 'Auto-évaluation rapide';
-            container.appendChild(title);
-
-            questions.forEach((q, idx) => {
-                const qBox = document.createElement('div');
-                qBox.className = 'space-y-2';
-                
-                const qText = document.createElement('p');
-                qText.className = 'text-xs font-medium text-[#111111]';
-                qText.textContent = `${idx + 1}. ${q.question}`;
-                qBox.appendChild(qText);
-
-                const optsContainer = document.createElement('div');
-                optsContainer.className = 'grid grid-cols-1 gap-1.5';
-
-                Object.entries(q.options).forEach(([key, val]) => {
-                    const btn = document.createElement('button');
-                    btn.type = 'button';
-                    btn.className = 'w-full text-left px-3 py-2 border border-[#E5E5E7] hover:border-[#004B23] text-xs bg-[#F9F9FB] rounded-xl transition-all';
-                    btn.textContent = `${key}. ${val}`;
-                    
-                    btn.onclick = function() {
-                        // Desactiver les boutons de cette question
-                        [...optsContainer.children].forEach(b => b.disabled = true);
-                        if (key === q.correct) {
-                            btn.className = 'w-full text-left px-3 py-2 border border-[#34C759] text-xs bg-[#E8F5E9] text-[#2E7D32] rounded-xl font-semibold';
-                            btn.textContent += ' (Correct)';
-                        } else {
-                            btn.className = 'w-full text-left px-3 py-2 border border-[#FF3B30] text-xs bg-[#FFEBEE] text-[#C62828] rounded-xl';
-                            btn.textContent += ' (Incorrect)';
-                            // Mettre le correct en vert
-                            const correctBtn = [...optsContainer.children].find(b => b.textContent.startsWith(q.correct + '.'));
-                            if (correctBtn) {
-                                correctBtn.className = 'w-full text-left px-3 py-2 border border-[#34C759] text-xs bg-[#E8F5E9] text-[#2E7D32] rounded-xl font-semibold';
-                            }
-                        }
-                    };
-                    optsContainer.appendChild(btn);
-                });
-
-                qBox.appendChild(optsContainer);
-                container.appendChild(qBox);
-            });
-
-            msgs.appendChild(container);
-            msgs.scrollTop = msgs.scrollHeight;
-        }
-
-        /**
-         * Appends a chat bubble inside the student assistant drawer.
-         * @param {string} sender - Bubble owner label ('Moi' | 'Assistant' | 'Systeme').
-         * @param {string} text - Message content text.
-         * @param {boolean} [isSystem=false] - If true, style as alert warning.
-         * @return {void}
-         */
-        function appendAiMessage(sender, text, isSystem = false) {
-            const msgs = document.getElementById('ai-chat-messages');
-            const div = document.createElement('div');
-            
-            if (sender === 'Moi') {
-                div.className = 'flex justify-end w-full my-2';
-                div.innerHTML = `<div class="px-4 py-2 bg-[#DCF8C6] text-[#000000] text-sm rounded-[16px_16px_4px_16px] max-w-[80%] shadow-sm relative break-words">`
-                              + `<div class="whitespace-pre-line text-xs font-light text-[#111111] text-left">${escapeHTML(text)}</div>`
-                              + `<span class="block text-[9px] text-[#666666] text-right mt-1 font-mono">${getCurrentTime()}</span>`
-                              + `</div>`;
-            } else if (isSystem) {
-                div.className = 'flex justify-center w-full my-2';
-                div.innerHTML = `<div class="px-4 py-1.5 bg-[#FFEFEF] border border-[#FFD2D2] text-[#C62828] text-xs rounded-lg max-w-[90%] text-center">`
-                              + `<div class="font-medium">${escapeHTML(text)}</div>`
-                              + `</div>`;
-            } else {
-                div.className = 'flex justify-start w-full my-2';
-                div.innerHTML = `<div class="px-4 py-2 bg-[#FFFFFF] text-[#000000] text-sm rounded-[16px_16px_16px_4px] max-w-[85%] shadow-sm border border-[#E5E5E7] relative break-words">`
-                              + `<div class="whitespace-pre-line text-xs font-light text-[#111111] text-left">${escapeHTML(text)}</div>`
-                              + `<span class="block text-[9px] text-[#888888] text-right mt-1 font-mono">${getCurrentTime()}</span>`
-                              + `</div>`;
-            }
-            
-            msgs.appendChild(div);
-            msgs.scrollTop = msgs.scrollHeight;
-        }
-
-        /**
-         * Escapes special characters to prevent HTML injections inside the chat drawer.
-         * @param {string} str - Unescaped raw string.
-         * @return {string} Secure HTML escaped string.
-         */
-        function escapeHTML(str) {
-            return str.replace(/[&<>'"]/g, 
-                tag => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', "'": '&#39;', '"': '&quot;' }[tag] || tag)
-            );
-        }
-
-        /**
-         * Dispatches custom student free-text queries to the API assistant.
-         * @param {Event} [e] - Form submission event context.
-         * @return {void}
-         */
-        function sendAiMessage(e) {
-            if (e) e.preventDefault();
-            
-            const input = document.getElementById('ai-chat-input');
-            const text = input.value.trim();
-            if (!text) return;
-
-            if (!currentLessonId) {
-                Toast.error("Veuillez charger une lecon d'abord.");
-                return;
-            }
-
-            appendAiMessage('Moi', text);
-            input.value = '';
-
-            const msgs = document.getElementById('ai-chat-messages');
-            const loaderId = 'ai-loader-' + Date.now();
-            const loaderHTML = `<div class="px-4 py-3 bg-[#FFFFFF] text-[#555555] text-sm rounded-[16px_16px_16px_4px] max-w-[85%] shadow-sm border border-[#E5E5E7] flex items-center gap-2">`
-                             + `<span class="text-xs italic">Assistant est en train d'écrire</span>`
-                             + `<div class="flex gap-1 items-center justify-center">`
-                             + `<span class="wa-dot"></span>`
-                             + `<span class="wa-dot"></span>`
-                             + `<span class="wa-dot"></span>`
-                             + `</div>`
-                             + `</div>`;
-            
-            const loaderDiv = document.createElement('div');
-            loaderDiv.id = loaderId;
-            loaderDiv.className = 'flex justify-start w-full my-2';
-            loaderDiv.innerHTML = loaderHTML;
-            msgs.appendChild(loaderDiv);
-            msgs.scrollTop = msgs.scrollHeight;
-
-            fetch('/api/ai-student.php', {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ lesson_id: currentLessonId, action: 'chat', message: text })
-            })
-            .then(res => res.json())
-            .then(data => {
-                const loader = document.getElementById(loaderId);
-                if (loader) loader.remove();
-
-                if (data.success) {
-                    appendAiMessage('Assistant', data.response, false);
-                } else {
-                    appendAiMessage('Systeme', data.error, true);
-                }
-            })
-            .catch(err => {
-                const loader = document.getElementById(loaderId);
-                if (loader) loader.remove();
-                appendAiMessage('Systeme', 'Erreur reseau : ' + err.message, true);
-            });
-        }
-
-        /**
-         * Closes the study modal, terminates study timers, and triggers layout KPI updates.
-         * @return {void}
-         */
-        function closeStudyModal() {
-            SessionTimer.stop();
-            LessonContentGate.reset();
-            const media = document.getElementById('study-media-container');
-            [...media.children].forEach(el => { if (el._pdfCleanup) el._pdfCleanup(); });
-            const modal = document.getElementById('study-modal');
-            if (modal) {
-                modal.classList.remove('sv-pdf-focus-mode');
-                modal.classList.add('hidden');
-            }
-            refreshDashboard();
-        }
-
-        let pendingLessonQuiz = null;
-        let lessonContentConsumed = false;
-        let currentLessonContentType = '';
-
-        /**
-         * Submits AJAX request to flag a lesson's learning materials as viewed/consumed.
-         * @param {number} lessonId - Target lesson database key.
-         * @return {Promise<Object>} Promise resolving to response confirmation.
-         */
-        function markContentConsumedOnServer(lessonId) {
-            const fd = new FormData();
-            fd.append('lesson_id', lessonId);
-            return fetch('/student/mark-content-consumed.php', { method: 'POST', body: fd })
-                .then(r => r.json())
-                .catch(() => ({ success: false }));
-        }
-
-        /**
-         * Inspects lesson schemas to compute visual requirements for complete content consumption.
-         * @param {Object} lesson - Lesson database record object.
-         * @param {Array<Object>|null} videos - Companion videos associated with the lesson.
-         * @return {Array<string>} List of localized requirements ('texte', 'PDF', 'vidéo').
-         */
-        function getContentRequirements(lesson, videos) {
-            const reqs = [];
-            if ((lesson.content_type === 'text' || lesson.content_type === 'mixed') && lesson.text_content) reqs.push('texte');
-            if ((lesson.content_type === 'pdf' || lesson.content_type === 'mixed') && lesson.pdf_path) reqs.push('PDF');
-            const hasVideo = (lesson.content_type === 'video' || lesson.content_type === 'mixed') && (lesson.video_url || (videos && videos.length > 0));
-            if (hasVideo) reqs.push('vidéo');
-            return reqs;
-        }
-
-        /**
-         * Updates content progression hints text above the lesson assessments box.
-         * @param {Object} lesson - Current lesson data object.
-         * @param {Array<Object>|null} videos - Lesson videos.
-         * @param {boolean} consumed - If learning contents have been successfully completed.
-         * @return {void}
-         */
-        function updateContentProgressHint(lesson, videos, consumed) {
-            const el = document.getElementById('lesson-content-progress');
-            if (!el) return;
-            const reqs = getContentRequirements(lesson, videos);
-            if (!reqs.length) { el.textContent = ''; return; }
-            el.textContent = consumed
-                ? 'Contenu terminé — évaluation disponible'
-                : 'À terminer : ' + reqs.join(', ');
-        }
-
-        /**
-         * Triggers unlocking state of lesson quizzes/assessments once content is completed.
-         * @param {number} lessonId - Unique lesson database key.
-         * @param {Object} lesson - Lesson metadata structure.
-         * @param {boolean} autoLaunchQuiz - If true, immediately triggers the quiz interface.
-         * @param {Array<Object>|null} videos - Videos list.
-         * @return {void}
-         */
-        function unlockLessonEvaluations(lessonId, lesson, autoLaunchQuiz, videos) {
-            lessonContentConsumed = true;
-            updateContentProgressHint(lesson, videos, true);
-            document.getElementById('lesson-quiz-locked').classList.add('hidden');
-
-            const successMsg = document.getElementById('lesson-completed-success-msg');
-            if (successMsg) successMsg.classList.remove('hidden');
-
-            const isCompleted = document.getElementById('lesson-complete-status').classList.contains('hidden') === false;
-
-            if (pendingLessonQuiz && pendingLessonQuiz.has_quiz && pendingLessonQuiz.questions.length > 0) {
-                const quizBox = document.getElementById('lesson-quiz-container');
-                quizBox.classList.remove('hidden');
-                renderLessonQuestion(pendingLessonQuiz.questions[0], pendingLessonQuiz.questions.length);
-                Toast.success('Félicitations ! Le contenu de la leçon a été entièrement lu/visionné. La leçon est achevée, l\'évaluation est maintenant débloquée.');
-                // On s'assure que la barre de complétion est masquée pendant le quiz
-                updateLessonCompleteBar(isCompleted, true, true);
-            } else {
-                // Si pas de quiz, on valide directement la leçon
-                markLessonComplete(lessonId);
-            }
-        }
-
-        /**
-         * Renders the locked blocker overlay for lesson evaluations.
-         * @param {Object} lesson - Target lesson context.
-         * @param {Array<Object>|null} videos - Companion videos array.
-         * @return {void}
-         */
-        function showLockedLessonEvaluations(lesson, videos) {
-            lessonContentConsumed = false;
-            document.getElementById('lesson-quiz-container').classList.add('hidden');
-            const locked = document.getElementById('lesson-quiz-locked');
-            const reqs = getContentRequirements(lesson, videos);
-            if (reqs.length > 0 && pendingLessonQuiz && pendingLessonQuiz.has_quiz) {
-                locked.classList.remove('hidden');
-                updateContentProgressHint(lesson, videos, false);
-            } else {
-                locked.classList.add('hidden');
-            }
-        }
-
-        /**
-         * Loads all lesson details, sets up integrated PDF/video players, starts
-         * session timer, and initializes content gates.
-         * @param {number} lessonId - Target lesson database key.
-         * @return {void}
-         */
-        function loadLesson(lessonId) {
-            currentLessonId = lessonId;
-            currentLessonContentType = '';
-            LessonContentGate.reset();
-            pendingLessonQuiz = null;
-            lessonContentConsumed = false;
-
-            // Reset scroll positions to top when loading a lesson
-            const viewerContent = document.getElementById('study-viewer-content');
-            if (viewerContent) viewerContent.scrollTop = 0;
-            const modalScrollRoot = document.querySelector('#study-modal .flex-grow.overflow-y-auto');
-            if (modalScrollRoot) modalScrollRoot.scrollTop = 0;
-
-            if (currentCourseLessons && Array.isArray(currentCourseLessons)) {
-                const curIdx = currentCourseLessons.findIndex(l => l.id == lessonId);
-                currentNextLesson = (curIdx !== -1 && curIdx + 1 < currentCourseLessons.length) ? currentCourseLessons[curIdx + 1] : null;
-            }
-
-            // Reinitialiser le chat IA de l'etudiant a chaque changement de lecon
-            const chatMsgs = document.getElementById('ai-chat-messages');
-            if (chatMsgs) {
-                chatMsgs.innerHTML = `<div class="flex justify-start w-full my-2">`
-                                   + `<div class="px-4 py-2 bg-[#FFFFFF] text-[#000000] text-sm rounded-[16px_16px_16px_4px] max-w-[85%] shadow-sm border border-[#E5E5E7] relative break-words">`
-                                   + `Bonjour. Je suis votre assistant StudyVibe. Comment puis-je vous aider a comprendre cette lecon aujourd'hui ?`
-                                   + `</div>`
-                                   + `</div>`;
-            }
-            // Masquer le tiroir par defaut pour ne pas encombrer
-            const drawer = document.getElementById('ai-chat-drawer');
-            if (drawer) {
-                drawer.classList.add('hidden');
-            }
-
-            fetch(`/student/get-lesson-details.php?lesson_id=${lessonId}`)
-            .then(res => res.json())
-            .then(data => {
-                if (data.success) {
-                    const l = data.lesson;
-                    const alreadyUnlocked = data.content_consumed || data.completed || data.quiz_complete;
-                    lessonContentConsumed = alreadyUnlocked;
-
-                    currentLessonContentType = l.content_type || '';
-                    document.getElementById('lesson-viewer-header').classList.remove('hidden');
-                    document.getElementById('study-lesson-title').textContent = l.title;
-                    document.getElementById('study-lesson-badge').textContent = l.content_type.toUpperCase();
-                    
-                    const mediaContainer = document.getElementById('study-media-container');
-                    [...mediaContainer.children].forEach(el => { if (el._pdfCleanup) el._pdfCleanup(); });
-                    mediaContainer.innerHTML = '';
-
-                    let textEl = null;
-                    let videoContainer = null;
-                    
-                    // 1. Text Content (Markdown & LaTeX Typesetting)
-                    if ((l.content_type === 'text' || l.content_type === 'mixed') && l.text_content) {
-                        const p = document.createElement('div');
-                        p.className = 'text-base font-light leading-relaxed text-[#111111] dark:text-[#E8E8E8] max-w-3xl sv-lesson-text';
-                        p.innerHTML = renderMarkdownAndMath(l.text_content);
-                        if (typeof renderMathInElement === 'function') {
-                            renderMathInElement(p, {
-                                delimiters: [
-                                    {left: '$$', right: '$$', display: true},
-                                    {left: '$', right: '$', display: false},
-                                    {left: '\\(', right: '\\)', display: false},
-                                    {left: '\\[', right: '\\]', display: true}
-                                ],
-                                throwOnError: false
-                            });
-                        }
-                        mediaContainer.appendChild(p);
-                        textEl = p;
-                    }
-                    
-                    // 2. PDF — liseuse intégrée
-                    if ((l.content_type === 'pdf' || l.content_type === 'mixed') && l.pdf_path) {
-                        const pdfBox = document.createElement('div');
-                        pdfBox.className = 'w-full max-w-4xl mx-auto';
-                        mediaContainer.appendChild(pdfBox);
-                        const onPdfComplete = () => {
-                            LessonContentGate.markDone('pdf');
-                        };
-                        PdfViewer.render(pdfBox, '/download.php?type=pdf&file=' + encodeURIComponent(l.pdf_path), {
-                            title: l.title || 'Document PDF',
-                            onComplete: onPdfComplete,
-                        });
-                    }
-                    
-                    // Réunir toutes les vidéos associées à la leçon
-                    const videos = [];
-                    const seenUrls = new Set();
-                    if (l.video_url) {
-                        const cleanUrl = l.video_url.trim();
-                        if (cleanUrl) {
-                            videos.push({ url: cleanUrl, label: 'Vidéo principale' });
-                            seenUrls.add(cleanUrl);
-                        }
-                    }
-                    if (data.videos && Array.isArray(data.videos)) {
-                        data.videos.forEach((v, index) => {
-                            if (v.url) {
-                                const cleanUrl = v.url.trim();
-                                if (cleanUrl && !seenUrls.has(cleanUrl)) {
-                                    videos.push({ url: cleanUrl, label: v.label || ('Vidéo ' + (index + 1)) });
-                                    seenUrls.add(cleanUrl);
-                                }
-                            }
-                        });
-                    }
-
-                    // 3. Video (YouTube ou Générique — multi-vidéo)
-                    const needsVideo = (l.content_type === 'video' || l.content_type === 'mixed') && videos.length > 0;
-                    if (needsVideo) {
-                        videoContainer = document.createElement('div');
-                        videoContainer.className = 'w-full max-w-3xl flex flex-col gap-8';
-                        
-                        if (alreadyUnlocked) {
-                            videos.forEach(v => {
-                                const videoWrapper = document.createElement('div');
-                                videoWrapper.className = 'w-full space-y-2';
-
-                                const labelEl = document.createElement('div');
-                                labelEl.className = 'text-xs font-semibold uppercase tracking-wider text-[#555555]';
-                                labelEl.textContent = v.label;
-                                videoWrapper.appendChild(labelEl);
-
-                                const videoId = v.url.match(/(?:v=|youtu\.be\/)([^&?/]+)/)?.[1];
-                                if (videoId) {
-                                    videoWrapper.insertAdjacentHTML('beforeend', '<div class="aspect-video w-full"><iframe class="w-full h-[400px]" src="https://www.youtube.com/embed/' + videoId + '" frameborder="0" allowfullscreen></iframe></div>');
-                                } else {
-                                    videoWrapper.insertAdjacentHTML('beforeend', '<a href="' + v.url + '" target="_blank" class="text-[#004B23] underline text-sm">' + v.url + '</a>');
-                                }
-                                videoContainer.appendChild(videoWrapper);
-                            });
-                        }
-                        
-                        mediaContainer.appendChild(videoContainer);
-                    }
-
-                    // 4. Quiz de leçon — conditionné par la consommation du contenu
-                    const quizBox      = document.getElementById('lesson-quiz-container');
-                    const quizActive   = document.getElementById('lesson-quiz-active');
-                    const quizComplete = document.getElementById('lesson-quiz-complete-msg');
-                    const quizHint     = document.getElementById('lesson-quiz-hint');
-                    const feedback     = document.getElementById('lesson-quiz-feedback');
-                    const quizForm     = document.getElementById('lesson-quiz-form');
-                    const successMsg   = document.getElementById('lesson-completed-success-msg');
-
-                    feedback.textContent = '';
-                    quizForm.reset();
-                    quizComplete.classList.add('hidden');
-                    quizActive.classList.remove('hidden');
-                    quizHint.classList.remove('hidden');
-                    quizBox.classList.add('hidden');
-                    if (successMsg) successMsg.classList.add('hidden');
-                    document.getElementById('lesson-quiz-locked').classList.add('hidden');
-
-                    document.getElementById('quiz-lesson-id').value = lessonId;
-
-                    pendingLessonQuiz = {
-                        has_quiz: data.has_quiz,
-                        questions: data.questions || [],
-                    };
-
-                    if (alreadyUnlocked) {
-                        if (data.has_quiz && data.questions.length > 0) {
-                            quizBox.classList.remove('hidden');
-                            if (successMsg) successMsg.classList.remove('hidden');
-                            renderLessonQuestion(data.questions[0], data.questions.length);
-                        }
-                    } else if (data.has_quiz) {
-                        showLockedLessonEvaluations(l, videos);
-                    }
-
-                    const scrollRoot = document.querySelector('#study-modal .flex-grow.overflow-y-auto');
-
-                    const onContentComplete = (lastType) => {
-                        const autoLaunchQuiz = lastType === 'video';
-                        markContentConsumedOnServer(lessonId).then(() => {
-                            unlockLessonEvaluations(lessonId, l, autoLaunchQuiz, videos);
-                        });
-                    };
-
-                    if (!alreadyUnlocked) {
-                        LessonContentGate.init({
-                            lesson: l,
-                            videos: videos,
-                            mediaContainer,
-                            textEl,
-                            videoContainer,
-                            scrollRoot,
-                            onComplete: onContentComplete,
-                        });
-                    }
-
-                    // 5. Devoir / Travail pratique à rendre pour cette leçon
-                    const assignmentBox = document.getElementById('lesson-assignment-container');
-                    if ((l.has_assignment == 1 || l.has_assignment === '1') && assignmentBox) {
-                        renderLessonAssignmentBox(l, data.submission);
-                        assignmentBox.classList.remove('hidden');
-                    } else if (assignmentBox) {
-                        assignmentBox.classList.add('hidden');
-                    }
-
-                    SessionTimer.start(lessonId, 'lesson-session-timer');
-                    if (l.course_id) {
-                        const fd = new FormData();
-                        fd.append('lesson_id', lessonId);
-                        fd.append('course_id', l.course_id);
-                        svPost('/student/mark-lesson-visited.php', fd).catch(() => {});
-                    }
-                    updateLessonCompleteBar(data.completed || data.quiz_complete, alreadyUnlocked, data.has_quiz);
-                    loadLessonComments(lessonId);
-                } else {
-                    Toast.error('Erreur: ' + data.message);
-                }
-            })
-            .catch(err => Toast.error('Erreur réseau: ' + err.message));
-        }
-
-        function escapeHtml(str) {
-            if (str === null || str === undefined) return '';
-            return String(str)
-                .replace(/&/g, '&amp;')
-                .replace(/</g, '&lt;')
-                .replace(/>/g, '&gt;')
-                .replace(/"/g, '&quot;')
-                .replace(/'/g, '&#039;');
-        }
-
-        function renderLessonAssignmentBox(lesson, submission) {
-            const box = document.getElementById('lesson-assignment-container');
-            if (!box) return;
-
-            document.getElementById('assignment-lesson-id').value = lesson.id;
-            document.getElementById('assignment-display-title').textContent = lesson.assignment_title || 'Devoir de la Leçon';
-            
-            // Dynamic submission types and file extensions
-            const allowedTypes = lesson.allowed_file_types || 'pdf,docx';
-            const fileTypesList = allowedTypes.split(',').map(t => t.trim().toLowerCase()).filter(Boolean);
-            const acceptAttr = fileTypesList.map(t => '.' + t).join(',');
-            
-            const fileInputEl = document.getElementById('assignment-file-input');
-            if (fileInputEl) fileInputEl.setAttribute('accept', acceptAttr);
-            
-            const typesLabel = document.getElementById('assignment-allowed-types-label');
-            if (typesLabel) {
-                typesLabel.textContent = 'Formats acceptés : ' + fileTypesList.map(t => t.toUpperCase()).join(', ');
-            }
-
-            const asgType = lesson.assignment_type || 'both';
-            const fileWrapper = document.getElementById('assignment-file-wrapper');
-            const linkWrapper = document.getElementById('assignment-link-wrapper');
-
-            if (asgType === 'file') {
-                if (fileWrapper) fileWrapper.classList.remove('hidden');
-                if (linkWrapper) linkWrapper.classList.add('hidden');
-            } else if (asgType === 'link') {
-                if (fileWrapper) fileWrapper.classList.add('hidden');
-                if (linkWrapper) linkWrapper.classList.remove('hidden');
-            } else {
-                if (fileWrapper) fileWrapper.classList.remove('hidden');
-                if (linkWrapper) linkWrapper.classList.remove('hidden');
-            }
-
-            // Instructions avec Markdown et KaTeX
-            const instrBox = document.getElementById('assignment-display-instructions');
-            if (lesson.assignment_instructions) {
-                instrBox.innerHTML = renderMarkdownAndMath(lesson.assignment_instructions);
-                if (typeof renderMathInElement === 'function') {
-                    renderMathInElement(instrBox, {
-                        delimiters: [
-                            {left: '$$', right: '$$', display: true},
-                            {left: '$', right: '$', display: false},
-                            {left: '\\(', right: '\\)', display: false},
-                            {left: '\\[', right: '\\]', display: true}
-                        ],
-                        throwOnError: false
-                    });
-                }
-                instrBox.classList.remove('hidden');
-            } else {
-                instrBox.innerHTML = '<em class="text-gray-400">Aucune consigne spécifique rédigée. Veuillez déposer votre travail ci-dessous.</em>';
-            }
-
-            const deadlineBox = document.getElementById('assignment-display-deadline');
-            if (lesson.assignment_deadline) {
-                deadlineBox.textContent = 'Date limite : ' + new Date(lesson.assignment_deadline).toLocaleString('fr-FR');
-            } else {
-                deadlineBox.textContent = '';
-            }
-
-            const statusBox = document.getElementById('assignment-existing-status');
-            const statusDetails = document.getElementById('assignment-existing-details');
-            const submitBtnSpan = document.querySelector('#assignment-submit-btn span');
-            const submitBtn = document.getElementById('assignment-submit-btn');
-
-            const nameInput = document.getElementById('assignment-student-name');
-            const matInput = document.getElementById('assignment-student-matricule');
-            const fileInput = document.getElementById('assignment-file-input');
-            const linkInput = document.getElementById('assignment-link-input');
-            const commentInput = document.getElementById('assignment-comment-input');
-            
-            // Pre-fill Name and Matricule if submission exists
-            if (submission) {
-                if (submission.student_name) nameInput.value = submission.student_name;
-                if (submission.student_matricule) matInput.value = submission.student_matricule;
-            }
-
-            // Form fields reset
-            fileInput.value = '';
-            linkInput.value = submission ? (submission.submitted_link || '') : '';
-            commentInput.value = submission ? (submission.student_comment || '') : '';
-
-            if (submission) {
-                statusBox.classList.remove('hidden');
-                let detailsHtml = `<div class="font-bold text-emerald-700 dark:text-emerald-300 mb-1">✓ Devoir déjà soumis pour cette leçon</div>`;
-                detailsHtml += `Dépôt enregistré le ${new Date(submission.submitted_at).toLocaleString('fr-FR')}<br>`;
-                if (submission.student_name && submission.student_matricule) {
-                    detailsHtml += `Soumissionnaire : <b>${escapeHtml(submission.student_name)}</b> (Matricule: <code>${escapeHtml(submission.student_matricule)}</code>)<br>`;
-                }
-                if (submission.submitted_file_name) {
-                    detailsHtml += `Fichier : <a href="/download.php?type=assignment&file=${encodeURIComponent(submission.submitted_file_path)}" target="_blank" class="underline text-emerald-800 dark:text-emerald-300 font-bold">${escapeHtml(submission.submitted_file_name)}</a><br>`;
-                }
-                if (submission.submitted_link) {
-                    detailsHtml += `Lien : <a href="${escapeHtml(submission.submitted_link)}" target="_blank" rel="noopener noreferrer" class="underline text-blue-700 dark:text-blue-300 font-bold">${escapeHtml(submission.submitted_link)}</a>`;
-                }
-                statusDetails.innerHTML = detailsHtml;
-
-                // Lock and freeze form inputs & button
-                nameInput.disabled = true;
-                matInput.disabled = true;
-                fileInput.disabled = true;
-                linkInput.disabled = true;
-                commentInput.disabled = true;
-
-                if (submitBtn) {
-                    submitBtn.disabled = true;
-                    submitBtn.classList.add('opacity-50', 'cursor-not-allowed');
-                }
-                if (submitBtnSpan) submitBtnSpan.textContent = 'Devoir soumis';
-            } else {
-                statusBox.classList.add('hidden');
-                statusDetails.innerHTML = '';
-
-                // Unlock inputs & button
-                nameInput.disabled = false;
-                matInput.disabled = false;
-                fileInput.disabled = false;
-                linkInput.disabled = false;
-                commentInput.disabled = false;
-
-                if (submitBtn) {
-                    submitBtn.disabled = false;
-                    submitBtn.classList.remove('opacity-50', 'cursor-not-allowed');
-                }
-                if (submitBtnSpan) submitBtnSpan.textContent = 'Déposer mon Devoir';
-            }
-        }
-
-        function submitStudentAssignment(e) {
-            e.preventDefault();
-            const lessonId = document.getElementById('assignment-lesson-id').value;
-            const studentName = document.getElementById('assignment-student-name').value.trim();
-            const studentMatricule = document.getElementById('assignment-student-matricule').value.trim();
-            const fileInput = document.getElementById('assignment-file-input');
-            const linkInput = document.getElementById('assignment-link-input');
-            const commentInput = document.getElementById('assignment-comment-input');
-            const msgBox = document.getElementById('assignment-form-message');
-            const btn = document.getElementById('assignment-submit-btn');
-
-            if (!studentName || !studentMatricule) {
-                msgBox.className = 'text-xs text-red-600 dark:text-red-400 font-semibold';
-                msgBox.textContent = 'Veuillez remplir obligatoirement votre Nom complet et votre Matricule.';
-                return;
-            }
-
-            if (!fileInput.files[0] && !linkInput.value.trim()) {
-                msgBox.className = 'text-xs text-red-600 dark:text-red-400 font-semibold';
-                msgBox.textContent = 'Veuillez joindre un fichier ou spécifier un lien de projet.';
-                return;
-            }
-
-            if (fileInput.files[0] && fileInput.files[0].size > 20 * 1024 * 1024) {
-                msgBox.className = 'text-xs text-red-600 dark:text-red-400 font-semibold';
-                msgBox.textContent = 'La taille du fichier dépasse la limite autorisée de 20 Mo.';
-                return;
-            }
-
-            const formData = new FormData();
-            formData.append('lesson_id', lessonId);
-            formData.append('student_name', studentName);
-            formData.append('student_matricule', studentMatricule);
-            if (fileInput.files[0]) {
-                formData.append('assignment_file', fileInput.files[0]);
-            }
-            if (linkInput.value.trim()) {
-                formData.append('assignment_link', linkInput.value.trim());
-            }
-            if (commentInput.value.trim()) {
-                formData.append('student_comment', commentInput.value.trim());
-            }
-
-            btn.disabled = true;
-            msgBox.className = 'text-xs text-emerald-600 font-semibold animate-pulse';
-            msgBox.textContent = 'Téléversement de votre devoir en cours...';
-
-            fetch('/api/submit-assignment.php', {
-                method: 'POST',
-                body: formData
-            })
-            .then(res => res.json())
-            .then(data => {
-                if (data.success) {
-                    msgBox.className = 'text-xs text-emerald-600 font-semibold';
-                    msgBox.textContent = '✓ Devoir déposé avec succès !';
-                    Toast.success('Devoir transmis avec succès.');
-
-                    // Lock form controls & button immediately
-                    document.getElementById('assignment-student-name').disabled = true;
-                    document.getElementById('assignment-student-matricule').disabled = true;
-                    document.getElementById('assignment-file-input').disabled = true;
-                    document.getElementById('assignment-link-input').disabled = true;
-                    document.getElementById('assignment-comment-input').disabled = true;
-
-                    btn.disabled = true;
-                    btn.classList.add('opacity-50', 'cursor-not-allowed');
-                    const submitBtnSpan = document.querySelector('#assignment-submit-btn span');
-                    if (submitBtnSpan) submitBtnSpan.textContent = 'Devoir soumis';
-
-                    setTimeout(() => { loadLesson(lessonId); }, 800);
-                } else {
-                    btn.disabled = false;
-                    msgBox.className = 'text-xs text-red-600 dark:text-red-400 font-semibold';
-                    msgBox.textContent = 'Erreur : ' + data.message;
-                }
-            })
-            .catch(err => {
-                btn.disabled = false;
-                msgBox.className = 'text-xs text-red-600 dark:text-red-400 font-semibold';
-                msgBox.textContent = 'Erreur réseau : ' + err.message;
-            });
-        }
-
-        /**
-         * Asynchronously loads collaborative comments and Q&A questions/answers for a specific lesson.
-         * @param {number} lessonId - Unique lesson database key.
-         * @return {void}
-         */
-        function loadLessonComments(lessonId) {
-            const qaBox = document.getElementById('lesson-qa-container');
-            const list  = document.getElementById('lesson-comments-list');
-            document.getElementById('comment-lesson-id').value = lessonId;
-            qaBox.classList.remove('hidden');
-
-            fetch(`/student/get-comments.php?lesson_id=${lessonId}`)
-            .then(r => r.json())
-            .then(data => {
-                if (!data.success) return;
-                list.innerHTML = data.comments.length ? '' : '<p class="text-xs text-[#888] italic">Aucune question pour le moment.</p>';
-                data.comments.forEach(c => {
-                    const div = document.createElement('div');
-                    div.className = 'text-xs border-b border-[#E5E5E7] pb-3';
-                    let html = `<strong class="text-[#004B23]">${c.author_name}</strong> <span class="text-[#888]">(${c.author_role})</span><p class="mt-1 text-[#555]">${c.comment_text}</p>`;
-                    if (c.teacher_reply) {
-                        html += `<p class="mt-2 pl-3 border-l-2 border-[#004B23] text-[#333]"><strong>Réponse enseignant :</strong> ${c.teacher_reply}</p>`;
-                    }
-                    div.innerHTML = html;
-                    list.appendChild(div);
-                });
-            });
-        }
-
-
-        document.getElementById('lesson-comment-form').addEventListener('submit', function(e) {
-            e.preventDefault();
-            const fd = new FormData();
-            fd.append('lesson_id', document.getElementById('comment-lesson-id').value);
-            fd.append('comment_text', document.getElementById('comment-input').value.trim());
-            fetch('/student/post-comment.php', { method: 'POST', body: fd })
-            .then(r => r.json())
-            .then(data => {
-                if (data.success) {
-                    document.getElementById('comment-input').value = '';
-                    loadLessonComments(document.getElementById('comment-lesson-id').value);
-                    Toast.success('Question publiée.');
-                } else Toast.error(data.message);
-            });
-        });
-
-        /**
-         * Renders a single lesson evaluation MCQ inside the liseuse sidebar.
-         * @param {Object} q - Question structure.
-         * @param {number} remainingTotal - Remaining questions in queue.
-         * @return {void}
-         */
-        function renderLessonQuestion(q, remainingTotal) {
-            const questionBox = document.getElementById('lesson-quiz-question-box');
-            const hint = document.getElementById('lesson-quiz-hint');
-            document.getElementById('quiz-question-id').value = q.id;
-            questionBox.innerHTML = '';
-
-            hint.textContent = remainingTotal > 1
-                ? `${remainingTotal} question(s) restante(s)`
-                : 'Dernière question — validez pour terminer la leçon.';
-
-            const qDiv = document.createElement('div');
-            qDiv.id = 'current-quiz-question';
-            qDiv.className = 'space-y-3';
-
-            const qText = document.createElement('p');
-            qText.className = 'text-sm font-medium text-[#111111]';
-            qText.textContent = q.question_text;
-            qDiv.appendChild(qText);
-
-            ['A', 'B', 'C', 'D'].forEach(opt => {
-                const val = q[`option_${opt.toLowerCase()}`];
-                const label = document.createElement('label');
-                label.className = 'sv-quiz-option flex items-center gap-3 p-3 border border-[#E5E5E7] hover:bg-[#FFFFFF] cursor-pointer rounded-sm text-xs font-light';
-                label.dataset.option = opt;
-
-                const input = document.createElement('input');
-                input.type = 'radio';
-                input.name = 'answer';
-                input.value = opt;
-                input.required = true;
-                input.className = 'text-[#004B23] focus:ring-[#004B23]';
-
-                label.appendChild(input);
-                label.appendChild(document.createTextNode(`${opt}. ${val}`));
-                qDiv.appendChild(label);
-            });
-
-            questionBox.appendChild(qDiv);
-            document.getElementById('lesson-quiz-submit-btn').disabled = false;
-        }
-
-        /**
-         * Closes and hides the lesson evaluation card with a smooth fade interface.
-         * @return {void}
-         */
-        function hideLessonQuizComplete() {
-            document.getElementById('lesson-quiz-active').classList.add('hidden');
-            document.getElementById('lesson-quiz-hint').classList.add('hidden');
-            document.getElementById('lesson-quiz-complete-msg').classList.remove('hidden');
-            setTimeout(() => document.getElementById('lesson-quiz-container').classList.add('hidden'), 1800);
-        }
-
-        /**
-         * Highlights MCQ options based on user answer validity.
-         * @param {string} selectedOpt - Student selected option ('A'|'B'|'C'|'D').
-         * @param {string} correctOpt - Absolute correct option key.
-         * @return {void}
-         */
-        function highlightQuizAnswer(selectedOpt, correctOpt) {
-            document.querySelectorAll('.sv-quiz-option').forEach(label => {
-                const opt = label.dataset.option;
-                label.style.pointerEvents = 'none';
-                if (opt === correctOpt) label.classList.add('sv-quiz-option-correct');
-                if (opt === selectedOpt && opt !== correctOpt) label.classList.add('sv-quiz-option-wrong');
-            });
-        }
-
-        /**
-         * Refreshes completion action bars/hints for lesson read status.
-         * @param {boolean} isCompleted - If lesson is marked complete.
-         * @param {boolean} contentConsumed - If media requirements are satisfied.
-         * @param {boolean} hasQuiz - If lesson requires passing an MCQ.
-         * @return {void}
-         */
-        function updateLessonCompleteBar(isCompleted, contentConsumed, hasQuiz) {
-            const bar    = document.getElementById('lesson-complete-bar');
-            const btn    = document.getElementById('mark-lesson-complete-btn');
-            const status = document.getElementById('lesson-complete-status');
-            const hint   = document.getElementById('lesson-complete-hint');
-            if (!bar) return;
-
-            if (hasQuiz && !isCompleted) {
-                bar.classList.add('hidden');
-                return;
-            }
-
-            bar.classList.remove('hidden');
-
-            const oldNextBtn = document.getElementById('next-lesson-btn');
-            if (oldNextBtn) oldNextBtn.remove();
-
-            if (isCompleted) {
-                btn.classList.add('hidden');
-                status.classList.remove('hidden');
-                if (hint) hint.classList.add('hidden');
-
-                if (currentNextLesson) {
-                    const nextBtn = document.createElement('button');
-                    nextBtn.type = 'button';
-                    nextBtn.id = 'next-lesson-btn';
-                    nextBtn.className = 'px-5 py-2.5 bg-[#004B23] dark:bg-[#34C759] hover:bg-[#003619] dark:hover:bg-[#28a148] text-white text-xs font-semibold uppercase tracking-wider transition-colors rounded-lg flex items-center gap-2 shadow-sm cursor-pointer ml-auto';
-                    nextBtn.innerHTML = `<span>Continuer vers la leçon suivante : <strong>${escapeHtml(currentNextLesson.title)}</strong></span> →`;
-                    const nextId = currentNextLesson.id;
-                    nextBtn.onclick = () => loadLesson(nextId);
-                    bar.appendChild(nextBtn);
-                }
-            } else {
-                btn.classList.remove('hidden');
-                status.classList.add('hidden');
-                if (hint) {
-                    hint.textContent = contentConsumed
-                        ? 'Contenu terminé — vous pouvez marquer la leçon comme terminée.'
-                        : 'Terminez la lecture, le PDF ou la vidéo pour débloquer la validation.';
-                }
-                btn.disabled = !contentConsumed;
-                btn.classList.toggle('opacity-50', !contentConsumed);
-                btn.classList.toggle('cursor-not-allowed', !contentConsumed);
-                btn.textContent = contentConsumed
-                    ? 'Marquer la leçon comme terminée'
-                    : 'Terminez le contenu pour valider';
-            }
-        }
-
-        /**
-         * Dispatches secure AJAX request to mark a lesson as completed.
-         * @param {number} lessonId - Unique lesson database key.
-         * @return {void}
-         */
-        function markLessonComplete(lessonId) {
-            const btn = document.getElementById('mark-lesson-complete-btn');
-            if (btn) {
-                btn.disabled = true;
-                btn.textContent = 'Enregistrement…';
-            }
-
-            const formData = new FormData();
-            formData.append('lesson_id', lessonId);
-            formData.append('mark_complete', 'true');
-            formData.append('csrf_token', getCsrfToken());
-
-            fetch('/student/submit-lesson-quiz.php', { method: 'POST', body: formData })
-            .then(res => res.json())
-            .then(data => {
-                if (data.success && data.lesson_complete) {
-                    Toast.success('Leçon marquée comme terminée !');
-                    document.getElementById('lesson-quiz-container').classList.add('hidden');
-                    studyCourse(studyCourseIdGlobal, lessonId);
-                } else {
-                    Toast.error(data.message || 'Impossible de valider la leçon.');
-                    if (btn) {
-                        btn.disabled = false;
-                        btn.textContent = 'Marquer la leçon comme terminée';
-                    }
-                }
-            })
-            .catch(err => {
-                Toast.error('Erreur réseau: ' + err.message);
-                if (btn) {
-                    btn.disabled = false;
-                    btn.textContent = 'Marquer la leçon comme terminée';
-                }
-            });
-        }
-
-        document.getElementById('mark-lesson-complete-btn').addEventListener('click', () => {
-            if (!currentLessonId || !lessonContentConsumed) {
-                Toast.error('Terminez d\'abord la lecture ou la vidéo.');
-                return;
-            }
-
-            // Pour les leçons texte/PDF avec un quiz : révéler le quiz au lieu de marquer terminée
-            if (pendingLessonQuiz && pendingLessonQuiz.has_quiz && pendingLessonQuiz.questions.length > 0
-                && currentLessonContentType !== 'video') {
-                const quizBox = document.getElementById('lesson-quiz-container');
-                quizBox.classList.remove('hidden');
-                renderLessonQuestion(pendingLessonQuiz.questions[0], pendingLessonQuiz.questions.length);
-                quizBox.scrollIntoView({ behavior: 'smooth', block: 'start' });
-                // Masquer la barre de complétion pendant le quiz
-                document.getElementById('lesson-complete-bar').classList.add('hidden');
-                return;
-            }
-
-            markLessonComplete(currentLessonId);
-        });
-
-        // Soumission quiz leçon — une question à la fois
-        document.getElementById('lesson-quiz-form').addEventListener('submit', function(e) {
-            e.preventDefault();
-            const lessonId   = document.getElementById('quiz-lesson-id').value;
-            const questionId = document.getElementById('quiz-question-id').value;
-            const feedback   = document.getElementById('lesson-quiz-feedback');
-            const submitBtn  = document.getElementById('lesson-quiz-submit-btn');
-            const selected   = document.querySelector('input[name="answer"]:checked');
-
-            if (!selected) {
-                feedback.textContent = 'Veuillez sélectionner une réponse.';
-                feedback.className = 'text-xs text-[#D32F2F] font-medium';
-                return;
-            }
-
-            submitBtn.disabled = true;
-            feedback.textContent = 'Vérification…';
-            feedback.className = 'text-xs text-[#555555] font-medium';
-
-            const formData = new FormData();
-            formData.append('lesson_id', lessonId);
-            formData.append('question_id', questionId);
-            formData.append('answer', selected.value);
-
-            fetch('/student/submit-lesson-quiz.php', { method: 'POST', body: formData })
-            .then(res => res.json())
-            .then(data => {
-                if (!data.success) {
-                    Toast.error(data.message || 'Erreur lors de la validation.');
-                    submitBtn.disabled = false;
-                    return;
-                }
-
-                highlightQuizAnswer(selected.value, data.correct_option);
-
-                if (data.correct) {
-                    feedback.textContent = `✓ Correct ! La bonne réponse était ${data.correct_option}. ${data.correct_text}`;
-                    feedback.className = 'text-xs text-[#004B23] font-medium';
-                } else {
-                    feedback.textContent = `✕ Incorrect. La bonne réponse était ${data.correct_option}. ${data.correct_text}`;
-                    feedback.className = 'text-xs text-[#D32F2F] font-medium';
-                }
-
-                // Fade-out animation after 2.6s
-                setTimeout(() => {
-                    const qEl = document.getElementById('current-quiz-question');
-                    if (qEl) qEl.classList.add('sv-quiz-question-exit');
-                }, 2600);
-
-                // Auto-advance to next question or complete after 3s
-                setTimeout(() => {
-                    if (data.lesson_complete) {
-                        hideLessonQuizComplete();
-                        studyCourse(studyCourseIdGlobal, lessonId);
-                        Toast.success(data.correct ? 'Leçon validée avec succès !' : 'Évaluation terminée.');
-                    } else {
-                        fetch(`/student/get-lesson-details.php?lesson_id=${lessonId}`)
-                        .then(r => r.json())
-                        .then(d => {
-                            if (d.success && d.questions.length > 0) {
-                                renderLessonQuestion(d.questions[0], d.questions.length);
-                                feedback.textContent = '';
-                            } else {
-                                hideLessonQuizComplete();
-                                studyCourse(studyCourseIdGlobal, lessonId);
-                            }
-                        });
-                    }
-                }, 3000);
-            })
-            .catch(err => {
-                Toast.error('Erreur réseau: ' + err.message);
-                submitBtn.disabled = false;
-            });
-        });
-
-        // =========================================================================
-        // SECTION 6: FINAL CERTIFICATION EXAMS & GLOBAL HUD UTILITIES
-        // =========================================================================
-        let examExpired = false;
-
-        /**
-         * Loads evaluation questions and launches the timed certification exam session.
-         * @param {number} courseId - Course unique identifier database key.
-         * @param {string} courseTitle - Name of the course for display.
-         * @return {void}
-         */
-        function startFinalExam(courseId, courseTitle) {
-            document.getElementById('exam-course-id').value = courseId;
-            document.getElementById('exam-course-title').textContent = courseTitle;
-            document.getElementById('exam-error-alert').classList.add('hidden');
-            examExpired = false;
-            ExamTimer.stop();
-
-            fetch(`/student/get-exam-questions.php?course_id=${courseId}`)
-            .then(res => res.json())
-            .then(data => {
-                if (data.success) {
-                    const container = document.getElementById('exam-questions-container');
-                    container.innerHTML = '';
-                    document.getElementById('exam-attempts-info').textContent =
-                        `Tentatives restantes : ${data.attempts_left}/3 (24h)`;
-
-                    data.questions.forEach((q, idx) => {
-                        const qBox = document.createElement('div');
-                        qBox.className = 'py-4 space-y-3';
-                        const title = document.createElement('p');
-                        title.className = 'text-sm font-semibold text-[#111111]';
-                        title.textContent = `${idx + 1}. ${q.question_text}`;
-                        qBox.appendChild(title);
-                        ['A','B','C','D'].forEach(o => {
-                            const label = document.createElement('label');
-                            label.className = 'flex items-center gap-3 p-3 border border-[#E5E5E7] hover:bg-[#F5F5F7] cursor-pointer rounded-sm text-xs font-light';
-                            const input = document.createElement('input');
-                            input.type = 'radio'; input.name = `question_${q.id}`; input.value = o; input.required = true;
-                            label.appendChild(input);
-                            label.appendChild(document.createTextNode(`${o}. ${q[`option_${o.toLowerCase()}`]}`));
-                            qBox.appendChild(label);
-                        });
-                        container.appendChild(qBox);
-                    });
-
-                    document.getElementById('final-exam-modal').classList.remove('hidden');
-                    const seconds = data.seconds_left ?? (data.exam_minutes || 90) * 60;
-                    ExamTimer.startSeconds('exam-timer', seconds, () => {
-                        examExpired = true;
-                        Toast.error('Temps écoulé ! Soumission automatique…');
-                        document.getElementById('final-exam-form').requestSubmit();
-                    });
-                } else {
-                    Toast.error(data.message || 'Impossible de charger les questions.');
-                }
-            })
-            .catch(err => Toast.error('Erreur réseau: ' + err.message));
-        }
-
-        document.getElementById('final-exam-form').addEventListener('submit', function(e) {
-            e.preventDefault();
-            const form = e.target;
-            const errorAlert = document.getElementById('exam-error-alert');
-            const courseId = document.getElementById('exam-course-id').value;
-            
-            errorAlert.classList.add('hidden');
-            const formData = new FormData(form);
-            
-            fetch('/student/submit-final-exam.php', {
-                method: 'POST',
-                body: formData
-            })
-            .then(res => res.json())
-            .then(data => {
-                ExamTimer.stop();
-                if (data.success) {
-                    toggleModal('final-exam-modal');
-                    if (data.passed) {
-                        CertCelebration.show(data.score, data.certificate_code);
-                    } else {
-                        Toast.error(`Échec — Score : ${data.score}%. Seuil : 80%.`, 6000);
-                        if (data.report_url) {
-                            setTimeout(() => {
-                                Toast.info('Un relevé de tentative a été généré — consultez l\'onglet Relevé de Notes.', 7000);
-                            }, 800);
-                        }
-                    }
-                    refreshDashboard();
-                    setTimeout(() => location.reload(), data.passed ? 4000 : 1500);
-                } else {
-                    Toast.error(data.message || 'Erreur lors de la soumission.');
-                }
-            })
-            .catch(err => Toast.error('Erreur réseau: ' + err.message));
-        });
-
-        /**
-         * Opens or closes a specific modal overlay view using Tailwind hidden helper.
-         * @param {string} modalId - Target HTML element container identifier.
-         * @return {void}
-         */
-        function toggleModal(modalId) {
-            document.getElementById(modalId).classList.toggle('hidden');
-        }
-
-        /**
-         * Resumes a course by loading the outline and auto-loading a specified lesson.
-         * @param {number} courseId - Course database ID.
-         * @param {number} lessonId - Lesson database ID.
-         * @return {void}
-         */
-        function resumeCourse(courseId, lessonId) {
-            studyCourse(courseId, lessonId || null);
-        }
-
-        /**
-         * Converts database timestamp string into localized elapsed time ago display.
-         * @param {string} dateString - Source date string formatted as YYYY-MM-DD HH:MM:SS.
-         * @return {string} Localized elapsed string.
-         */
-        function timeAgo(dateString) {
-            const now = new Date();
-            const date = new Date(dateString.replace(' ', 'T'));
-            const seconds = Math.floor((now - date) / 1000);
-            if (isNaN(seconds)) return '';
-            if (seconds < 60) return "À l'instant";
-            const minutes = Math.floor(seconds / 60);
-            if (minutes < 60) return `Il y a ${minutes} min`;
-            const hours = Math.floor(minutes / 60);
-            if (hours < 24) return `Il y a ${hours} h`;
-            const days = Math.floor(hours / 24);
-            if (days === 1) return "Hier";
-            return `Le ${date.toLocaleDateString('fr-FR')}`;
-        }
-
-        /**
-         * Invokes AJAX controller to mark all unread student notifications as read.
-         * @param {Event} [e] - Click event context.
-         * @return {Promise<void>}
-         */
-        async function markAllNotificationsRead(e) {
-            if (e) { e.preventDefault(); e.stopPropagation(); }
-            const r = await fetch('/student/mark-all-read.php', { method: 'POST' });
-            const d = await r.json();
-            if (d.success) {
-                loadNotifications();
-            }
-        }
-
-        /**
-         * Loads and populates current student notification list into layouts.
-         * @return {void}
-         */
-        function loadNotifications() {
-            fetch('/student/get-notifications.php')
-            .then(r => r.json())
-            .then(data => {
-                if (!data.success) return;
-                
-                // Update desktop and mobile count badges
-                const badges = [document.getElementById('notif-count'), document.getElementById('mobile-notif-count')];
-                badges.forEach(badge => {
-                    if (badge) {
-                        if (data.unread_count > 0) {
-                            badge.textContent = data.unread_count;
-                            badge.classList.remove('hidden');
-                        } else {
-                            badge.classList.add('hidden');
-                        }
-                    }
-                });
-
-                const iconMap = {
-                    certification: '<svg class="w-4 h-4 text-amber-500 inline-block" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12l2 2 4-4M7.835 4.697a3.42 3.42 0 001.946-.806 3.42 3.42 0 014.438 0 3.42 3.42 0 001.946.806 3.42 3.42 0 013.138 3.138 3.42 3.42 0 00.806 1.946 3.42 3.42 0 010 4.438 3.42 3.42 0 00-.806 1.946 3.42 3.42 0 01-3.138 3.138 3.42 3.42 0 00-1.946.806 3.42 3.42 0 01-4.438 0 3.42 3.42 0 00-1.946-.806 3.42 3.42 0 01-3.138-3.138 3.42 3.42 0 00-.806-1.946 3.42 3.42 0 010-4.438 3.42 3.42 0 00.806-1.946 3.42 3.42 0 013.138-3.138z"/></svg>',
-                    quiz: '<svg class="w-4 h-4 text-emerald-500 inline-block" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2"/></svg>',
-                    course_created: '<svg class="w-4 h-4 text-blue-500 inline-block" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 6.253v13m0-13C10.832 5.477 9.246 5 7.5 5S4.168 5.477 3 6.253v13C4.168 18.477 5.754 18 7.5 18s3.332.477 4.5 1.253m0-13C13.168 5.477 14.754 5 16.5 5c1.747 0 3.332.477 4.5 1.253v13C19.832 18.477 18.247 18 16.5 18c-1.746 0-3.332.477-4.5 1.253"/></svg>',
-                    grade: '<svg class="w-4 h-4 text-indigo-500 inline-block" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z"/></svg>',
-                    general: '<svg class="w-4 h-4 text-gray-400 inline-block" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 17h5l-1.405-1.405A2.032 2.032 0 0118 14.158V11a6.002 6.002 0 00-4-5.659V5a2 2 0 10-4 0v.341C7.67 6.165 6 8.388 6 11v3.159c0 .538-.214 1.055-.595 1.436L4 17h5m6 0v1a3 3 0 11-6 0v-1m6 0H9"/></svg>'
-                };
-
-                const panels = [document.getElementById('notif-panel'), document.getElementById('mobile-notif-panel')];
-                const contentHtml = data.notifications.length
-                    ? data.notifications.map(n => {
-                        const icon = iconMap[n.type] || iconMap.general;
-                        return `
-                            <a href="${n.link || '#'}" class="flex gap-3 p-3 border-b border-[#E5E5E7] dark:border-[#2C2C2C] hover:bg-[#F9F9FB] dark:hover:bg-[#252525] transition-colors items-start ${n.is_read == 0 ? 'bg-[#004B23]/5 dark:bg-[#34C759]/5 font-semibold' : ''}">
-                                <div class="text-base flex-shrink-0 mt-0.5">${icon}</div>
-                                <div class="flex-grow">
-                                    <div class="text-xs text-[#111111] dark:text-white">${n.title}</div>
-                                    <div class="text-[11px] text-[#555555] dark:text-[#AAAAAA] font-light mt-0.5">${n.body || ''}</div>
-                                    <div class="text-[9px] text-[#888888] dark:text-[#AAAAAA] font-mono mt-1">${timeAgo(n.created_at)}</div>
-                                </div>
-                                ${n.is_read == 0 ? '<span class="h-2 w-2 rounded-full bg-[#004B23] dark:bg-[#34C759] flex-shrink-0 mt-2"></span>' : ''}
-                            </a>
-                        `;
-                    }).join('')
-                    : `
-                        <div class="p-8 text-center space-y-2 select-none">
-                            <div class="w-8 h-8 mx-auto text-gray-400 opacity-40"><svg class="w-full h-full" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M15 17h5l-1.405-1.405A2.032 2.032 0 0118 14.158V11a6.002 6.002 0 00-4-5.659V5a2 2 0 10-4 0v.341C7.67 6.165 6 8.388 6 11v3.159c0 .538-.214 1.055-.595 1.436L4 17h5m6 0v1a3 3 0 11-6 0v-1m6 0H9"/></svg></div>
-                            <div class="text-xs font-semibold text-[#111111] dark:text-white">Tout est calme ici</div>
-                            <div class="text-[11px] text-[#888888] dark:text-[#AAAAAA] font-light">Aucune nouvelle notification pour le moment.</div>
-                        </div>
-                    `;
-                
-                panels.forEach(panel => {
-                    if (panel) {
-                        panel.innerHTML = contentHtml;
-                    }
-                });
-            });
-        }
-
-        document.getElementById('notif-btn')?.addEventListener('click', (e) => {
-            e.stopPropagation();
-            document.getElementById('notif-panel-container').classList.toggle('hidden');
-            loadNotifications();
-        });
-
-        document.addEventListener('click', (e) => {
-            const container = document.getElementById('notif-panel-container');
-            if (container && !container.classList.contains('hidden') && !container.contains(e.target) && !e.target.closest('#notif-btn')) {
-                container.classList.add('hidden');
-            }
-            const mobileContainer = document.getElementById('mobile-notif-panel-container');
-            if (mobileContainer && !mobileContainer.classList.contains('hidden') && !mobileContainer.contains(e.target) && !e.target.closest('#mobile-notif-wrap button')) {
-                mobileContainer.classList.add('hidden');
-            }
-        });
-
-        loadNotifications();
-
-        // =========================================================================
-        // SECTION 7: VIDEO TIMESTAMP NOTES (LocalStorage & UI Chips)
-        // =========================================================================
-        const VideoNotes = (() => {
-            const STORAGE_KEY = 'sv_video_notes';
-
-            function getAll() {
-                try { return JSON.parse(localStorage.getItem(STORAGE_KEY) || '{}'); }
-                catch { return {}; }
-            }
-
-            function saveAll(data) {
-                localStorage.setItem(STORAGE_KEY, JSON.stringify(data));
-            }
-
-            function getForLesson(lessonId) {
-                return getAll()[lessonId] || [];
-            }
-
-            function addNote(lessonId, timestamp, text) {
-                const all = getAll();
-                if (!all[lessonId]) all[lessonId] = [];
-                all[lessonId].push({ ts: timestamp || '—', text: text, id: Date.now() });
-                all[lessonId].sort((a, b) => {
-                    const toSec = t => { const p = t.split(':'); return p.length === 2 ? parseInt(p[0]) * 60 + parseInt(p[1]) : 0; };
-                    return toSec(a.ts) - toSec(b.ts);
-                });
-                saveAll(all);
-            }
-
-            function deleteNote(lessonId, noteId) {
-                const all = getAll();
-                if (!all[lessonId]) return;
-                all[lessonId] = all[lessonId].filter(n => n.id !== noteId);
-                saveAll(all);
-            }
-
-            return { getForLesson, addNote, deleteNote };
-        })();
-
-        /**
-         * Renders the student's timestamp video notes list as interactive tags.
-         * @param {number} lessonId - Unique lesson database key.
-         * @return {void}
-         */
-        function renderVideoNotes(lessonId) {
-            const section = document.getElementById('video-notes-section');
-            const list = document.getElementById('video-notes-list');
-            const noMsg = document.getElementById('no-notes-msg');
-            if (!section || !list) return;
-
-            const notes = VideoNotes.getForLesson(lessonId);
-            list.innerHTML = '';
-
-            if (notes.length === 0) {
-                const p = document.createElement('p');
-                p.id = 'no-notes-msg';
-                p.className = 'text-xs text-[#888888] italic';
-                p.textContent = 'Aucune note. Ajoutez-en ci-dessous pendant la vidéo.';
-                list.appendChild(p);
-            } else {
-                notes.forEach(note => {
-                    const chip = document.createElement('span');
-                    chip.className = 'sv-video-note-chip group relative';
-                    chip.innerHTML = `<span class="font-mono">${note.ts}</span><span class="max-w-[180px] truncate">${note.text}</span><button type="button" class="ml-1 opacity-60 hover:opacity-100 text-[10px] font-bold" onclick="deleteVideoNote(${lessonId}, ${note.id})" title="Supprimer">✕</button>`;
-                    chip.title = `${note.ts} — ${note.text}`;
-                    list.appendChild(chip);
-                });
-            }
-        }
-
-        /**
-         * Deletes a specific timestamp note from local storage.
-         * @param {number} lessonId - Unique lesson database key.
-         * @param {number} noteId - Unique note timestamp database key.
-         * @return {void}
-         */
-        function deleteVideoNote(lessonId, noteId) {
-            VideoNotes.deleteNote(lessonId, noteId);
-            renderVideoNotes(lessonId);
-        }
-
-        /**
-         * Toggles the visibility of the timestamp notes section.
-         * @param {number} lessonId - Unique lesson database key.
-         * @param {string} contentType - Type of the lesson content.
-         * @return {void}
-         */
-        function updateVideoNotesVisibility(lessonId, contentType) {
-            const section = document.getElementById('video-notes-section');
-            if (!section) return;
-            const isVideo = contentType === 'video' || contentType === 'mixed';
-            section.classList.toggle('hidden', !isVideo);
-            if (isVideo) renderVideoNotes(lessonId);
-        }
-
-        document.getElementById('video-note-form')?.addEventListener('submit', function(e) {
-            e.preventDefault();
-            const lessonId = parseInt(document.getElementById('comment-lesson-id').value);
-            const ts = document.getElementById('note-timestamp').value.trim();
-            const text = document.getElementById('note-text').value.trim();
-            if (!text) return;
-            VideoNotes.addNote(lessonId, ts, text);
-            renderVideoNotes(lessonId);
-            document.getElementById('note-timestamp').value = '';
-            document.getElementById('note-text').value = '';
-            Toast.success('Note ajoutée.');
-        });
-
-        const _origLoadLesson = loadLesson;
-        loadLesson = function(lessonId) {
-            _origLoadLesson(lessonId);
-            setTimeout(() => {
-                const badge = document.getElementById('study-lesson-badge');
-                const contentType = badge ? badge.textContent.toLowerCase() : '';
-                updateVideoNotesVisibility(lessonId, contentType);
-            }, 600);
-        };
-
-        // ═══════════════════════════════════════════════════
-        // ÉTAPE 8 — SKELETON LOADERS (zones de chargement)
-        // ═══════════════════════════════════════════════════
-
-        /**
-         * Generates and injects a skeleton loading template into a container.
-         * @param {string} containerId - The ID of the HTML element to hold the skeleton.
-         * @param {number} [rows=3] - Number of skeleton rows to display.
-         * @return {void}
-         */
-        function showSkeleton(containerId, rows = 3) {
-            const el = document.getElementById(containerId);
-            if (!el) return;
-            let html = '';
-            for (let i = 0; i < rows; i++) {
-                html += `<div class="space-y-2 p-4 border border-[#E5E5E7] mb-3">
-                    <div class="sv-skeleton sv-skeleton-title" style="width:${45 + Math.random()*30}%"></div>
-                    <div class="sv-skeleton sv-skeleton-text"></div>
-                    <div class="sv-skeleton sv-skeleton-text" style="width:70%"></div>
-                </div>`;
-            }
-            el.innerHTML = html;
-        }
-
-        // Apply skeleton to comments list while loading
-        const _origLoadComments = loadLessonComments;
-        loadLessonComments = function(lessonId) {
-            showSkeleton('lesson-comments-list', 2);
-            _origLoadComments(lessonId);
-        };
-
-        // --- Achievements system interactive functions ---
-        const LORE_MAP = {
-            'first_lesson': "« Chaque grand voyage commence par un seul pas. Le vôtre vient de débuter. »",
-            'study_hour': "« Le temps consacré à l'esprit n'est jamais perdu. La persévérance façonne l'expertise. »",
-            'course_complete': "« Franchir la ligne d'arrivée démontre une volonté de fer. Rien ne vous arrête. »",
-            'certified': "« Un parchemin de réussite officiel, témoin de votre rigueur et de votre talent. »",
-            'perfect_score': "« L'excellence n'est pas un acte, c'est une habitude. Un score absolument impeccable ! »",
-            'multitasker': "« Curieux de tout, avide d'apprendre. Votre polyvalence est une force inestimable. »",
-            'night_owl': "« Quand le monde s'endort, l'esprit s'éveille. Les secrets du savoir appartiennent à la nuit. »",
-            'note_taker': "« L'écriture fixe la pensée. En consignant vos observations, vous gravez le savoir. »"
-        };
-
-        function openBadgeModal(key, title, desc, status, earnedDate) {
-            const modal = document.getElementById('badge-modal');
-            const content = document.getElementById('badge-modal-content');
-            if (!modal || !content) return;
-
-            // Set Title & Description
-            document.getElementById('badge-modal-title').textContent = title;
-            document.getElementById('badge-modal-desc').textContent = desc;
-
-            // Set Lore
-            const lore = LORE_MAP[key] || "";
-            document.getElementById('badge-modal-lore').textContent = lore;
-
-            // Find clicked card's icon and clone it
-            const card = document.querySelector(`[data-badge-key="${key}"]`);
-            const iconWrap = document.getElementById('badge-modal-icon-wrap');
-            
-            if (card && iconWrap) {
-                const cardIcon = card.querySelector('.relative.w-20.h-20');
-                if (cardIcon) {
-                    iconWrap.className = cardIcon.className.replace('w-20 h-20', 'w-24 h-24 mx-auto') + ' flex items-center justify-center rounded-full border-2';
-                    iconWrap.innerHTML = cardIcon.innerHTML;
-                    
-                    const lockDiv = iconWrap.querySelector('.absolute');
-                    if (lockDiv) lockDiv.remove();
-                }
-            }
-
-            // Set status
-            const statusWrap = document.getElementById('badge-modal-status-wrap');
-            if (statusWrap) {
-                if (status === 'unlocked') {
-                    statusWrap.innerHTML = `<span class="inline-flex items-center gap-1.5 px-3.5 py-1 bg-emerald-50 dark:bg-emerald-950/20 text-emerald-800 dark:text-emerald-400 border border-emerald-200 dark:border-emerald-900/50 rounded-full text-xs font-semibold font-mono">
-                        <svg class="w-4 h-4" fill="none" stroke="currentColor" stroke-width="3" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M4.5 12.75l6 6 9-13.5" /></svg>
-                        Débloqué le ${earnedDate}
-                    </span>`;
-                } else {
-                    statusWrap.innerHTML = `<span class="inline-flex items-center gap-1.5 px-3.5 py-1 bg-zinc-100 dark:bg-zinc-800 text-zinc-600 dark:text-zinc-400 border border-zinc-200 dark:border-zinc-700 rounded-full text-xs font-semibold font-mono">
-                        <svg class="w-4 h-4" fill="none" stroke="currentColor" stroke-width="2.5" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M16.5 10.5V6.75a4.5 4.5 0 10-9 0v3.75m-.75 11.25h10.5a2.25 2.25 0 002.25-2.25v-6.75a2.25 2.25 0 00-2.25-2.25H6.75a2.25 2.25 0 00-2.25 2.25v6.75a2.25 2.25 0 002.25 2.25z" /></svg>
-                        Verrouillé
-                    </span>`;
-                }
-            }
-
-            modal.classList.remove('hidden');
-            gsap.killTweensOf(content);
-            gsap.fromTo(content, 
-                { scale: 0.9, opacity: 0 },
-                { scale: 1, opacity: 1, duration: 0.35, ease: "back.out(1.5)" }
-            );
-        }
-
-        function closeBadgeModal() {
-            const modal = document.getElementById('badge-modal');
-            const content = document.getElementById('badge-modal-content');
-            if (!modal || !content) return;
-
-            gsap.to(content, {
-                scale: 0.9,
-                opacity: 0,
-                duration: 0.25,
-                ease: "power2.in",
-                onComplete: () => {
-                    modal.classList.add('hidden');
-                }
-            });
-        }
-
-        function animateBadgesEntrance() {
-            gsap.fromTo(".sv-badge-card", 
-                { opacity: 0, y: 25, scale: 0.95 },
-                { 
-                    opacity: (i, el) => el.classList.contains('opacity-65') ? 0.65 : 1, 
-                    y: 0, 
-                    scale: 1, 
-                    duration: 0.45, 
-                    stagger: 0.06, 
-                    ease: "power2.out",
-                    overwrite: "auto"
-                }
-            );
-        }
-
-    </script>
-
-    <!-- ACHIEVEMENTS BADGE MODAL -->
-    <div id="badge-modal" class="fixed inset-0 z-50 flex items-center justify-center hidden">
-        <div onclick="closeBadgeModal()" class="fixed inset-0 bg-black/60 backdrop-blur-sm transition-opacity duration-300"></div>
-        <div class="relative bg-white dark:bg-[#1E1E1E] border border-[#111111] dark:border-zinc-800 max-w-sm w-full p-8 mx-4 shadow-[8px_8px_0px_#111111] dark:shadow-[8px_8px_0px_#004B23] transition-all duration-300 z-10 flex flex-col items-center text-center space-y-6" id="badge-modal-content">
-            <button onclick="closeBadgeModal()" class="absolute top-4 right-4 text-zinc-400 hover:text-zinc-600 dark:hover:text-zinc-200 transition-colors">
-                <svg class="w-6 h-6" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M6 18L18 6M6 6l12 12" /></svg>
-            </button>
-            
-            <div id="badge-modal-icon-wrap" class="w-24 h-24 rounded-full flex items-center justify-center text-white border-2 relative">
-                <!-- SVG Icon -->
-            </div>
-            
-            <div class="space-y-2">
-                <h3 id="badge-modal-title" class="font-serif text-2xl font-bold text-[#111111] dark:text-white"></h3>
-                <p id="badge-modal-desc" class="text-sm text-zinc-600 dark:text-zinc-300 leading-relaxed font-light"></p>
-            </div>
-            
-            <div id="badge-modal-status-wrap" class="w-full pt-4 border-t border-zinc-100 dark:border-zinc-850">
-                <!-- Status tag -->
-            </div>
-
-            <div id="badge-modal-lore" class="text-xs italic text-zinc-400 dark:text-zinc-550 font-serif leading-relaxed px-4"></div>
-            
-            <button onclick="closeBadgeModal()" class="w-full py-3 bg-[#111111] dark:bg-[#004B23] dark:hover:bg-[#00602D] text-white text-xs font-semibold uppercase tracking-wider hover:bg-[#004B23] transition-colors rounded-sm shadow-md">
-                Fermer
-            </button>
-        </div>
+</div>
+
+<div id="lib-modal" class="sd-modal hidden" role="dialog" aria-modal="true" aria-labelledby="lib-modal-title">
+    <div class="sd-sheet sd-sheet-wide">
+        <header class="sd-sheet-head"><h2 id="lib-modal-title"></h2><button type="button" class="sd-iconbtn" onclick="toggleModal('lib-modal')" aria-label="<?= sdH(sd('close')) ?>"><?= sdIcon('x', 18) ?></button></header>
+        <div id="lib-modal-body" class="rd-prose"></div>
     </div>
+</div>
 
-    <!-- MODAL ALERT AUTOMATIQUE: SAISIE DU MATRICULE OBLIGATOIRE -->
-    <?php if (empty($user['matricule'])): ?>
-    <div id="matricule-alert-modal" class="fixed inset-0 bg-black/75 backdrop-blur-md z-[9999] flex items-center justify-center p-4">
-        <div class="bg-white dark:bg-[#1E1E1E] p-6 md:p-8 max-w-md w-full border border-[#E5E5E7] dark:border-[#2C2C2C] shadow-2xl space-y-6 rounded-lg">
-            <div class="flex items-center gap-3 border-b border-[#E5E5E7] dark:border-[#2C2C2C] pb-4">
-                <div class="p-3 bg-amber-100 dark:bg-amber-900/40 text-amber-800 dark:text-amber-300 rounded-lg flex-shrink-0">
-                    <svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z"/>
-                    </svg>
-                </div>
-                <div>
-                    <h3 class="font-serif text-lg font-bold text-[#111111] dark:text-white">Matricule Académique Requis</h3>
-                    <p class="text-xs text-[#888888]">Configuration obligatoire de votre compte</p>
-                </div>
-            </div>
-            
-            <p class="text-xs text-[#555555] dark:text-[#CCCCCC] leading-relaxed">
-                Afin d'enregistrer vos notes d'évaluations et de générer vos rapports et relevés académiques, vous devez renseigner votre <strong>Numéro de Matricule</strong>.
-            </p>
-
-            <form id="matricule-alert-form" class="space-y-4" onsubmit="submitQuickMatricule(event)">
-                <div>
-                    <label class="block text-xs font-semibold uppercase tracking-wider text-[#555555] dark:text-[#AAAAAA] mb-1.5">Saisissez votre Matricule</label>
-                    <input type="text" id="quick-matricule-input" required placeholder="ex: 24U0123"
-                        class="w-full px-4 py-2.5 bg-[#F5F5F7] dark:bg-[#2C2C2E] border border-[#E5E5E7] dark:border-[#3C3C3E] text-sm focus:outline-none focus:border-[#004B23] dark:focus:border-[#34C759] rounded-sm uppercase tracking-wider font-mono">
-                </div>
-                <div id="quick-matricule-error" class="hidden text-xs text-[#D32F2F] font-medium"></div>
-                <button type="submit" class="w-full py-3 bg-[#004B23] text-white text-xs font-semibold uppercase tracking-widest hover:bg-[#003d1c] transition-all rounded-sm shadow-md">
-                    Enregistrer et Continuer
-                </button>
-            </form>
-        </div>
+<!-- =========================================================================
+     SECTION 11: COMPULSORY MATRICULE (kept exactly: blocks until filled)
+     ========================================================================= -->
+<?php
+require_once __DIR__ . '/../lib/Matricule.php';
+$matDuplicate = !empty($user['matricule']) && Matricule::isTaken($pdo, Matricule::normalize((string)$user['matricule']), (int)$user['id'], true);
+if (empty($user['matricule']) || $matDuplicate): ?>
+<div id="matricule-alert-modal" class="sd-modal sd-modal-hard" role="alertdialog" aria-modal="true" aria-labelledby="mat-title">
+    <div class="sd-sheet">
+        <p class="sd-kicker"><?= sdH(sd($matDuplicate ? 'mat_dup_kicker' : 'mat_kicker')) ?></p>
+        <h2 id="mat-title"><?= sdH(sd($matDuplicate ? 'mat_dup_title' : 'mat_title')) ?></h2>
+        <p class="sd-meta"><?= sdH(sd($matDuplicate ? 'mat_dup_text' : 'mat_text')) ?></p>
+        <form id="matricule-alert-form" onsubmit="submitQuickMatricule(event)">
+            <div class="field"><label for="quick-matricule-input"><?= sdH(sd('mat_label')) ?></label>
+                <input type="text" id="quick-matricule-input" class="input sd-mat" required value="<?= $matDuplicate ? sdH((string)$user['matricule']) : '' ?>" placeholder="<?= sdH(sd('mat_ph')) ?>" maxlength="7" autocomplete="off" autocapitalize="characters" spellcheck="false" oninput="clearMatError()"></div>
+            <div id="quick-matricule-error" class="hint err hidden" role="alert"></div>
+            <button type="submit" class="btn btn-primary btn-lg sd-full"><?= sdH(sd('mat_save')) ?></button>
+        </form>
     </div>
-    <script>
-    function submitQuickMatricule(e) {
-        e.preventDefault();
-        const val = document.getElementById('quick-matricule-input').value.trim();
-        if (!val) return;
-        const formData = new FormData();
-        formData.append('matricule', val);
-        fetch('/student/update-profile.php', { method: 'POST', body: formData })
-        .then(r => r.json())
-        .then(d => {
-            if (d.success) {
-                document.getElementById('matricule-alert-modal')?.remove();
-                const profMat = document.getElementById('profile-matricule');
-                if (profMat) profMat.value = val.toUpperCase();
-                if (window.Toast) Toast.success("Matricule enregistré avec succès !");
-            } else {
-                const err = document.getElementById('quick-matricule-error');
-                if (err) { err.textContent = d.message; err.classList.remove('hidden'); }
-            }
-        });
-    }
-    </script>
-    <?php endif; ?>
+</div>
+<?php endif; ?>
+
+<!-- =========================================================================
+     SECTION 12: SCRIPTS
+     ========================================================================= -->
+<script>
+window.SV_T = <?= json_encode(sdJs(), JSON_UNESCAPED_UNICODE | JSON_HEX_TAG | JSON_HEX_AMP) ?>;
+window.SV_LANG = <?= json_encode($lang) ?>;
+</script>
+<script src="/assets/js/app.js"></script>
+<script src="/assets/js/pdf-reader.js"></script>
+<script src="/assets/js/video-chain.js"></script>
+<script src="/assets/js/student.js"></script>
+<?php
+$matBlocks = empty($user['matricule']) || !empty($matDuplicate);
+require_once __DIR__ . '/../lib/PhonePrompt.php';
+$phoneBlocks = PhonePrompt::render($user, $lang, $matBlocks);   // the matricule form comes first, then the phone number
+require_once __DIR__ . '/../lib/Tour.php'; Tour::render('student', $lang, $matBlocks || $phoneBlocks);
+?>
 </body>
 </html>

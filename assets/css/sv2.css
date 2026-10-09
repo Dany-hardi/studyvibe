@@ -1,0 +1,120 @@
+/* StudyVibe v2 — design system
+   Paper, ink and one warm accent. Fraunces for voice, Hanken Grotesk for work.
+   Used by the landing page, the exam lobby and (phase 2) the dashboards. */
+
+:root {
+  --paper:      #F5F0E6;
+  --paper-2:    #ECE5D6;
+  --card:       #FBF8F2;
+  --ink:        #1E1B16;
+  --ink-2:      #4A453C;
+  --ink-3:      #6F695C;
+  --line:       #DDD5C3;
+  --line-2:     #C9BFA9;
+  --clay:       #B5482A;
+  --clay-press: #96391E;
+  --clay-soft:  #F1DDD2;
+  --pine:       #24402F;
+  --pine-soft:  #DDE5DA;
+  --ochre:      #D9A23B;
+  --ok:         #3E6B47;
+  --danger:     #A32B2B;
+
+  --font-display: 'Fraunces', 'Iowan Old Style', Georgia, serif;
+  --font-body:    'Hanken Grotesk', system-ui, -apple-system, 'Segoe UI', sans-serif;
+
+  --r-sm: 6px; --r-md: 10px; --r-lg: 16px;
+  --ease: cubic-bezier(.2,.7,.2,1);
+  --shadow-1: 0 1px 0 rgba(30,27,22,.04), 0 1px 2px rgba(30,27,22,.06);
+  --shadow-2: 0 1px 0 rgba(30,27,22,.04), 0 12px 32px -12px rgba(30,27,22,.22);
+  --maxw: 1160px;
+}
+html.dark {
+  --paper:      #15130F;
+  --paper-2:    #1C1914;
+  --card:       #221F18;
+  --ink:        #F1EBDD;
+  --ink-2:      #C7BFAE;
+  --ink-3:      #9A927F;
+  --line:       #342F25;
+  --line-2:     #4A4336;
+  --clay:       #E27B57;
+  --clay-press: #EE9373;
+  --clay-soft:  #3A2418;
+  --pine:       #A9C4A8;
+  --pine-soft:  #1F2C22;
+  --ochre:      #E5B24F;
+  --ok:         #8DBB8F;
+  --danger:     #E58383;
+  --shadow-2: 0 1px 0 rgba(0,0,0,.3), 0 12px 32px -12px rgba(0,0,0,.6);
+}
+
+*, *::before, *::after { box-sizing: border-box; }
+html { scroll-behavior: smooth; -webkit-text-size-adjust: 100%; }
+body.v2 {
+  margin: 0; background: var(--paper); color: var(--ink);
+  font-family: var(--font-body); font-size: 1rem; line-height: 1.6;
+  -webkit-font-smoothing: antialiased; text-rendering: optimizeLegibility;
+}
+.v2 h1, .v2 h2, .v2 h3 { font-family: var(--font-display); font-weight: 500; letter-spacing: -.015em; line-height: 1.1; margin: 0; font-variation-settings: "SOFT" 50, "opsz" 96; }
+.v2 p { margin: 0; }
+.v2 a { color: inherit; }
+.v2 :focus-visible { outline: 2px solid var(--clay); outline-offset: 3px; border-radius: 4px; }
+.wrap { max-width: var(--maxw); margin: 0 auto; padding: 0 24px; }
+.num { font-variant-numeric: tabular-nums; }
+.kicker { font-size: .78rem; font-weight: 600; letter-spacing: .12em; text-transform: uppercase; color: var(--clay); }
+
+/* Buttons */
+.btn { display: inline-flex; align-items: center; justify-content: center; gap: .5rem; font: 600 .95rem/1 var(--font-body);
+  padding: .85rem 1.25rem; border-radius: var(--r-md); border: 1px solid transparent; cursor: pointer; text-decoration: none;
+  transition: background-color .18s var(--ease), border-color .18s var(--ease), transform .18s var(--ease); }
+.btn:active { transform: translateY(1px); }
+.v2 .btn-primary { background: var(--clay); color: #fff; }
+html.dark.v2 .btn-primary, html.dark .v2 .btn-primary { color: #1A0F09; }
+.v2 .btn-ghost { color: var(--ink); }
+.btn-primary:hover { background: var(--clay-press); }
+.btn-ghost { background: transparent; color: var(--ink); border-color: var(--line-2); }
+.btn-ghost:hover { border-color: var(--ink); }
+.btn-text { background: none; border: 0; padding: 0; color: var(--clay); font: 600 .9rem var(--font-body); cursor: pointer; text-decoration: underline; text-underline-offset: 3px; }
+.btn[disabled] { opacity: .45; cursor: not-allowed; }
+.btn-lg { padding: 1rem 1.6rem; font-size: 1rem; }
+
+/* Forms */
+.field { display: grid; gap: .4rem; margin-bottom: 1rem; }
+.field label { font-size: .85rem; font-weight: 600; color: var(--ink-2); }
+.input { width: 100%; font: 400 1rem var(--font-body); color: var(--ink); background: var(--paper);
+  border: 1px solid var(--line-2); border-radius: var(--r-md); padding: .8rem .95rem;
+  transition: border-color .15s, box-shadow .15s; }
+.input::placeholder { color: var(--ink-3); opacity: .75; }
+.input:hover { border-color: var(--ink-3); }
+.input:focus { outline: none; border-color: var(--clay); box-shadow: 0 0 0 3px color-mix(in srgb, var(--clay) 22%, transparent); }
+.input.invalid { border-color: var(--danger); }
+.hint { font-size: .8rem; color: var(--ink-3); }
+.hint.err { color: var(--danger); }
+
+/* Brand */
+.brand { display: inline-flex; align-items: center; gap: .6rem; text-decoration: none; font-family: var(--font-display); font-size: 1.35rem; font-weight: 600; letter-spacing: -.02em; color: var(--ink); }
+.brand img { width: 26px; height: 26px; display: block; }
+.brand em { font-style: italic; font-weight: 500; color: var(--clay); }
+
+/* Reveal — one gentle motion, nothing tilts or scales */
+.js .rv { opacity: 0; transform: translateY(14px); transition: opacity .7s var(--ease), transform .7s var(--ease); transition-delay: var(--d, 0s); }
+.js .rv.in { opacity: 1; transform: none; }
+@media (prefers-reduced-motion: reduce) {
+  html { scroll-behavior: auto; }
+  .js .rv { opacity: 1; transform: none; transition: none; }
+  *, *::before, *::after { animation-duration: .001ms !important; animation-iteration-count: 1 !important; }
+}
+
+/* Toasts (shared: landing, dashboards). The container is a popover so it shows above open dialogs. */
+#toast-container { position: fixed; right: 20px; bottom: 20px; left: auto; top: auto; z-index: 99999; display: flex; flex-direction: column; gap: 10px; pointer-events: none; width: min(380px, calc(100vw - 32px)); margin: 0; padding: 0; border: 0; background: transparent; overflow: visible; }
+#toast-container:empty { display: none; }
+.sv-toast { pointer-events: auto; display: flex; align-items: flex-start; gap: .65rem; padding: .85rem 1rem; background: var(--card); color: var(--ink); border: 1px solid var(--line-2); border-left: 3px solid var(--ink-3); border-radius: var(--r-md); box-shadow: var(--shadow-2); font-size: .92rem; line-height: 1.4; animation: svToastIn .3s var(--ease) both; }
+.sv-toast.hiding { animation: svToastOut .25s var(--ease) both; }
+.sv-toast.success { border-left-color: var(--ok); } .sv-toast.error { border-left-color: var(--danger); } .sv-toast.info { border-left-color: var(--pine); }
+.sv-toast .toast-icon { font-weight: 800; flex: none; width: 1.1em; text-align: center; }
+.sv-toast.success .toast-icon { color: var(--ok); } .sv-toast.error .toast-icon { color: var(--danger); }
+.sv-toast .toast-msg { flex: 1; }
+.sv-toast .toast-close { background: none; border: 0; color: var(--ink-3); font-size: 1.3rem; line-height: 1; cursor: pointer; padding: 0 .25rem; min-width: 28px; min-height: 28px; }
+@keyframes svToastIn { from { opacity: 0; transform: translateY(10px); } to { opacity: 1; transform: none; } }
+@keyframes svToastOut { to { opacity: 0; transform: translateY(6px); } }

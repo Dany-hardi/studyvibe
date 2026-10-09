@@ -22,6 +22,9 @@ declare(strict_types=1);
 // =========================================================================
 
 require_once __DIR__ . '/../auth.php';
+require_once __DIR__ . '/../lib/Brand.php';
+require_once __DIR__ . '/../lib/LiveScoring.php';
+require_once __DIR__ . '/../lib/LatexCompiler.php';
 
 // Exiger que l'utilisateur soit connecté
 if (!isLoggedIn()) {
@@ -102,13 +105,7 @@ $totalQuestions = count($answers);
 $correctCount = 0;
 foreach ($answers as $ans) {
     $isCorrect = false;
-    if (($ans['question_type'] ?? 'mcq') === 'written') {
-        $normalizedSelected = str_replace([',', ' '], ['.', ''], strtolower(trim($ans['selected_option'])));
-        $normalizedCorrect = str_replace([',', ' '], ['.', ''], strtolower(trim($ans['correct_option'])));
-        $isCorrect = ($normalizedSelected === $normalizedCorrect);
-    } else {
-        $isCorrect = ($ans['selected_option'] === $ans['correct_option']);
-    }
+    $isCorrect = LiveScoring::isCorrect((string)($ans['question_type'] ?? 'mcq'), (string)$ans['selected_option'], (string)$ans['correct_option']);
     if ($isCorrect) {
         $correctCount++;
     }
@@ -129,7 +126,7 @@ $scorePercent = $totalQuestions > 0 ? ($correctCount / $totalQuestions) * 100 : 
  */
 function escapeLatex(?string $text): string
 {
-    $text = $text ?? '';
+    $text = LatexCompiler::sanitize($text ?? '');
     // Remplacer les sauts de ligne HTML
     $text = preg_replace('/<br\s*\/?>/i', "\n\n", $text);
     
@@ -180,6 +177,7 @@ $tex .= "\\usepackage[french]{babel}\n";
 $tex .= "\\usepackage{amsmath,amssymb}\n";
 $tex .= "\\usepackage{tcolorbox}\n";
 $tex .= "\\usepackage{color}\n";
+$tex .= Brand::latexPreamble();
 $tex .= "\\usepackage{pifont}\n";
 $tex .= "\\usepackage{enumitem}\n";
 $tex .= "\\usepackage[margin=1.2cm]{geometry}\n";
@@ -204,8 +202,8 @@ $tex .= "    fontupper=\\sffamily\\small\n";
 $tex .= "}\n";
 $tex .= "\n";
 $tex .= "\\newtcolorbox{correctbox}{\n";
-$tex .= "    colback=green!3,\n";
-$tex .= "    colframe=green!50!black,\n";
+$tex .= "    colback=svpaper!60!white,\n";
+$tex .= "    colframe=svink!70,\n";
 $tex .= "    fontupper=\\sffamily\\small\n";
 $tex .= "}\n";
 $tex .= "\n";
@@ -225,9 +223,10 @@ $escStudentName = escapeLatex($registration['name']);
 $escDate = escapeLatex(date('d/m/Y H:i'));
 $escScorePercent = escapeLatex((string)round($scorePercent, 1));
 
-$tex .= "\\twocolumn[\n";
+$tex .= "\\twocolumn[{\n";
 $tex .= "  \\begin{center}\n";
 $tex .= "    \\sffamily\n";
+$tex .= "    \\svlogo[4.4cm]\\par\\vspace{0.6em}\n";
 $tex .= "    {\\large\\bfseries STUDYVIBE ~--~ RAPPORT D'\\'{E}VALUATION \\par}\n";
 $tex .= "    \\vspace{0.4em}\n";
 $tex .= "    {\\LARGE\\bfseries Session : {$escSessionTitle} \\par}\n";
@@ -239,20 +238,14 @@ $tex .= "    \\vspace{0.8em}\n";
 $tex .= "    \\hrule height 1pt\n";
 $tex .= "    \\vspace{1.2em}\n";
 $tex .= "  \\end{center}\n";
-$tex .= "]\n";
+$tex .= "}]\n";
 $tex .= "\n";
 
 foreach ($answers as $index => $qa) {
     $num = $index + 1;
     
     $isCorrect = false;
-    if (($qa['question_type'] ?? 'mcq') === 'written') {
-        $normalizedSelected = str_replace([',', ' '], ['.', ''], strtolower(trim($qa['selected_option'])));
-        $normalizedCorrect = str_replace([',', ' '], ['.', ''], strtolower(trim($qa['correct_option'])));
-        $isCorrect = ($normalizedSelected === $normalizedCorrect);
-    } else {
-        $isCorrect = ($qa['selected_option'] === $qa['correct_option']);
-    }
+    $isCorrect = LiveScoring::isCorrect((string)($qa['question_type'] ?? 'mcq'), (string)$qa['selected_option'], (string)$qa['correct_option']);
     
     $statusText = $isCorrect ? "Correct (+1)" : "Incorrect (0)";
     
@@ -287,9 +280,9 @@ foreach ($answers as $index => $qa) {
             
             if ($isCorrectOpt) {
                 if ($isSelected) {
-                    $tex .= "    \\item[\\color{green!60!black}\\ding{51}] \\textbf{Option {$opt} (Votre r\\'{e}ponse / Correcte) :} {$escOptVal}\n";
+                    $tex .= "    \\item[\\color{svink}\\ding{51}] \\textbf{Option {$opt} (Votre r\\'{e}ponse / Correcte) :} {$escOptVal}\n";
                 } else {
-                    $tex .= "    \\item[\\color{green!60!black}\\ding{51}] \\textbf{Option {$opt} (R\\'{e}ponse correcte) :} {$escOptVal}\n";
+                    $tex .= "    \\item[\\color{svink}\\ding{51}] \\textbf{Option {$opt} (R\\'{e}ponse correcte) :} {$escOptVal}\n";
                 }
             } elseif ($isSelected) {
                 $tex .= "    \\item[\\color{red!60!black}\\ding{55}] \\textbf{Option {$opt} (Votre r\\'{e}ponse) :} {$escOptVal}\n";
@@ -332,6 +325,9 @@ $pdfFile = "{$tempDir}/{$uniqId}.pdf";
 $logFile = "{$tempDir}/{$uniqId}.log";
 $auxFile = "{$tempDir}/{$uniqId}.aux";
 
+@copy(Brand::pdfPng(false), "{$tempDir}/svlogo.png");
+@copy(Brand::pdfPng(true), "{$tempDir}/svlogo-mono.png");
+
 if (file_put_contents($texFile, $tex) === false) {
     http_response_code(500);
     exit('Erreur d\'écriture du fichier LaTeX temporaire.');
@@ -341,7 +337,7 @@ if (file_put_contents($texFile, $tex) === false) {
 $cmd = "HOME=" . escapeshellarg($tempDir) . " /usr/bin/pdflatex -interaction=nonstopmode -output-directory=" . escapeshellarg($tempDir) . " " . escapeshellarg($texFile) . " 2>&1";
 exec($cmd, $execOutput, $returnVar);
 
-if (file_exists($pdfFile) && $returnVar === 0) {
+if (file_exists($pdfFile) && filesize($pdfFile) > 0) {
     // Audit log
     auditLog('export_evaluation_pdf_latex', "Registration #{$regId}");
     

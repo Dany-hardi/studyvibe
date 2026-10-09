@@ -1,7 +1,7 @@
 <?php
 declare(strict_types=1);
 
-ini_set('display_errors', 1);
+ini_set('display_errors', '0');
 error_reporting(E_ALL);
 
 
@@ -11,6 +11,7 @@ error_reporting(E_ALL);
  */
 
 require_once __DIR__ . '/auth.php';
+require_once __DIR__ . '/lib/MediaStore.php';
 
 $type = (string)($_GET['type'] ?? '');
 $file = basename((string)($_GET['file'] ?? ''));
@@ -20,7 +21,9 @@ if ($file === '' || !preg_match('/^[a-zA-Z0-9._-]+$/', $file)) {
     exit('Fichier invalide.');
 }
 
-if ($type !== 'cover') {
+// Covers are public. Live-question pictures are also open to a guest who joined that exam room without an account
+// (checked below); every other file needs a signed-in user.
+if ($type !== 'cover' && $type !== 'live_question') {
     if (!isLoggedIn()) {
         http_response_code(401);
         exit('Authentification requise.');
@@ -32,22 +35,41 @@ if ($type !== 'cover') {
     $role   = isLoggedIn() ? $_SESSION['user_role'] : '';
 }
 
+
 try {
     $pdo = Database::getInstance();
 
     if ($type === 'pdf') {
         $stmt = $pdo->prepare("
-            SELECT id
-            FROM lessons
-            WHERE pdf_path = :file
-            LIMIT 1
+            SELECT l.id, ch.course_id
+            FROM lessons l
+            JOIN chapters ch ON ch.id = l.chapter_id
+            WHERE l.pdf_path = :file
         ");
         $stmt->execute(['file' => $file]);
-        $lesson = $stmt->fetch();
+        $lessonRows = $stmt->fetchAll();
 
-        if (!$lesson) {
+        if (!$lessonRows) {
             http_response_code(404);
             exit('Fichier introuvable.');
+        }
+
+        // A student gets the file only through a lesson of a course they are enrolled in and have reached.
+        if ($role === 'student') {
+            require_once __DIR__ . '/lib/LessonFlow.php';
+            $allowed = false;
+            foreach ($lessonRows as $lr) {
+                $enr = $pdo->prepare('SELECT 1 FROM enrollments WHERE student_id = :s AND course_id = :c');
+                $enr->execute(['s' => $userId, 'c' => $lr['course_id']]);
+                if ($enr->fetchColumn() && LessonFlow::blockerFor($pdo, $userId, (int)$lr['course_id'], (int)$lr['id']) === null) {
+                    $allowed = true;
+                    break;
+                }
+            }
+            if (!$allowed) {
+                http_response_code(403);
+                exit('Accès refusé : terminez d’abord les leçons précédentes.');
+            }
         }
 
         $path = __DIR__ . '/uploads/pdfs/' . $file;
@@ -130,6 +152,25 @@ try {
         };
 
     } elseif ($type === 'live_question') {
+        // Who may see a question picture: the teacher who owns the session, a signed-in student, or anybody holding a
+        // registration for the exam room the picture belongs to (guests have no account).
+        $own = $pdo->prepare("
+            SELECT s.session_code, s.teacher_id FROM live_eval_questions q
+            JOIN live_eval_sessions s ON s.id = q.session_id
+            WHERE q.image_path = :file LIMIT 1
+        ");
+        $own->execute(['file' => $file]);
+        $owner = $own->fetch();
+        if (!$owner) {
+            http_response_code(404);
+            exit('Fichier introuvable.');
+        }
+        $registered = isset($_SESSION['live_registrations'][$owner['session_code']]);
+        $teacherOwns = $role === 'teacher' && $userId === (int)$owner['teacher_id'];
+        if (!$registered && !$teacherOwns && $role !== 'student' && $role !== 'promoter') {
+            http_response_code(403);
+            exit('Accès refusé.');
+        }
         $path = __DIR__ . '/uploads/live_questions/' . $file;
         $ext  = strtolower(pathinfo($file, PATHINFO_EXTENSION));
         $mime = match ($ext) {
@@ -143,6 +184,10 @@ try {
     } else {
         http_response_code(400);
         exit('Type de fichier non supporté.');
+    }
+
+    if (!is_file($path)) {
+        MediaStore::restore($pdo, $type . '/' . $file, $path);
     }
 
     if (!is_file($path)) {
@@ -177,13 +222,13 @@ try {
                 <rect width="100%" height="100%" fill="#FDFCF7"/>
                 <defs>
                     <linearGradient id="g" x1="0%" y1="0%" x2="100%" y2="100%">
-                        <stop offset="0%" stop-color="#004B23"/>
-                        <stop offset="100%" stop-color="#006630"/>
+                        <stop offset="0%" stop-color="#B5482A"/>
+                        <stop offset="100%" stop-color="#B5482A"/>
                     </linearGradient>
                 </defs>
                 <rect x="20" y="20" width="760" height="410" rx="16" fill="url(#g)" opacity="0.06"/>
                 <circle cx="400" cy="225" r="90" fill="url(#g)" opacity="0.08"/>
-                <text x="50%" y="233" font-family="system-ui, -apple-system, sans-serif" font-size="28" font-weight="600" fill="#004B23" text-anchor="middle" opacity="0.5">StudyVibe Course</text>
+                <text x="50%" y="233" font-family="system-ui, -apple-system, sans-serif" font-size="28" font-weight="600" fill="#B5482A" text-anchor="middle" opacity="0.5">StudyVibe Course</text>
             </svg>';
             exit;
         }

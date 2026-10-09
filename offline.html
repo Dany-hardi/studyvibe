@@ -1,0 +1,28 @@
+<!doctype html>
+<html lang="fr">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Hors connexion — StudyVibe</title>
+<style>
+  :root { --paper:#F5F0E6; --ink:#1E1B16; --ink-2:#4A453C; --clay:#B5482A; --line:#DDD5C3; }
+  @media (prefers-color-scheme: dark) { :root { --paper:#15130F; --ink:#F1EBDD; --ink-2:#C7BFAE; --clay:#E27B57; --line:#342F25; } }
+  body { margin:0; min-height:100vh; display:grid; place-items:center; background:var(--paper); color:var(--ink); font:16px/1.5 system-ui, sans-serif; padding:1rem; }
+  main { max-width:28rem; }
+  img { width:56px; height:56px; }
+  h1 { font:500 1.7rem/1.2 Georgia, serif; margin:1rem 0 .5rem; }
+  p { color:var(--ink-2); margin:.25rem 0 1.25rem; }
+  button { min-height:44px; padding:.6rem 1.2rem; border:0; border-radius:10px; background:var(--clay); color:#fff; font:600 1rem system-ui; cursor:pointer; }
+  button:focus-visible { outline:2px solid var(--ink); outline-offset:2px; }
+</style>
+</head>
+<body>
+<main>
+  <img src="/assets/img/logo-mark.svg" alt="">
+  <h1>Pas de connexion pour le moment</h1>
+  <p>Vérifiez votre réseau puis réessayez. Si vous étiez en plein examen, vos réponses déjà saisies sont gardées sur cet appareil et partent dès que la connexion revient.</p>
+  <p lang="en">No connection right now. Check your network and try again. If you were taking an exam, answers you already gave are kept on this device and sent as soon as you are back online.</p>
+  <button type="button" onclick="location.reload()">Réessayer / Retry</button>
+</main>
+</body>
+</html>

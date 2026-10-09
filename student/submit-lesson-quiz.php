@@ -20,6 +20,7 @@ declare(strict_types=1);
 
 require_once __DIR__ . '/../auth.php';
 require_once __DIR__ . '/../lib/Notifications.php';
+require_once __DIR__ . '/../lib/LessonFlow.php';
 
 header('Content-Type: application/json');
 
@@ -97,6 +98,12 @@ try {
         exit;
     }
 
+    $blocker = LessonFlow::blockerFor($pdo, (int)$studentId, $courseId, $lessonId);
+    if ($blocker !== null) {
+        echo json_encode(['success' => false, 'code' => 'locked', 'message' => 'Terminez d’abord la leçon « ' . $blocker . ' ».']);
+        exit;
+    }
+
     if (!isLessonContentConsumed($pdo, $studentId, $lessonId)) {
         echo json_encode([
             'success' => false,
@@ -111,6 +118,16 @@ try {
 
     // Marquer la leçon complétée (sans quiz ou action manuelle de l'étudiant)
     if ($noQuiz || $markComplete) {
+        // A lesson with a quiz is completed by answering the quiz, never by this shortcut.
+        $left = $pdo->prepare("
+            SELECT COUNT(*) FROM lesson_questions lq
+            WHERE lq.lesson_id = :lid AND lq.id NOT IN (SELECT question_id FROM lesson_question_answers WHERE student_id = :sid)
+        ");
+        $left->execute(['lid' => $lessonId, 'sid' => $studentId]);
+        if ((int)$left->fetchColumn() > 0 && !$completed) {
+            echo json_encode(['success' => false, 'message' => 'Répondez d’abord aux questions de la leçon.']);
+            exit;
+        }
         completeLesson($pdo, $studentId, $lessonId, $courseId);
         echo json_encode([
             'success'         => true,

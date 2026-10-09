@@ -22,6 +22,7 @@ declare(strict_types=1);
 // =========================================================================
 
 require_once __DIR__ . '/../auth.php';
+require_once __DIR__ . '/../lib/LessonFlow.php';
 
 header('Content-Type: application/json');
 
@@ -45,6 +46,10 @@ if ($lessonId <= 0 || $courseId <= 0 || $_SESSION['user_role'] !== 'student') {
 
 try {
     $pdo = Database::getInstance();
+    if (LessonFlow::blockerFor($pdo, $studentId, $courseId, $lessonId) !== null) {
+        echo json_encode(['success' => false, 'code' => 'locked']);
+        exit;
+    }
     $stmt = $pdo->prepare("
         UPDATE enrollments e
         JOIN lessons l ON l.id = :lid

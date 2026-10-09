@@ -22,6 +22,8 @@ declare(strict_types=1);
 // =========================================================================
 
 require_once __DIR__ . '/../auth.php';
+require_once __DIR__ . '/../lib/Matricule.php';
+require_once __DIR__ . '/../lib/Avatar.php';
 
 header('Content-Type: application/json');
 
@@ -55,14 +57,25 @@ try {
         }
 
         if (isset($_POST['matricule'])) {
-            $matricule = trim((string)$_POST['matricule']);
-            if (empty($matricule)) {
-                echo json_encode(['success' => false, 'message' => 'Le numéro de matricule ne peut pas être vide.']);
+            $matricule = Matricule::normalize((string)$_POST['matricule']);
+
+            // Only a changed value is re-checked, so a name-only edit never trips over a number saved earlier.
+            $cur = $pdo->prepare('SELECT matricule FROM users WHERE id = :id');
+            $cur->execute(['id' => $studentId]);
+            $unchanged = $matricule !== '' && strcasecmp((string)$cur->fetchColumn(), $matricule) === 0;
+
+            // A changed number must be free. An unchanged one stays valid unless an older account already held it.
+            $code = $unchanged ? null : Matricule::check($matricule);
+            if ($code === null && Matricule::isTaken($pdo, $matricule, (int)$studentId, $unchanged)) {
+                $code = 'taken';
+            }
+            if ($code !== null) {
+                echo json_encode(['success' => false, 'code' => 'matricule_' . $code, 'message' => Matricule::message($code)]);
                 exit;
             }
             $updates[] = 'matricule = :matricule';
-            $params['matricule'] = strtoupper($matricule);
-            $_SESSION['user_matricule'] = strtoupper($matricule);
+            $params['matricule'] = $matricule;
+            $_SESSION['user_matricule'] = $matricule;
         }
 
         if (!empty($updates)) {
@@ -82,71 +95,9 @@ try {
     // =========================================================================
     // SECTION 3: AVATAR IMAGE FILE UPLOAD PROCESSOR
     // =========================================================================
-    if (isset($_FILES['avatar']) && $_FILES['avatar']['error'] === UPLOAD_ERR_OK) {
-        $fileTmpPath = $_FILES['avatar']['tmp_name'];
-        $fileName = $_FILES['avatar']['name'];
-        $fileSize = $_FILES['avatar']['size'];
-        $fileType = $_FILES['avatar']['type'];
-        
-        // Validation constraints
-        $allowedExtensions = ['jpg', 'jpeg', 'png', 'gif'];
-        $allowedTypes = ['image/jpeg', 'image/png', 'image/gif'];
-        $fileExtension = strtolower(pathinfo($fileName, PATHINFO_EXTENSION));
-
-        // Validate file size (2 MB max)
-        if ($fileSize > 2 * 1024 * 1024) {
-            echo json_encode([
-                'success' => false,
-                'message' => 'Le fichier est trop volumineux. La limite est de 2 Mo.'
-            ]);
-            exit;
-        }
-
-        // Validate type & extension
-        if (in_array($fileExtension, $allowedExtensions, true) && in_array($fileType, $allowedTypes, true)) {
-            $uploadDir = __DIR__ . '/../uploads/avatars/';
-            if (!is_dir($uploadDir)) {
-                mkdir($uploadDir, 0755, true);
-            }
-
-            // Create a unique hached filename
-            $newFileName = md5(uniqid()) . '.' . $fileExtension;
-            $destPath = $uploadDir . $newFileName;
-
-            if (move_uploaded_file($fileTmpPath, $destPath)) {
-                // Delete previous avatar file if exists
-                $stmt = $pdo->prepare("SELECT avatar_path FROM users WHERE id = :id");
-                $stmt->execute(['id' => $studentId]);
-                $oldAvatar = $stmt->fetchColumn();
-
-                if ($oldAvatar && is_file($uploadDir . $oldAvatar)) {
-                    unlink($uploadDir . $oldAvatar);
-                }
-
-                // Update path in database
-                $stmt = $pdo->prepare("UPDATE users SET avatar_path = :avatar_path WHERE id = :id");
-                $stmt->execute(['avatar_path' => $newFileName, 'id' => $studentId]);
-
-                echo json_encode([
-                    'success' => true,
-                    'message' => 'Avatar mis à jour.',
-                    'avatar_path' => $newFileName
-                ]);
-                exit;
-            } else {
-                echo json_encode([
-                    'success' => false,
-                    'message' => 'Erreur lors du déplacement du fichier téléchargé.'
-                ]);
-                exit;
-            }
-        } else {
-            echo json_encode([
-                'success' => false,
-                'message' => 'Type de fichier non autorisé. Seuls JPG, PNG, GIF sont acceptés.'
-            ]);
-            exit;
-        }
+    if (isset($_FILES['avatar'])) {
+        echo json_encode(Avatar::replace($pdo, (int)$studentId, $_FILES['avatar']));
+        exit;
     }
 
     echo json_encode([
@@ -156,5 +107,10 @@ try {
     exit;
 
 } catch (PDOException $e) {
+    if ($e->getCode() === '23000' && str_contains($e->getMessage(), 'matricule')) {
+        // Two sign-ups racing for the same number: the unique index lets only one through.
+        echo json_encode(['success' => false, 'code' => 'matricule_taken', 'message' => Matricule::message('taken')]);
+        exit;
+    }
     jsonError('Erreur serveur. Veuillez réessayer.', $e, 'update-profile.php');
 }

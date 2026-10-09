@@ -94,22 +94,18 @@ try {
             exit;
         }
 
-        $targetDir = __DIR__ . '/../uploads/assignments/';
-        if (!is_dir($targetDir)) {
-            @mkdir($targetDir, 0755, true);
-        }
-
-        $newFileName = 'sub_' . $lessonId . '_' . $studentId . '_' . md5(uniqid('', true)) . '.' . $ext;
-        $targetPath = $targetDir . $newFileName;
-
-        if (!move_uploaded_file($file['tmp_name'], $targetPath)) {
+        // Stored on the disk and copied into the database, so a submitted assignment is never lost to a redeploy.
+        require_once __DIR__ . '/../lib/MediaStore.php';
+        $saved = MediaStore::saveDocument($pdo, $file, 'assignment', $allowedExts, 20 * 1024 * 1024, 'sub_' . $lessonId . '_' . $studentId . '_');
+        if (!$saved['ok']) {
             echo json_encode(['success' => false, 'message' => 'Échec du transfert du fichier sur le serveur.']);
             exit;
         }
+        $newFileName = $saved['file'];
 
         // Delete old file if updating
-        if (!empty($filePath) && file_exists($targetDir . $filePath)) {
-            @unlink($targetDir . $filePath);
+        if (!empty($filePath)) {
+            MediaStore::delete($pdo, 'assignment', (string)$filePath);
         }
 
         $filePath = $newFileName;

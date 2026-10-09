@@ -1,0 +1,28 @@
+/* StudyVibe brand: wordmark sizing, theme, intro animation. Markup comes from lib/Brand.php. */
+:root { --sv-b-ink:#14151C; --sv-b-clay:#B5482A; --sv-b-spark:#FF6A3D; }
+html.dark { --sv-b-ink:#F4F1EA; --sv-b-clay:#E27B57; --sv-b-spark:#FF6A3D; }
+
+.sv-brand { display:inline-flex; align-items:center; line-height:1; vertical-align:middle; color:var(--ink, var(--sv-b-ink)); }
+.sv-brand .sv-wm { display:block; height:100%; width:auto; overflow:visible; }
+.sv-brand--sm { height:1.2rem; } .sv-brand--md { height:1.75rem; }
+.sv-brand--lg { height:3.4rem; } .sv-brand--xl { height:clamp(3.6rem, 9vw, 6.5rem); }
+.sv-l--i { fill:var(--ink, var(--sv-b-ink)); }
+.sv-l--c { fill:var(--clay, var(--sv-b-clay)); }
+.sv-l--s { fill:var(--sv-b-spark); }
+.sv-brand-mark { display:inline-block; vertical-align:middle; }
+a > .sv-brand, .sv-brand a { text-decoration:none; }
+
+/* intro: the letters rise one after the other, the check-mark V drops in, the spark pops last.
+   Only exists on .sv-brand--animate; the final state is the normal state. */
+.sv-brand--animate .sv-l { animation:sv-type .32s cubic-bezier(.2,.7,.2,1) calc(.2s + var(--i) * .07s) backwards; }
+.sv-brand--animate .sv-l--c { animation-name:sv-drop; animation-duration:.4s; }
+.sv-brand--animate .sv-l--s { animation-name:sv-pop; animation-duration:.45s; animation-delay:1.05s; transform-box:fill-box; transform-origin:center; }
+@keyframes sv-type { from { opacity:0; transform:translateY(40px); } to { opacity:1; transform:none; } }
+@keyframes sv-drop { from { opacity:0; transform:translateY(-70px); } 70% { opacity:1; transform:translateY(6px); } to { opacity:1; transform:none; } }
+@keyframes sv-pop { from { opacity:0; transform:scale(0); } 65% { opacity:1; transform:scale(1.35); } to { opacity:1; transform:none; } }
+
+/* already played this session, or reduced motion, or no animation wanted: show the final state */
+.sv-brand-seen .sv-brand--animate .sv-l { animation:none; }
+@media (prefers-reduced-motion: reduce) { .sv-brand--animate .sv-l { animation:none !important; } }
+@media print { .sv-brand--animate .sv-l { animation:none !important; } }
+.hero-logo { margin: 0 0 1.75rem; }

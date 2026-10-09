@@ -61,7 +61,7 @@ html.dark select {
 html.dark input:focus,
 html.dark textarea:focus,
 html.dark select:focus {
-    border-color: #00873F !important;
+    border-color: #96391E !important;
     background-color: #161616 !important;
 }
 
@@ -71,13 +71,13 @@ html.dark .bg-\[\#111111\] {
     color: #111111 !important;
 }
 
-html.dark .hover\:bg-\[\#004B23\]:hover {
-    background-color: #00873F !important;
+html.dark .hover\:bg-\[\#B5482A\]:hover {
+    background-color: #96391E !important;
     color: #FFFFFF !important;
 }
 
-html.dark .bg-\[\#004B23\] {
-    background-color: #00873F !important;
+html.dark .bg-\[\#B5482A\] {
+    background-color: #96391E !important;
 }
 
 /* Header / footer */
@@ -131,7 +131,7 @@ html.dark table tr:hover {
     box-shadow: 0 8px 32px rgba(0, 0, 0, 0.08);
     min-width: 280px;
     max-width: 360px;
-    font-family: 'Inter', sans-serif;
+    font-family: 'Hanken Grotesk', system-ui, sans-serif;
     font-size: 0.8125rem;
     font-weight: 400;
     line-height: 1.5;
@@ -140,7 +140,7 @@ html.dark table tr:hover {
 }
 
 .sv-toast.success {
-    border-left-color: #004B23;
+    border-left-color: #B5482A;
 }
 
 .sv-toast.error {
@@ -184,7 +184,7 @@ html.dark .sv-toast {
 }
 
 html.dark .sv-toast.success {
-    border-left-color: #00873F;
+    border-left-color: #96391E;
 }
 
 html.dark .sv-toast.error {
@@ -326,8 +326,8 @@ html.dark #ai-chat-drawer {
 
 /* Global Selection Highlight */
 ::selection {
-    background-color: rgba(0, 135, 63, 0.15);
-    color: #004B23;
+    background-color: rgba(181,72,42, 0.15);
+    color: #B5482A;
 }
 
 /* Custom Scrollbars */
@@ -365,11 +365,11 @@ html.dark ::-webkit-scrollbar-thumb:hover {
 [data-course-card]:hover, .sv-feature-card:hover {
     transform: translateY(-4px) scale(1.015);
     box-shadow: 0 12px 30px rgba(0, 75, 35, 0.04), 0 4px 12px rgba(0, 0, 0, 0.03);
-    border-color: #004B23 !important;
+    border-color: #B5482A !important;
 }
 
 html.dark [data-course-card]:hover, html.dark .sv-feature-card:hover {
-    border-color: #00873F !important;
+    border-color: #96391E !important;
     box-shadow: 0 12px 30px rgba(0, 0, 0, 0.25);
 }
 
@@ -431,13 +431,13 @@ input:focus, textarea:focus, select:focus {
     transition: background-color 0.15s ease, border-color 0.15s ease;
 }
 .sv-quiz-option:hover {
-    border-color: #004B23;
+    border-color: #B5482A;
     background-color: #f8fcf9;
 }
 .sv-quiz-option-correct {
-    border-color: #004B23 !important;
+    border-color: #B5482A !important;
     background-color: #f0faf4 !important;
-    color: #004B23 !important;
+    color: #B5482A !important;
 }
 .sv-quiz-option-wrong {
     border-color: #D32F2F !important;
@@ -450,7 +450,7 @@ input:focus, textarea:focus, select:focus {
     display: inline-flex;
     align-items: center;
     gap: 0.35rem;
-    background: #004B23;
+    background: #B5482A;
     color: #fff;
     font-size: 0.65rem;
     font-family: monospace;
@@ -506,7 +506,7 @@ input:focus, textarea:focus, select:focus {
 }
 
 html.dark .sv-dark-toggle {
-    background: #004B23;
+    background: #B5482A;
 }
 
 html.dark .sv-dark-toggle::after {
@@ -520,7 +520,7 @@ html.dark .sv-dark-toggle::after {
 
 /* ── 6. EXAM TIMER ──────────────────────────────────────── */
 .sv-timer {
-    font-family: 'Inter', monospace;
+    font-family: 'Hanken Grotesk', system-ui, sans-serif;
     font-variant-numeric: tabular-nums;
     transition: color 0.3s;
 }
@@ -545,19 +545,19 @@ html.dark .sv-dark-toggle::after {
 /* ── 7. DESIGN SYSTEM — Crème chaud (global) ─────────────── */
 
 :root {
-    --sv-cream: #EAE6DF;
-    --sv-cream-light: #F5F3EF;
-    --sv-surface: #FFFFFF;
-    --sv-surface-muted: #F5F5F7;
-    --sv-border: #D5D0C8;
-    --sv-border-warm: #D5D0C8;
-    --sv-border-strong: #8A857C;
-    --sv-text: #1A1A1A;
-    --sv-text-muted: #5C5C5C;
-    --sv-text-faint: #8A8A8A;
-    --sv-accent: #004B23;
-    --sv-accent-hover: #003318;
-    --sv-danger: #C62828;
+    --sv-cream: #F5F0E6;
+    --sv-cream-light: #FBF8F2;
+    --sv-surface: #FBF8F2;
+    --sv-surface-muted: #ECE5D6;
+    --sv-border: #DDD5C3;
+    --sv-border-warm: #DDD5C3;
+    --sv-border-strong: #C9BFA9;
+    --sv-text: #1E1B16;
+    --sv-text-muted: #4A453C;
+    --sv-text-faint: #6F695C;
+    --sv-accent: #B5482A;
+    --sv-accent-hover: #96391E;
+    --sv-danger: #A32B2B;
 }
 
 /* Fond crème sur les pages applicatives */
@@ -601,7 +601,7 @@ html.dark body.sv-page {
     display: flex;
     align-items: center;
     gap: 10px;
-    font-family: 'Plus Jakarta Sans', sans-serif;
+    font-family: 'Fraunces', Georgia, serif;
     font-size: 1.25rem;
     font-weight: 600;
     color: var(--sv-text);
@@ -688,7 +688,7 @@ html.dark body.sv-page {
 }
 
 .sv-hero-headline {
-    font-family: 'Plus Jakarta Sans', sans-serif;
+    font-family: 'Fraunces', Georgia, serif;
     font-size: clamp(2.5rem, 5.5vw, 4rem);
     font-weight: 400;
     line-height: 1.08;
@@ -781,7 +781,7 @@ html.dark body.sv-page {
 }
 
 .sv-auth-card-title {
-    font-family: 'Plus Jakarta Sans', sans-serif;
+    font-family: 'Fraunces', Georgia, serif;
     font-size: 1.375rem;
     font-weight: 700;
     color: var(--sv-text);
@@ -824,7 +824,7 @@ html.dark body.sv-page {
 }
 
 .sv-form-tab.active {
-    color: #004B23;
+    color: #B5482A;
     background: #ffffff;
     box-shadow: 0 4px 15px rgba(0, 75, 35, 0.06);
 }
@@ -868,7 +868,7 @@ html.dark body.sv-page {
     font-weight: 500;
     color: var(--sv-text);
     outline: none;
-    font-family: 'Inter', sans-serif;
+    font-family: 'Hanken Grotesk', system-ui, sans-serif;
     transition: all 0.2s cubic-bezier(0.16, 1, 0.3, 1);
     border-radius: 12px;
     text-align: left;
@@ -880,13 +880,13 @@ html.dark body.sv-page {
 }
 
 .sv-field-input:focus {
-    border-color: #004B23;
+    border-color: #B5482A;
     background: #ffffff;
     box-shadow: 0 0 0 4px rgba(0, 75, 35, 0.1);
 }
 
 .sv-field-input.valid {
-    border-color: #004B23;
+    border-color: #B5482A;
     background: #f8fcf9;
 }
 
@@ -897,7 +897,7 @@ html.dark body.sv-page {
 }
 
 .sv-field-select.valid {
-    border-color: #004B23;
+    border-color: #B5482A;
     background: #f8fcf9;
 }
 
@@ -962,8 +962,8 @@ html.dark body.sv-page {
 
 .sv-signup-stepper-item.active .sv-signup-stepper-dot,
 .sv-signup-stepper-item.done .sv-signup-stepper-dot {
-    border-color: #004B23;
-    background: #004B23;
+    border-color: #B5482A;
+    background: #B5482A;
     color: #ffffff;
 }
 
@@ -1029,7 +1029,7 @@ html.dark body.sv-page {
 }
 
 .sv-role-card.active {
-    border-color: #004B23;
+    border-color: #B5482A;
     background: #f0faf4;
     box-shadow: 0 8px 20px rgba(0, 75, 35, 0.08);
 }
@@ -1083,8 +1083,8 @@ html.dark body.sv-page {
 }
 
 .sv-role-card.active .sv-role-card-check {
-    border-color: #004B23;
-    background: #004B23;
+    border-color: #B5482A;
+    background: #B5482A;
 }
 
 .sv-role-card.active .sv-role-card-check::after {
@@ -1211,13 +1211,13 @@ html.dark .sv-role-card {
 
 html.dark .sv-role-card:hover {
     background: rgba(255, 255, 255, 0.04);
-    border-color: rgba(0, 255, 127, 0.2);
+    border-color: rgba(217,162,59, 0.2);
 }
 
 html.dark .sv-role-card.active {
-    background: rgba(0, 255, 127, 0.05);
-    border-color: #00FF7F;
-    box-shadow: 0 8px 20px rgba(0, 255, 127, 0.08);
+    background: rgba(217,162,59, 0.05);
+    border-color: #D9A23B;
+    box-shadow: 0 8px 20px rgba(217,162,59, 0.08);
 }
 
 html.dark .sv-role-card-icon {
@@ -1225,12 +1225,12 @@ html.dark .sv-role-card-icon {
 }
 
 html.dark .sv-role-card.active .sv-role-card-icon {
-    background: rgba(0, 255, 127, 0.1);
+    background: rgba(217,162,59, 0.1);
 }
 
 html.dark .sv-role-card.active .sv-role-card-check {
-    border-color: #00FF7F;
-    background: #00FF7F;
+    border-color: #D9A23B;
+    background: #D9A23B;
 }
 
 html.dark .sv-social-btn {
@@ -1329,7 +1329,7 @@ html.dark .sv-auth-divider::after {
     margin-top: 0.15rem;
     width: 0.9375rem;
     height: 0.9375rem;
-    accent-color: #004B23;
+    accent-color: #B5482A;
     flex-shrink: 0;
 }
 
@@ -1364,7 +1364,7 @@ html.dark .sv-auth-divider::after {
     width: 100%;
     padding: 0.875rem;
     margin-top: 1rem;
-    background: linear-gradient(135deg, #004B23 0%, #002D15 100%);
+    background: linear-gradient(135deg, #B5482A 0%, #1E1B16 100%);
     color: #ffffff;
     font-size: 0.8125rem;
     font-weight: 700;
@@ -1383,7 +1383,7 @@ html.dark .sv-auth-divider::after {
 .sv-btn-submit:hover:not(:disabled) {
     transform: translateY(-2px);
     box-shadow: 0 12px 24px rgba(0, 75, 35, 0.25);
-    background: linear-gradient(135deg, #005c2b 0%, #003a1b 100%);
+    background: linear-gradient(135deg, #96391E 0%, #96391E 100%);
 }
 
 .sv-btn-submit:active:not(:disabled) {
@@ -1405,7 +1405,7 @@ html.dark .sv-auth-divider::after {
 }
 
 .sv-form-footer button {
-    color: #004B23;
+    color: #B5482A;
     font-weight: 700;
     background: none;
     border: none;
@@ -1445,7 +1445,7 @@ html.dark .sv-auth-divider::after {
 }
 
 .sv-section-title {
-    font-family: 'Plus Jakarta Sans', sans-serif;
+    font-family: 'Fraunces', Georgia, serif;
     font-size: clamp(1.75rem, 3.5vw, 2.75rem);
     font-weight: 400;
     line-height: 1.15;
@@ -1549,7 +1549,7 @@ html.dark .sv-step-card {
 }
 
 .sv-stat-num {
-    font-family: 'Plus Jakarta Sans', sans-serif;
+    font-family: 'Fraunces', Georgia, serif;
     font-size: 3rem;
     font-weight: 400;
     color: #fff;
@@ -1642,7 +1642,7 @@ html.dark .sv-partner-logo {
 }
 
 .sv-footer-brand {
-    font-family: 'Plus Jakarta Sans', sans-serif;
+    font-family: 'Fraunces', Georgia, serif;
     font-size: 1.25rem;
     color: #fff;
     font-weight: 500;
@@ -1718,8 +1718,8 @@ html.dark .sv-field-input::placeholder {
 }
 
 html.dark .sv-field-input:focus {
-    border-color: #00FF7F;
-    box-shadow: 0 0 0 3px rgba(0, 255, 127, 0.15);
+    border-color: #D9A23B;
+    box-shadow: 0 0 0 3px rgba(217,162,59, 0.15);
 }
 
 html.dark .sv-field-hint {
@@ -1739,7 +1739,7 @@ html.dark .sv-form-tab {
 }
 
 html.dark .sv-form-tab.active {
-    color: #00FF7F;
+    color: #D9A23B;
     background: rgba(255, 255, 255, 0.08);
     box-shadow: 0 4px 15px rgba(0, 0, 0, 0.2);
 }
@@ -2084,7 +2084,7 @@ html.dark .sv-quiz-option-wrong {
     display: flex;
     align-items: center;
     gap: 0.5rem;
-    font-family: 'Outfit', 'Inter', sans-serif;
+    font-family: 'Outfit', 'Hanken Grotesk', system-ui, sans-serif;
     font-size: 0.75rem;
     font-weight: 700;
     letter-spacing: 0.08em;
@@ -2135,7 +2135,7 @@ html.dark .sv-quiz-option-wrong {
     padding: 0 0.75rem;
     font-size: 0.75rem;
     font-weight: 600;
-    font-family: 'Inter', sans-serif;
+    font-family: 'Hanken Grotesk', system-ui, sans-serif;
     color: #1f2937;
     background: #ffffff;
     border: 1px solid rgba(0, 0, 0, 0.08);
@@ -2161,14 +2161,14 @@ html.dark .sv-quiz-option-wrong {
 }
 
 .sv-pdf-reader__btn--primary {
-    background: #004B23;
+    background: #B5482A;
     color: #ffffff;
-    border-color: #004B23;
+    border-color: #B5482A;
 }
 
 .sv-pdf-reader__btn--primary:hover:not(:disabled) {
-    background: #006630;
-    border-color: #006630;
+    background: #B5482A;
+    border-color: #B5482A;
     color: #ffffff;
     box-shadow: 0 4px 12px rgba(0, 75, 35, 0.15);
 }
@@ -2178,7 +2178,7 @@ html.dark .sv-quiz-option-wrong {
     align-items: center;
     gap: 0.4rem;
     font-size: 0.8rem;
-    font-family: 'Plus Jakarta Sans', monospace;
+    font-family: 'Fraunces', monospace;
     font-weight: 600;
     color: var(--sv-text-muted);
     padding: 0 0.35rem;
@@ -2189,7 +2189,7 @@ html.dark .sv-quiz-option-wrong {
     height: 2.25rem;
     text-align: center;
     font-size: 0.8rem;
-    font-family: 'Plus Jakarta Sans', monospace;
+    font-family: 'Fraunces', monospace;
     font-weight: 600;
     border: 1px solid rgba(0, 0, 0, 0.08);
     background: #ffffff;
@@ -2209,7 +2209,7 @@ html.dark .sv-quiz-option-wrong {
     text-align: center;
     font-size: 0.75rem;
     font-weight: 600;
-    font-family: 'Plus Jakarta Sans', monospace;
+    font-family: 'Fraunces', monospace;
     color: var(--sv-text-muted);
 }
 
@@ -2298,7 +2298,7 @@ html.dark .sv-quiz-option-wrong {
     background: rgba(255, 255, 255, 0.8);
     border-top: 1px solid rgba(0, 0, 0, 0.06);
     text-align: center;
-    font-family: 'Inter', sans-serif;
+    font-family: 'Hanken Grotesk', system-ui, sans-serif;
 }
 
 /* Dark Mode Overrides */
@@ -2402,9 +2402,9 @@ html.dark .sv-pdf-reader__footer {
 }
 
 #study-modal.sv-pdf-focus-mode [data-pdf-focus] {
-    background: #004B23 !important;
+    background: #B5482A !important;
     color: #ffffff !important;
-    border-color: #004B23 !important;
+    border-color: #B5482A !important;
 }
 
 html.dark #study-modal.sv-pdf-focus-mode [data-pdf-focus] {
@@ -2446,8 +2446,8 @@ html.dark .sv-card {
 }
 
 .sv-btn-ms:hover {
-    background: #004B23;
-    border-color: #004B23;
+    background: #B5482A;
+    border-color: #B5482A;
 }
 
 .sv-btn-ms-outline {
@@ -2524,7 +2524,7 @@ html.dark .sv-btn-ms-outline:hover {
 }
 
 .sv-kpi-value {
-    font-family: 'Plus Jakarta Sans', sans-serif;
+    font-family: 'Fraunces', Georgia, serif;
     font-size: 1.75rem;
     font-weight: 700;
     color: #111111;
@@ -2591,11 +2591,11 @@ body.sv-page .sv-course-link {
 }
 
 body.sv-page .sv-course-link:hover {
-    border-color: #004B23;
+    border-color: #B5482A;
 }
 
 body.sv-page .sv-course-link.active {
-    border-color: #004B23;
+    border-color: #B5482A;
     background: #F5F3EF;
 }
 
@@ -2800,7 +2800,7 @@ html.dark .sv-lesson-text, html.dark .sv-markdown-render {
 }
 
 .sv-lesson-text h1, .sv-markdown-render h1 {
-    font-family: 'Plus Jakarta Sans', sans-serif;
+    font-family: 'Fraunces', Georgia, serif;
     font-size: 1.65rem;
     font-weight: 700;
     margin-top: 1.5rem;
@@ -2816,12 +2816,12 @@ html.dark .sv-lesson-text h1, html.dark .sv-markdown-render h1 {
 }
 
 .sv-lesson-text h2, .sv-markdown-render h2 {
-    font-family: 'Plus Jakarta Sans', sans-serif;
+    font-family: 'Fraunces', Georgia, serif;
     font-size: 1.35rem;
     font-weight: 600;
     margin-top: 1.25rem;
     margin-bottom: 0.5rem;
-    color: #004B23;
+    color: #B5482A;
 }
 
 html.dark .sv-lesson-text h2, html.dark .sv-markdown-render h2 {
@@ -2868,7 +2868,7 @@ html.dark .sv-lesson-text h3, html.dark .sv-markdown-render h3 {
 }
 
 .sv-lesson-text blockquote, .sv-markdown-render blockquote {
-    border-left: 4px solid #004B23;
+    border-left: 4px solid #B5482A;
     padding: 0.5rem 1rem;
     background: #F5F5F7;
     margin: 1rem 0;
@@ -2887,7 +2887,7 @@ html.dark .sv-lesson-text blockquote, html.dark .sv-markdown-render blockquote {
     font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
     font-size: 0.85em;
     background: #F0F0F2;
-    color: #004B23;
+    color: #B5482A;
     padding: 0.15rem 0.4rem;
     border-radius: 3px;
     border: 1px solid #E5E5E7;
@@ -2956,7 +2956,7 @@ html.dark .sv-lesson-text hr, html.dark .sv-markdown-render hr {
 }
 
 .sv-lesson-text a, .sv-markdown-render a {
-    color: #004B23;
+    color: #B5482A;
     text-decoration: underline;
 }
 

@@ -22,6 +22,7 @@ declare(strict_types=1);
 // =========================================================================
 
 require_once __DIR__ . '/../auth.php';
+require_once __DIR__ . '/../lib/LessonFlow.php';
 
 header('Content-Type: application/json');
 
@@ -71,6 +72,16 @@ try {
     $enrollStmt->execute(['student_id' => $studentId, 'course_id' => $lesson['course_id']]);
     if (!$enrollStmt->fetch()) {
         echo json_encode(['success' => false, 'message' => 'Vous n\'êtes pas inscrit au cours correspondant.']);
+        exit;
+    }
+
+    $blocker = LessonFlow::blockerFor($pdo, (int)$studentId, (int)$lesson['course_id'], $lessonId);
+    if ($blocker !== null) {
+        echo json_encode(['success' => false, 'code' => 'locked', 'message' => 'Terminez d’abord la leçon « ' . $blocker . ' ».']);
+        exit;
+    }
+    if (!LessonFlow::allVideosDone($pdo, (int)$studentId, $lessonId)) {
+        echo json_encode(['success' => false, 'code' => 'videos_pending', 'message' => 'Regardez toutes les vidéos de la leçon, dans l’ordre.']);
         exit;
     }
 

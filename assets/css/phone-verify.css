@@ -1,0 +1,43 @@
+/* Compulsory phone verification window. Colours come from the tokens in sv2.css (with safe fallbacks). */
+html.pv-lock, html.pv-lock body { overflow: hidden; }
+.pv-overlay {
+  position: fixed; inset: 0; z-index: 100000; display: grid; place-items: center; padding: 1rem;
+  background: color-mix(in srgb, var(--ink, #1E1B16) 62%, transparent);
+  overflow-y: auto;
+}
+.pv-card {
+  width: min(30rem, 100%); background: var(--card, #FBF8F2); color: var(--ink, #1E1B16);
+  border: 1px solid var(--line, #DDD5C3); border-radius: 16px; padding: 1.75rem 1.5rem 1.25rem;
+  font: 400 1rem/1.5 'Hanken Grotesk', system-ui, sans-serif;
+  animation: pv-rise .25s cubic-bezier(.2, .7, .2, 1) both;
+}
+@keyframes pv-rise { from { opacity: 0; transform: translateY(14px); } to { opacity: 1; transform: none; } }
+@media (prefers-reduced-motion: reduce) { .pv-card { animation: none; } }
+.pv-kicker { margin: 0 0 .25rem; color: var(--clay, #B5482A); font-weight: 700; font-size: .75rem; letter-spacing: .08em; text-transform: uppercase; }
+.pv-title { margin: 0 0 .5rem; font: 500 1.6rem/1.2 'Fraunces', Georgia, serif; }
+.pv-lede { margin: 0 0 1.25rem; color: var(--ink-2, #4A453C); }
+.pv-label { display: block; font-weight: 600; margin-bottom: .35rem; }
+.pv-input {
+  width: 100%; box-sizing: border-box; min-height: 48px; padding: .6rem .8rem; font: 500 1.1rem 'Hanken Grotesk', system-ui, sans-serif;
+  color: var(--ink, #1E1B16); background: var(--paper, #F5F0E6); border: 1.5px solid var(--line-2, #C9BFA9); border-radius: 12px;
+}
+.pv-input:focus-visible { outline: 2px solid var(--clay, #B5482A); outline-offset: 2px; border-color: var(--clay, #B5482A); }
+.pv-code { letter-spacing: .5em; text-align: center; font-variant-numeric: tabular-nums; font-size: 1.5rem; }
+.pv-hint { margin: .4rem 0 0; color: var(--ink-3, #6B6557); font-size: .85rem; }
+.pv-sent { margin: 0 0 1rem; color: var(--ink-2, #4A453C); }
+.pv-error { margin: .6rem 0 0; padding: .55rem .75rem; border-radius: 10px; background: color-mix(in srgb, var(--danger, #B3261E) 12%, transparent); color: var(--danger, #B3261E); font-weight: 600; font-size: .9rem; }
+.pv-dev { margin: .6rem 0 0; padding: .45rem .7rem; border: 1px dashed var(--ochre, #D9A23B); border-radius: 10px; font-size: .85rem; }
+.pv-ok { margin: 1rem 0; text-align: center; font: 500 1.3rem 'Fraunces', Georgia, serif; color: var(--pine, #24402F); }
+.pv-btn {
+  width: 100%; min-height: 48px; margin-top: 1rem; border: 0; border-radius: 12px; cursor: pointer;
+  background: var(--clay, #B5482A); color: #fff; font: 700 1rem 'Hanken Grotesk', system-ui, sans-serif;
+}
+.pv-btn:hover:not(:disabled) { background: var(--clay-press, #9A3B20); }
+.pv-btn:disabled { opacity: .6; cursor: progress; }
+.pv-btn:focus-visible, .pv-link:focus-visible, .pv-foot a:focus-visible { outline: 2px solid var(--ink, #1E1B16); outline-offset: 2px; }
+.pv-links { display: flex; justify-content: space-between; gap: 1rem; margin-top: .6rem; }
+.pv-link { min-height: 44px; background: none; border: 0; padding: 0 .25rem; color: var(--clay, #B5482A); font: 600 .9rem 'Hanken Grotesk', system-ui, sans-serif; cursor: pointer; text-decoration: underline; }
+.pv-link:disabled { color: var(--ink-3, #6B6557); cursor: default; text-decoration: none; }
+.pv-foot { margin: 1rem 0 0; text-align: center; font-size: .85rem; }
+.pv-foot a { color: var(--ink-3, #6B6557); }
+.pv-step[hidden], .pv-error[hidden], .pv-dev[hidden] { display: none; }
