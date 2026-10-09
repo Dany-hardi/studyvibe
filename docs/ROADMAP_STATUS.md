@@ -50,3 +50,6 @@ Done in code, with how to check it. "Not done" items need something outside the 
 | Tests | `tests/unit/run.php` (50), `tests/integration/account_security_flow.php` (27), `tests/integration/media_store.php` (11) |
 
 Open: a real SMS provider account has to be configured before production (nothing was sent to a real phone; the `log` driver was used), and `getClientIp()` in `auth.php` still trusts forwarding headers, so set up the proxy correctly or switch it to `Security::clientIp()` once `TRUST_PROXY` is set in production.
+
+
+> SMS is switched off by default (`FEATURE_SMS=false`). To turn it back on: set `FEATURE_SMS=true`, `SMS_DRIVER` and the provider keys in `.env`.

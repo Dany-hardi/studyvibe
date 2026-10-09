@@ -10,6 +10,7 @@ declare(strict_types=1);
 require_once __DIR__ . '/../auth.php';
 require_once __DIR__ . '/../lib/Brand.php';
 require_once __DIR__ . '/../lib/Phone.php';
+require_once __DIR__ . '/../lib/SmsGateway.php';
 require_once __DIR__ . '/../lib/TwoFactor.php';
 
 if (!isLoggedIn()) {
@@ -121,6 +122,7 @@ $h = fn($v) => htmlspecialchars((string)$v, ENT_QUOTES, 'UTF-8');
     <p class="msg warn" role="alert"><?= $h($T['tfa_required']) ?></p>
   <?php endif; ?>
 
+  <?php if (SmsGateway::enabled()): ?>
   <!-- ───── Phone ───── -->
   <section aria-labelledby="h-phone">
     <h2 id="h-phone"><?= $h($T['phone_h']) ?></h2>
@@ -154,6 +156,7 @@ $h = fn($v) => htmlspecialchars((string)$v, ENT_QUOTES, 'UTF-8');
     <p><?= $h($T['sms_p']) ?></p>
     <label class="toggle"><input type="checkbox" id="sms-optin" <?= $smsOptIn ? 'checked' : '' ?>><span id="sms-optin-label"><?= $h($smsOptIn ? $T['sms_on'] : $T['sms_off']) ?></span></label>
   </section>
+  <?php endif; ?>
 
   <!-- ───── Two-factor ───── -->
   <section aria-labelledby="h-tfa" id="tfa">
@@ -232,7 +235,9 @@ $h = fn($v) => htmlspecialchars((string)$v, ENT_QUOTES, 'UTF-8');
   const say = (el, text, kind) => { el.textContent = text; el.className = 'msg ' + (kind || ''); el.hidden = !text; };
 
   /* ---- phone ---- */
+  const SMS_ON = <?= SmsGateway::enabled() ? 'true' : 'false' ?>;
   const pm = $('phone-msg');
+  if (SMS_ON) {
   const showPhone = (step) => { $('phone-form').hidden = step !== 'phone'; $('code-form').hidden = step !== 'code'; $('phone-change').hidden = step !== 'idle'; };
   $('phone-change').addEventListener('click', () => { say(pm, ''); showPhone('phone'); $('ph-phone').focus(); });
   [$('ph-cancel'), $('ph-cancel2')].forEach(b => b.addEventListener('click', () => { say(pm, ''); showPhone('idle'); }));
@@ -264,6 +269,8 @@ $h = fn($v) => htmlspecialchars((string)$v, ENT_QUOTES, 'UTF-8');
     if (!d.success) { e.target.checked = !on; return; }
     $('sms-optin-label').textContent = on ? T.sms_on : T.sms_off;
   });
+
+  }   // end of the phone and SMS part
 
   /* ---- two-factor ---- */
   const tm = $('tfa-msg');

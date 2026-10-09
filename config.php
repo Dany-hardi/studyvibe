@@ -106,6 +106,9 @@ defined('SMTP_PASS')             || define('SMTP_PASS', '');
 defined('SMTP_FROM')             || define('SMTP_FROM', 'noreply@studyvibe.edu');
 defined('SMTP_FROM_NAME')        || define('SMTP_FROM_NAME', 'StudyVibe');
 defined('GEMINI_API_KEY')        || define('GEMINI_API_KEY', 'votre_cle_api_gemini_ici');
+// Master switch for everything that needs text messages: phone number at sign-up, the verification window, codes by SMS,
+// announcements of live evaluations. Off until an SMS provider works (see DEPLOYMENT.md).
+defined('FEATURE_SMS')           || define('FEATURE_SMS', 'false');
 // SMS (see lib/SmsGateway.php). Driver: log (developer machine only) | twilio | africastalking
 defined('SMS_DRIVER')            || define('SMS_DRIVER', 'log');
 defined('SMS_SENDER_ID')         || define('SMS_SENDER_ID', 'StudyVibe');

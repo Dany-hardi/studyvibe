@@ -24,6 +24,9 @@ final class LiveSmsNotifier
         $st->execute(['id' => $sessionId]);
         $s = $st->fetch(PDO::FETCH_ASSOC);
         $none = ['queued' => 0, 'eligible' => 0, 'skipped_no_phone' => 0];
+        if (!SmsGateway::enabled()) {
+            return $none;
+        }
         if (!$s || (int)$s['status'] !== 1) {
             return $none;
         }

@@ -674,7 +674,7 @@ try {
                 try {
                     $own = $pdo->prepare("SELECT 1 FROM live_eval_sessions WHERE id = :id AND teacher_id = :tid");
                     $own->execute(['id' => $sid, 'tid' => $teacherId]);
-                    if ($own->fetchColumn()) {
+                    if (SmsGateway::enabled() && $own->fetchColumn()) {
                         $sms = LiveSmsNotifier::notify($pdo, $sid);
                         $smsParam = '&sms_queued=' . (int)$sms['queued'] . '&sms_nophone=' . (int)$sms['skipped_no_phone'];
                     }
@@ -692,7 +692,7 @@ try {
                 $stmt->execute(['status' => $status, 'id' => $sid, 'tid' => $teacherId]);
                 // Activating a session tells the enrolled students by SMS (once per version of the session)
                 $smsParam = '';
-                if ($status === 1) {
+                if ($status === 1 && SmsGateway::enabled()) {
                     try {
                         $own = $pdo->prepare("SELECT 1 FROM live_eval_sessions WHERE id = :id AND teacher_id = :tid");
                         $own->execute(['id' => $sid, 'tid' => $teacherId]);
@@ -1423,7 +1423,7 @@ $tdHasCourse = (bool)$selectedCourse;
                 </script>
             <?php endif; ?>
 
-            <?php if (isset($_GET['sms_queued'])): $smsQ = (int)$_GET['sms_queued']; $smsN = (int)($_GET['sms_nophone'] ?? 0); ?>
+            <?php if (SmsGateway::enabled() && isset($_GET['sms_queued'])): $smsQ = (int)$_GET['sms_queued']; $smsN = (int)($_GET['sms_nophone'] ?? 0); ?>
                 <script>
                     window.addEventListener('DOMContentLoaded', () => {
                         if (typeof Toast !== 'undefined') { Toast.success(<?= json_encode(td('sms_toast', ['n' => $smsQ, 'm' => $smsN])) ?>); }
@@ -3660,7 +3660,7 @@ $tdHasCourse = (bool)$selectedCourse;
             </div>
             <div style="display:flex;gap:.75rem;align-items:center;flex-wrap:wrap">
                 <button type="submit" class="t-btn t-btn-primary"><?= tde('prof_save') ?></button>
-                <a href="/account/security.php" class="t-btn t-btn-ghost"><?= tde('prof_security') ?></a>
+                <a href="/account/security.php" class="t-btn t-btn-ghost"><?= SmsGateway::enabled() ? tde('prof_security') : htmlspecialchars($tdLang === 'en' ? 'Two-factor authentication' : 'Double authentification') ?></a>
             </div>
         </form>
     </div>

@@ -2,6 +2,7 @@
 declare(strict_types=1);
 
 require_once __DIR__ . '/Phone.php';
+require_once __DIR__ . '/SmsGateway.php';
 
 /**
  * The compulsory "add and verify your phone number" window, shown on every dashboard until the account has a verified number.
@@ -15,7 +16,7 @@ final class PhonePrompt
 {
     public static function needed(?array $user): bool
     {
-        return $user !== null && empty($user['phone_e164']);
+        return SmsGateway::enabled() && $user !== null && empty($user['phone_e164']);
     }
 
     public static function render(?array $user, string $lang, bool $blockedByAnotherForm = false): bool

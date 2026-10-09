@@ -17,6 +17,9 @@ final class SmsGateway
     /** @return array{ok:bool,id?:string,error?:string,retry?:bool} */
     public static function send(string $toE164, string $body): array
     {
+        if (!self::enabled()) {
+            return ['ok' => false, 'error' => 'sms disabled', 'retry' => false];
+        }
         if (preg_match('/^\+[1-9]\d{7,14}$/', $toE164) !== 1) {
             return ['ok' => false, 'error' => 'invalid number', 'retry' => false];
         }
@@ -32,9 +35,18 @@ final class SmsGateway
         };
     }
 
+    /** The master switch (FEATURE_SMS in .env). When off, nothing in the app asks for or uses phone numbers. */
+    public static function enabled(): bool
+    {
+        return defined('FEATURE_SMS') && FEATURE_SMS === 'true';
+    }
+
     /** True when a real provider (or the developer log) is configured, so the app can tell users SMS is unavailable. */
     public static function isConfigured(): bool
     {
+        if (!self::enabled()) {
+            return false;
+        }
         return match (strtolower((string)SMS_DRIVER)) {
             'twilio'         => TWILIO_SID !== '' && TWILIO_TOKEN !== '' && (TWILIO_FROM !== '' || TWILIO_MESSAGING_SERVICE_SID !== ''),
             'africastalking' => AT_USERNAME !== '' && AT_API_KEY !== '',
@@ -151,7 +163,6 @@ final class SmsGateway
         $body = curl_exec($ch);
         $status = (int)curl_getinfo($ch, CURLINFO_RESPONSE_CODE);
         $err = curl_error($ch);
-        curl_close($ch);
         return ['status' => $body === false ? 0 : $status, 'body' => $body === false ? '' : (string)$body, 'error' => $err];
     }
 }

@@ -57,9 +57,14 @@ $jar2 = $jar . '2';
 // ---- sign in
 $r = http($jar, '/login-action.php', ['email' => $email, 'password' => $pass]);
 check('password sign-in works', ($r['json']['success'] ?? false) === true && empty($r['json']['requires_2fa']), $r['body']);
-check('api refuses an anonymous visitor', http($jar2, '/api/phone.php', ['action' => 'status'])['code'] === 401);
+check('api refuses an anonymous visitor', http($jar2, '/api/2fa.php', ['action' => 'status'])['code'] === 401);
 
-// ---- phone
+// ---- phone (only when text messages are switched on: FEATURE_SMS=true)
+$smsOn = http($jar, '/api/phone.php', ['action' => 'status'])['code'] !== 404;
+if (!$smsOn) {
+    echo "(phone checks skipped: FEATURE_SMS is off)\n";
+    $pdo->prepare("UPDATE users SET phone_e164 = NULL WHERE id = ?")->execute([$uid]);
+} else {
 $r = http($jar, '/api/phone.php', ['action' => 'status']);
 check('no verified phone at first', ($r['json']['verified'] ?? true) === false);
 $r = http($jar, '/api/phone.php', ['action' => 'start', 'phone' => 'abc']);
@@ -82,6 +87,8 @@ http($jar2, '/login-action.php', ['email' => $other, 'password' => $pass]);
 $r = http($jar2, '/api/phone.php', ['action' => 'start', 'phone' => $phone]);
 check('a number already verified elsewhere is refused', ($r['json']['error'] ?? '') === 'phone_taken');
 
+}
+
 // ---- two-factor set-up
 $r = http($jar, '/api/2fa.php', ['action' => 'begin']);
 $secret = (string)($r['json']['secret'] ?? '');
@@ -97,12 +104,12 @@ check('secret is stored encrypted, not in clear', strpos((string)$pdo->query("SE
 $jar3 = $jar . '3';
 $r = http($jar3, '/login-action.php', ['email' => $email, 'password' => $pass]);
 check('password step now asks for the second factor', ($r['json']['requires_2fa'] ?? false) === true && !isset($r['json']['redirect']), $r['body']);
-check('half signed in is not signed in', http($jar3, '/api/phone.php', ['action' => 'status'])['code'] === 401);
+check('half signed in is not signed in', http($jar3, '/api/2fa.php', ['action' => 'status'])['code'] === 401);
 check('wrong second-step code refused', (http($jar3, '/api/2fa-login.php', ['code' => '000000'])['json']['success'] ?? true) === false);
 // the code of the next step is accepted by the window, and is newer than the one used at set-up
 $r = http($jar3, '/api/2fa-login.php', ['code' => Totp::code($secret, $step + 1)]);
 check('right code finishes the sign-in', ($r['json']['success'] ?? false) === true && !empty($r['json']['redirect']), $r['body']);
-check('signed in now', (http($jar3, '/api/phone.php', ['action' => 'status'])['json']['success'] ?? false) === true);
+check('signed in now', (http($jar3, '/api/2fa.php', ['action' => 'status'])['json']['success'] ?? false) === true);
 
 // the same code cannot sign a second session in
 $jar4 = $jar . '4';

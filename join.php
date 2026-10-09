@@ -2,6 +2,7 @@
 declare(strict_types=1);
 require_once __DIR__ . '/auth.php';
 require_once __DIR__ . '/lib/Brand.php';
+require_once __DIR__ . '/lib/SmsGateway.php';
 
 require_once __DIR__ . '/lib/Analytics.php';
 Analytics::captureSource();
@@ -252,11 +253,13 @@ if ($isStudent) {
 
                         <!-- Step 2: password -->
                         <div id="reg-s2" class="space-y-4" style="display:none;">
+                            <?php if (SmsGateway::enabled()): ?>
                             <div class="sv-field">
                                 <label class="sv-field-label" for="reg-phone">Numéro de téléphone</label>
                                 <input type="tel" inputmode="tel" id="reg-phone" name="phone" class="sv-field-input" placeholder="6 12 34 56 78" autocomplete="tel" maxlength="30" required>
                                 <p class="text-[11px] text-[#888888] mt-1">Pour les rappels d'examens. Il sera vérifié par SMS après votre connexion.</p>
                             </div>
+                            <?php endif; ?>
                             <div class="sv-field">
                                 <label class="sv-field-label" for="reg-pass">Mot de passe <span class="text-[#888888] font-normal">(min. 8 car.)</span></label>
                                 <input type="password" id="reg-pass" name="password" class="sv-field-input" placeholder="8 caractères minimum" minlength="8" required>
@@ -336,7 +339,9 @@ document.getElementById('reg-pass')?.addEventListener('input', function() {
     document.getElementById('reg-submit-btn').disabled = len < 8 || !regPhoneOk();
 });
 function regPhoneOk() {
-    const v = (document.getElementById('reg-phone')?.value || '').trim();
+    const field = document.getElementById('reg-phone');
+    if (!field) return true;   // no phone field when text messages are switched off
+    const v = field.value.trim();
     return v.replace(/\D/g, '').length >= 8 && /^[+\d\s().-]+$/.test(v);
 }
 document.getElementById('reg-phone')?.addEventListener('input', function() {

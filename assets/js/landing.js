@@ -193,8 +193,9 @@
     const nameOk = name.value.trim().length >= 2;
     const mailOk = /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(mail.value.trim());
     const n = pass.value.length, passOk = n >= 8;
-    const phoneOk = phone.value.replace(/\D/g, '').length >= 8 && /^[+\d\s().-]+$/.test(phone.value.trim());
-    phone.classList.toggle('invalid', !!phone.value && !phoneOk);
+    // The phone field exists only when text messages are switched on (FEATURE_SMS)
+    const phoneOk = !phone || (phone.value.replace(/\D/g, '').length >= 8 && /^[+\d\s().-]+$/.test(phone.value.trim()));
+    if (phone) phone.classList.toggle('invalid', !!phone.value && !phoneOk);
     name.classList.toggle('invalid', !!name.value && !nameOk);
     mail.classList.toggle('invalid', !!mail.value && !mailOk);
     const score = Math.min(100, n * 12 + (/\d/.test(pass.value) ? 20 : 0) + (/[A-Z]/.test(pass.value) ? 15 : 0));
@@ -204,7 +205,7 @@
     sBtn.disabled = !(roleOk && nameOk && mailOk && phoneOk && passOk);
     return !sBtn.disabled;
   }
-  [name, mail, phone, pass].forEach(el => el.addEventListener('input', () => { validate(); suHide(); }));
+  [name, mail, phone, pass].filter(Boolean).forEach(el => el.addEventListener('input', () => { validate(); suHide(); }));
   const suBox = $('#signup-status');
   function suShow(kind, html) { suBox.className = 'fg-status ' + (kind === 'ok' ? 'is-ok' : kind === 'busy' ? 'is-busy' : 'is-error'); suBox.innerHTML = html; suBox.hidden = false; }
   function suHide() { suBox.hidden = true; }
@@ -216,7 +217,7 @@
     sBtn.disabled = true; sBtn.textContent = T.busy_sign;
     const fd = new FormData();
     fd.append('role', role.value); fd.append('name', name.value.trim());
-    fd.append('email', mail.value.trim()); fd.append('phone', phone.value.trim()); fd.append('password', pass.value);
+    fd.append('email', mail.value.trim()); if (phone) fd.append('phone', phone.value.trim()); fd.append('password', pass.value);
     if ($('#signup-newsletter').checked) fd.append('newsletter', '1');
     suShow('busy', esc(T.busy_sign));
     try {

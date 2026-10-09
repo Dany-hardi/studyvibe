@@ -15,6 +15,7 @@ declare(strict_types=1);
 
 require_once __DIR__ . '/auth.php';
 require_once __DIR__ . '/lib/Brand.php';
+require_once __DIR__ . '/lib/SmsGateway.php';
 
 // =========================================================================
 // SECTION 1: USER SESSION REDIRECTION GATE
@@ -372,8 +373,10 @@ $e = fn(string $k): string => htmlspecialchars((string)$T[$k], ENT_QUOTES, 'UTF-
             <input class="input" id="signup-name" name="name" required autocomplete="name" placeholder="<?= $e('name_ph') ?>"></div>
           <div class="field"><label for="signup-email"><?= $e('email') ?></label>
             <input class="input" type="email" id="signup-email" name="email" required autocomplete="email" placeholder="<?= $e('email_ph') ?>"></div>
+          <?php if (SmsGateway::enabled()): ?>
           <div class="field"><label for="signup-phone"><?= $e('phone') ?></label>
             <input class="input" type="tel" inputmode="tel" id="signup-phone" name="phone" required autocomplete="tel" maxlength="30" placeholder="<?= $e('phone_ph') ?>"><span class="hint"><?= $e('phone_h') ?></span></div>
+          <?php endif; ?>
           <div class="field"><label for="signup-password"><?= $e('pw') ?></label>
             <div class="pw"><input class="input" type="password" id="signup-password" name="password" required minlength="8" autocomplete="new-password" placeholder="<?= $e('pw_ph') ?>">
             <button type="button" class="btn-text" data-toggle-pw="signup-password" data-show="<?= $e('show') ?>" data-hide="<?= $e('hide') ?>"><?= $e('show') ?></button></div>

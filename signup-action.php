@@ -49,8 +49,9 @@ if (!filter_var($email, FILTER_VALIDATE_EMAIL)) {
 }
 
 require_once __DIR__ . '/lib/Phone.php';
-$phonePending = Phone::normalize($phoneRaw);
-if ($phonePending === null) {
+require_once __DIR__ . '/lib/SmsGateway.php';
+$phonePending = SmsGateway::enabled() ? Phone::normalize($phoneRaw) : null;
+if (SmsGateway::enabled() && $phonePending === null) {
     echo json_encode([
         'success' => false,
         'message' => 'Le numéro de téléphone n’est pas valide. Exemple : 6 12 34 56 78 ou +237 612 345 678.'

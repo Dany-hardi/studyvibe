@@ -17,6 +17,7 @@ declare(strict_types=1);
 // =========================================================================
 
 require_once __DIR__ . '/../auth.php';
+require_once __DIR__ . '/../lib/SmsGateway.php';
 require_once __DIR__ . '/../lib/StudentLiveEvals.php';
 require_once __DIR__ . '/../lib/CourseSchedule.php';
 require_once __DIR__ . '/../lib/Brand.php';
@@ -900,7 +901,7 @@ $nav = [
         </div>
         <div class="field">
             <label><?= sdH($lang === 'en' ? 'Security' : 'Sécurité') ?></label>
-            <a class="btn btn-ghost btn-sm" href="/account/security.php"><?= sdH($lang === 'en' ? 'Phone number and two-factor authentication' : 'Téléphone et double authentification') ?></a>
+            <a class="btn btn-ghost btn-sm" href="/account/security.php"><?= sdH(SmsGateway::enabled() ? ($lang === 'en' ? 'Phone number and two-factor authentication' : 'Téléphone et double authentification') : ($lang === 'en' ? 'Two-factor authentication' : 'Double authentification')) ?></a>
         </div>
         <div class="sd-profile-act">
             <button type="button" class="btn btn-primary" onclick="updateProfileName()"><?= sdH(sd('save')) ?></button>
