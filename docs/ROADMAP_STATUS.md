@@ -98,3 +98,8 @@ Tests: `php tests/integration/exports_compile.php [folder]` compiles every docum
 ## Assignments audited and made gradable (9 October 2026)
 
 See `docs/ASSIGNMENTS_AUDIT.md` for the full audit. In short: seven defects reproduced and fixed (deadline not enforced, only the extension checked, identity typed by the student, any teacher could download any file, no resubmission, no notifications, no marks), and a marking workflow added (mark, feedback, new-version request, history, student view and list, Excel and PDF marks sheets). Code: `lib/Assignments.php`, `api/submit-assignment.php`, `teacher/grade-assignment.php`, `teacher/export-assignment-grades.php`, `assets/js/assignment-grading.js`, `download.php`. Tests: `tests/integration/assignments_flow.php` (52).
+
+
+## Bulk import of questions with pictures (9 October 2026)
+
+One ZIP (questions.csv + images folder) is checked line by line, then imported all or nothing. New optional CSV columns `image` and `time_limit`; quoted cells may now hold line breaks (code snippets); a live question may have only options A and B (true/false), also in the manual form. Details and format: `docs/BULK_IMPORT.md`. Code: `lib/BulkPackage.php`, `teacher/bulk-import.php`, `assets/js/bulk-import.js`, `QuestionImporter.php`. Tests: `tests/integration/bulk_import.php` (28), unit tests (73).

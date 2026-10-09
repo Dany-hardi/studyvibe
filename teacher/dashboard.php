@@ -843,8 +843,9 @@ try {
             if ($sid > 0 && !empty($questionText) && !empty($correct)) {
                 if ($qType === 'written') {
                     $isValid = true;
-                } elseif (!empty($optionA) && !empty($optionB) && !empty($optionC) && !empty($optionD)) {
-                    $isValid = true;
+                } elseif (!empty($optionA) && !empty($optionB)
+                    && (($optionC !== '' && $optionD !== '') || ($optionC === '' && $optionD === '' && in_array($correct, ['A', 'B'], true)))) {
+                    $isValid = true;   // all four options, or only A and B for a true/false question
                 }
             }
             
@@ -2415,6 +2416,23 @@ $tdHasCourse = (bool)$selectedCourse;
                                             </div>
                                             <a href="/teacher/sample-questions.csv" download class="t-link"><?= tde('q_import_sample') ?></a>
 
+                                            <!-- Import en lot : questions + images dans un ZIP -->
+                                            <div class="bi" data-bi data-type="live" data-course="<?= (int)$selectedCourse['id'] ?>" data-session="<?= $sid ?>" style="margin-top:1.75rem;padding-top:1.25rem;border-top:1px solid var(--line)">
+                                                <h4 style="font-size:1.25rem;margin-bottom:.4rem"><?= tde('bi_title') ?></h4>
+                                                <p style="color:var(--ink-2);font-size:.95rem;margin-bottom:.75rem"><?= tde('bi_lede') ?></p>
+                                                <div class="t-field">
+                                                    <label for="bi-<?= $sid ?>"><?= tde('bi_file') ?></label>
+                                                    <input type="file" id="bi-<?= $sid ?>" class="bi-file" accept=".zip,.csv">
+                                                    <span class="t-hint"><?= tde('bi_hint') ?></span>
+                                                </div>
+                                                <div style="display:flex;gap:.75rem;flex-wrap:wrap;align-items:center">
+                                                    <button type="button" class="t-btn t-btn-ghost bi-check"><?= tde('bi_check') ?></button>
+                                                    <a href="/teacher/bulk-import.php?template=1" download class="t-link"><?= tde('bi_template') ?></a>
+                                                </div>
+                                                <div class="bi-report" hidden></div>
+                                                <button type="button" class="t-btn t-btn-primary bi-commit" hidden style="margin-top:.9rem"></button>
+                                            </div>
+
                                             <?php if (!empty($ls['questions'])): ?>
                                                 <form method="POST" action="/teacher/dashboard.php?course_id=<?= (int)$selectedCourse['id'] ?>&action=delete_all_live_questions" style="margin-top:2rem;padding-top:1.25rem;border-top:1px solid var(--line)">
                                                     <?= csrfInput(); ?>
@@ -3722,6 +3740,16 @@ $tdHasCourse = (bool)$selectedCourse;
         </form>
     </div>
 </div>
+
+<style>
+.bi-report { margin-top: 1rem; } .bi-sum { font-weight: 600; margin: 0 0 .5rem; }
+.bi-errors, .bi-warns { margin: .4rem 0; padding-left: 1.2rem; font-size: .9rem; } .bi-errors { color: var(--danger, #B3261E); } .bi-warns { color: #7A5A12; }
+.bi-tablewrap { max-height: 18rem; overflow: auto; border: 1px solid var(--line); border-radius: 12px; margin-top: .6rem; }
+.bi-table { width: 100%; border-collapse: collapse; font-size: .85rem; } .bi-table th { position: sticky; top: 0; background: var(--card); text-align: left; padding: .45rem .6rem; border-bottom: 2px solid var(--line); white-space: nowrap; }
+.bi-table td { padding: .4rem .6rem; border-bottom: 1px solid var(--line); vertical-align: top; } .bi-table tr.is-error td { background: color-mix(in srgb, var(--danger, #B3261E) 8%, transparent); }
+.bi-ok { color: var(--pine, #24402F); font-weight: 600; } .bi-bad { color: var(--danger, #B3261E); font-weight: 600; }
+</style>
+<script src="/assets/js/bulk-import.js" defer></script>
 
 <!-- ── Devoirs : fenêtre de notation ────────── -->
 <style>

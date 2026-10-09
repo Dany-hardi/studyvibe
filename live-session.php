@@ -1166,6 +1166,7 @@ if (!$error) {
         /* Two windows when a question has a picture: the question and options on one side, the picture on the other */
         #quiz-image-container.hidden { display: none !important; }
         .quiz-body { display: block; }
+        #quiz-question-text { white-space: pre-line; }   /* line breaks written in a question (a code snippet) are kept */
         .card.quiz-mode.has-image { max-width: 1100px; }
         .quiz-pane-image { display: flex; flex-direction: column; align-items: center; gap: .6rem; }
         .quiz-pane-image img { width: 100%; max-height: 62vh; object-fit: contain; border: 1px solid var(--line); border-radius: 12px; background: #fff; cursor: zoom-in; }

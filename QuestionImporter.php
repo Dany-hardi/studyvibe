@@ -25,7 +25,7 @@ class QuestionImporter
      * @param string $content Raw CSV file string.
      * @return array{questions: array, errors: array} Parsed questions list and validation error logs.
      */
-    public static function parseCsv(string $content): array
+    public static function parseCsv(string $content, bool $allowTrueFalse = false): array
     {
         // Strip UTF-8 Byte Order Mark (BOM) if present
         $content = trim(preg_replace('/^\xEF\xBB\xBF/', '', $content));
@@ -38,24 +38,33 @@ class QuestionImporter
         $rows      = [];
         $header    = null;
 
-        foreach ($lines as $i => $line) {
-            $line = trim($line);
-            if ($line === '') {
-                continue;
+        // A real CSV reader (not one line at a time): a quoted cell may contain line breaks, which is how a code snippet or a
+        // multi-line statement is written in a question.
+        $fh = fopen('php://temp', 'r+');
+        fwrite($fh, $content);
+        rewind($fh);
+        $first = true;
+        while (($cols = fgetcsv($fh, 0, $delimiter, '"', '')) !== false) {
+            if ($cols === [null] || self::rowIsEmpty($cols)) {
+                continue;   // a blank line
             }
-            $cols = str_getcsv($line, $delimiter);
-            
+            $cols = array_map(fn($c) => (string)$c, $cols);
+
             // Check if first line looks like a header label row
-            if ($i === 0 && self::looksLikeHeader($cols)) {
-                $header = self::normalizeHeader($cols);
-                continue;
+            if ($first) {
+                $first = false;
+                if (self::looksLikeHeader($cols)) {
+                    $header = self::normalizeHeader($cols);
+                    continue;
+                }
             }
-            
+
             // Map row to data fields using resolved headers or default numeric index map
             $rows[] = $header ? self::mapRow($header, $cols) : self::mapRowDefault($cols);
         }
+        fclose($fh);
 
-        return self::validateRows($rows);
+        return self::validateRows($rows, $allowTrueFalse);
     }
 
     /**
@@ -170,8 +179,8 @@ class QuestionImporter
     public static function importLiveQuestions(PDO $pdo, int $sessionId, array $questions): int
     {
         $stmt = $pdo->prepare("
-            INSERT INTO live_eval_questions (session_id, question_text, option_a, option_b, option_c, option_d, correct_option, explanation, question_type)
-            VALUES (:sid, :qt, :a, :b, :c, :d, :co, :exp, :type)
+            INSERT INTO live_eval_questions (session_id, question_text, option_a, option_b, option_c, option_d, correct_option, explanation, question_type, time_limit, image_path)
+            VALUES (:sid, :qt, :a, :b, :c, :d, :co, :exp, :type, :tl, :img)
         ");
         $count = 0;
         foreach ($questions as $q) {
@@ -185,6 +194,8 @@ class QuestionImporter
                 'co'  => $q['correct_option'],
                 'exp' => $q['explanation'] ?? null,
                 'type' => $q['question_type'] ?? 'mcq',
+                'tl'   => $q['time_limit'] ?? null,
+                'img'  => $q['image_path'] ?? null,
             ]);
             $count++;
         }
@@ -292,6 +303,13 @@ class QuestionImporter
         if ($key === 'type' || $key === 'question_type' || $key === 'type_question') {
             return 'question_type';
         }
+        // Optional columns of a bulk package: the picture of the question (a file name inside the zip) and its own time in seconds
+        if (in_array($key, ['image', 'img', 'images', 'illustration', 'image_file', 'fichier_image', 'picture', 'photo', 'figure'], true)) {
+            return 'image';
+        }
+        if (in_array($key, ['time_limit', 'temps', 'temps_s', 'duree', 'duree_s', 'timer', 'seconds', 'secondes'], true)) {
+            return 'time_limit';
+        }
         $tokens = explode('_', $key);
         $numberish = array_intersect($tokens, ['id', 'n', 'no', 'num', 'numero', 'nb', 'index', 'ordre', 'order', 'rang', 'number']);
         if (in_array($key, ['question', 'question_text', 'libelle', 'enonce', 'intitule', 'texte', 'text'], true)) {
@@ -321,6 +339,8 @@ class QuestionImporter
             'correct_option' => '',
             'explanation'    => '',
             'question_type'  => '',
+            'image'          => '',
+            'time_limit'     => '',
         ];
         $loose = [];
         foreach ($header as $i => $field) {
@@ -375,7 +395,7 @@ class QuestionImporter
      * @param array $rows Standardized rows list.
      * @return array{questions: array, errors: array} Valid questions and error logs list.
      */
-    private static function validateRows(array $rows): array
+    private static function validateRows(array $rows, bool $allowTrueFalse = false): array
     {
         $questions = [];
         $errors    = [];
@@ -391,6 +411,8 @@ class QuestionImporter
             $co   = self::normalizeCorrect($rawCorrect);
             $exp  = trim($row['explanation'] ?? '');
             $type = isset($row['question_type']) ? trim((string)$row['question_type']) : '';
+            $image = trim((string)($row['image'] ?? ''));
+            $timeRaw = trim((string)($row['time_limit'] ?? ''));
 
             // Ignore empty rows
             if ($q === '' && $a === '' && $b === '') {
@@ -411,12 +433,14 @@ class QuestionImporter
             }
 
             if (!$isWritten) {
-                if ($q === '' || $a === '' || $b === '' || $c === '' || $d === '') {
+                // Live evaluations accept a question with only A and B (true/false, "Vrai" / "Faux"); everywhere else all four are needed
+                $short = $allowTrueFalse && $q !== '' && $a !== '' && $b !== '' && $c === '' && $d === '';
+                if ($q === '' || $a === '' || $b === '' || (!$short && ($c === '' || $d === ''))) {
                     $errors[] = "Ligne {$line} : champs de QCM incomplets.";
                     continue;
                 }
-                if (!in_array($co, ['A', 'B', 'C', 'D'], true)) {
-                    $errors[] = "Ligne {$line} : réponse correcte QCM invalide (utilisez A, B, C ou D).";
+                if (!in_array($co, ['A', 'B', 'C', 'D'], true) || ($short && !in_array($co, ['A', 'B'], true))) {
+                    $errors[] = "Ligne {$line} : réponse correcte QCM invalide (utilisez A, B, C ou D" . ($short ? ' : ici seulement A ou B' : '') . ").";
                     continue;
                 }
             } else {
@@ -439,7 +463,13 @@ class QuestionImporter
                 'correct_option' => $co,
                 'explanation'    => $exp,
                 'question_type'  => $isWritten ? 'written' : 'mcq',
+                'image'          => $image,
+                'time_limit'     => ($timeRaw !== '' && ctype_digit($timeRaw) && (int)$timeRaw >= 5 && (int)$timeRaw <= 3600) ? (int)$timeRaw : null,
+                'line'           => $line,
             ];
+            if ($timeRaw !== '' && $questions[array_key_last($questions)]['time_limit'] === null) {
+                $errors[] = "Ligne {$line} : temps invalide (un nombre de secondes entre 5 et 3600) : ignoré.";
+            }
         }
 
         return ['questions' => $questions, 'errors' => $errors];

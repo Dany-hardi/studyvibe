@@ -19,6 +19,7 @@ require_once __DIR__ . '/../../lib/SmsGateway.php';
 require_once __DIR__ . '/../../lib/LiveSmsNotifier.php';
 require_once __DIR__ . '/../../lib/ExportTheme.php';
 require_once __DIR__ . '/../../Mailer.php';
+require_once __DIR__ . '/../../QuestionImporter.php';
 
 $passed = 0;
 $failed = [];
@@ -177,6 +178,28 @@ t('email: addresses and subjects with line breaks are refused (header injection)
     eq(Mailer::send('a@b.cm', "Sujet\r\nBcc: evil@x.cm", '<p>x</p>'), false);
     eq(Mailer::send('a@b.cm', 'Sujet', '<p>x</p>'), true);
     Mailer::$capture = null;
+});
+
+// ---- Question import (CSV)
+t('csv: a quoted cell may hold line breaks (a code snippet in a question)', function () {
+    $r = QuestionImporter::parseCsv("question,option_a,option_b,option_c,option_d,correct\n\"Que fait ce code ?\nx = 1\nprint(x)\",1,2,3,4,A\n");
+    eq(count($r['questions']), 1);
+    eq($r['questions'][0]['question_text'], "Que fait ce code ?\nx = 1\nprint(x)");
+});
+t('csv: image and time_limit columns are read, a bad time is reported and ignored', function () {
+    $r = QuestionImporter::parseCsv("question,option_a,option_b,option_c,option_d,correct,image,time_limit\nQ1,a,b,c,d,B,fig.png,45\nQ2,a,b,c,d,A,,abc\n");
+    eq([$r['questions'][0]['image'], $r['questions'][0]['time_limit'], $r['questions'][1]['time_limit']], ['fig.png', 45, null]);
+    eq(count($r['errors']), 1);
+});
+t('csv: a true/false question (only A and B) is accepted for live sessions only', function () {
+    $csv = "question,option_a,option_b,option_c,option_d,correct\nLa Terre est ronde,Vrai,Faux,,,A\n";
+    eq(count(QuestionImporter::parseCsv($csv, true)['questions']), 1);
+    eq(count(QuestionImporter::parseCsv($csv, false)['questions']), 0);
+    eq(count(QuestionImporter::parseCsv("question,option_a,option_b,option_c,option_d,correct\nQ,Vrai,Faux,,,C\n", true)['questions']), 0);
+});
+t('csv: semicolon files and a BOM still work', function () {
+    $r = QuestionImporter::parseCsv("\xEF\xBB\xBFquestion;option_a;option_b;option_c;option_d;correct\nQ;a;b;c;d;D\n");
+    eq($r['questions'][0]['correct_option'], 'D');
 });
 
 // ---- PasswordPolicy
