@@ -85,6 +85,12 @@ if ($currentUser['role'] === 'student' && (int)$registration['student_id'] !== $
 // SECTION 3: ANSWERS DATA FETCHING & SCORE CALCULATION
 // =========================================================================
 
+// A result the teacher cancelled has no correction report
+if (!empty($registration['cancelled_at'])) {
+    http_response_code(403);
+    exit('Ce résultat a été annulé par l\'enseignant.');
+}
+
 // Charger les réponses soumises et les questions associées
 try {
     $stmt = $pdo->prepare("

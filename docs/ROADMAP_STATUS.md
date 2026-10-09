@@ -70,3 +70,15 @@ All PDF, LaTeX and Excel exports (CSV left as it was) now share one design.
 
 Typeface: Latin Modern (the vector form of the traditional LaTeX typeface, Computer Modern) in every LaTeX document; the plain `cm` fonts need the `cm-super` package for accents, Latin Modern does not. Layout: `lib/ExportTheme.php`; documents: `lib/ExportDocs.php`.
 Tests: `php tests/integration/exports_compile.php [folder]` compiles every document from awkward sample data with the real LaTeX engine (and keeps the PDFs in the folder when one is given).
+
+
+## Results review, announcements and the new emails (9 October 2026)
+
+| Item | Where |
+|---|---|
+| "Evaluation finished" window on the teacher dashboard (once per session), leading to the review table: matricule, name, email, mark (x / N), integrity assessment, cancel / restore button per student | `teacher/dashboard.php`, `assets/js/results-review.js`, `assets/css/results-review.css`, `teacher/live-results.php`, also under each session's Export menu ("Examiner les résultats") |
+| Integrity assessment: tab exits (when tracked) and identical wrong answers between students; levels nothing / to review / suspicious; presented as signals, the teacher decides | `lib/LiveResults.php` |
+| Cancelling a result: the mark is kept aside, the score is removed (leaderboard, exports, certificates ignore it), the student is told by email with the reason; restoring puts it back and tells the student | `lib/LiveResults.php`, `api/live-eval-poll.php` (never recomputes a cancelled score), `lib/LiveMailQueue.php` (drops a queued result mail), student results page and PDF |
+| Announcement email to every enrolled student when a session is activated or moved: date, time, duration, numbered instructions, link to the waiting room | `lib/LiveMailNotifier.php`, `lib/EmailQueue.php`, `lib/email-worker.php` |
+| All emails redesigned: light, rounded cards, pill badges, soft callouts, fact cards, numbered steps, big mark block; Fraunces and Hanken Grotesk with safe fallbacks; the logo is attached inside each message; plain-text part; proper MIME (quoted-printable, dot-stuffing, Message-ID) | `lib/EmailTheme.php`, `Mailer.php` |
+| Tests | `tests/integration/results_review.php` (26), unit tests (69) |

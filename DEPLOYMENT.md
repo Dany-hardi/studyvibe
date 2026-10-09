@@ -287,7 +287,17 @@ Les SMS d'annonce d'évaluation partent par une file (`sms_outbox`) traitée en 
 Fichiers téléversés : ils sont copiés dans la base (tables `media_files` et `media_chunks`) et reviennent automatiquement après un redéploiement qui efface le disque. Pour copier les fichiers déjà présents : `php scripts/backfill-media.php`.
 
 Tests : `php tests/unit/run.php` (rapide, sans base) et, sur une machine de développement avec `APP_DEBUG=true` et `SMS_DRIVER=log`,
-`php tests/integration/account_security_flow.php`, `php tests/integration/media_store.php` et `php tests/integration/exports_compile.php` (compile tous les PDF avec LaTeX ; exige `pdflatex` avec les paquets `lmodern`, `babel-french`, `booktabs`, `longtable`, `enumitem`, `needspace`, `lastpage`, `microtype` : ils sont dans `texlive-latex-recommended`, `texlive-latex-extra`, `texlive-fonts-recommended` et `texlive-lang-french` du Dockerfile).
+`php tests/integration/account_security_flow.php`, `php tests/integration/media_store.php` et `php tests/integration/results_review.php` (revue des résultats, annulation, annonces par e-mail) et `php tests/integration/exports_compile.php` (compile tous les PDF avec LaTeX ; exige `pdflatex` avec les paquets `lmodern`, `babel-french`, `booktabs`, `longtable`, `enumitem`, `needspace`, `lastpage`, `microtype` : ils sont dans `texlive-latex-recommended`, `texlive-latex-extra`, `texlive-fonts-recommended` et `texlive-lang-french` du Dockerfile).
+
+## 9 quinquies. E-mails de fond (annonces d'évaluation, résultats annulés)
+
+Les annonces envoyées aux étudiants quand une séance est activée ou déplacée, et les e-mails d'annulation ou de rétablissement d'un résultat, passent par une file (`email_outbox`) traitée en arrière-plan. Comme pour les SMS, ajoutez au cron pour reprendre les envois interrompus :
+
+```cron
+*/5 * * * * php /var/www/studyvibe/lib/email-worker.php >/dev/null 2>&1
+```
+
+Le logo est joint à chaque e-mail (image intégrée), il s'affiche donc même quand `APP_URL` n'est pas joignable depuis Internet. Les polices Fraunces et Hanken Grotesk se chargent dans Apple Mail, iOS Mail, Outlook pour Mac et Thunderbird ; Gmail et Outlook Windows affichent Georgia et Helvetica/Arial à la place.
 
 ## 9 ter. Tests automatiques
 

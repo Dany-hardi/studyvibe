@@ -25,6 +25,7 @@ declare(strict_types=1);
 require_once __DIR__ . '/../auth.php';
 require_once __DIR__ . '/../lib/MediaStore.php';
 require_once __DIR__ . '/../lib/LiveSmsNotifier.php';
+require_once __DIR__ . '/../lib/LiveMailNotifier.php';
 require_once __DIR__ . '/../Mailer.php';
 requireRole('teacher');
 
@@ -51,6 +52,30 @@ function handlePdfUpload(array $file): ?string {
     // Same checks as every other upload, and a copy in the database (slices of 256 KB) so the PDF outlives a redeploy.
     $res = MediaStore::saveDocument(Database::getInstance(), $file, 'pdf', ['pdf'], 20 * 1024 * 1024);
     return $res['ok'] ? $res['file'] : null;
+}
+
+/**
+ * An activated (or moved) session is announced to the enrolled students by email (always) and by SMS (when switched on).
+ * Returns the query-string part the dashboard uses to tell the teacher how many were queued.
+ */
+function notifyStudentsOfSession(PDO $pdo, int $sessionId, int $teacherId): string {
+    try {
+        $own = $pdo->prepare("SELECT 1 FROM live_eval_sessions WHERE id = :id AND teacher_id = :tid");
+        $own->execute(['id' => $sessionId, 'tid' => $teacherId]);
+        if (!$own->fetchColumn()) {
+            return '';
+        }
+        $mail = LiveMailNotifier::notify($pdo, $sessionId);
+        $param = '&mail_queued=' . (int)$mail['queued'] . '&mail_eligible=' . (int)$mail['eligible'];
+        if (SmsGateway::enabled()) {
+            $sms = LiveSmsNotifier::notify($pdo, $sessionId);
+            $param .= '&sms_queued=' . (int)$sms['queued'] . '&sms_nophone=' . (int)$sms['skipped_no_phone'];
+        }
+        return $param;
+    } catch (Throwable $e) {
+        logServerError($e, 'live announcement');
+        return '';
+    }
 }
 
 function clearLiveSessionCache(): void {
@@ -670,15 +695,7 @@ try {
                     'tid'   => $teacherId
                 ]);
                 // A session that was moved is announced again; an unchanged one is not (see LiveSmsNotifier)
-                $smsParam = '';
-                try {
-                    $own = $pdo->prepare("SELECT 1 FROM live_eval_sessions WHERE id = :id AND teacher_id = :tid");
-                    $own->execute(['id' => $sid, 'tid' => $teacherId]);
-                    if (SmsGateway::enabled() && $own->fetchColumn()) {
-                        $sms = LiveSmsNotifier::notify($pdo, $sid);
-                        $smsParam = '&sms_queued=' . (int)$sms['queued'] . '&sms_nophone=' . (int)$sms['skipped_no_phone'];
-                    }
-                } catch (Throwable $e) { logServerError($e, 'live sms notify'); }
+                $smsParam = notifyStudentsOfSession($pdo, $sid, $teacherId);
                 header("Location: /teacher/dashboard.php?course_id={$selectedCourse['id']}&success=live_session_updated{$smsParam}&open_session={$sid}#tab-live-eval"); exit;
             }
         }
@@ -692,15 +709,8 @@ try {
                 $stmt->execute(['status' => $status, 'id' => $sid, 'tid' => $teacherId]);
                 // Activating a session tells the enrolled students by SMS (once per version of the session)
                 $smsParam = '';
-                if ($status === 1 && SmsGateway::enabled()) {
-                    try {
-                        $own = $pdo->prepare("SELECT 1 FROM live_eval_sessions WHERE id = :id AND teacher_id = :tid");
-                        $own->execute(['id' => $sid, 'tid' => $teacherId]);
-                        if ($own->fetchColumn()) {
-                            $sms = LiveSmsNotifier::notify($pdo, $sid);
-                            $smsParam = '&sms_queued=' . (int)$sms['queued'] . '&sms_nophone=' . (int)$sms['skipped_no_phone'];
-                        }
-                    } catch (Throwable $e) { logServerError($e, 'live sms notify'); }
+                if ($status === 1) {
+                    $smsParam = notifyStudentsOfSession($pdo, $sid, $teacherId);
                 }
                 header("Location: /teacher/dashboard.php?course_id={$selectedCourse['id']}&success=live_session_toggled{$smsParam}&open_session={$sid}#tab-live-eval"); exit;
             }
@@ -1423,6 +1433,13 @@ $tdHasCourse = (bool)$selectedCourse;
                 </script>
             <?php endif; ?>
 
+            <?php if (isset($_GET['mail_queued'])): $mailQ = (int)$_GET['mail_queued']; $mailE = (int)($_GET['mail_eligible'] ?? 0); ?>
+                <script>
+                    window.addEventListener('DOMContentLoaded', () => {
+                        if (typeof Toast !== 'undefined') { Toast.success(<?= json_encode(td('mail_toast', ['n' => $mailQ, 'm' => $mailE])) ?>); }
+                    });
+                </script>
+            <?php endif; ?>
             <?php if (SmsGateway::enabled() && isset($_GET['sms_queued'])): $smsQ = (int)$_GET['sms_queued']; $smsN = (int)($_GET['sms_nophone'] ?? 0); ?>
                 <script>
                     window.addEventListener('DOMContentLoaded', () => {
@@ -2231,6 +2248,7 @@ $tdHasCourse = (bool)$selectedCourse;
                                         <details class="t-menu">
                                             <summary class="t-btn t-btn-ghost"><?= tdIcon('download') ?><?= tde('btn_export') ?><span style="width:.9rem;height:.9rem;display:inline-block"><?= tdIcon('chev') ?></span></summary>
                                             <div class="t-menu-list">
+                                                <a href="#" onclick="SVReview.open(<?= $sid ?>); return false;"><?= tde('rv_open') ?></a>
                                                 <a href="/teacher/live-analysis.php?session_id=<?= $sid ?>"><?= tde('live_analysis') ?></a>
                                                 <hr>
                                                 <small><?= tde('exp_grades') ?></small>
@@ -3665,6 +3683,84 @@ $tdHasCourse = (bool)$selectedCourse;
         </form>
     </div>
 </div>
+
+<!-- ── Résultats : fenêtre « évaluation terminée » et tableau d'examen ────────── -->
+<link rel="stylesheet" href="/assets/css/results-review.css">
+<?php
+$rvPrompt = null;
+try {
+    // The most recent finished session of this teacher that has participants and was not offered for review yet.
+    // Synchronous: start + the sum of the question times has passed. Asynchronous: the deadline has passed.
+    $rvStmt = $pdo->prepare("
+        SELECT s.id, s.title,
+               (SELECT COUNT(*) FROM live_eval_registrations r WHERE r.session_id = s.id) AS n
+        FROM live_eval_sessions s
+        WHERE s.teacher_id = :t AND s.status = 1 AND s.results_prompted_at IS NULL
+          AND EXISTS (SELECT 1 FROM live_eval_registrations r WHERE r.session_id = s.id)
+          AND (
+                (s.is_async = 0 AND s.start_time + INTERVAL (
+                    SELECT COALESCE(SUM(COALESCE(q.time_limit, s.default_time_limit)), 0) FROM live_eval_questions q WHERE q.session_id = s.id
+                ) SECOND < NOW())
+             OR (s.is_async = 1 AND s.async_deadline IS NOT NULL AND s.async_deadline < NOW())
+          )
+        ORDER BY s.start_time DESC LIMIT 1
+    ");
+    $rvStmt->execute(['t' => $teacherId]);
+    $rvPrompt = $rvStmt->fetch(PDO::FETCH_ASSOC) ?: null;
+} catch (Throwable $e) { /* the window is a convenience; the page works without it */ }
+?>
+<?php if ($rvPrompt): ?>
+<script>window.RV_PROMPT = <?= json_encode(['id' => (int)$rvPrompt['id'], 'title' => (string)$rvPrompt['title'], 'n' => (int)$rvPrompt['n']], JSON_UNESCAPED_UNICODE | JSON_HEX_TAG | JSON_HEX_AMP) ?>;</script>
+<?php endif; ?>
+
+<div id="rv-prompt-overlay" class="rv-overlay" role="dialog" aria-modal="true" aria-labelledby="rv-prompt-title">
+    <div class="rv-card rv-prompt">
+        <p class="rv-kicker"><?= tde('rv_done_kicker') ?></p>
+        <h2 class="rv-h" id="rv-prompt-title"></h2>
+        <p class="rv-p" id="rv-prompt-lede"></p>
+        <div class="rv-actions">
+            <button type="button" class="rv-btn primary" id="rv-prompt-view"><?= tde('rv_view') ?></button>
+            <button type="button" class="rv-btn" id="rv-prompt-later"><?= tde('rv_later') ?></button>
+        </div>
+    </div>
+</div>
+
+<div id="rv-modal-overlay" class="rv-overlay" role="dialog" aria-modal="true" aria-labelledby="rv-title">
+    <div class="rv-card rv-modal">
+        <div class="rv-head">
+            <div>
+                <p class="rv-kicker"><?= tde('rv_title_kicker') ?></p>
+                <h2 class="rv-h" id="rv-title"></h2>
+                <p class="rv-sub" id="rv-sub"></p>
+            </div>
+            <button type="button" class="rv-x" id="rv-close" aria-label="<?= tde('rv_close') ?>">&times;</button>
+        </div>
+        <div class="rv-bar">
+            <input type="search" class="rv-in" id="rv-search" placeholder="<?= tde('rv_search') ?>" aria-label="<?= tde('rv_search') ?>">
+            <label class="rv-check"><input type="checkbox" id="rv-flagged"> <?= tde('rv_only_flagged') ?></label>
+            <span class="rv-spacer"></span>
+            <a class="rv-btn sm" id="rv-analysis" href="#" target="_blank" rel="noopener"><?= tde('rv_analysis') ?></a>
+        </div>
+        <div class="rv-body" id="rv-body"></div>
+        <div class="rv-foot">
+            <span id="rv-watch-hint" hidden><?= tde('rv_watch_hint') ?> </span><?= tde('rv_hint') ?>
+        </div>
+    </div>
+</div>
+
+<div id="rv-confirm" class="rv-overlay" role="dialog" aria-modal="true" aria-labelledby="rv-confirm-title" style="z-index:9100">
+    <div class="rv-card rv-confirm">
+        <h2 class="rv-h" id="rv-confirm-title" style="font-size:1.35rem"></h2>
+        <p class="rv-p" style="margin-bottom:0"><?= tde('rv_cancel_p') ?></p>
+        <label for="rv-reason"><?= tde('rv_reason') ?></label>
+        <textarea id="rv-reason" maxlength="255"></textarea>
+        <div class="rv-row">
+            <button type="button" class="rv-btn" id="rv-confirm-no"><?= tde('rv_keep') ?></button>
+            <button type="button" class="rv-btn primary" id="rv-confirm-ok"><?= tde('rv_confirm') ?></button>
+        </div>
+    </div>
+</div>
+<script src="/assets/js/results-review.js" defer></script>
 
 <!-- ── Modal : Créer une séance de téléévaluation ────────── -->
 <div id="add-live-session-modal" class="hidden fixed inset-0 bg-black/40  z-[60] flex items-center justify-center p-6">

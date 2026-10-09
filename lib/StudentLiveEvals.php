@@ -25,7 +25,7 @@ final class StudentLiveEvals
               AND ((s.is_async = 0 AND s.end_time >= NOW())
                 OR (s.is_async = 1 AND (s.async_deadline IS NULL OR s.async_deadline >= NOW())))
               AND NOT EXISTS (SELECT 1 FROM live_eval_registrations r2
-                               WHERE r2.session_id = s.id AND (r2.student_id = :sid3 OR r2.email = :em2) AND r2.score IS NOT NULL)
+                               WHERE r2.session_id = s.id AND (r2.student_id = :sid3 OR r2.email = :em2) AND (r2.score IS NOT NULL OR r2.cancelled_at IS NOT NULL))
         ");
         $stmt->execute(['sid' => $studentId, 'sid2' => $studentId, 'sid3' => $studentId, 'em' => $email, 'em2' => $email]);
         $rows = $stmt->fetchAll();

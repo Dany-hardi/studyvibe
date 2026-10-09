@@ -49,7 +49,7 @@ try {
 
     // Fetch registrations ordered by score descending (order of merit)
     $stmt = $pdo->prepare("
-        SELECT name, email, score, registered_at
+        SELECT name, email, score, registered_at, cancelled_at
         FROM live_eval_registrations
         WHERE session_id = :sid
         ORDER BY CASE WHEN score IS NULL THEN 1 ELSE 0 END, score DESC, name ASC

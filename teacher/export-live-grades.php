@@ -66,7 +66,7 @@ try {
 
     // Récupérer les inscrits et leurs notes
     $stmt = $pdo->prepare("
-        SELECT name, email, score, registered_at
+        SELECT name, email, score, registered_at, cancelled_at
         FROM live_eval_registrations
         WHERE session_id = :sid
         ORDER BY CASE WHEN score IS NULL THEN 1 ELSE 0 END, score DESC, name ASC
@@ -81,7 +81,7 @@ try {
             $raw = (int)round(((float)$r['score'] / 100) * $totalQuestions);
             $rows[] = [$r['name'], $r['email'], $raw, $totalQuestions, round((float)$r['score'], 1), (float)$r['score'] >= 50 ? 'Admis' : 'Ajourné', $r['registered_at']];
         } else {
-            $rows[] = [$r['name'], $r['email'], null, $totalQuestions, null, 'Non rendu', $r['registered_at']];
+            $rows[] = [$r['name'], $r['email'], null, $totalQuestions, null, !empty($r['cancelled_at']) ? 'Annulé' : 'Non rendu', $r['registered_at']];
         }
     }
     $st = ExportDocs::statistics($registrations);

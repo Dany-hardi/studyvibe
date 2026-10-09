@@ -45,7 +45,7 @@ try {
     $totalQuestions = (int)$q->fetchColumn();
 
     // Alphabetical, as a marks sheet is read; the ranking has its own export
-    $stmt = $pdo->prepare("SELECT name, email, score FROM live_eval_registrations WHERE session_id = :sid ORDER BY name ASC");
+    $stmt = $pdo->prepare("SELECT name, email, score, cancelled_at FROM live_eval_registrations WHERE session_id = :sid ORDER BY name ASC");
     $stmt->execute(['sid' => $sessionId]);
     $registrations = $stmt->fetchAll();
 

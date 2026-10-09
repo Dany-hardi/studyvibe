@@ -395,7 +395,7 @@ final class ExportDocs
         } else {
             $row[] = '--';
             $row[] = '--';
-            $row[] = '\\textit{' . ($en ? 'Not submitted' : 'Non rendu') . '}';
+            $row[] = '\\textit{' . (!empty($r['cancelled_at']) ? ($en ? 'Cancelled' : 'Annulé') : ($en ? 'Not submitted' : 'Non rendu')) . '}';
         }
         return $row;
     }

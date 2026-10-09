@@ -387,6 +387,53 @@ class Database
             } catch (PDOException $ex) {}
         }
 
+        // Migration 2.6f: queue of emails sent in the background (announcement of an evaluation to a whole class, cancelled results).
+        // The row keeps the template name and its data, not the HTML, so it is drawn with the current design when it is sent.
+        try {
+            $pdo->query("SELECT 1 FROM email_outbox LIMIT 1");
+        } catch (PDOException $e) {
+            try {
+                $pdo->exec("
+                    CREATE TABLE IF NOT EXISTS `email_outbox` (
+                        `id`          BIGINT AUTO_INCREMENT PRIMARY KEY,
+                        `user_id`     INT DEFAULT NULL,
+                        `to_email`    VARCHAR(255) NOT NULL,
+                        `template`    VARCHAR(40) NOT NULL,
+                        `args`        MEDIUMTEXT NOT NULL,
+                        `dedupe_key`  VARCHAR(120) DEFAULT NULL,
+                        `status`      ENUM('queued','sending','sent','failed') NOT NULL DEFAULT 'queued',
+                        `attempts`    TINYINT NOT NULL DEFAULT 0,
+                        `error`       VARCHAR(255) DEFAULT NULL,
+                        `next_try_at` DATETIME DEFAULT NULL,
+                        `created_at`  TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                        `sent_at`     DATETIME DEFAULT NULL,
+                        UNIQUE KEY `uq_email_dedupe` (`dedupe_key`),
+                        KEY `idx_email_status` (`status`, `next_try_at`)
+                    ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4
+                ");
+            } catch (PDOException $ex) {}
+        }
+
+        // Migration 2.6g: a teacher can cancel a student's result of a live evaluation (cheating, a problem during the exam) and
+        // restore it later. The original mark is kept in cancelled_score. results_prompted_at: the "exam finished" window of the
+        // teacher dashboard appears once per session.
+        try {
+            $pdo->query("SELECT cancelled_at, cancelled_reason, cancelled_score FROM live_eval_registrations LIMIT 1");
+        } catch (PDOException $e) {
+            try {
+                $pdo->exec("ALTER TABLE `live_eval_registrations` ADD COLUMN `cancelled_at` DATETIME DEFAULT NULL");
+                $pdo->exec("ALTER TABLE `live_eval_registrations` ADD COLUMN `cancelled_reason` VARCHAR(255) DEFAULT NULL");
+                $pdo->exec("ALTER TABLE `live_eval_registrations` ADD COLUMN `cancelled_score` DECIMAL(5,2) DEFAULT NULL");
+            } catch (PDOException $ex) {}
+        }
+        try {
+            $pdo->query("SELECT results_prompted_at FROM live_eval_sessions LIMIT 1");
+        } catch (PDOException $e) {
+            try {
+                $pdo->exec("ALTER TABLE `live_eval_sessions` ADD COLUMN `results_prompted_at` DATETIME DEFAULT NULL");
+            } catch (PDOException $ex) {}
+        }
+
         // Migration 2.7: Support binary storage backups for course cover images and lesson PDFs
         try {
             $pdo->query("SELECT cover_image_data FROM courses LIMIT 1");

@@ -98,6 +98,17 @@ if ($currentUser['role'] === 'student' && (int)$registration['student_id'] !== $
     exit;
 }
 
+
+// A result the teacher cancelled is not shown as a score
+if (!empty($registration['cancelled_at'])) {
+    $errorCode = 403;
+    $errorTitle = 'Résultat annulé';
+    $errorMessage = "Votre enseignant a annulé votre résultat pour cette évaluation" . (!empty($registration['cancelled_reason']) ? ' : ' . $registration['cancelled_reason'] : '.') . " Si vous pensez qu'il s'agit d'une erreur, parlez-en à votre enseignant.";
+    $badgeText = 'Annulé';
+    include __DIR__ . '/../error.php';
+    exit;
+}
+
 // =========================================================================
 // SECTION 3: USER ANSWERS FETCHING & METRIC COMPUTATION
 // =========================================================================

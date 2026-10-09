@@ -115,6 +115,13 @@ final class LiveMailQueue
                 continue;
             }
             $p = json_decode((string)$job['payload'], true) ?: [];
+            // The teacher may have cancelled this result after the mail was queued: it must not go out
+            $gone = $pdo->prepare("SELECT 1 FROM live_eval_registrations WHERE id = :r AND cancelled_at IS NOT NULL");
+            $gone->execute(['r' => $job['registration_id']]);
+            if ($gone->fetchColumn()) {
+                $pdo->prepare("UPDATE live_eval_mail_queue SET status='failed', claim=NULL, last_error='result cancelled' WHERE id=:id")->execute(['id' => $job['id']]);
+                continue;
+            }
             $ok = false;
             try {
                 $ok = Mailer::sendLiveEvalResults(

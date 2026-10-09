@@ -18,6 +18,7 @@ require_once __DIR__ . '/../../lib/Totp.php';
 require_once __DIR__ . '/../../lib/SmsGateway.php';
 require_once __DIR__ . '/../../lib/LiveSmsNotifier.php';
 require_once __DIR__ . '/../../lib/ExportTheme.php';
+require_once __DIR__ . '/../../Mailer.php';
 
 $passed = 0;
 $failed = [];
@@ -139,6 +140,44 @@ t('latex: the document uses the traditional typeface and no sans-serif', functio
     eq(str_contains($d, 'sfdefault') || str_contains($d, 'helvet') || str_contains($d, 'fontspec'), false);
 });
 t('latex: file names are plain', fn() => eq(ExportTheme::slug('Contrôle d\'Algèbre n°2 — 50 %'), 'controle_d_algebre_n_2_50'));
+
+// ---- Email design and message structure
+t('email: every message carries the inline logo, rounded card, web fonts with fallbacks, no emoji', function () {
+    $h = EmailTheme::layout(EmailTheme::title('Bonjour') . EmailTheme::button('https://x.cm', 'Go'));
+    eq(str_contains($h, 'cid:svlogo@studyvibe'), true);
+    eq(str_contains($h, 'border-radius:24px'), true);
+    eq(str_contains($h, "'Fraunces', Georgia"), true);
+    eq(str_contains($h, "'Hanken Grotesk'"), true);
+    eq(preg_match('/[\x{1F300}-\x{1FAFF}\x{2600}-\x{27BF}]/u', $h), 0);
+});
+t('email: text is escaped in titles, badges and facts', function () {
+    $h = EmailTheme::title('<script>alert(1)</script>') . EmailTheme::badge('<b>x</b>') . EmailTheme::facts([['<i>', '&']]);
+    eq(str_contains($h, '<script>'), false);
+    eq(str_contains($h, '&lt;script&gt;'), true);
+});
+t('email: plain-text version has links written out and no logo link', function () {
+    $txt = EmailTheme::toText(EmailTheme::layout('<p>Salut <a href="https://x.cm/a">ici</a></p>', ['preheader' => 'p']));
+    eq(str_contains($txt, 'ici (https://x.cm/a)'), true);
+    eq(str_starts_with($txt, 'http'), false);
+});
+t('email: MIME has HTML, plain text and the logo as an inline image', function () {
+    $m = Mailer::buildMime('a@b.cm', 'Sujet é', EmailTheme::layout('<p>é</p>'), 'noreply@x.cm', 'StudyVibe');
+    eq(str_contains($m['headers'], 'multipart/related'), true);
+    eq(str_contains($m['body'], 'Content-Type: text/plain'), true);
+    eq(str_contains($m['body'], 'Content-Type: text/html'), true);
+    eq(str_contains($m['body'], 'Content-ID: <svlogo@studyvibe>'), true);
+    eq(str_starts_with($m['subject'], '=?UTF-8?B?'), true);
+    foreach (explode("\r\n", $m['body']) as $line) {
+        if (strlen($line) > 998) { throw new RuntimeException('line too long for SMTP'); }
+    }
+});
+t('email: addresses and subjects with line breaks are refused (header injection)', function () {
+    Mailer::$capture = fn() => null;
+    eq(Mailer::send("a@b.cm\r\nBcc: evil@x.cm", 'Sujet', '<p>x</p>'), false);
+    eq(Mailer::send('a@b.cm', "Sujet\r\nBcc: evil@x.cm", '<p>x</p>'), false);
+    eq(Mailer::send('a@b.cm', 'Sujet', '<p>x</p>'), true);
+    Mailer::$capture = null;
+});
 
 // ---- PasswordPolicy
 t('password: 7 characters rejected', fn() => eq(PasswordPolicy::check('abc1234') !== null, true));

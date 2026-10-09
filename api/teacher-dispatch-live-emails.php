@@ -49,7 +49,7 @@ try {
         SELECT r.id, r.name, r.email, r.score,
                (SELECT COUNT(*) FROM live_eval_answers WHERE registration_id = r.id) AS answered_count
         FROM live_eval_registrations r
-        WHERE r.session_id = :sid
+        WHERE r.session_id = :sid AND r.cancelled_at IS NULL
         ORDER BY r.name ASC
     ");
     $stmt->execute(['sid' => $sessionId]);

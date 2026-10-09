@@ -375,7 +375,8 @@ try {
     if ($action === 'poll_quiz') {
         // Return results and leaderboard if session has completed
         if ($isFinished) {
-            if ($registration['score'] === null) {
+            // A result the teacher cancelled stays cancelled: no new score, no new email
+            if ($registration['score'] === null && empty($registration['cancelled_at'])) {
                 // Calculate score and trigger automatic results email
                 $scorePercent = calculateAndSaveScore($pdo, $session, $registration, $questions);
                 $registration['score'] = $scorePercent;

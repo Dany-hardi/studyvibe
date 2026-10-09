@@ -1,0 +1,50 @@
+/* "Exam finished" window and the results review table (teacher dashboard). Colours come from the tokens in sv2.css. */
+.rv-overlay { position: fixed; inset: 0; z-index: 9000; display: none; align-items: center; justify-content: center; padding: 1rem; background: color-mix(in srgb, var(--ink, #1E1B16) 55%, transparent); }
+.rv-overlay.is-open { display: flex; }
+.rv-card { background: var(--card, #FBF8F2); color: var(--ink, #1E1B16); border: 1px solid var(--line, #DDD5C3); border-radius: 20px; box-shadow: 0 24px 60px rgba(0,0,0,.25); font-family: 'Hanken Grotesk', system-ui, sans-serif; }
+.rv-prompt { width: min(30rem, 100%); padding: 2rem 1.75rem 1.5rem; text-align: center; display: flex; flex-direction: column; gap: .6rem; }
+.rv-prompt .rv-kicker, .rv-prompt .rv-h, .rv-prompt .rv-p { margin: 0; }
+.rv-prompt .rv-p { margin-bottom: .6rem; }
+.rv-kicker { margin: 0 0 .35rem; color: var(--pine, #24402F); font-weight: 700; font-size: .75rem; letter-spacing: .08em; text-transform: uppercase; }
+.rv-h { margin: 0 0 .5rem; font: 500 1.7rem/1.2 'Fraunces', Georgia, serif; }
+.rv-p { margin: 0 0 1.25rem; color: var(--ink-2, #4A453C); line-height: 1.55; }
+.rv-actions { display: flex; flex-direction: column; gap: .6rem; }
+.rv-btn { min-height: 46px; padding: .55rem 1.2rem; border-radius: 12px; border: 1px solid var(--line-2, #C9BFA9); background: transparent; color: var(--ink, #1E1B16); font: 700 .95rem 'Hanken Grotesk', system-ui, sans-serif; cursor: pointer; text-decoration: none; display: inline-flex; align-items: center; justify-content: center; }
+.rv-btn.primary { background: var(--clay, #B5482A); border-color: var(--clay, #B5482A); color: #fff; }
+.rv-btn.danger { color: var(--danger, #B3261E); border-color: color-mix(in srgb, var(--danger, #B3261E) 50%, transparent); }
+.rv-btn.sm { min-height: 36px; padding: .3rem .8rem; font-size: .85rem; border-radius: 10px; }
+.rv-btn:disabled { opacity: .55; cursor: progress; }
+.rv-btn:focus-visible, .rv-in:focus-visible, .rv-x:focus-visible { outline: 2px solid var(--clay, #B5482A); outline-offset: 2px; }
+
+.rv-modal { width: min(72rem, 100%); max-height: 92vh; display: flex; flex-direction: column; }
+.rv-head { display: flex; align-items: flex-start; justify-content: space-between; gap: 1rem; padding: 1.25rem 1.5rem .75rem; }
+.rv-head .rv-h { font-size: 1.5rem; margin: 0; }
+.rv-sub { margin: .25rem 0 0; color: var(--ink-2, #4A453C); font-size: .92rem; }
+.rv-x { width: 40px; height: 40px; border: 0; border-radius: 12px; background: transparent; color: var(--ink-2, #4A453C); font-size: 1.4rem; cursor: pointer; }
+.rv-bar { display: flex; flex-wrap: wrap; gap: .75rem 1rem; align-items: center; padding: 0 1.5rem .75rem; }
+.rv-in { min-height: 40px; padding: .4rem .75rem; border-radius: 10px; border: 1.5px solid var(--line-2, #C9BFA9); background: var(--paper, #F5F0E6); color: var(--ink, #1E1B16); font: 500 .95rem 'Hanken Grotesk', sans-serif; min-width: 14rem; }
+.rv-check { display: inline-flex; align-items: center; gap: .45rem; font-size: .9rem; cursor: pointer; }
+.rv-check input { width: 1.1rem; height: 1.1rem; accent-color: var(--clay, #B5482A); }
+.rv-spacer { flex: 1; }
+.rv-body { overflow: auto; padding: 0 1.5rem 1rem; }
+.rv-table { width: 100%; border-collapse: collapse; font-size: .92rem; }
+.rv-table th { position: sticky; top: 0; z-index: 1; background: var(--card, #FBF8F2); text-align: left; padding: .6rem .6rem; font-size: .78rem; letter-spacing: .04em; text-transform: uppercase; color: var(--ink-2, #4A453C); border-bottom: 2px solid var(--line, #DDD5C3); white-space: nowrap; }
+.rv-table td { padding: .65rem .6rem; border-bottom: 1px solid var(--line, #DDD5C3); vertical-align: top; }
+.rv-table tr.is-cancelled td { color: var(--ink-3, #6B6557); }
+.rv-table tr.is-cancelled .rv-name { text-decoration: line-through; }
+.rv-num { font-variant-numeric: tabular-nums; white-space: nowrap; font-weight: 700; }
+.rv-mat { font-variant-numeric: tabular-nums; white-space: nowrap; }
+.rv-chip { display: inline-block; padding: .15rem .65rem; border-radius: 999px; font-size: .78rem; font-weight: 700; }
+.rv-chip.ok { background: color-mix(in srgb, var(--pine, #24402F) 14%, transparent); color: var(--pine, #24402F); }
+.rv-chip.look { background: color-mix(in srgb, var(--ochre, #D9A23B) 28%, transparent); color: #7A5A12; }
+.rv-chip.suspect { background: color-mix(in srgb, var(--danger, #B3261E) 14%, transparent); color: var(--danger, #B3261E); }
+.rv-chip.muted { background: var(--paper, #F5F0E6); color: var(--ink-3, #6B6557); }
+.rv-notes { margin: .35rem 0 0; padding: 0; list-style: none; color: var(--ink-2, #4A453C); font-size: .82rem; line-height: 1.45; }
+.rv-foot { padding: .75rem 1.5rem 1.1rem; color: var(--ink-3, #6B6557); font-size: .82rem; border-top: 1px solid var(--line, #DDD5C3); }
+.rv-empty { padding: 2rem 0; text-align: center; color: var(--ink-3, #6B6557); }
+
+.rv-confirm { width: min(28rem, 100%); padding: 1.5rem; }
+.rv-confirm textarea { width: 100%; box-sizing: border-box; min-height: 5.5rem; padding: .6rem .75rem; border-radius: 12px; border: 1.5px solid var(--line-2, #C9BFA9); background: var(--paper, #F5F0E6); color: var(--ink, #1E1B16); font: 500 .95rem 'Hanken Grotesk', sans-serif; resize: vertical; }
+.rv-confirm label { display: block; margin: .75rem 0 .3rem; font-weight: 600; font-size: .9rem; }
+.rv-row { display: flex; gap: .6rem; justify-content: flex-end; margin-top: 1rem; flex-wrap: wrap; }
+@media (max-width: 760px) { .rv-table th:nth-child(3), .rv-table td:nth-child(3) { display: none; } .rv-modal { max-height: 96vh; } }
