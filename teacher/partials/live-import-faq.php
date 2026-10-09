@@ -1,7 +1,7 @@
 <?php
 /**
- * FAQ of the live evaluations tab: how to add questions in bulk, with and without pictures.
- * Included at the end of #tab-live-eval in teacher/dashboard.php (needs $tdLang). The text is static and written here,
+ * Import guide (FAQ): how to add questions in bulk, with and without pictures.
+ * Included in its own tab, #tab-help, in teacher/dashboard.php (needs $tdLang). The text is static and written here,
  * so it is printed as it is. Numbers (limits) come from the code so the page can never disagree with the importer.
  */
 $lifLang = (isset($tdLang) && $tdLang === 'en') ? 'en' : 'fr';
@@ -14,6 +14,7 @@ $lifZipMb    = ($lifMaxZip > 100000) ? '512' : (string)$lifMaxZip;
 
 $LIF = [
 'fr' => [
+ 'kicker' => 'Aide',
  'title' => 'FAQ : ajouter des questions en lot, avec ou sans images',
  'lede'  => 'Tout ce qu’il faut savoir pour préparer vos questions et les importer sans mauvaise surprise : formats de fichiers, noms des images, colonnes, exemples à copier, messages d’erreur et leurs solutions.',
  'expand' => 'Tout ouvrir', 'collapse' => 'Tout fermer', 'tpl_zip' => 'Télécharger un pack ZIP modèle', 'tpl_csv' => 'Télécharger un fichier CSV modèle',
@@ -206,6 +207,7 @@ HTML],
  ],
 ],
 'en' => [
+ 'kicker' => 'Help',
  'title' => 'FAQ: adding questions in bulk, with or without pictures',
  'lede'  => 'Everything you need to prepare your questions and import them without surprises: file formats, picture names, columns, examples to copy, error messages and how to fix them.',
  'expand' => 'Open all', 'collapse' => 'Close all', 'tpl_zip' => 'Download a sample ZIP package', 'tpl_csv' => 'Download a sample CSV file',
@@ -403,13 +405,13 @@ $T = $LIF[$lifLang];
 $fill = static fn(string $h): string => strtr($h, ['__IMG__' => $lifMaxImg, '__Q__' => (string)$lifMaxQ, '__F__' => (string)$lifMaxFiles, '__UNP__' => $lifMaxUnp, '__ZIP__' => $lifZipMb]);
 ?>
 <section id="live-import-faq" class="lif" aria-labelledby="lif-h">
-    <header class="lif-head">
+    <header class="t-head">
         <div>
-            <p class="t-kicker">FAQ</p>
-            <h3 id="lif-h"><?= htmlspecialchars($T['title'], ENT_QUOTES, 'UTF-8') ?></h3>
+            <p class="t-kicker"><?= htmlspecialchars($T['kicker'], ENT_QUOTES, 'UTF-8') ?></p>
+            <h2 id="lif-h"><?= htmlspecialchars($T['title'], ENT_QUOTES, 'UTF-8') ?></h2>
             <p class="lif-lede"><?= htmlspecialchars($T['lede'], ENT_QUOTES, 'UTF-8') ?></p>
         </div>
-        <div class="lif-tools">
+        <div class="t-actions">
             <a class="t-btn t-btn-ghost" href="/teacher/bulk-import.php?template=1" download><?= htmlspecialchars($T['tpl_zip'], ENT_QUOTES, 'UTF-8') ?></a>
             <a class="t-btn t-btn-ghost" href="/teacher/sample-questions.csv" download><?= htmlspecialchars($T['tpl_csv'], ENT_QUOTES, 'UTF-8') ?></a>
             <button type="button" class="t-btn t-btn-ghost" data-lif-all="open"><?= htmlspecialchars($T['expand'], ENT_QUOTES, 'UTF-8') ?></button>
@@ -429,10 +431,7 @@ $fill = static fn(string $h): string => strtr($h, ['__IMG__' => $lifMaxImg, '__Q
     <?php endforeach; ?>
 </section>
 <style>
-.lif { margin-top: 3rem; padding-top: 2rem; border-top: 1px solid var(--line); }
-.lif-head { display: flex; flex-wrap: wrap; gap: 1rem 2rem; align-items: flex-start; justify-content: space-between; margin-bottom: 1rem; }
-.lif-head h3 { font-size: 1.6rem; margin: .1rem 0 .4rem; } .lif-lede { color: var(--ink-2); max-width: 46rem; margin: 0; }
-.lif-tools { display: flex; flex-wrap: wrap; gap: .5rem; }
+.lif-lede { color: var(--ink-2); max-width: 46rem; margin: 0; }
 .lif-chips { display: flex; flex-wrap: wrap; gap: .4rem; margin: 0 0 1.2rem; }
 .lif-chips a { font-size: .8rem; padding: .3rem .65rem; border: 1px solid var(--line); border-radius: 999px; color: var(--ink-2); text-decoration: none; background: var(--card); }
 .lif-chips a:hover { border-color: var(--clay); color: var(--ink); }
@@ -461,6 +460,7 @@ $fill = static fn(string $h): string => strtr($h, ['__IMG__' => $lifMaxImg, '__Q
   root.querySelectorAll('[data-lif-open]').forEach(function (a) { a.addEventListener('click', function (e) { e.preventDefault(); openById(a.getAttribute('data-lif-open')); }); });
   root.querySelectorAll('[data-lif-all]').forEach(function (b) { b.addEventListener('click', function () { var o = b.getAttribute('data-lif-all') === 'open'; root.querySelectorAll('details.lif-item').forEach(function (d) { d.open = o; }); }); });
   window.openLiveImportFaq = function (id) {
+    if (typeof switchDashboardTab === 'function') switchDashboardTab('tab-help');
     openById(id || 'zip-steps');
   };
 })();

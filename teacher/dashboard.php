@@ -1211,6 +1211,7 @@ function tdIcon(string $name): string {
         'grades'  => 'M4 20V11M10 20V4M16 20v-6M21 20H3',
         'assign'  => 'M8 3.5h6.5L19 8v12.5H8zM14 3.5V8h5M11 13h5M11 16.5h5',
         'qa'      => 'M4 5.5h16v10H9.5L5 19.5v-4H4z',
+        'help'    => 'M12 21a9 9 0 100-18 9 9 0 000 18zM9.6 9.4a2.5 2.5 0 114.2 1.8c-.9.7-1.8 1.2-1.8 2.4M12 16.6h.01',
         'menu'    => 'M4 7h16M4 12h16M4 17h16',
         'bell'    => 'M6 9a6 6 0 0112 0c0 5 2 6.5 2 6.5H4S6 14 6 9zM10 19a2 2 0 004 0',
         'moon'    => 'M20 14.5A8 8 0 019.5 4a8 8 0 1010.5 10.5z',
@@ -1389,6 +1390,10 @@ $tdHasCourse = (bool)$selectedCourse;
                 <?php $navItem('tab-grades', 'grades', td('nav_grades')); ?>
                 <?php $navItem('tab-assignments', 'assign', td('nav_assign'), true, $tdNewSubs, true); ?>
                 <?php $navItem('tab-comments', 'qa', td('nav_qa'), true, $tdUnanswered); ?>
+            </nav>
+            <nav class="t-nav-group">
+                <p><?= tde('nav_g_help') ?></p>
+                <?php $navItem('tab-help', 'help', td('nav_help'), false); ?>
             </nav>
         </div>
 
@@ -1702,6 +1707,11 @@ $tdHasCourse = (bool)$selectedCourse;
 
             <?php endif; ?>
 
+            </div>
+
+            <!-- HELP: import guide / FAQ (tab-help). Needs no course, so it sits outside the course-only block. -->
+            <div id="tab-help" class="tab-content hidden" data-title="<?= tde('nav_help') ?>">
+                <?php require __DIR__ . '/partials/live-import-faq.php'; ?>
             </div>
 
         <?php if ($selectedCourse): ?>
@@ -2099,11 +2109,12 @@ $tdHasCourse = (bool)$selectedCourse;
                         <h2><?= td('live_title') ?></h2>
                         <p><?= tde('live_lede') ?></p>
                     </div>
-                    <?php if ($selectedCourse && !empty($liveSessions)): ?>
-                        <div class="t-actions">
+                    <div class="t-actions">
+                        <button type="button" onclick="switchDashboardTab('tab-help')" class="t-btn t-btn-ghost"><?= tdIcon('help') ?><?= tde('nav_help') ?></button>
+                        <?php if ($selectedCourse && !empty($liveSessions)): ?>
                             <button type="button" onclick="toggleModal('add-live-session-modal')" class="t-btn t-btn-primary"><?= tdIcon('plus') ?><?= tde('live_new') ?></button>
-                        </div>
-                    <?php endif; ?>
+                        <?php endif; ?>
+                    </div>
                 </header>
 
                 <?php
@@ -2505,7 +2516,6 @@ $tdHasCourse = (bool)$selectedCourse;
                     <?php endforeach; ?>
                 <?php endif; ?>
 
-                <?php require __DIR__ . '/partials/live-import-faq.php'; ?>
             </div>
 
             <!-- 5. NOTES & SUIVI (tab-grades) -->
@@ -4117,7 +4127,7 @@ function escHtml(str) {
 // --- Dashboard Tab Management ---
 function switchDashboardTab(tabId) {
     const hasCourse = <?= $selectedCourse ? 'true' : 'false' ?>;
-    if (tabId !== 'tab-overview' && !hasCourse) {
+    if (tabId !== 'tab-overview' && tabId !== 'tab-help' && !hasCourse) {
         return; // a course must be selected first
     }
     document.querySelectorAll('.tab-content').forEach(el => el.classList.add('hidden'));
