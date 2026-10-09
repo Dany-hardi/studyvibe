@@ -586,14 +586,16 @@ function calculateAndSaveScore(PDO $pdo, array $session, array $registration, ar
             $correctCount++;
         }
         
+        // The email shows the options in the order this student saw them
+        $seen = LiveScoring::asSeen($q, (string)$selected, $regId, !empty($session['shuffle_options']));
         $qasDetails[] = [
-            'question_text'  => $q['question_text'],
-            'option_a'       => $q['option_a'],
-            'option_b'       => $q['option_b'],
-            'option_c'       => $q['option_c'],
-            'option_d'       => $q['option_d'],
-            'correct_option' => $q['correct_option'],
-            'selected_option'=> $selected,
+            'question_text'  => $seen['question_text'],
+            'option_a'       => $seen['option_a'],
+            'option_b'       => $seen['option_b'],
+            'option_c'       => $seen['option_c'],
+            'option_d'       => $seen['option_d'],
+            'correct_option' => $seen['correct_option'],
+            'selected_option'=> $seen['selected_option'],
             'question_type'  => $q['question_type'] ?? 'mcq',
         ];
     }

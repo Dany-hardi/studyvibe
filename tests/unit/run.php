@@ -72,6 +72,33 @@ t('option order: students do not all get the same order', function () {
     }
 });
 
+// ---- LiveScoring::asSeen (what the student reads afterwards is what they saw)
+t('as seen: with no shuffle nothing moves', function () {
+    $q = ['question_id' => 5, 'option_a' => 'x', 'option_b' => 'y', 'option_c' => 'z', 'option_d' => 'w', 'correct_option' => 'B'];
+    $r = LiveScoring::asSeen($q, 'C', 9, false);
+    eq([$r['option_a'], $r['option_b'], $r['correct_option'], $r['selected_option']], ['x', 'y', 'B', 'C']);
+});
+t('as seen: letters and texts stay together for 200 students', function () {
+    $q = ['question_id' => 77, 'option_a' => 'three', 'option_b' => 'four', 'option_c' => 'five', 'option_d' => 'six', 'correct_option' => 'B', 'question_type' => 'mcq'];
+    $orig = ['A' => 'three', 'B' => 'four', 'C' => 'five', 'D' => 'six'];
+    for ($rid = 1; $rid <= 200; $rid++) {
+        foreach (['A', 'B', 'C', 'D', ''] as $picked) {
+            $r = LiveScoring::asSeen($q, $picked, $rid, true);
+            $shown = ['A' => $r['option_a'], 'B' => $r['option_b'], 'C' => $r['option_c'], 'D' => $r['option_d']];
+            eq($shown[$r['correct_option']], 'four');                                   // the marked correct answer is the right text
+            eq($picked === '' ? '' : $shown[$r['selected_option']], $picked === '' ? '' : $orig[$picked]);   // the marked pick is what they chose
+            eq(LiveScoring::isCorrect('mcq', $r['selected_option'], $r['correct_option']), $picked === 'B');   // same verdict as before
+            $order = LiveScoring::optionOrder($rid, 77);
+            eq($r['option_a'], $orig[$order[0]]);                                        // first button = first of their order
+        }
+    }
+});
+t('as seen: written questions are untouched', function () {
+    $q = ['question_id' => 5, 'question_type' => 'written', 'option_a' => '', 'option_b' => '', 'option_c' => '', 'option_d' => '', 'correct_option' => '2.5'];
+    $r = LiveScoring::asSeen($q, '2,5', 9, true);
+    eq([$r['correct_option'], $r['selected_option']], ['2.5', '2,5']);
+});
+
 // ---- PasswordPolicy
 t('password: 7 characters rejected', fn() => eq(PasswordPolicy::check('abc1234') !== null, true));
 t('password: 8 characters accepted', fn() => eq(PasswordPolicy::check('lune-8Fox'), null));

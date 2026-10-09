@@ -57,7 +57,7 @@ $currentUser = getCurrentUser();
 // Charger l'inscription avec les détails de la séance
 try {
     $stmt = $pdo->prepare("
-        SELECT r.*, s.title AS session_title, s.course_id, c.title AS course_title
+        SELECT r.*, s.title AS session_title, s.course_id, s.shuffle_options, c.title AS course_title
         FROM live_eval_registrations r
         JOIN live_eval_sessions s ON r.session_id = s.id
         JOIN courses c ON s.course_id = c.id
@@ -96,6 +96,10 @@ try {
     ");
     $stmt->execute(['reg_id' => $regId]);
     $answers = $stmt->fetchAll();
+    // Options in the order this student saw them (only when the session shuffled them)
+    foreach ($answers as $i => $row) {
+        $answers[$i] = LiveScoring::asSeen($row, (string)$row['selected_option'], (int)$regId, !empty($registration['shuffle_options']));
+    }
 } catch (PDOException $e) {
     http_response_code(500);
     exit('Erreur lors du chargement des réponses.');

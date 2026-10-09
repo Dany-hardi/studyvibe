@@ -55,6 +55,37 @@ final class LiveScoring
     }
 
     /**
+     * A question as one particular student saw it: when the session shuffled the options, the four texts come back in the
+     * order that student had on screen, and the correct letter and the student's answer are moved to match. Used by the
+     * results page, the PDF report and the results email, so what the student reads there is what they saw in the exam.
+     * Scoring is not affected: a letter and its text move together.
+     *
+     * @param array $q needs option_a..option_d, correct_option and the question id under 'question_id' or 'id'
+     * @return array the same array with option_a..d, correct_option and selected_option rewritten
+     */
+    public static function asSeen(array $q, string $selected, int $registrationId, bool $shuffle): array
+    {
+        $q['selected_option'] = $selected;
+        if (!$shuffle || ($q['question_type'] ?? 'mcq') !== 'mcq') {
+            return $q;
+        }
+        $qid = (int)($q['question_id'] ?? $q['id'] ?? 0);
+        $order = self::optionOrder($registrationId, $qid);   // display position => original letter
+        $letters = ['A', 'B', 'C', 'D'];
+        $original = [];
+        foreach ($letters as $l) {
+            $original[$l] = (string)($q['option_' . strtolower($l)] ?? '');
+        }
+        $position = array_flip($order);                      // original letter => display position
+        foreach ($order as $i => $orig) {
+            $q['option_' . strtolower($letters[$i])] = $original[$orig];
+        }
+        $q['correct_option'] = isset($position[(string)$q['correct_option']]) ? $letters[$position[(string)$q['correct_option']]] : $q['correct_option'];
+        $q['selected_option'] = isset($position[$selected]) ? $letters[$position[$selected]] : $selected;
+        return $q;
+    }
+
+    /**
      * The order in which one student sees options A to D for one question. The same student always gets the same order
      * (the poll runs every second), and two students almost always get different ones.
      *
