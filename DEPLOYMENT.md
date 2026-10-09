@@ -177,6 +177,20 @@ sudo a2enmod rewrite
 sudo systemctl reload apache2
 ```
 
+### Limites d'envoi de fichiers (packs ZIP)
+
+Envoi maximal : **512 Mo** par fichier. Les valeurs doivent concorder à chaque étage, la plus petite gagne :
+
+| Étage | Réglage | Valeur |
+|---|---|---|
+| PHP (FPM, CGI) | `.user.ini` | `upload_max_filesize=512M`, `post_max_size=640M` |
+| Apache + mod_php | `.htaccess`, `LimitRequestBody` | 512 Mo / 640 Mo |
+| Docker | `docker/php-tuning.ini`, `docker/apache-tuning.conf` | idem |
+| Nginx | `client_max_body_size` | `640M` |
+| Serveur de développement PHP | `./dev-server.sh` (ignore `.user.ini`) | idem |
+
+Si php-fpm est utilisé avec un `php.ini` global qui fixe ces valeurs, le `.user.ini` est relu toutes les 300 s (`user_ini.cache_ttl`).
+
 ### HTTPS avec Certbot (Let’s Encrypt)
 
 ```bash
@@ -195,6 +209,10 @@ server {
     root /var/www/studyvibe;
     index index.php;
 
+    # Packs ZIP (questions + images) jusqu'à 512 Mo : nginx refuse 1 Mo par défaut (erreur 413)
+    client_max_body_size 640M;
+    client_body_timeout 120s;
+
     location / {
         try_files $uri $uri/ /index.php?$query_string;
     }
@@ -202,6 +220,8 @@ server {
     location ~ \.php$ {
         include snippets/fastcgi-php.conf;
         fastcgi_pass unix:/var/run/php/php8.2-fpm.sock;
+        fastcgi_read_timeout 600s;
+        fastcgi_request_buffering on;
     }
 
     location ~ /\.env {

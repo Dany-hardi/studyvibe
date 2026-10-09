@@ -24,6 +24,7 @@ declare(strict_types=1);
 
 require_once __DIR__ . '/../auth.php';
 require_once __DIR__ . '/../lib/MediaStore.php';
+require_once __DIR__ . '/../lib/BulkPackage.php';
 require_once __DIR__ . '/../lib/LiveSmsNotifier.php';
 require_once __DIR__ . '/../lib/LiveMailNotifier.php';
 require_once __DIR__ . '/../Mailer.php';
@@ -475,7 +476,7 @@ try {
             }
 
             if (!empty($_FILES['library_file']['name'])) {
-                $doc = MediaStore::saveDocument($pdo, $_FILES['library_file'], 'library', ['pdf', 'docx', 'doc', 'zip', 'png', 'jpg', 'jpeg'], 64 * 1024 * 1024, 'lib_');
+                $doc = MediaStore::saveDocument($pdo, $_FILES['library_file'], 'library', ['pdf', 'docx', 'doc', 'zip', 'png', 'jpg', 'jpeg'], 256 * 1024 * 1024, 'lib_');
                 if ($doc['ok']) {
                     $filePath = $doc['file'];
                     $fileSize = $doc['size'];
@@ -2417,7 +2418,7 @@ $tdHasCourse = (bool)$selectedCourse;
                                             <a href="/teacher/sample-questions.csv" download class="t-link"><?= tde('q_import_sample') ?></a>
 
                                             <!-- Import en lot : questions + images dans un ZIP -->
-                                            <div class="bi" data-bi data-type="live" data-course="<?= (int)$selectedCourse['id'] ?>" data-session="<?= $sid ?>" style="margin-top:1.75rem;padding-top:1.25rem;border-top:1px solid var(--line)">
+                                            <div class="bi" data-bi data-max-bytes="<?= BulkPackage::uploadLimitBytes() ?>" data-type="live" data-course="<?= (int)$selectedCourse['id'] ?>" data-session="<?= $sid ?>" style="margin-top:1.75rem;padding-top:1.25rem;border-top:1px solid var(--line)">
                                                 <h4 style="font-size:1.25rem;margin-bottom:.4rem"><?= tde('bi_title') ?></h4>
                                                 <p style="color:var(--ink-2);font-size:.95rem;margin-bottom:.75rem"><?= tde('bi_lede') ?></p>
                                                 <div class="t-field">
@@ -4048,7 +4049,7 @@ try {
                     </select>
                 </div>
                 <div>
-                    <label class="block text-xs font-semibold   text-[var(--ink-2)]  mb-1">Fichier à joindre (PDF, DOCX, ZIP max 64Mo)</label>
+                    <label class="block text-xs font-semibold   text-[var(--ink-2)]  mb-1">Fichier à joindre (PDF, DOCX, ZIP max 256Mo)</label>
                     <input type="file" name="library_file" accept=".pdf,.docx,.doc,.zip,.png,.jpg,.jpeg"
                            class="w-full px-3 py-1.5 bg-[var(--paper-2)]  border border-[var(--line)]  rounded-lg text-xs focus:outline-none focus:border-[var(--clay)]">
                 </div>

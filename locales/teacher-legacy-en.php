@@ -172,7 +172,7 @@ return [
     'Guide d\'étude / Fiche' => 'Study guide / sheet',
     'Texte Rédigé (Markdown / LaTeX)' => 'Written text (Markdown / LaTeX)',
     'Autre format' => 'Other format',
-    'Fichier à joindre (PDF, DOCX, ZIP max 64Mo)' => 'File to attach (PDF, DOCX, ZIP, max 64 MB)',
+    'Fichier à joindre (PDF, DOCX, ZIP max 256Mo)' => 'File to attach (PDF, DOCX, ZIP, max 256 MB)',
     'Contenu Rédigé / Formules LaTeX (Markdown & LaTeX supportés)' => 'Written content / LaTeX formulas (Markdown & LaTeX supported)',
     'Insérez ici votre texte avec équations LaTeX $E=mc^2$ ou du Markdown...' => 'Paste your text here with LaTeX equations $E=mc^2$ or Markdown...',
     'Publier dans la bibliothèque' => 'Publish to the library',

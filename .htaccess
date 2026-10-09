@@ -3,21 +3,25 @@ ErrorDocument 404 /404.php
 ErrorDocument 403 /error.php?code=403&title=Acc%C3%A8s+Interdit&message=Vous+n%27avez+pas+l%27autorisation+d%27acc%C3%A8der+%C3%A0+cette+ressource.&badge=Acc%C3%A8s+Interdit
 ErrorDocument 500 /error.php?code=500&title=Erreur+Syst%C3%A8me&message=Une+erreur+interne+du+serveur+est+survenue.+Veuillez+r%C3%A9essayer+ult%C3%A9rieurement.&badge=Alerte
 
-# Configurer les limites d'upload et post max pour documents jusqu'à 60Mo
+# Configurer les limites d'upload et post max pour les packs ZIP (questions + images) jusqu'à 512 Mo
 <IfModule mod_php7.c>
-    php_value upload_max_filesize 64M
-    php_value post_max_size 128M
-    php_value memory_limit 256M
-    php_value max_execution_time 300
-    php_value max_input_time 300
+    php_value upload_max_filesize 512M
+    php_value post_max_size 640M
+    php_value memory_limit 512M
+    php_value max_execution_time 600
+    php_value max_input_time 600
+    php_value max_file_uploads 100
 </IfModule>
 <IfModule mod_php.c>
-    php_value upload_max_filesize 64M
-    php_value post_max_size 128M
-    php_value memory_limit 256M
-    php_value max_execution_time 300
-    php_value max_input_time 300
+    php_value upload_max_filesize 512M
+    php_value post_max_size 640M
+    php_value memory_limit 512M
+    php_value max_execution_time 600
+    php_value max_input_time 600
+    php_value max_file_uploads 100
 </IfModule>
+# Apache itself accepts bodies of any size unless LimitRequestBody is set: keep it above post_max_size
+LimitRequestBody 671088640
 
 # Developer scripts: never reachable from the web (debug_questions.php lists exam questions to anybody who asks)
 <FilesMatch "^(debug_questions|test-login-student|seed|migrate_v4|deploy_sync)\.php$">

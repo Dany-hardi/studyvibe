@@ -19,6 +19,8 @@
     function send(mode) {
       var f = fileIn.files[0];
       if (!f) { toast('error', t('bi_choose')); return Promise.resolve(null); }
+      var max = parseInt(box.dataset.maxBytes || '0', 10);
+      if (max && f.size > max) { toast('error', t('bi_toobig', { size: Math.round(f.size / 1048576), max: Math.floor(max / 1048576) })); return Promise.resolve(null); }
       var fd = new FormData();
       fd.append('file', f); fd.append('mode', mode); fd.append('type', box.dataset.type); fd.append('course_id', box.dataset.course);
       if (box.dataset.session) fd.append('session_id', box.dataset.session);

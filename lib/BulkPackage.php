@@ -21,16 +21,28 @@ require_once __DIR__ . '/../QuestionImporter.php';
  *   - Nothing is imported until the package has been checked ("preview"). The check reports, line by line, what is wrong.
  *   - All or nothing: if any line has an error, nothing is imported, so a half-imported exam never happens.
  *   - A picture must be a real picture (checked on the file itself), is scaled to 1600 px and kept in the database copy too.
- *   - Safety: at most 300 questions, 400 files, 120 MB once unpacked, 8 MB per picture; file names with folders or ".." are never
+ *   - Safety: at most 1000 questions, 2000 files, 1.5 GB once unpacked, 25 MB per picture; file names with folders or ".." are never
  *     used as paths (pictures are matched by their file name only, nothing is written outside a private temporary folder).
  *   - Pictures are used by live evaluations. Lesson and course quizzes do not carry pictures: they are ignored with a warning.
  */
 final class BulkPackage
 {
-    public const MAX_QUESTIONS = 300;
-    public const MAX_ENTRIES = 400;
-    public const MAX_UNPACKED = 125829120;   // 120 MB
-    public const MAX_IMAGE = 8388608;        // 8 MB
+    public const MAX_QUESTIONS = 1000;
+    public const MAX_ENTRIES = 2000;
+    public const MAX_UNPACKED = 1610612736;  // 1.5 GB
+    public const MAX_IMAGE = 26214400;       // 25 MB (each picture is scaled to 1600 px and re-encoded)
+    /** The largest file the server will take at all: the smaller of upload_max_filesize and post_max_size, in bytes. */
+    public static function uploadLimitBytes(): int
+    {
+        $toBytes = static function (string $v): int {
+            $v = trim($v);
+            if ($v === '' || $v === '-1') { return PHP_INT_MAX; }
+            $n = (int)$v;
+            return match (strtolower(substr($v, -1))) { 'g' => $n * 1073741824, 'm' => $n * 1048576, 'k' => $n * 1024, default => $n };
+        };
+        return min($toBytes((string)ini_get('upload_max_filesize')), $toBytes((string)ini_get('post_max_size')));
+    }
+
     private const IMAGE_EXT = ['png', 'jpg', 'jpeg', 'gif', 'webp'];
 
     /**
@@ -319,7 +331,7 @@ final class BulkPackage
             "  - Le pack est d'abord vérifié : rien n'est importé tant qu'il y a une erreur (tout ou rien).",
             "  - Une image doit être une vraie image ; elle est réduite à 1600 px de large.",
             "  - Les images servent aux évaluations en direct. Les quiz de leçon et de cours les ignorent.",
-            "  - Maximum : 300 questions, 400 fichiers, 120 Mo décompressé, 8 Mo par image.",
+            "  - Maximum : 1000 questions, 2000 fichiers, 1,5 Go décompressé, 25 Mo par image.",
             "  - Question vrai/faux : ne remplissez que option_a et option_b.",
             "  - Question écrite : laissez les options vides ; 'correct' contient la réponse attendue (plusieurs réponses : a|b ; tolérance : 2.5~0.1).",
             "",

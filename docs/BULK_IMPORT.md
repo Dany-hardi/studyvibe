@@ -37,7 +37,7 @@ Errors that block the import: a picture named in the CSV that is not in the zip,
 
 ## Limits and safety
 
-300 questions, 400 files, 120 MB unpacked, 8 MB per picture. Names with folders or `..` are never used as paths: pictures are matched by file name and unpacked under random names in a private temporary folder, which is deleted afterwards. Every picture is verified on the file itself, scaled to 1600 px and also kept in the database. The PHP setting `upload_max_filesize` (64 MB in `.htaccess`; the built-in dev server defaults to 2 MB) limits the size of the zip itself.
+1000 questions, 2000 files, 1.5 GB unpacked, 25 MB per picture. Names with folders or `..` are never used as paths: pictures are matched by file name and unpacked under random names in a private temporary folder, which is deleted afterwards. Every picture is verified on the file itself, scaled to 1600 px and also kept in the database. The zip itself can be up to 512 MB. That size is set in four places that must agree: `.user.ini` (php-fpm), `.htaccess` (Apache mod_php), `docker/php-tuning.ini` plus `docker/apache-tuning.conf` (Docker image), and `client_max_body_size` in nginx (see DEPLOYMENT.md). `post_max_size` (640 MB) must stay above `upload_max_filesize` (512 MB). PHP's built-in dev server ignores those files and defaults to 2 MB: start it with `./dev-server.sh`. The page reads the real limit from PHP and refuses a bigger file before sending it.
 
 ## Where
 

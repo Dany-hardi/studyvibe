@@ -87,12 +87,17 @@ try {
         $fail('Trop d’imports en peu de temps. Réessayez dans un moment.', 429);
     }
 
+    $limitMb = (int)floor(BulkPackage::uploadLimitBytes() / 1048576);
+    // A body larger than post_max_size is dropped by PHP before the script runs: $_FILES and $_POST arrive empty
+    if (empty($_FILES) && (int)($_SERVER['CONTENT_LENGTH'] ?? 0) > 0) {
+        $fail('Le fichier dépasse la taille maximale acceptée par le serveur (' . $limitMb . ' Mo). Réduisez le pack ou demandez à l’administrateur d’augmenter post_max_size.', 413);
+    }
     $file = $_FILES['file'] ?? null;
     if (!$file || (int)$file['error'] === UPLOAD_ERR_NO_FILE) {
         $fail('Aucun fichier reçu.');
     }
     if ((int)$file['error'] === UPLOAD_ERR_INI_SIZE || (int)$file['error'] === UPLOAD_ERR_FORM_SIZE) {
-        $fail('Le fichier dépasse la taille maximale acceptée par le serveur (upload_max_filesize).');
+        $fail('Le fichier dépasse la taille maximale acceptée par le serveur (' . $limitMb . ' Mo, réglage upload_max_filesize).', 413);
     }
     if ((int)$file['error'] !== UPLOAD_ERR_OK || !is_uploaded_file((string)$file['tmp_name'])) {
         $fail('Le transfert du fichier a échoué. Réessayez.');

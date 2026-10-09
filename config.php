@@ -9,12 +9,11 @@ error_reporting(E_ALL);
 // Configure default server timezone for consistent timestamping
 date_default_timezone_set('Africa/Douala');
 
-// Optimiser les limites d'upload et de mémoire pour les documents PDF (jusqu'à 60Mo)
-@ini_set('upload_max_filesize', '64M');
-@ini_set('post_max_size', '128M');
-@ini_set('memory_limit', '256M');
-@ini_set('max_execution_time', '300');
-@ini_set('max_input_time', '300');
+// Upload limits (upload_max_filesize, post_max_size, max_file_uploads) cannot be changed from PHP code: they are read before the
+// script starts. They live in .user.ini, .htaccess, docker/php-tuning.ini and dev-server.sh (512 MB per file). Only the two runtime
+// limits below can be set here.
+@ini_set('memory_limit', '512M');
+@ini_set('max_execution_time', '600');
 
 /**
  * StudyVibe LMS - Configuration Loader
