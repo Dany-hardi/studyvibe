@@ -202,6 +202,21 @@ t('csv: semicolon files and a BOM still work', function () {
     eq($r['questions'][0]['correct_option'], 'D');
 });
 
+// ---- no email to fake addresses
+t('mail: reserved test domains never receive email', function () {
+    foreach (['a@test.local', 'a@example.com', 'a@mail.example.org', 'a@x.invalid', 'a@localhost', 'a@school.test', 'a@zz.local'] as $e) {
+        eq(Mailer::isTestAddress($e), true);
+    }
+    foreach (['danyhardi06@gmail.com', 'danyhardi06+zz@gmail.com', 'prof@univ-yaounde1.cm', 'a@testing.com', 'a@local.com'] as $e) {
+        eq(Mailer::isTestAddress($e), false);
+    }
+});
+t('mail: send() refuses a test address without sending (capture off)', function () {
+    Mailer::$capture = null;
+    eq(Mailer::send('someone@test.local', 'Sujet', '<p>x</p>'), false);
+    eq(str_contains((string)Mailer::getLastError(), 'test'), true);
+});
+
 // ---- PasswordPolicy
 t('password: 7 characters rejected', fn() => eq(PasswordPolicy::check('abc1234') !== null, true));
 t('password: 8 characters accepted', fn() => eq(PasswordPolicy::check('lune-8Fox'), null));

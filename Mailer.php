@@ -49,6 +49,12 @@ class Mailer
             (self::$capture)($to, $subject, $htmlBody);
             return true;
         }
+        // Addresses that can never be a real person (test.local, example.com, .invalid...) get no email at all: tests and demos
+        // must not fill anybody's mailbox or bounce back into it.
+        if (self::isTestAddress($to)) {
+            self::$lastError = 'Adresse de test : aucun e-mail envoyé.';
+            return false;
+        }
         $from     = defined('SMTP_FROM') ? SMTP_FROM : 'noreply@studyvibe.edu';
         $fromName = defined('SMTP_FROM_NAME') ? SMTP_FROM_NAME : 'StudyVibe';
 
@@ -69,6 +75,18 @@ class Mailer
             self::$lastError = 'mail() PHP indisponible — configurez SMTP_HOST dans .env';
         }
         return $ok;
+    }
+
+    /** True for reserved test domains (RFC 2606 / 6761): they can never receive mail. */
+    public static function isTestAddress(string $email): bool
+    {
+        $domain = strtolower(substr(strrchr($email, '@') ?: '', 1));
+        if ($domain === '') {
+            return false;
+        }
+        return $domain === 'localhost' || $domain === 'test'
+            || (bool)preg_match('/(^|\.)example\.(com|org|net)$/', $domain)
+            || (bool)preg_match('/\.(local|test|invalid|example|localhost)$/', $domain);
     }
 
     /**
