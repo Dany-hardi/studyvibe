@@ -24,7 +24,7 @@ declare(strict_types=1);
 require_once __DIR__ . '/../auth.php';
 require_once __DIR__ . '/../lib/Brand.php';
 require_once __DIR__ . '/../lib/LiveScoring.php';
-require_once __DIR__ . '/../lib/LatexCompiler.php';
+require_once __DIR__ . '/../lib/ExportDocs.php';
 
 // Exiger que l'utilisateur soit connecté
 if (!isLoggedIn()) {
@@ -88,7 +88,7 @@ if ($currentUser['role'] === 'student' && (int)$registration['student_id'] !== $
 // Charger les réponses soumises et les questions associées
 try {
     $stmt = $pdo->prepare("
-        SELECT q.id AS question_id, q.question_text, q.option_a, q.option_b, q.option_c, q.option_d, q.correct_option, q.explanation, q.question_type, a.selected_option
+        SELECT q.id AS question_id, q.question_text, q.option_a, q.option_b, q.option_c, q.option_d, q.correct_option, q.explanation, q.question_type, q.image_path, a.selected_option
         FROM live_eval_answers a
         JOIN live_eval_questions q ON a.question_id = q.id
         WHERE a.registration_id = :reg_id
@@ -117,270 +117,26 @@ foreach ($answers as $ans) {
 $scorePercent = $totalQuestions > 0 ? ($correctCount / $totalQuestions) * 100 : 0.0;
 
 // =========================================================================
-// SECTION 4: LATEX FORMATTING HELPER FUNCTIONS
+// SECTION 4: THE DOCUMENT
 // =========================================================================
 
-/**
- * Filter and escape special character sequences for safe compilation in LaTeX documents.
- * Preserves inline/block math markup syntax.
- *
- * @param string|null $text Unescaped input text string.
- *
- * @return string LaTeX-safe escaped text string.
- */
-function escapeLatex(?string $text): string
-{
-    $text = LatexCompiler::sanitize($text ?? '');
-    // Remplacer les sauts de ligne HTML
-    $text = preg_replace('/<br\s*\/?>/i', "\n\n", $text);
-    
-    // Normaliser la syntaxe inline et block LaTeX existante
-    $text = str_replace(['\(', '\)'], '$', $text);
-    $text = str_replace(['\[', '\]'], '$$', $text);
+// Built in lib/ExportDocs.php with the look from lib/ExportTheme.php (traditional LaTeX typeface). The options are already in the
+// order this student saw them (see above), and the question pictures are included.
+$lang = TranslationService::getLang() === 'en' ? 'en' : 'fr';
+$doc  = ExportDocs::studentReport($pdo, $registration, $answers, $lang);
+$slug = 'rapport_correction_' . ExportTheme::slug((string)$registration['session_title'], 'evaluation');
 
-    // Découper le texte pour isoler les équations mathématiques ($...$ et $$...$$)
-    $parts = preg_split('/(\$\$.*?\$\$|\$.*?\$)/s', $text, -1, PREG_SPLIT_DELIM_CAPTURE);
-    if ($parts === false) {
-        return $text;
-    }
-
-    foreach ($parts as $idx => &$part) {
-        // Si c'est un bloc mathématique, ne pas toucher aux caractères spéciaux de LaTeX
-        if (str_starts_with($part, '$')) {
-            continue;
-        }
-
-        // Sinon, échapper les caractères spéciaux dans la partie texte standard
-        $part = strtr($part, [
-            '\\' => '\\textbackslash{}',
-            '%'  => '\\%',
-            '_'  => '\\_',
-            '&'  => '\\&',
-            '#'  => '\\#',
-            '{'  => '\\{',
-            '}'  => '\\}',
-            '~'  => '\\textasciitilde{}',
-            '^'  => '\\textasciicircum{}',
-            '<'  => '\\textless{}',
-            '>'  => '\\textgreater{}'
-        ]);
-    }
-    return implode('', $parts);
+$pdfData = LatexCompiler::compile($doc['tex'], $doc['assets']);
+if (!$pdfData) {
+    // No technical details for the student: the log stays on the server
+    http_response_code(503);
+    exit($lang === 'en' ? 'The PDF could not be produced right now. Please try again later.' : 'Le PDF n’a pas pu être produit pour le moment. Réessayez plus tard.');
 }
 
-// =========================================================================
-// SECTION 5: LATEX STRUCTURE & DOCUMENT ASSEMBLY
-// =========================================================================
-
-// Construction du document LaTeX
-$tex = "";
-$tex .= "\\documentclass[10pt,twocolumn,a4paper]{article}\n";
-$tex .= "\\usepackage[utf8]{inputenc}\n";
-$tex .= "\\usepackage[T1]{fontenc}\n";
-$tex .= "\\usepackage[french]{babel}\n";
-$tex .= "\\usepackage{amsmath,amssymb}\n";
-$tex .= "\\usepackage{tcolorbox}\n";
-$tex .= "\\usepackage{color}\n";
-$tex .= Brand::latexPreamble();
-$tex .= "\\usepackage{pifont}\n";
-$tex .= "\\usepackage{enumitem}\n";
-$tex .= "\\usepackage[margin=1.2cm]{geometry}\n";
-$tex .= "\n";
-$tex .= "\\tcbset{\n";
-$tex .= "    boxrule=0.6pt,\n";
-$tex .= "    arc=2pt,\n";
-$tex .= "    boxsep=3pt,\n";
-$tex .= "    top=6pt,\n";
-$tex .= "    bottom=6pt,\n";
-$tex .= "    left=6pt,\n";
-$tex .= "    right=6pt,\n";
-$tex .= "}\n";
-$tex .= "\n";
-$tex .= "\\newtcolorbox{questionbox}[2]{\n";
-$tex .= "    colback=gray!4,\n";
-$tex .= "    colframe=gray!40,\n";
-$tex .= "    title={Question #1 ~~\\hfill~~ #2},\n";
-$tex .= "    coltitle=black,\n";
-$tex .= "    fonttitle=\\bfseries\\sffamily\\small,\n";
-$tex .= "    fontupper=\\sffamily\\small\n";
-$tex .= "}\n";
-$tex .= "\n";
-$tex .= "\\newtcolorbox{correctbox}{\n";
-$tex .= "    colback=svpaper!60!white,\n";
-$tex .= "    colframe=svink!70,\n";
-$tex .= "    fontupper=\\sffamily\\small\n";
-$tex .= "}\n";
-$tex .= "\n";
-$tex .= "\\newtcolorbox{incorrectbox}{\n";
-$tex .= "    colback=red!3,\n";
-$tex .= "    colframe=red!50!black,\n";
-$tex .= "    fontupper=\\sffamily\\small\n";
-$tex .= "}\n";
-$tex .= "\n";
-$tex .= "\\begin{document}\n";
-$tex .= "\n";
-
-// Échapper les métadonnées pour LaTeX
-$escSessionTitle = escapeLatex($registration['session_title']);
-$escCourseTitle = escapeLatex($registration['course_title']);
-$escStudentName = escapeLatex($registration['name']);
-$escDate = escapeLatex(date('d/m/Y H:i'));
-$escScorePercent = escapeLatex((string)round($scorePercent, 1));
-
-$tex .= "\\twocolumn[{\n";
-$tex .= "  \\begin{center}\n";
-$tex .= "    \\sffamily\n";
-$tex .= "    \\svlogo[4.4cm]\\par\\vspace{0.6em}\n";
-$tex .= "    {\\large\\bfseries STUDYVIBE ~--~ RAPPORT D'\\'{E}VALUATION \\par}\n";
-$tex .= "    \\vspace{0.4em}\n";
-$tex .= "    {\\LARGE\\bfseries Session : {$escSessionTitle} \\par}\n";
-$tex .= "    \\vspace{0.4em}\n";
-$tex .= "    {\\large Cours : {$escCourseTitle} ~\\hfill~ Candidat : {$escStudentName} \\par}\n";
-$tex .= "    \\vspace{0.2em}\n";
-$tex .= "    {\\small Date : {$escDate} ~\\hfill~ Score : {$correctCount} / {$totalQuestions} ({$escScorePercent} \\%) \\par}\n";
-$tex .= "    \\vspace{0.8em}\n";
-$tex .= "    \\hrule height 1pt\n";
-$tex .= "    \\vspace{1.2em}\n";
-$tex .= "  \\end{center}\n";
-$tex .= "}]\n";
-$tex .= "\n";
-
-foreach ($answers as $index => $qa) {
-    $num = $index + 1;
-    
-    $isCorrect = false;
-    $isCorrect = LiveScoring::isCorrect((string)($qa['question_type'] ?? 'mcq'), (string)$qa['selected_option'], (string)$qa['correct_option']);
-    
-    $statusText = $isCorrect ? "Correct (+1)" : "Incorrect (0)";
-    
-    $escQuestionText = escapeLatex($qa['question_text']);
-    $escExplanation = escapeLatex($qa['explanation']);
-    
-    $tex .= "\\begin{questionbox}{{$num}}{{$statusText}}\n";
-    $tex .= "{$escQuestionText}\n";
-    
-    if (($qa['question_type'] ?? 'mcq') === 'written') {
-        // No itemize for written questions
-        $tex .= "\\end{questionbox}\n";
-        
-        $boxType = $isCorrect ? "correctbox" : "incorrectbox";
-        $selectedDisplay = !empty($qa['selected_option']) ? escapeLatex($qa['selected_option']) : 'Aucune';
-        $correctDisplay = escapeLatex($qa['correct_option']);
-        
-        $tex .= "\\begin{{$boxType}}\n";
-        $tex .= "\\textbf{Votre r\\'{e}ponse :} {$selectedDisplay} ~\\hfill~ \\textbf{R\\'{e}ponse correcte :} {$correctDisplay} \\\\\n";
-        $tex .= "\\par\\smallskip\n";
-        $tex .= "\\textbf{Justification :} {$escExplanation}\n";
-        $tex .= "\\end{{$boxType}}\n";
-        $tex .= "\\vspace{0.8em}\n\n";
-    } else {
-        $tex .= "\\begin{itemize}[leftmargin=*,noitemsep,topsep=4pt]\n";
-        
-        foreach (['A', 'B', 'C', 'D'] as $opt) {
-            $optVal = $qa['option_' . strtolower($opt)];
-            $escOptVal = escapeLatex($optVal);
-            $isSelected = ($qa['selected_option'] === $opt);
-            $isCorrectOpt = ($qa['correct_option'] === $opt);
-            
-            if ($isCorrectOpt) {
-                if ($isSelected) {
-                    $tex .= "    \\item[\\color{svink}\\ding{51}] \\textbf{Option {$opt} (Votre r\\'{e}ponse / Correcte) :} {$escOptVal}\n";
-                } else {
-                    $tex .= "    \\item[\\color{svink}\\ding{51}] \\textbf{Option {$opt} (R\\'{e}ponse correcte) :} {$escOptVal}\n";
-                }
-            } elseif ($isSelected) {
-                $tex .= "    \\item[\\color{red!60!black}\\ding{55}] \\textbf{Option {$opt} (Votre r\\'{e}ponse) :} {$escOptVal}\n";
-            } else {
-                $tex .= "    \\item[$\\square$] \\textbf{Option {$opt} :} {$escOptVal}\n";
-            }
-        }
-        
-        $tex .= "\\end{itemize}\n";
-        $tex .= "\\end{questionbox}\n";
-        
-        // Boîte de correction juste en-dessous
-        $boxType = $isCorrect ? "correctbox" : "incorrectbox";
-        $selectedDisplay = !empty($qa['selected_option']) ? $qa['selected_option'] : 'Aucune';
-        
-        $tex .= "\\begin{{$boxType}}\n";
-        $tex .= "\\textbf{Votre r\\'{e}ponse :} Option {$selectedDisplay} ~\\hfill~ \\textbf{R\\'{e}ponse correcte :} Option {$qa['correct_option']} \\\\\n";
-        $tex .= "\\par\\smallskip\n";
-        $tex .= "\\textbf{Justification :} {$escExplanation}\n";
-        $tex .= "\\end{{$boxType}}\n";
-        $tex .= "\\vspace{0.8em}\n";
-    }
-}
-
-$tex .= "\\end{document}\n";
-
-// =========================================================================
-// SECTION 6: PDF COMPILATION & TEMPORARY FILES CLEANUP
-// =========================================================================
-
-// Enregistrement temporaire et compilation LaTeX
-$tempDir = __DIR__ . '/../uploads/temp_pdf';
-if (!is_dir($tempDir)) {
-    @mkdir($tempDir, 0755, true);
-}
-
-$uniqId = uniqid('eval_');
-$texFile = "{$tempDir}/{$uniqId}.tex";
-$pdfFile = "{$tempDir}/{$uniqId}.pdf";
-$logFile = "{$tempDir}/{$uniqId}.log";
-$auxFile = "{$tempDir}/{$uniqId}.aux";
-
-@copy(Brand::pdfPng(false), "{$tempDir}/svlogo.png");
-@copy(Brand::pdfPng(true), "{$tempDir}/svlogo-mono.png");
-
-if (file_put_contents($texFile, $tex) === false) {
-    http_response_code(500);
-    exit('Erreur d\'écriture du fichier LaTeX temporaire.');
-}
-
-// Exécuter pdflatex avec HOME configuré sur le répertoire temporaire pour éviter les blocages d'écriture de cache de polices par www-data
-$cmd = "HOME=" . escapeshellarg($tempDir) . " /usr/bin/pdflatex -interaction=nonstopmode -output-directory=" . escapeshellarg($tempDir) . " " . escapeshellarg($texFile) . " 2>&1";
-exec($cmd, $execOutput, $returnVar);
-
-if (file_exists($pdfFile) && filesize($pdfFile) > 0) {
-    // Audit log
-    auditLog('export_evaluation_pdf_latex', "Registration #{$regId}");
-    
-    // Nettoyer les fichiers auxiliaires
-    @unlink($texFile);
-    @unlink($auxFile);
-    @unlink($logFile);
-    
-    // Streamer le PDF
-    header('Content-Type: application/pdf');
-    header('Content-Disposition: attachment; filename="Rapport_Correction_' . preg_replace('/[^a-zA-Z0-9]/', '_', $registration['session_title']) . '.pdf"');
-    header('Cache-Control: private, max-age=0, must-revalidate');
-    readfile($pdfFile);
-    
-    // Nettoyer le PDF après envoi
-    @unlink($pdfFile);
-    exit;
-} else {
-    // Si la compilation échoue, renvoyer le log d'erreur LaTeX
-    $logContent = file_exists($logFile) ? file_get_contents($logFile) : '';
-    $shellOutput = implode("\n", $execOutput);
-    
-    // Nettoyer tout
-    @unlink($texFile);
-    @unlink($auxFile);
-    @unlink($logFile);
-    if (file_exists($pdfFile)) {
-        @unlink($pdfFile);
-    }
-    
-    http_response_code(500);
-    echo "<h1>Erreur de compilation du document PDF via LaTeX</h1>";
-    echo "<p>Veuillez contacter votre administrateur.</p>";
-    if (!empty($logContent)) {
-        echo "<h3>Journal de compilation LaTeX :</h3>";
-        echo "<pre style='background:#f4f4f4; padding:10px; border:1px solid #ccc; overflow:auto; max-height:300px;'>" . htmlspecialchars($logContent) . "</pre>";
-    }
-    echo "<h3>Sortie du terminal (Shell Output) :</h3>";
-    echo "<pre style='background:#f4f4f4; padding:10px; border:1px solid #ccc; overflow:auto; max-height:300px;'>" . htmlspecialchars($shellOutput) . "</pre>";
-    echo "<p>Commande exécutée : <code>" . htmlspecialchars($cmd) . "</code></p>";
-    exit;
-}
+auditLog('export_evaluation_pdf_latex', "Registration #{$regId}");
+header('Content-Type: application/pdf');
+header('Content-Disposition: attachment; filename="' . $slug . '.pdf"');
+header('Content-Length: ' . strlen($pdfData));
+header('Cache-Control: private, max-age=0, must-revalidate');
+echo $pdfData;
+exit;

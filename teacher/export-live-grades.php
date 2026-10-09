@@ -74,26 +74,30 @@ try {
     $stmt->execute(['sid' => $sessionId]);
     $registrations = $stmt->fetchAll();
 
+    require_once __DIR__ . '/../lib/ExportDocs.php';
     $rows = [];
     foreach ($registrations as $r) {
         if ($r['score'] !== null) {
-            $rawScore = round(((float)$r['score'] / 100) * $totalQuestions);
-            $scoreDisplay = "{$rawScore} / {$totalQuestions}";
+            $raw = (int)round(((float)$r['score'] / 100) * $totalQuestions);
+            $rows[] = [$r['name'], $r['email'], $raw, $totalQuestions, round((float)$r['score'], 1), (float)$r['score'] >= 50 ? 'Admis' : 'Ajourné', $r['registered_at']];
         } else {
-            $scoreDisplay = 'Non finalisé';
+            $rows[] = [$r['name'], $r['email'], null, $totalQuestions, null, 'Non rendu', $r['registered_at']];
         }
-        $rows[] = [
-            $r['name'],
-            $r['email'],
-            $scoreDisplay,
-            $r['registered_at']
-        ];
     }
+    $st = ExportDocs::statistics($registrations);
 
     $sheets = [
         [
             'name' => 'Résultats',
-            'headers' => ['Nom complet', 'Adresse e-mail', 'Score final', 'Date d\'inscription'],
+            'title' => (string)$session['title'],
+            'meta' => [
+                ['Cours', (string)$session['course_title']],
+                ['Inscrits / copies rendues', $st['total'] . ' / ' . $st['submitted']],
+                ['Moyenne', str_replace('.', ',', (string)round($st['mean'], 1)) . ' %'],
+                ['Taux de réussite (seuil 50 %)', str_replace('.', ',', (string)round($st['pass_rate'], 1)) . ' %'],
+            ],
+            'headers' => ['Nom complet', 'Adresse e-mail', 'Bonnes réponses', 'Sur', 'Note (%)', 'Résultat', 'Date d\'inscription'],
+            'formats' => [2 => 'int', 3 => 'int', 4 => 'pct'],
             'rows' => $rows
         ]
     ];

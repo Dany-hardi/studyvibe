@@ -446,7 +446,7 @@ try {
         // Per-student option order when the teacher asked for it. option_keys tells the browser which original letter
         // each displayed button stands for; scoring always works on the original letters.
         $optionKeys = ['A', 'B', 'C', 'D'];
-        if (!empty($session['shuffle_options']) && ($activeQ['question_type'] ?? 'mcq') === 'mcq') {
+        if (!empty($session['shuffle_options']) && LiveScoring::canShuffle($activeQ)) {
             $optionKeys = LiveScoring::optionOrder($regId, $qid);
         }
         $optionTexts = array_map(fn(string $k) => $activeQ['option_' . strtolower($k)], $optionKeys);

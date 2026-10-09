@@ -54,6 +54,43 @@ final class LiveScoring
         return str_replace([',', ' '], ['.', ''], mb_strtolower(trim($v)));
     }
 
+    /** Shuffling only makes sense for a full A to D question: a true/false question keeps "Vrai" before "Faux". */
+    public static function canShuffle(array $q): bool
+    {
+        if (($q['question_type'] ?? 'mcq') !== 'mcq') {
+            return false;
+        }
+        foreach (['a', 'b', 'c', 'd'] as $l) {
+            if (trim((string)($q['option_' . $l] ?? '')) === '') {
+                return false;
+            }
+        }
+        return true;
+    }
+
+    /**
+     * The accepted answers of a written question in words, for documents a person reads: "2.5|5/2" becomes "2,5 ou 5/2" and
+     * "2.5~0.1" becomes "2,5 (± 0,1)".
+     */
+    public static function displayAnswer(string $stored, string $lang = 'fr'): string
+    {
+        $out = [];
+        foreach (explode('|', $stored) as $alt) {
+            $alt = trim($alt);
+            if ($alt === '') {
+                continue;
+            }
+            $tol = '';
+            if (str_contains($alt, '~')) {
+                [$alt, $t] = explode('~', $alt, 2);
+                $tol = ' (± ' . trim($t) . ')';
+            }
+            $out[] = trim($alt) . $tol;
+        }
+        $glue = $lang === 'en' ? ' or ' : ' ou ';
+        return implode($glue, $out);
+    }
+
     /**
      * A question as one particular student saw it: when the session shuffled the options, the four texts come back in the
      * order that student had on screen, and the correct letter and the student's answer are moved to match. Used by the
@@ -66,7 +103,7 @@ final class LiveScoring
     public static function asSeen(array $q, string $selected, int $registrationId, bool $shuffle): array
     {
         $q['selected_option'] = $selected;
-        if (!$shuffle || ($q['question_type'] ?? 'mcq') !== 'mcq') {
+        if (!$shuffle || !self::canShuffle($q)) {
             return $q;
         }
         $qid = (int)($q['question_id'] ?? $q['id'] ?? 0);

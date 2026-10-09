@@ -17,6 +17,7 @@ require_once __DIR__ . '/../../lib/Phone.php';
 require_once __DIR__ . '/../../lib/Totp.php';
 require_once __DIR__ . '/../../lib/SmsGateway.php';
 require_once __DIR__ . '/../../lib/LiveSmsNotifier.php';
+require_once __DIR__ . '/../../lib/ExportTheme.php';
 
 $passed = 0;
 $failed = [];
@@ -98,6 +99,46 @@ t('as seen: written questions are untouched', function () {
     $r = LiveScoring::asSeen($q, '2,5', 9, true);
     eq([$r['correct_option'], $r['selected_option']], ['2.5', '2,5']);
 });
+
+// ---- true/false and written answers
+t('shuffle: only a full A to D question is shuffled', function () {
+    eq(LiveScoring::canShuffle(['question_type' => 'mcq', 'option_a' => 'a', 'option_b' => 'b', 'option_c' => 'c', 'option_d' => 'd']), true);
+    eq(LiveScoring::canShuffle(['question_type' => 'mcq', 'option_a' => 'Vrai', 'option_b' => 'Faux', 'option_c' => '', 'option_d' => '']), false);
+    eq(LiveScoring::canShuffle(['question_type' => 'written', 'option_a' => 'a', 'option_b' => 'b', 'option_c' => 'c', 'option_d' => 'd']), false);
+});
+t('as seen: a true/false question keeps Vrai before Faux', function () {
+    $q = ['question_id' => 3, 'question_type' => 'mcq', 'option_a' => 'Vrai', 'option_b' => 'Faux', 'option_c' => '', 'option_d' => '', 'correct_option' => 'A'];
+    for ($rid = 1; $rid <= 50; $rid++) {
+        $r = LiveScoring::asSeen($q, 'B', $rid, true);
+        eq([$r['option_a'], $r['option_b'], $r['correct_option'], $r['selected_option']], ['Vrai', 'Faux', 'A', 'B']);
+    }
+});
+t('written answers are shown in words', function () {
+    eq(LiveScoring::displayAnswer('2.5|5/2'), '2.5 ou 5/2');
+    eq(LiveScoring::displayAnswer('2.5~0.1', 'en'), '2.5 (± 0.1)');
+    eq(LiveScoring::displayAnswer('x^2|x²|x*x', 'en'), 'x^2 or x² or x*x');
+});
+
+// ---- ExportTheme (text made safe for LaTeX)
+t('latex: special characters are escaped', fn() => eq(ExportTheme::esc('50 % & plus_tard #A {x}'), '50 \\% \\& plus\\_tard \\#A \\{x\\}'));
+t('latex: a colon inside a time or address gets no French space', fn() => eq(ExportTheme::esc('15:26 https://x.cm'), '15\\string:26 https\\string://x.cm'));
+t('latex: math written by a teacher is kept', fn() => eq(ExportTheme::tex('Que vaut $x^2 + 1$ ?'), 'Que vaut $x^2 + 1$ ?'));
+t('latex: unicode symbols outside math become math', fn() => eq(ExportTheme::tex('x² ≤ π'), 'x$^2$ $\\leq$ $\\pi$'));
+t('latex: a stray dollar or percent cannot break the build', function () {
+    $o = ExportTheme::tex('Prix : 5 $ et 10 %');
+    eq(str_contains($o, '\\$'), true);
+    eq(str_contains($o, '\\%'), true);
+});
+t('latex: paragraphs from <br> but one line when inline', function () {
+    eq(str_contains(ExportTheme::tex("a<br>b"), "\n\n"), true);
+    eq(str_contains(ExportTheme::tex("a<br>b", true), "\n"), false);
+});
+t('latex: the document uses the traditional typeface and no sans-serif', function () {
+    $d = ExportTheme::document('x', ['lang' => 'fr']);
+    eq(str_contains($d, '{lmodern}'), true);
+    eq(str_contains($d, 'sfdefault') || str_contains($d, 'helvet') || str_contains($d, 'fontspec'), false);
+});
+t('latex: file names are plain', fn() => eq(ExportTheme::slug('Contrôle d\'Algèbre n°2 — 50 %'), 'controle_d_algebre_n_2_50'));
 
 // ---- PasswordPolicy
 t('password: 7 characters rejected', fn() => eq(PasswordPolicy::check('abc1234') !== null, true));

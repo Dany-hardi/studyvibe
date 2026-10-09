@@ -1,8 +1,14 @@
 <?php
 declare(strict_types=1);
 
+/**
+ * Order of merit of a live evaluation as a PDF. Typeset with LaTeX (lib/ExportDocs.php); when LaTeX is not available on the
+ * server the plain PDF writer below produces the same table, so the export never fails.
+ */
+
 require_once __DIR__ . '/../auth.php';
 require_once __DIR__ . '/../lib/PdfReportBuilder.php';
+require_once __DIR__ . '/../lib/ExportDocs.php';
 
 // Verify teacher access
 if (!isLoggedIn() || $_SESSION['user_role'] !== 'teacher') {
@@ -51,7 +57,21 @@ try {
     $stmt->execute(['sid' => $sessionId]);
     $registrations = $stmt->fetchAll();
 
-    // Initialize PdfReportBuilder
+    // Preferred: the LaTeX document (traditional typeface, repeated table header, page x / y)
+    $lang = TranslationService::getLang() === 'en' ? 'en' : 'fr';
+    $doc  = ExportDocs::rankingReport($session, $registrations, $totalQuestions, $lang);
+    $pdfData = LatexCompiler::compile($doc['tex']);
+    if ($pdfData) {
+        $slug = 'classement_' . ExportTheme::slug((string)$session['title'], 'evaluation') . '_' . date('Y-m-d');
+        auditLog('export_live_pdf', "Session #{$sessionId}");
+        header('Content-Type: application/pdf');
+        header('Content-Disposition: attachment; filename="' . $slug . '.pdf"');
+        header('Content-Length: ' . strlen($pdfData));
+        echo $pdfData;
+        exit;
+    }
+
+    // Fallback: the built-in PDF writer
     $pdf = new PdfReportBuilder();
     $pdf->addPage();
 

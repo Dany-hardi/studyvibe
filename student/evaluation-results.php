@@ -200,7 +200,7 @@ $hasPassed = $scorePercent >= 50;
             <div class="res-written">
                 <div class="res-box <?= $isCorrect ? 'is-right' : 'is-wrong' ?>"><b><?= sdH(sd('doc_your_answer')) ?></b><span class="latex-container"><?= $qa['selected_option'] === '' || $qa['selected_option'] === null ? '<em>' . sdH(sd('doc_none')) . '</em>' : sdH($qa['selected_option']) ?></span></div>
                 <?php if (!$isCorrect): ?>
-                <div class="res-box is-right"><b><?= sdH(sd('doc_right_answer')) ?></b><span class="latex-container"><?= sdH($qa['correct_option']) ?></span></div>
+                <div class="res-box is-right"><b><?= sdH(sd('doc_right_answer')) ?></b><span class="latex-container"><?= sdH(LiveScoring::displayAnswer((string)$qa['correct_option'], sdLang())) ?></span></div>
                 <?php endif; ?>
             </div>
         <?php else: ?>

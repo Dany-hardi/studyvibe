@@ -23,9 +23,10 @@ class LatexCompiler
      * numbering and TOC/cross-reference resolving.
      *
      * @param string $latexSource The complete raw LaTeX markup template.
+     * @param array<string,string> $assets extra files the document uses, as file name in the build folder => path on disk
      * @return string|null Binary PDF string on success, or null on execution failures.
      */
-    public static function compile(string $latexSource): ?string
+    public static function compile(string $latexSource, array $assets = []): ?string
     {
         // Define directory paths for intermediate compiler outputs
         $baseDir = __DIR__ . '/../uploads/latex_tmp';
@@ -47,6 +48,11 @@ class LatexCompiler
         // Stage the brand logos next to the source so templates can use Brand::latexPreamble()'s \svlogo macros
         @copy(Brand::pdfPng(false), $tmpDir . '/svlogo.png');
         @copy(Brand::pdfPng(true), $tmpDir . '/svlogo-mono.png');
+        foreach ($assets as $name => $path) {
+            if (preg_match('/^[A-Za-z0-9_.-]+$/', (string)$name) === 1 && is_file((string)$path)) {
+                @copy((string)$path, $tmpDir . '/' . $name);
+            }
+        }
 
         $escapedDir = escapeshellarg($tmpDir);
 
@@ -70,15 +76,8 @@ class LatexCompiler
             error_log('[LatexCompiler] compilation failed: ' . substr($log, -1500));
         }
 
-        // Cleanup temporary intermediate auxiliary files from the filesystem
-        foreach (glob($tmpDir . '/texmf-*') ?: [] as $d) {
-            self::removeTree($d);
-        }
-        $files = ['compile.out', 'document.tex', 'svlogo.png', 'svlogo-mono.png', 'document.pdf', 'document.log', 'document.aux', 'document.out'];
-        foreach ($files as $f) {
-            @unlink($tmpDir . '/' . $f);
-        }
-        @rmdir($tmpDir);
+        // The whole build folder goes: source, logs, staged pictures, font caches
+        self::removeTree($tmpDir);
 
         return $pdfData;
     }
@@ -89,7 +88,7 @@ class LatexCompiler
      * compiled anywhere, e.g. on Overleaf. Used on request and as a fallback when pdflatex is
      * missing or fails on the server, so an export never ends in a bare error.
      */
-    public static function sendSource(string $latexSource, string $baseName): never
+    public static function sendSource(string $latexSource, string $baseName, array $assets = []): never
     {
         $slug = trim((string)preg_replace('/[^a-z0-9_-]+/i', '_', $baseName), '_') ?: 'document';
         if (!class_exists('ZipArchive')) {
@@ -106,6 +105,11 @@ class LatexCompiler
             $img = Brand::pdfPng((bool)$mono);
             if (is_file($img)) {
                 $zip->addFile($img, $name);
+            }
+        }
+        foreach ($assets as $name => $path) {
+            if (preg_match('/^[A-Za-z0-9_.-]+$/', (string)$name) === 1 && is_file((string)$path)) {
+                $zip->addFile((string)$path, (string)$name);
             }
         }
         $zip->close();

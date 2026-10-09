@@ -53,3 +53,20 @@ Open: a real SMS provider account has to be configured before production (nothin
 
 
 > SMS is switched off by default (`FEATURE_SMS=false`). To turn it back on: set `FEATURE_SMS=true`, `SMS_DRIVER` and the provider keys in `.env`.
+
+
+## Exports redesign (9 October 2026)
+
+All PDF, LaTeX and Excel exports (CSV left as it was) now share one design.
+
+| Export | Where | What changed |
+|---|---|---|
+| Question paper and answer key | `teacher/export-live-questions-latex.php` | Single column, identity lines for the candidate, instructions, 1 point per question, checkboxes (the key marks the right box and gives the justification), written questions get answer lines, **question pictures are included** |
+| Grade report | `teacher/export-live-grades-latex.php` | Summary table, distribution of marks as a bar chart, alphabetical marks sheet with a repeated header |
+| Order of merit PDF | `teacher/export-live-pdf.php` | LaTeX ranking with ties sharing a rank; the old plain PDF writer stays as the fallback when LaTeX is missing |
+| Student correction report | `student/export-evaluation-pdf.php` | Options in the order the student saw them, pictures, written answers shown in words (`2.5 ou 5/2`); no more server log or command shown on failure |
+| Promoter PDF | `promoter/export-pdf.php` | Was a redirect to Excel; now a landscape PDF of any sheet (students, audit log, courses...) |
+| Excel (all) | `lib/SpreadsheetExporter.php` | Column widths, frozen header, filters, striped rows, number formats, title and facts block, A4 landscape print setup; the live grades sheet now has numeric columns (good answers, out of, percent) |
+
+Typeface: Latin Modern (the vector form of the traditional LaTeX typeface, Computer Modern) in every LaTeX document; the plain `cm` fonts need the `cm-super` package for accents, Latin Modern does not. Layout: `lib/ExportTheme.php`; documents: `lib/ExportDocs.php`.
+Tests: `php tests/integration/exports_compile.php [folder]` compiles every document from awkward sample data with the real LaTeX engine (and keeps the PDFs in the folder when one is given).
