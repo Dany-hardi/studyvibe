@@ -284,6 +284,22 @@ t('sms: async announcement mentions the deadline', function () {
     eq(str_contains($m, '25/10/2026 23:00'), true);
 });
 
+t('evaluation themes: subject detection, whole words, illustrations and colours', function () {
+    require_once __DIR__ . '/../../lib/EvalTheme.php';
+    eq(EvalTheme::detect('Analyse 2', 'Mathématiques'), 'math');
+    eq(EvalTheme::detect('Examen L3', 'Programmation Web'), 'code');
+    eq(EvalTheme::detect('QCM Droit des contrats', 'Licence'), 'law');
+    eq(EvalTheme::detect('Partie 2', 'Département'), 'general');      // "art" must not match inside "partie"
+    eq(EvalTheme::detect('Final', 'X'), 'general');
+    foreach (EvalTheme::files() as $f) { eq(is_file(__DIR__ . '/../../' . $f), true); }
+    foreach (['hero', 'empty', 'noresult'] as $k) { eq(is_file(__DIR__ . "/../../assets/img/evals/$k.svg"), true); }
+    foreach (EvalTheme::themes() as $th) {
+        eq(preg_match('/^#[0-9a-f]{6}$/i', EvalTheme::color($th)), 1);
+        eq(EvalTheme::label($th, 'fr') !== '' && EvalTheme::label($th, 'en') !== '', true);
+    }
+    eq(EvalTheme::art('code', 1) !== EvalTheme::art('code', 2), true);   // neighbouring cards get different pictures
+});
+
 t('student guides: same cards in both languages, every illustration present', function () {
     $fr = require __DIR__ . '/../../student/partials/guides-content-fr.php';
     $en = require __DIR__ . '/../../student/partials/guides-content-en.php';
