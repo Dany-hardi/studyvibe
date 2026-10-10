@@ -284,25 +284,25 @@ t('sms: async announcement mentions the deadline', function () {
     eq(str_contains($m, '25/10/2026 23:00'), true);
 });
 
-t('marking FAQ: both languages render, ids carry the prefix, rules match the code', function () {
-    foreach (['fr', 'en'] as $lang) {
-        $tdLang = $lang; $mkfPrefix = 'mkf-x';
-        ob_start(); include __DIR__ . '/../../teacher/partials/marking-faq.php'; $h = ob_get_clean();
-        eq(substr_count($h, '<details'), 11);
-        eq(str_contains($h, 'id="mkf-x-live"'), true);
-        eq(str_contains($h, '80') && str_contains($h, '50'), true);
-    }
-});
-
-t('bulk import FAQ: both languages render with the real limits and every item', function () {
+t('guides: cards, readers and limits, both languages and both placements', function () {
     require_once __DIR__ . '/../../lib/BulkPackage.php';
     foreach (['fr', 'en'] as $lang) {
         $tdLang = $lang;
-        ob_start(); include __DIR__ . '/../../teacher/partials/live-import-faq.php'; $h = ob_get_clean();
-        eq(substr_count($h, '<details'), 13);
+        $gdPrefix = 'gd'; $gdOnly = null; $gdHero = true;
+        ob_start(); include __DIR__ . '/../../teacher/partials/guides.php'; $h = ob_get_clean();
+        eq(substr_count($h, 'class="gd-card"'), 24);
+        eq(substr_count($h, 'class="gd-doc"'), 24);
         eq(str_contains($h, '__IMG__') || str_contains($h, '__ZIP__') || str_contains($h, '__Q__'), false);
         eq(str_contains($h, BulkPackage::label(BulkPackage::MAX_IMAGE)), true);
         eq(str_contains($h, 'q01_'), true);
+        eq(str_contains($h, 'id="gd-live"') && str_contains($h, 'id="gd-zip-steps"'), true);
+        foreach (['map','quiz','final','live','asg','release','similar','exports','cancel','requests','qa','choose','single','csv-columns','csv-excel','types','zip-steps','naming','zip-csv','checks','errors','limits','after','tips','hero'] as $id) {
+            eq(is_file(__DIR__ . "/../../assets/img/guides/$id.svg"), true);
+        }
+        $gdPrefix = 'gdq'; $gdOnly = ['marking']; $gdHero = false;
+        ob_start(); include __DIR__ . '/../../teacher/partials/guides.php'; $q = ob_get_clean();
+        eq(substr_count($q, 'class="gd-card"'), 11);
+        eq(str_contains($q, 'id="gdq-live"'), true);
     }
 });
 t('bulk package: size labels are readable', function () {

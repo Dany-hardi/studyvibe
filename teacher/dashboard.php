@@ -1748,8 +1748,7 @@ $tdHasCourse = (bool)$selectedCourse;
 
             <!-- HELP: import guide / FAQ (tab-help). Needs no course, so it sits outside the course-only block. -->
             <div id="tab-help" class="tab-content hidden" data-title="<?= tde('nav_help') ?>">
-                <?php $mkfPrefix = 'mkf-help'; require __DIR__ . '/partials/marking-faq.php'; ?>
-                <?php require __DIR__ . '/partials/live-import-faq.php'; ?>
+                <?php $gdPrefix = 'gd'; $gdOnly = null; $gdHero = true; require __DIR__ . '/partials/guides.php'; ?>
             </div>
 
         <?php if ($selectedCourse): ?>
@@ -2968,11 +2967,7 @@ $tdHasCourse = (bool)$selectedCourse;
                     <?php endif; ?>
                 </header>
 
-                <?php $mkfPrefix = 'mkf-forum'; ?>
-                <details class="mkf-wrap">
-                    <summary><?= tde('mk_wrap') ?></summary>
-                    <?php require __DIR__ . '/partials/marking-faq.php'; ?>
-                </details>
+                <a class="t-link" href="#tab-comments-guide" onclick="document.getElementById('tab-comments-guide').scrollIntoView({behavior:'smooth'}); return false;" style="display:inline-block;margin:0 0 1.2rem"><?= tde('mk_wrap') ?> ↓</a>
 
                 <?php
                 // Requests from students: review of a mark, question about a result, free messages (api/requests.php -> teacher/requests.php)
@@ -3074,6 +3069,10 @@ $tdHasCourse = (bool)$selectedCourse;
                         <?php endforeach; ?>
                     </div>
                 <?php endif; ?>
+
+                <div id="tab-comments-guide" style="margin-top:3rem;scroll-margin-top:5rem">
+                    <?php $gdPrefix = 'gdq'; $gdOnly = ['marking']; $gdHero = false; require __DIR__ . '/partials/guides.php'; ?>
+                </div>
             </div>
 
         <?php endif; ?>
