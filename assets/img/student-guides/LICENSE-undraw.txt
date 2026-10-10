@@ -1,0 +1,1 @@
+Illustrations from unDraw (https://undraw.co), via the npm package undraw-svg (MIT licence, Copyright 2025 Evo Mark Ltd). The accent colour was changed to the StudyVibe palette.

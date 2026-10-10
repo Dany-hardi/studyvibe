@@ -128,6 +128,7 @@ if (!function_exists('sdLang')) {
             'print'   => '<path d="M7 8V3.5h10V8"/><rect x="4" y="8" width="16" height="9" rx="2"/><path d="M7 14h10v6.5H7Z"/>',
             'link'    => '<path d="M10 14a4 4 0 0 0 5.7 0l3-3a4 4 0 0 0-5.7-5.7l-1 1"/><path d="M14 10a4 4 0 0 0-5.7 0l-3 3a4 4 0 0 0 5.7 5.7l1-1"/>',
             'play'    => '<path d="M8 5.5v13l11-6.5Z"/>',
+            'help'    => '<circle cx="12" cy="12" r="9"/><path d="M9.5 9.5a2.6 2.6 0 0 1 5 .9c0 1.7-2.5 2.1-2.5 3.8"/><path d="M12 17.2v.1"/>',
             'lock'    => '<rect x="5" y="11" width="14" height="9.5" rx="2"/><path d="M8 11V8a4 4 0 0 1 8 0v3"/>',
         ];
         $p = $paths[$name] ?? '';

@@ -482,7 +482,7 @@ html.dark .rd-opt:has(input:checked) .rd-opt-l { color: #1A0F09; }
   .sd-topbar { display: flex; position: fixed; top: 0; left: 0; right: 0; z-index: 40; height: 56px; align-items: center; justify-content: space-between; padding: 0 8px 0 16px; background: color-mix(in srgb, var(--paper) 94%, transparent); border-bottom: 1px solid var(--line); backdrop-filter: blur(8px); }
   .sd-topbar-logo { text-decoration: none; }
   .sd-topbar-tools { display: flex; align-items: center; }
-  .sd-bar-nav { display: grid; grid-template-columns: repeat(5, 1fr); position: fixed; left: 0; right: 0; bottom: 0; z-index: 40; background: var(--paper); border-top: 1px solid var(--line); padding-bottom: env(safe-area-inset-bottom); }
+  .sd-bar-nav { display: grid; grid-template-columns: repeat(6, 1fr); position: fixed; left: 0; right: 0; bottom: 0; z-index: 40; background: var(--paper); border-top: 1px solid var(--line); padding-bottom: env(safe-area-inset-bottom); }
   .sd-bar-nav .sd-nav { flex-direction: column; justify-content: center; gap: 2px; min-height: 60px; padding: 6px 2px; font-size: .68rem; border-radius: 0; text-align: center; box-shadow: none !important; background: transparent !important; }
   .sd-bar-nav .sd-nav[aria-current="page"] { color: var(--clay); }
   .sd-bar-nav .sd-nav span { line-height: 1.1; }

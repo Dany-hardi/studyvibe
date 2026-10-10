@@ -162,7 +162,7 @@ $roleHome = ['promoter'=>'/promoter/dashboard.php','teacher'=>'/teacher/dashboar
         </div>
         <div class="row-side">
           <?php if ($hasAttempted && $score !== null): ?>
-            <div class="score num"><?= number_format((float)$score, 2) ?><small> / 20</small></div>
+            <div class="score num"><?= number_format((float)$score, 2) ?><small> %</small></div>
             <span class="state ok"><?= $h($T['done']) ?></span>
           <?php elseif ($hasAttempted): ?>
             <span class="state"><?= $h($T['inprog']) ?></span>

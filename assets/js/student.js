@@ -73,7 +73,7 @@ document.addEventListener('click', (e) => {
 });
 
 /* ───────────────────────── navigation ───────────────────────── */
-const TABS = ['home', 'courses', 'evals', 'results', 'certs', 'profile'];
+const TABS = ['home', 'courses', 'evals', 'results', 'certs', 'help', 'profile'];
 const SUBS = ['mine', 'catalogue', 'library'];
 let currentTab = 'home';
 let currentSub = 'mine';

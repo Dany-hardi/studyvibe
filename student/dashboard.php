@@ -432,6 +432,7 @@ $nav = [
     'evals'   => ['exam',    sd('nav_evals')],
     'results' => ['results', sd('nav_results')],
     'certs'   => ['cert',    sd('nav_certs')],
+    'help'    => ['help',    sd('nav_help')],
 ];
 ?>
 <aside class="sd-rail" aria-label="<?= sdH(sd('nav_label')) ?>">
@@ -994,6 +995,13 @@ $nav = [
 </section>
 
 <!-- =========================================================================
+     SECTION 7b: HELP — illustrated guides for students (cards + full-page reader)
+     ========================================================================= -->
+<section id="tab-help" class="sd-panel hidden" aria-label="<?= sdH(sd('nav_help')) ?>">
+    <?php require __DIR__ . '/partials/guides.php'; ?>
+</section>
+
+<!-- =========================================================================
      SECTION 8: PROFILE
      ========================================================================= -->
 <section id="tab-profile" class="sd-panel hidden" aria-labelledby="profile-title">
@@ -1322,7 +1330,7 @@ window.SV_LANG = <?= json_encode($lang) ?>;
 <script src="/assets/js/app.js"></script>
 <script src="/assets/js/pdf-reader.js"></script>
 <script src="/assets/js/video-chain.js"></script>
-<script src="/assets/js/student.js"></script>
+<script src="/assets/js/student.js?v=<?= (int)@filemtime(__DIR__ . "/../assets/js/student.js") ?>"></script>
 <script src="/assets/js/student-requests.js"></script>
 <?php
 $matBlocks = empty($user['matricule']) || !empty($matDuplicate);

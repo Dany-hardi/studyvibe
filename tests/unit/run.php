@@ -284,6 +284,22 @@ t('sms: async announcement mentions the deadline', function () {
     eq(str_contains($m, '25/10/2026 23:00'), true);
 });
 
+t('student guides: same cards in both languages, every illustration present', function () {
+    $fr = require __DIR__ . '/../../student/partials/guides-content-fr.php';
+    $en = require __DIR__ . '/../../student/partials/guides-content-en.php';
+    eq(count($fr), 40);
+    eq(array_keys($fr) === array_keys($en), true);
+    foreach ($fr as $id => $c) {
+        foreach (['q', 't', 'a'] as $k) { eq(isset($c[$k]) && trim($c[$k]) !== '', true); eq(isset($en[$id][$k]) && trim($en[$id][$k]) !== '', true); }
+        eq(is_file(__DIR__ . "/../../assets/img/student-guides/$id.svg"), true);
+    }
+    eq(is_file(__DIR__ . '/../../assets/img/student-guides/hero.svg'), true);
+    ob_start(); include __DIR__ . '/../../student/partials/guides.php'; $h = ob_get_clean();
+    eq(substr_count($h, 'class="gd-card"'), 40);
+    eq(substr_count($h, 'class="gd-doc"'), 40);
+    eq(str_contains($h, 'id="sg-eval-connection"') && str_contains($h, 'id="sg-final-exam"'), true);
+});
+
 t('guides: cards, readers and limits, both languages and both placements', function () {
     require_once __DIR__ . '/../../lib/BulkPackage.php';
     foreach (['fr', 'en'] as $lang) {
