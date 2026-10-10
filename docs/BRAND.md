@@ -42,7 +42,7 @@ To change a colour edit the constants at the top of `build.py` (and `Brand::CLAY
 
 ## The logo is alive (assets/css/brand.css, no JavaScript)
 
-- **Idle:** every 2 seconds the letters of every wordmark hop one after the other (a small wave) and the spark winks last. The first hop comes about 1.2 s after the page loads (2.4 s after the intro on a page that plays it).
+- **Idle:** every 60 seconds the letters of every wordmark hop one after the other (a small wave) and the spark winks last. The first hop comes about 1.2 s after the page loads (2.4 s after the intro on a page that plays it).
 - **Hover:** the letters hop higher, a diagonal band of light sweeps across them (clipped to the letters, it never lights the page behind) and the spark winks. Hovering the link that wraps the logo counts. It plays once per hover; the idle hop resumes after the pointer leaves.
 - **Reduced motion:** with `prefers-reduced-motion` and in print, nothing moves.
 - The markup comes from `Brand::logo()` only: each letter is a path with an id, and the shine is a rect clipped by `<use>` references to those paths, so the markup grows by about 2 KB per logo. Do not draw the logo by hand elsewhere.

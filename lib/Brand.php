@@ -14,7 +14,7 @@ declare(strict_types=1);
  *   Brand::headLinks()             in <head>: favicon, apple-touch-icon, brand.css, once-per-session flag
  *   Brand::logo('md')              wordmark. sizes: sm | md | lg | xl
  *   Brand::logo('lg', true)        same + intro: types itself on, then one shine sweep. Plays once per browser session.
- *   Every logo is alive: every 2 s the letters hop in a small wave; on hover they hop higher and a band of light sweeps
+ *   Every logo is alive: every 60 s the letters hop in a small wave; on hover they hop higher and a band of light sweeps
  *   across them. Nothing moves with prefers-reduced-motion. All in assets/css/brand.css (no JavaScript).
  *   Brand::mark(24)                the bookmark symbol only (img tag)
  *
