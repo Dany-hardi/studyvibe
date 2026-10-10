@@ -22,60 +22,42 @@ declare(strict_types=1);
 // =========================================================================
 
 require_once __DIR__ . '/../auth.php';
+require_once __DIR__ . '/../lib/Security.php';
+require_once __DIR__ . '/../lib/LessonQA.php';
 
 header('Content-Type: application/json');
 
 if (!isLoggedIn()) {
+    http_response_code(401);
     echo json_encode(['success' => false, 'message' => 'Accès non autorisé.']);
     exit;
 }
-
-if ($_SERVER['REQUEST_METHOD'] !== 'POST') {
-    echo json_encode(['success' => false, 'message' => 'Méthode non autorisée.']);
-    exit;
-}
+Security::requirePostFromSameSite();   // also refuses anything but POST
 
 $lessonId = (int)($_POST['lesson_id'] ?? 0);
-$text     = trim((string)($_POST['comment_text'] ?? ''));
-$parentId = isset($_POST['parent_id']) ? (int)$_POST['parent_id'] : null;
-
-if ($lessonId <= 0 || $text === '') {
-    echo json_encode(['success' => false, 'message' => 'Commentaire invalide.']);
-    exit;
-}
-
-if (mb_strlen($text) > 2000) {
-    echo json_encode(['success' => false, 'message' => 'Commentaire trop long (max 2000 caractères).']);
-    exit;
-}
+$text     = (string)($_POST['comment_text'] ?? '');
+$parentId = isset($_POST['parent_id']) && (int)$_POST['parent_id'] > 0 ? (int)$_POST['parent_id'] : null;
 
 // =========================================================================
-// SECTION 2: COMMENT INSERTION TRANSACTION
+// SECTION 2: COMMENT INSERTION (access, length, thread and rate checks live in lib/LessonQA.php; the teacher is notified there)
 // =========================================================================
 
 try {
     $pdo  = Database::getInstance();
-    $stmt = $pdo->prepare("INSERT INTO lesson_comments (lesson_id, user_id, comment_text, parent_id) VALUES (:lid, :uid, :text, :pid)");
-    $stmt->execute([
-        'lid'  => $lessonId,
-        'uid'  => (int)$_SESSION['user_id'],
-        'text' => $text,
-        'pid'  => $parentId ?: null,
-    ]);
-
-    auditLog('comment_posted', "Lesson #{$lessonId}");
     $user = getCurrentUser();
-
-    echo json_encode([
-        'success' => true,
-        'comment' => [
-            'id'           => (int)$pdo->lastInsertId(),
-            'author_name'  => $user['name'] ?? 'Utilisateur',
-            'author_role'  => $_SESSION['user_role'],
-            'comment_text' => $text,
-            'created_at'   => date('Y-m-d H:i:s'),
-        ],
-    ]);
+    $res  = LessonQA::post($pdo, ['id' => (int)$_SESSION['user_id'], 'role' => (string)$_SESSION['user_role'], 'name' => (string)($user['name'] ?? '')], $lessonId, $text, $parentId);
+    if (!$res['ok']) {
+        $msg = [
+            'not_found' => 'Leçon introuvable.', 'forbidden' => 'Vous ne pouvez pas commenter une leçon d’un cours auquel vous n’êtes pas inscrit.',
+            'empty' => 'Commentaire invalide.', 'too_long' => 'Commentaire trop long (max ' . LessonQA::MAX . ' caractères).',
+            'bad_parent' => 'Le message auquel vous répondez est introuvable.', 'too_many' => 'Trop de messages en peu de temps. Réessayez dans un moment.',
+        ][$res['error']] ?? 'Commentaire invalide.';
+        http_response_code(['forbidden' => 403, 'not_found' => 404, 'too_many' => 429][$res['error']] ?? 200);
+        echo json_encode(['success' => false, 'error' => $res['error'], 'message' => $msg]);
+        exit;
+    }
+    auditLog('comment_posted', "Lesson #{$lessonId}");
+    echo json_encode(['success' => true, 'comment' => $res['comment']]);
 } catch (PDOException $e) {
     jsonError('Erreur serveur. Veuillez réessayer.', $e, 'post-comment.php');
 }

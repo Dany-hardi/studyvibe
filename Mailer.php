@@ -530,6 +530,62 @@ class Mailer
         return self::send($to, ($rescheduled ? ($en ? 'New time: ' : 'Nouveau créneau : ') : ($en ? 'Evaluation scheduled: ' : 'Évaluation programmée : ')) . $title . ' — StudyVibe', $html);
     }
 
+    // =========================================================================
+    // SECTION 3b: STUDENT <-> TEACHER (questions under a lesson, requests)
+    // =========================================================================
+
+    /** The teacher answered a student's question under a lesson. */
+    public static function commentReply(string $to, string $name, string $lessonTitle, string $courseTitle, string $question, string $reply, string $teacher = '', string $lang = 'fr', string $url = ''): bool
+    {
+        $en = $lang === 'en';
+        $html = EmailTheme::layout(
+            EmailTheme::badge($en ? 'Answer' : 'Réponse', 'pine')
+            . EmailTheme::title($en ? 'Your teacher answered your question' : 'Votre enseignant a répondu à votre question')
+            . self::hello($name, $lang)
+            . EmailTheme::facts([[$en ? 'Course' : 'Cours', self::h($courseTitle)], [$en ? 'Lesson' : 'Leçon', self::h($lessonTitle)]])
+            . EmailTheme::sectionTitle($en ? 'Your question' : 'Votre question') . EmailTheme::quote($question)
+            . EmailTheme::sectionTitle($en ? 'The answer' : 'La réponse') . EmailTheme::quote($reply)
+            . EmailTheme::button($url !== '' ? $url : self::app() . '/student/dashboard.php', $en ? 'Open the lesson' : 'Ouvrir la leçon')
+            . EmailTheme::signature($lang, $teacher),
+            ['preheader' => mb_strimwidth($reply, 0, 120, '…'), 'lang' => $lang]
+        );
+        return self::send($to, ($en ? 'Answer: ' : 'Réponse : ') . $lessonTitle . ' — StudyVibe', $html);
+    }
+
+    /** A student sent a request (review of a mark, question about a result, message): the teacher is told. */
+    public static function requestReceived(string $to, string $teacher, string $student, string $subject, string $message, string $context, string $lang = 'fr', string $url = ''): bool
+    {
+        $en = $lang === 'en';
+        $html = EmailTheme::layout(
+            EmailTheme::badge($en ? 'Student request' : 'Demande d’étudiant', 'ochre')
+            . EmailTheme::title($en ? 'A student wrote to you' : 'Un étudiant vous a écrit')
+            . self::hello($teacher, $lang)
+            . EmailTheme::facts([[$en ? 'Student' : 'Étudiant', self::h($student)], [$en ? 'About' : 'Concerne', self::h($context)], [$en ? 'Subject' : 'Objet', self::h($subject)]])
+            . EmailTheme::quote($message)
+            . EmailTheme::button($url !== '' ? $url : self::app() . '/teacher/dashboard.php', $en ? 'Answer in my space' : 'Répondre depuis mon espace')
+            . EmailTheme::small($en ? 'The request stays open in the “Questions and moderation” tab until you answer it.' : 'La demande reste ouverte dans l’onglet « Questions et modération » tant que vous n’y avez pas répondu.'),
+            ['preheader' => $student . ' : ' . $subject, 'lang' => $lang]
+        );
+        return self::send($to, ($en ? 'Student request: ' : 'Demande d’étudiant : ') . $subject . ' — StudyVibe', $html);
+    }
+
+    /** The teacher answered a student's request. */
+    public static function requestAnswer(string $to, string $name, string $subject, string $context, string $response, string $teacher = '', string $lang = 'fr', string $url = ''): bool
+    {
+        $en = $lang === 'en';
+        $html = EmailTheme::layout(
+            EmailTheme::badge($en ? 'Answer' : 'Réponse', 'pine')
+            . EmailTheme::title($en ? 'Your teacher answered your request' : 'Votre enseignant a répondu à votre demande')
+            . self::hello($name, $lang)
+            . EmailTheme::facts([[$en ? 'Course' : 'Cours', self::h($context)], [$en ? 'Subject' : 'Objet', self::h($subject)]])
+            . EmailTheme::sectionTitle($en ? 'The answer' : 'La réponse') . EmailTheme::quote($response)
+            . EmailTheme::button($url !== '' ? $url : self::app() . '/student/dashboard.php', $en ? 'Open my space' : 'Ouvrir mon espace')
+            . EmailTheme::signature($lang, $teacher),
+            ['preheader' => mb_strimwidth($response, 0, 120, '…'), 'lang' => $lang]
+        );
+        return self::send($to, ($en ? 'Answer to your request: ' : 'Réponse à votre demande : ') . $subject . ' — StudyVibe', $html);
+    }
+
     /**
      * The reminder that goes out 15 minutes before a live evaluation (see lib/LiveReminders.php): when it starts, the link, what to do
      * right now, and the rules in a nutshell. Only for live sessions: an asynchronous evaluation has no start to remind of.

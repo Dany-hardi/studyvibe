@@ -2,15 +2,17 @@
 declare(strict_types=1);
 
 require_once __DIR__ . '/../auth.php';
+require_once __DIR__ . '/../lib/Security.php';
 
 header('Content-Type: application/json');
 
 if (!isLoggedIn() || $_SESSION['user_role'] !== 'teacher') {
+    http_response_code(403);
     echo json_encode(['success' => false, 'message' => 'Accès non autorisé.']);
     exit;
 }
 
-// requireCsrf();
+Security::requirePostFromSameSite();
 
 $commentId = (int)($_POST['comment_id'] ?? 0);
 $hidden    = isset($_POST['is_hidden']) ? (int)$_POST['is_hidden'] : 1;

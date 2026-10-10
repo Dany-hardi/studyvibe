@@ -21,6 +21,7 @@ declare(strict_types=1);
 // =========================================================================
 
 require_once __DIR__ . '/../auth.php';
+require_once __DIR__ . '/../lib/LessonQA.php';
 
 header('Content-Type: application/json');
 
@@ -41,6 +42,14 @@ if ($lessonId <= 0) {
 
 try {
     $pdo  = Database::getInstance();
+    // Only the students of the course, its teacher and a promoter may read the discussion of a lesson
+    $ctx = LessonQA::context($pdo, $lessonId);
+    $me  = getCurrentUser();
+    if ($ctx === null || !$me || !LessonQA::mayAccess($pdo, ['id' => (int)$me['id'], 'role' => (string)$me['role']], $ctx)) {
+        http_response_code(403);
+        echo json_encode(['success' => false, 'message' => 'Accès non autorisé.']);
+        exit;
+    }
     $stmt = $pdo->prepare("
         SELECT lc.*, u.name AS author_name, u.role AS author_role
         FROM lesson_comments lc

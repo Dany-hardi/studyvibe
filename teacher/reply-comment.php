@@ -1,47 +1,35 @@
 <?php
 declare(strict_types=1);
 
+/**
+ * The teacher answers a student's question under a lesson. The student is told by notification and email (first answer only).
+ *   POST comment_id, reply_text
+ */
+
 require_once __DIR__ . '/../auth.php';
+require_once __DIR__ . '/../lib/Security.php';
+require_once __DIR__ . '/../lib/LessonQA.php';
 
 header('Content-Type: application/json');
 
 if (!isLoggedIn() || $_SESSION['user_role'] !== 'teacher') {
+    http_response_code(403);
     echo json_encode(['success' => false, 'message' => 'Accès non autorisé.']);
     exit;
 }
-
-// requireCsrf();
+Security::requirePostFromSameSite();
 
 $commentId = (int)($_POST['comment_id'] ?? 0);
-$reply     = trim((string)($_POST['reply_text'] ?? ''));
-
-if ($commentId <= 0 || $reply === '') {
-    echo json_encode(['success' => false, 'message' => 'Réponse invalide.']);
-    exit;
-}
 
 try {
-    $pdo = Database::getInstance();
-    $stmt = $pdo->prepare("
-        SELECT lc.id FROM lesson_comments lc
-        JOIN lessons l ON l.id = lc.lesson_id
-        JOIN chapters ch ON ch.id = l.chapter_id
-        JOIN courses c ON c.id = ch.course_id
-        WHERE lc.id = :cid AND c.teacher_id = :tid
-    ");
-    $stmt->execute(['cid' => $commentId, 'tid' => $_SESSION['user_id']]);
-    if (!$stmt->fetch()) {
-        echo json_encode(['success' => false, 'message' => 'Commentaire introuvable.']);
+    $res = LessonQA::reply(Database::getInstance(), (int)$_SESSION['user_id'], $commentId, (string)($_POST['reply_text'] ?? ''));
+    if (!$res['ok']) {
+        $msg = ['not_found' => 'Commentaire introuvable.', 'empty' => 'Réponse invalide.', 'too_long' => 'Réponse trop longue (max ' . LessonQA::MAX_REPLY . ' caractères).'][$res['error']] ?? 'Réponse invalide.';
+        echo json_encode(['success' => false, 'error' => $res['error'], 'message' => $msg]);
         exit;
     }
-
-    $pdo->prepare("
-        UPDATE lesson_comments SET teacher_reply = :reply, replied_by = :uid, replied_at = NOW()
-        WHERE id = :id
-    ")->execute(['reply' => $reply, 'uid' => $_SESSION['user_id'], 'id' => $commentId]);
-
     auditLog('comment_replied', "Comment #{$commentId}");
-    echo json_encode(['success' => true, 'message' => 'Réponse publiée.']);
+    echo json_encode(['success' => true, 'message' => 'Réponse publiée. L’étudiant est prévenu.']);
 } catch (PDOException $e) {
     jsonError('Erreur serveur.', $e, 'reply-comment');
 }

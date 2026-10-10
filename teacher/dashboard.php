@@ -27,6 +27,7 @@ require_once __DIR__ . '/../lib/MediaStore.php';
 require_once __DIR__ . '/../lib/BulkPackage.php';
 require_once __DIR__ . '/../lib/AssignmentRubric.php';
 require_once __DIR__ . '/../lib/AssignmentSimilarity.php';
+require_once __DIR__ . '/../lib/StudentRequests.php';
 require_once __DIR__ . '/../lib/LiveSmsNotifier.php';
 require_once __DIR__ . '/../lib/LiveMailNotifier.php';
 require_once __DIR__ . '/../Mailer.php';
@@ -1302,6 +1303,8 @@ foreach (($liveSessions ?? []) as $_s) {
     elseif ($st === 'wait' || $st === 'off') $tdUpcoming[] = $_s;
 }
 usort($tdUpcoming, fn($a, $b) => strtotime($a['start_time']) <=> strtotime($b['start_time']));
+$tdReqOpen = 0;
+try { $tdReqOpen = StudentRequests::openCount($pdo, $teacherId); } catch (Throwable $e) { $tdReqOpen = 0; }
 $tdUnanswered = 0;
 foreach (($courseComments ?? []) as $_c) {
     if (($_c['author_role'] ?? '') === 'student' && empty($_c['teacher_reply']) && (int)$_c['is_hidden'] === 0) $tdUnanswered++;
@@ -1422,7 +1425,7 @@ $tdHasCourse = (bool)$selectedCourse;
                 <p><?= tde('nav_g_follow') ?></p>
                 <?php $navItem('tab-grades', 'grades', td('nav_grades')); ?>
                 <?php $navItem('tab-assignments', 'assign', td('nav_assign'), true, $tdNewSubs, true); ?>
-                <?php $navItem('tab-comments', 'qa', td('nav_qa'), true, $tdUnanswered); ?>
+                <?php $navItem('tab-comments', 'qa', td('nav_qa'), true, $tdUnanswered + $tdReqOpen); ?>
             </nav>
             <nav class="t-nav-group">
                 <p><?= tde('nav_g_help') ?></p>
@@ -2964,6 +2967,41 @@ $tdHasCourse = (bool)$selectedCourse;
                     <?php endif; ?>
                 </header>
 
+                <?php
+                // Requests from students: review of a mark, question about a result, free messages (api/requests.php -> teacher/requests.php)
+                $tdRequests = [];
+                try { $tdRequests = StudentRequests::forTeacher($pdo, $teacherId, (int)$selectedCourse['id']); } catch (Throwable $e) { $tdRequests = []; }
+                $tdReqOpenHere = count(array_filter($tdRequests, fn($r) => $r['status'] === 'open'));
+                ?>
+                <section id="rq-box" class="rq" aria-labelledby="rq-h">
+                    <div class="rq-head">
+                        <h3 id="rq-h"><?= tde('rq_title') ?> <?php if ($tdReqOpenHere): ?><span class="t-badge"><?= $tdReqOpenHere ?></span><?php endif; ?></h3>
+                        <p><?= tde('rq_lede') ?></p>
+                    </div>
+                    <?php if (empty($tdRequests)): ?>
+                        <p class="rq-none"><?= tde('rq_none') ?></p>
+                    <?php else: foreach ($tdRequests as $rq): $open = $rq['status'] === 'open'; ?>
+                        <article class="rq-card <?= $open ? 'is-open' : 'is-done' ?>" data-rq="<?= (int)$rq['id'] ?>">
+                            <header>
+                                <span class="t-chip rq-kind"><?= tde('rq_kind_' . $rq['kind']) ?></span>
+                                <strong><?= htmlspecialchars($rq['student_name']) ?></strong><?php if (!empty($rq['student_matricule'])): ?> <span class="num rq-mat"><?= htmlspecialchars($rq['student_matricule']) ?></span><?php endif; ?>
+                                <span class="rq-date num"><?= htmlspecialchars(date('d/m/Y H:i', strtotime($rq['created_at']))) ?></span>
+                            </header>
+                            <h4><?= htmlspecialchars($rq['subject']) ?></h4>
+                            <p class="rq-msg"><?= nl2br(htmlspecialchars($rq['message'])) ?></p>
+                            <?php if ($open): ?>
+                                <?php if ($rq['kind'] === 'assignment'): ?>
+                                    <p class="rq-hint"><?= tde('rq_hint_assignment') ?> <button type="button" class="t-link" onclick="switchDashboardTab('tab-assignments'); AsgGrade.open(<?= (int)$rq['ref_id'] ?>)"><?= tde('rq_open_grading') ?></button></p>
+                                <?php endif; ?>
+                                <textarea class="rq-answer" rows="3" maxlength="2000" placeholder="<?= tde('rq_answer_ph') ?>" aria-label="<?= tde('rq_answer_ph') ?>"></textarea>
+                                <button type="button" class="t-btn t-btn-primary rq-send" style="padding:.35rem 1rem"><?= tde('rq_send') ?></button>
+                            <?php else: ?>
+                                <div class="rq-resp"><strong><?= tde('rq_your_answer') ?></strong> <span class="num rq-date"><?= htmlspecialchars(date('d/m/Y H:i', strtotime((string)$rq['answered_at']))) ?></span><br><?= nl2br(htmlspecialchars((string)$rq['response'])) ?></div>
+                            <?php endif; ?>
+                        </article>
+                    <?php endforeach; endif; ?>
+                </section>
+
                 <?php if (empty($courseComments)): ?>
                     <div class="t-empty boxed">
                         <p><?= tde('qa_empty') ?></p>
@@ -3857,6 +3895,12 @@ $tdHasCourse = (bool)$selectedCourse;
 .ag-rev { margin-top: 1rem; border-top: 1px solid var(--line, #DDD5C3); padding-top: .75rem; } .ag-rev summary { cursor: pointer; font-weight: 700; color: var(--clay, #B5482A); } .ag-rev label { display: block; margin: .6rem 0 .3rem; font-size: .9rem; font-weight: 600; }
 .ag-hist { margin-top: 1rem; font-size: .85rem; color: var(--ink-2, #4A453C); } .ag-hist p { margin: .2rem 0; }
 .ag-compact-note {}
+.rq { margin-bottom: 2rem; } .rq-head h3 { font-size: 1.35rem; display: flex; gap: .6rem; align-items: center; margin: 0 0 .2rem; } .rq-head p { color: var(--ink-2); margin: 0 0 .8rem; font-size: .92rem; } .rq-none { color: var(--ink-3); font-style: italic; }
+.rq-card { border: 1px solid var(--line); border-radius: 14px; padding: 1rem 1.1rem; background: var(--card); margin-bottom: .7rem; } .rq-card.is-open { border-left: 4px solid var(--clay); } .rq-card.is-done { opacity: .85; }
+.rq-card header { display: flex; flex-wrap: wrap; gap: .5rem .8rem; align-items: center; font-size: .9rem; } .rq-card h4 { margin: .5rem 0 .2rem; font-size: 1.05rem; } .rq-date { color: var(--ink-3); font-size: .78rem; margin-left: auto; } .rq-mat { color: var(--clay); font-weight: 700; font-size: .8rem; }
+.rq-msg { margin: .3rem 0 .6rem; white-space: normal; overflow-wrap: anywhere; } .rq-hint { color: var(--ink-3); font-size: .82rem; margin: 0 0 .5rem; }
+.rq-answer { width: 100%; box-sizing: border-box; padding: .55rem .75rem; border: 1.5px solid var(--line-2, #C9BFA9); border-radius: 12px; background: var(--paper); color: var(--ink); margin-bottom: .5rem; resize: vertical; }
+.rq-resp { border-left: 3px solid var(--pine, #24402F); background: var(--paper-2); padding: .5rem .8rem; border-radius: 0 10px 10px 0; font-size: .92rem; }
 .asg-tools { display: flex; flex-wrap: wrap; gap: .5rem; align-items: center; padding: .6rem 1.25rem; border-bottom: 1px solid var(--line); font-size: .85rem; }
 .asg-held { color: var(--ink-2); font-weight: 600; }
 .asg-sim { padding: .8rem 1.25rem; border-bottom: 1px solid var(--line); background: var(--paper); font-size: .88rem; }
@@ -3899,6 +3943,7 @@ $tdHasCourse = (bool)$selectedCourse;
     </div>
 </div>
 <script src="/assets/js/assignment-rubric.js" defer></script>
+<script src="/assets/js/teacher-requests.js" defer></script>
 <script src="/assets/js/assignment-grading.js" defer></script>
 
 <!-- ── Résultats : fenêtre « évaluation terminée » et tableau d'examen ────────── -->

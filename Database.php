@@ -567,6 +567,33 @@ class Database
             // already applied
         }
 
+        // Migration 2.6l: requests from a student to a teacher (a review of a mark, a question about a result, a message about a course).
+        try {
+            $pdo->exec("
+                CREATE TABLE IF NOT EXISTS `student_requests` (
+                    `id`           INT AUTO_INCREMENT PRIMARY KEY,
+                    `student_id`   INT NOT NULL,
+                    `teacher_id`   INT NOT NULL,
+                    `course_id`    INT NOT NULL,
+                    `kind`         ENUM('assignment','live_result','course') NOT NULL,
+                    `ref_id`       INT DEFAULT NULL,
+                    `ref_version`  INT NOT NULL DEFAULT 0,
+                    `subject`      VARCHAR(200) NOT NULL,
+                    `message`      TEXT NOT NULL,
+                    `status`       ENUM('open','answered') NOT NULL DEFAULT 'open',
+                    `response`     TEXT DEFAULT NULL,
+                    `answered_at`  DATETIME DEFAULT NULL,
+                    `created_at`   DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+                    UNIQUE KEY `uq_request_item` (`student_id`, `kind`, `ref_id`, `ref_version`),
+                    KEY `idx_request_teacher` (`teacher_id`, `status`, `created_at`),
+                    KEY `idx_request_student` (`student_id`, `created_at`),
+                    FOREIGN KEY (`student_id`) REFERENCES `users`(`id`) ON DELETE CASCADE,
+                    FOREIGN KEY (`teacher_id`) REFERENCES `users`(`id`) ON DELETE CASCADE,
+                    FOREIGN KEY (`course_id`)  REFERENCES `courses`(`id`) ON DELETE CASCADE
+                ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4
+            ");
+        } catch (PDOException $ex) {}
+
         // Migration 2.7: Support binary storage backups for course cover images and lesson PDFs
         try {
             $pdo->query("SELECT cover_image_data FROM courses LIMIT 1");

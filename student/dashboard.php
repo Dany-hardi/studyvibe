@@ -258,7 +258,7 @@ try {
             SELECT l.id AS lesson_id, l.title AS lesson_title, l.assignment_title, l.assignment_deadline, l.assignment_max_score,
                    c.id AS course_id, c.title AS course_title,
                    s.submitted_at, s.is_late, s.score, s.feedback, s.graded_at, s.revision_requested_at,
-                   s.released_at, s.rubric_scores, s.feedback_file_path, s.feedback_file_name
+                   s.released_at, s.rubric_scores, s.feedback_file_path, s.feedback_file_name, s.id AS submission_id, s.attempt_count
             FROM enrollments e
             JOIN courses c ON c.id = e.course_id
             JOIN chapters ch ON ch.course_id = c.id
@@ -281,6 +281,20 @@ try {
     }
 } catch (PDOException $e) {
     dieSafe('Erreur serveur. Veuillez réessayer.', $e, 'student/dashboard');
+}
+
+// ---- Requests to teachers (lib/StudentRequests.php) ----
+require_once __DIR__ . '/../lib/StudentRequests.php';
+$myRequests = []; $askedAsg = []; $askedLive = []; $myCourseList = [];
+try {
+    $myRequests = StudentRequests::forStudent($pdo, (int)$user['id']);
+    $askedAsg = StudentRequests::asked($pdo, (int)$user['id'], 'assignment');
+    $askedLive = StudentRequests::asked($pdo, (int)$user['id'], 'live_result');
+    $cl = $pdo->prepare('SELECT c.id, c.title FROM enrollments e JOIN courses c ON c.id = e.course_id WHERE e.student_id = :s AND c.teacher_id IS NOT NULL ORDER BY c.title');
+    $cl->execute(['s' => $user['id']]);
+    $myCourseList = $cl->fetchAll(PDO::FETCH_ASSOC);
+} catch (Throwable $reqEx) {
+    $myRequests = []; $myCourseList = [];
 }
 
 // ---- Derived values for the Today screen ----
@@ -760,6 +774,9 @@ $nav = [
                         <a class="btn btn-primary btn-sm" href="/student/contest-result.php?registration_id=<?= (int)$eval['registration_id'] ?>&amp;token=<?= sdH(hash_hmac('sha256', 'contest:' . $eval['registration_id'], APP_SECRET)) ?>"><?= sdH(sd(!$hasContest ? 'ev_contest' : ($eval['contest_status'] === 'open' ? 'ev_contest_open' : 'ev_contest_final'))) ?></a>
                     <?php elseif ($isFinished): ?>
                         <a class="btn btn-ghost btn-sm" href="/student/evaluation-results.php?registration_id=<?= (int)$eval['registration_id'] ?>&amp;token=<?= $token ?>"><?= sdH(sd('see_report')) ?></a>
+                        <?php if (!isset($askedLive[(int)$eval['registration_id'] . ':0'])): ?>
+                            <button type="button" class="btn btn-ghost btn-sm" data-req="live_result" data-ref="<?= (int)$eval['registration_id'] ?>" data-title="<?= sdH($eval['session_title']) ?>"><?= sdH(sd('req_review_live')) ?></button>
+                        <?php endif; ?>
                     <?php else: ?>
                         <a class="btn btn-primary btn-sm" href="/live-session.php?code=<?= urlencode($eval['session_code']) ?>"><?= sdH(sd('join')) ?></a>
                     <?php endif; ?>
@@ -838,12 +855,46 @@ $nav = [
                             </details>
                         <?php endif; ?>
                         <?php if (!empty($ma['feedback_file_url'])): ?><div class="sd-meta"><a href="<?= sdH($ma['feedback_file_url']) ?>"><?= sdH(sd('as_fbfile')) ?></a></div><?php endif; ?>
+                        <?php if (!empty($ma['graded_at']) && !empty($ma['released_at']) && !empty($ma['submission_id'])): ?>
+                            <?php if (isset($askedAsg[(int)$ma['submission_id'] . ':' . (int)$ma['attempt_count']])): ?>
+                                <div class="sd-meta"><?= sdH(sd('req_asked')) ?></div>
+                            <?php else: ?>
+                                <button type="button" class="btn btn-ghost btn-sm" data-req="assignment" data-ref="<?= (int)$ma['submission_id'] ?>" data-title="<?= sdH($ma['assignment_title'] ?: $ma['lesson_title']) ?>"><?= sdH(sd('req_review')) ?></button>
+                            <?php endif; ?>
+                        <?php endif; ?>
                     </td>
                 </tr>
             <?php endforeach; ?>
             </tbody>
         </table>
         </div>
+    </section>
+    <?php endif; ?>
+
+    <?php if (!empty($myCourseList) || !empty($myRequests)): ?>
+    <section class="sd-block" id="r-requests" aria-labelledby="r-requests-h">
+        <h2 id="r-requests-h" class="sd-h2"><?= sdH(sd('req_title')) ?></h2>
+        <p class="sd-meta"><?= sdH(sd('req_lede')) ?></p>
+        <?php if (!empty($myCourseList)): ?><p><button type="button" class="btn btn-primary btn-sm" data-req="course"><?= sdH(sd('req_write')) ?></button></p><?php endif; ?>
+        <?php if (empty($myRequests)): ?>
+            <p class="sd-empty"><?= sdH(sd('req_none')) ?></p>
+        <?php else: ?>
+        <ul class="sd-list">
+            <?php foreach ($myRequests as $rq): ?>
+            <li class="sd-row sd-req <?= $rq['status'] === 'answered' ? 'is-answered' : 'is-open' ?>">
+                <div class="sd-req-main">
+                    <p class="sd-meta"><strong><?= sdH(sd('req_kind_' . $rq['kind'])) ?></strong> · <?= sdH($rq['course_title']) ?> · <span class="num"><?= sdH(sdDate($rq['created_at'], 'date')) ?></span></p>
+                    <h3 class="sd-course-title"><?= sdH($rq['subject']) ?></h3>
+                    <p class="sd-meta"><?= nl2br(sdH($rq['message'])) ?></p>
+                    <?php if ($rq['status'] === 'answered'): ?>
+                        <div class="rd-grade"><strong><?= sdH(sd('req_answer')) ?></strong> <small><?= sdH(sdDate((string)$rq['answered_at'], 'date')) ?></small><div class="rd-feedback-text"><?= nl2br(sdH((string)$rq['response'])) ?></div></div>
+                    <?php endif; ?>
+                </div>
+                <div class="sd-req-st"><span class="sd-verdict <?= $rq['status'] === 'answered' ? 'is-pass' : 'is-wait' ?>"><?= sdH(sd($rq['status'] === 'answered' ? 'req_status_answered' : 'req_status_open')) ?></span></div>
+            </li>
+            <?php endforeach; ?>
+        </ul>
+        <?php endif; ?>
     </section>
     <?php endif; ?>
 
@@ -1223,6 +1274,22 @@ $nav = [
     </div>
 </div>
 
+<div id="req-modal" class="sd-modal hidden" role="dialog" aria-modal="true" aria-labelledby="req-title">
+    <div class="sd-sheet">
+        <header class="sd-sheet-head"><h2 id="req-title"></h2><button type="button" class="sd-iconbtn" onclick="closeModal('req-modal')" aria-label="<?= sdH(sd('close')) ?>"><?= sdIcon('x', 18) ?></button></header>
+        <form id="req-form" onsubmit="submitRequest(event)">
+            <p id="req-about" class="sd-meta"></p>
+            <input type="hidden" id="req-kind"><input type="hidden" id="req-ref">
+            <div class="field" id="req-course-wrap"><label for="req-course"><?= sdH(sd('req_f_course')) ?></label>
+                <select id="req-course" class="input"><?php foreach ($myCourseList as $mc): ?><option value="<?= (int)$mc['id'] ?>"><?= sdH($mc['title']) ?></option><?php endforeach; ?></select></div>
+            <div class="field" id="req-subject-wrap"><label for="req-subject"><?= sdH(sd('req_f_subject')) ?></label><input type="text" id="req-subject" class="input" maxlength="160"></div>
+            <div class="field"><label for="req-message"><?= sdH(sd('req_f_message')) ?></label><textarea id="req-message" class="input" rows="6" maxlength="2000"></textarea><span class="hint" id="req-hint"></span></div>
+            <div id="req-error" class="hint err hidden" role="alert"></div>
+            <button type="submit" id="req-send" class="btn btn-primary btn-lg sd-full"><?= sdH(sd('req_send')) ?></button>
+        </form>
+    </div>
+</div>
+
 <!-- =========================================================================
      SECTION 11: COMPULSORY MATRICULE (kept exactly: blocks until filled)
      ========================================================================= -->
@@ -1256,6 +1323,7 @@ window.SV_LANG = <?= json_encode($lang) ?>;
 <script src="/assets/js/pdf-reader.js"></script>
 <script src="/assets/js/video-chain.js"></script>
 <script src="/assets/js/student.js"></script>
+<script src="/assets/js/student-requests.js"></script>
 <?php
 $matBlocks = empty($user['matricule']) || !empty($matDuplicate);
 require_once __DIR__ . '/../lib/PhonePrompt.php';
