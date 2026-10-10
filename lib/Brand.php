@@ -13,8 +13,9 @@ declare(strict_types=1);
  * WEB (inline SVG, follows the page theme through --ink / --clay tokens)
  *   Brand::headLinks()             in <head>: favicon, apple-touch-icon, brand.css, once-per-session flag
  *   Brand::logo('md')              wordmark. sizes: sm | md | lg | xl
- *   Brand::logo('lg', true)        same + intro: types itself on (with caret), then one shine sweep.
- *                                  Plays once per browser session, never with prefers-reduced-motion.
+ *   Brand::logo('lg', true)        same + intro: types itself on, then one shine sweep. Plays once per browser session.
+ *   Every logo is alive: every 2 s the letters hop in a small wave; on hover they hop higher and a band of light sweeps
+ *   across them. Nothing moves with prefers-reduced-motion. All in assets/css/brand.css (no JavaScript).
  *   Brand::mark(24)                the bookmark symbol only (img tag)
  *
  * FILES (absolute paths, for PDF / mail / office libraries)
@@ -70,7 +71,7 @@ final class Brand
              . '<link rel="apple-touch-icon" href="/assets/img/apple-touch-icon.png">'
              . '<meta name="theme-color" content="' . self::PAPER . '">'
              . '<link rel="manifest" href="/manifest.webmanifest">'
-             . '<link rel="stylesheet" href="/assets/css/brand.css">'
+             . '<link rel="stylesheet" href="/assets/css/brand.css?v=' . (int)@filemtime(dirname(__DIR__) . '/assets/css/brand.css') . '">'
              // intro plays once per session: mark the session as "seen" after the animation, skip it on later loads
              . '<script>(function(){try{var d=document.documentElement;if(sessionStorage.getItem("sv_brand_seen")){d.classList.add("sv-brand-seen")}else{setTimeout(function(){try{sessionStorage.setItem("sv_brand_seen","1")}catch(e){}},4200)}}catch(e){}})();</script>'
              // installable app: the service worker keeps static files and shows an offline page (see /sw.js)
@@ -91,15 +92,25 @@ final class Brand
         $cls = 'sv-brand sv-brand--' . $size . ($animate ? ' sv-brand--animate' : '');
 
         // k: i = ink letters ("study"), c = terracotta ("vibe", the check-mark V first), s = the spark i-dot
+        $u = ++self::$uid;
         $paths = '';
+        $clip = '';
         foreach ($d['letters'] as $i => $l) {
             $k = ['i' => 'sv-l sv-l--i', 'c' => 'sv-l sv-l--c', 's' => 'sv-l sv-l--s'][$l['k']] ?? 'sv-l sv-l--i';
             $fill = ['i' => self::WORD, 'c' => self::CLAY, 's' => self::SPARK][$l['k']] ?? self::WORD;
-            $paths .= '<path class="' . $k . '" style="--i:' . $i . '" fill="' . $fill . '" fill-rule="evenodd" d="' . $l['d'] . '"/>';
+            $paths .= '<path id="svp' . $u . '-' . $i . '" class="' . $k . '" style="--i:' . $i . '" fill="' . $fill . '" fill-rule="evenodd" d="' . $l['d'] . '"/>';
+            $clip .= '<use href="#svp' . $u . '-' . $i . '" clip-rule="evenodd"/>';
         }
+        // The shine: a soft diagonal light band clipped to the letters (so it never lights the page behind). Hidden until hovered,
+        // see brand.css. The letters are referenced, not copied, so the markup stays small.
+        $band = (int)round($vw * 0.26);
+        $shine = '<defs><linearGradient id="svg' . $u . '" gradientTransform="rotate(20 .5 .5)">'
+               . '<stop offset="0" class="sv-sh" stop-opacity="0"/><stop offset=".5" class="sv-sh" stop-opacity=".95"/><stop offset="1" class="sv-sh" stop-opacity="0"/></linearGradient>'
+               . '<clipPath id="svc' . $u . '">' . $clip . '</clipPath></defs>'
+               . '<g clip-path="url(#svc' . $u . ')" aria-hidden="true"><rect class="sv-shine" x="' . $vx . '" y="' . $vy . '" width="' . $band . '" height="' . $vh . '" fill="url(#svg' . $u . ')"/></g>';
         return '<span class="' . $cls . '" role="img" aria-label="StudyVibe">'
              . '<svg class="sv-wm" viewBox="' . "$vx $vy $vw $vh" . '" aria-hidden="true" focusable="false">'
-             . $paths . '</svg></span>';
+             . $paths . $shine . '</svg></span>';
     }
 
     /** Standalone SVG document for variant color|dark|mono. */

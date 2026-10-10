@@ -9,7 +9,7 @@ Everything goes through `lib/Brand.php`. Never hand-draw the logo and never use 
 require_once __DIR__ . '/lib/Brand.php';
 <head> <?= Brand::headLinks() ?> </head>       // favicon svg+png, apple-touch-icon, theme-color, brand.css, once-per-session flag
 <?= Brand::logo('md') ?>                        // sm | md | lg | xl, inline SVG, follows --ink/--clay (light and dark)
-<?= Brand::logo('xl', true) ?>                  // intro: types on with a caret, bookmark drops in, one shine sweep
+<?= Brand::logo('xl', true) ?>                  // intro: types on, the check-mark V drops in, the spark pops (once per session)
 <?= Brand::mark(24) ?>                          // symbol only
 ```
 The intro plays once per browser session (sessionStorage `sv_brand_seen`, set by `headLinks()`), is skipped with `prefers-reduced-motion`, and without JS it simply plays once per page load (pure CSS). Use `animate` only for the landing hero and the live lobby.
@@ -39,3 +39,11 @@ mkdir /tmp/logo && pdfimages -png "StudyVibe Logo.pdf" /tmp/logo/im
 python3 scripts/brand/build.py /tmp/logo && node scripts/brand/render.js
 ```
 To change a colour edit the constants at the top of `build.py` (and `Brand::CLAY/WORD/SPARK` plus `assets/css/brand.css`), then regenerate everything together.
+
+## The logo is alive (assets/css/brand.css, no JavaScript)
+
+- **Idle:** every 2 seconds the letters of every wordmark hop one after the other (a small wave) and the spark winks last. The first hop comes about 1.2 s after the page loads (2.4 s after the intro on a page that plays it).
+- **Hover:** the letters hop higher, a diagonal band of light sweeps across them (clipped to the letters, it never lights the page behind) and the spark winks. Hovering the link that wraps the logo counts. It plays once per hover; the idle hop resumes after the pointer leaves.
+- **Reduced motion:** with `prefers-reduced-motion` and in print, nothing moves.
+- The markup comes from `Brand::logo()` only: each letter is a path with an id, and the shine is a rect clipped by `<use>` references to those paths, so the markup grows by about 2 KB per logo. Do not draw the logo by hand elsewhere.
+- `Brand::headLinks()` adds `?v=<file time>` to `brand.css`, because the service worker serves static files from its cache first.

@@ -12,17 +12,42 @@ html.dark { --sv-b-ink:#F4F1EA; --sv-b-clay:#E27B57; --sv-b-spark:#FF6A3D; }
 .sv-brand-mark { display:inline-block; vertical-align:middle; }
 a > .sv-brand, .sv-brand a { text-decoration:none; }
 
-/* intro: the letters rise one after the other, the check-mark V drops in, the spark pops last.
-   Only exists on .sv-brand--animate; the final state is the normal state. */
-.sv-brand--animate .sv-l { animation:sv-type .32s cubic-bezier(.2,.7,.2,1) calc(.2s + var(--i) * .07s) backwards; }
-.sv-brand--animate .sv-l--c { animation-name:sv-drop; animation-duration:.4s; }
-.sv-brand--animate .sv-l--s { animation-name:sv-pop; animation-duration:.45s; animation-delay:1.05s; transform-box:fill-box; transform-origin:center; }
+/* ── Life of the logo ────────────────────────────────────────────────────────────────────────────────────────────
+   1. Idle: every 2 seconds the letters hop one after the other (a small wave), and the spark winks last.
+   2. Hover: the letters hop higher, a band of light sweeps across them (clipped to the letters, see Brand::logo) and the spark winks.
+   Honours prefers-reduced-motion (everything off). transform-box: fill-box makes every percentage relative to the letter itself. */
+.sv-brand .sv-l { transform-box:fill-box; transform-origin:50% 100%; animation:sv-hop 2s ease-in-out calc(1.2s + var(--i) * .06s) infinite; }
+.sv-brand .sv-l--s { transform-origin:50% 50%; animation-name:sv-wink; }
+.sv-shine { opacity:0; transform-box:fill-box; pointer-events:none; }
+.sv-sh { stop-color:var(--sv-b-shine, #fff); }
+html.dark { --sv-b-shine:#FFD9B0; }
+@keyframes sv-hop  { 0%, 20%, 100% { transform:none; } 7% { transform:translateY(-17%); } 14% { transform:translateY(3%); } }
+@keyframes sv-wink { 0%, 20%, 100% { transform:none; } 8% { transform:scale(1.9) rotate(25deg); } 14% { transform:scale(.9); } }
+
+.sv-brand:hover .sv-l, a:hover > .sv-brand .sv-l { animation:sv-hop-hover .9s cubic-bezier(.2,.8,.3,1.1) calc(var(--i) * .045s) 1 both; }
+.sv-brand:hover .sv-l--s, a:hover > .sv-brand .sv-l--s { animation:sv-wink-hover .8s ease .42s 1 both; }
+.sv-brand:hover .sv-shine, a:hover > .sv-brand .sv-shine { animation:sv-sweep .9s ease-in-out .05s 1 both; }
+@keyframes sv-hop-hover  { 0% { transform:none; } 25% { transform:translateY(-30%) scale(1.07); } 50% { transform:translateY(5%); } 72% { transform:translateY(-8%); } 100% { transform:none; } }
+@keyframes sv-wink-hover { 0% { transform:none; } 35% { transform:scale(2.3) rotate(40deg); } 100% { transform:none; } }
+@keyframes sv-sweep { 0% { transform:translateX(-100%); opacity:0; } 12% { opacity:1; } 88% { opacity:1; } 100% { transform:translateX(430%); opacity:0; } }
+
+/* intro (landing and live-session hero): the letters rise one after the other, the check-mark V drops in, the spark pops last,
+   then the idle hop takes over. Only exists on .sv-brand--animate; the final state is the normal state. */
+.sv-brand--animate .sv-l { animation:sv-type .32s cubic-bezier(.2,.7,.2,1) calc(.2s + var(--i) * .07s) backwards, sv-hop 2s ease-in-out calc(2.4s + var(--i) * .06s) infinite; }
+.sv-brand--animate .sv-l--c { animation:sv-drop .4s cubic-bezier(.2,.7,.2,1) calc(.2s + var(--i) * .07s) backwards, sv-hop 2s ease-in-out calc(2.4s + var(--i) * .06s) infinite; }
+.sv-brand--animate .sv-l--s { animation:sv-pop .45s ease 1.05s backwards, sv-wink 2s ease-in-out 2.9s infinite; }
 @keyframes sv-type { from { opacity:0; transform:translateY(40px); } to { opacity:1; transform:none; } }
 @keyframes sv-drop { from { opacity:0; transform:translateY(-70px); } 70% { opacity:1; transform:translateY(6px); } to { opacity:1; transform:none; } }
 @keyframes sv-pop { from { opacity:0; transform:scale(0); } 65% { opacity:1; transform:scale(1.35); } to { opacity:1; transform:none; } }
+.sv-brand--animate:hover .sv-l, a:hover > .sv-brand--animate .sv-l { animation:sv-hop-hover .9s cubic-bezier(.2,.8,.3,1.1) calc(var(--i) * .045s) 1 both; }
+.sv-brand--animate:hover .sv-l--s, a:hover > .sv-brand--animate .sv-l--s { animation:sv-wink-hover .8s ease .42s 1 both; }
 
-/* already played this session, or reduced motion, or no animation wanted: show the final state */
-.sv-brand-seen .sv-brand--animate .sv-l { animation:none; }
-@media (prefers-reduced-motion: reduce) { .sv-brand--animate .sv-l { animation:none !important; } }
-@media print { .sv-brand--animate .sv-l { animation:none !important; } }
+/* intro already played in this session: skip it, keep the idle hop */
+.sv-brand-seen .sv-brand--animate .sv-l { animation:sv-hop 2s ease-in-out calc(1.2s + var(--i) * .06s) infinite; }
+.sv-brand-seen .sv-brand--animate .sv-l--s { animation:sv-wink 2s ease-in-out 1.8s infinite; }
+.sv-brand-seen .sv-brand--animate:hover .sv-l, .sv-brand-seen a:hover > .sv-brand--animate .sv-l { animation:sv-hop-hover .9s cubic-bezier(.2,.8,.3,1.1) calc(var(--i) * .045s) 1 both; }
+.sv-brand-seen .sv-brand--animate:hover .sv-l--s, .sv-brand-seen a:hover > .sv-brand--animate .sv-l--s { animation:sv-wink-hover .8s ease .42s 1 both; }
+
+@media (prefers-reduced-motion: reduce) { .sv-brand .sv-l, .sv-brand--animate .sv-l, .sv-brand:hover .sv-l, a:hover > .sv-brand .sv-l, .sv-brand-seen .sv-brand--animate .sv-l { animation:none !important; } .sv-shine { display:none; } }
+@media print { .sv-brand .sv-l, .sv-brand--animate .sv-l { animation:none !important; } .sv-shine { display:none; } }
 .hero-logo { margin: 0 0 1.75rem; }
