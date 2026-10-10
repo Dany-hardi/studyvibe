@@ -119,6 +119,7 @@ check('the student is told in the app (notification linking to the lesson)', $n 
 $mail = $pdo->query("SELECT template, args FROM email_outbox WHERE to_email = 'zz.chtest.ama@test.local' AND template = 'comment_reply'")->fetchAll(PDO::FETCH_ASSOC);
 $args = json_decode($mail[0]['args'] ?? '{}', true);
 check('...and by email, once, in their language, with the question and the answer', count($mail) === 1 && ($args['lang'] ?? '') === 'en' && str_contains($args['question'] ?? '', 'limite') && str_contains($args['reply'] ?? '', 'comportement'));
+$pdo->exec("UPDATE email_outbox SET status = 'queued', sent_at = NULL, next_try_at = NULL WHERE to_email = 'zz.chtest.ama@test.local' AND template = 'comment_reply'"); // the app's own worker may already have taken it
 $sent = []; Mailer::$capture = function ($to, $subject, $html) use (&$sent) { $sent[] = ['to' => $to, 'subject' => $subject, 'html' => $html]; };
 EmailQueue::work($pdo);
 $m = array_values(array_filter($sent, fn($x) => $x['to'] === 'zz.chtest.ama@test.local'))[0] ?? ['subject' => '', 'html' => ''];
