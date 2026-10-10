@@ -16,7 +16,7 @@ final class EmailQueue
     private const BATCH = 20;
 
     /** Templates the queue knows how to send, and the Mailer method each one calls. */
-    private const TEMPLATES = ['live_scheduled', 'result_cancelled', 'contest_received', 'contest_decision', 'assignment_graded', 'assignment_revision'];
+    private const TEMPLATES = ['live_scheduled', 'result_cancelled', 'contest_received', 'contest_decision', 'assignment_graded', 'assignment_revision', 'live_reminder', 'comment_reply', 'request_received', 'request_answer'];
 
     /** @return int|null the row id, or null when this dedupe_key was already queued */
     public static function enqueue(PDO $pdo, ?int $userId, string $toEmail, string $template, array $args, ?string $dedupeKey = null): ?int
@@ -122,6 +122,10 @@ final class EmailQueue
             'result_cancelled' => Mailer::liveResultCancelled($to, (string)$a['name'], (string)$a['session_title'], (string)$a['course_title'], (string)($a['reason'] ?? ''), (string)($a['teacher'] ?? ''), (string)($a['lang'] ?? 'fr'), !empty($a['restored']), (string)($a['contest_url'] ?? '')),
             'contest_received' => Mailer::liveContestReceived($to, (string)$a['teacher'], (string)$a['student'], (string)$a['session_title'], (string)$a['message'], (string)($a['lang'] ?? 'fr')),
             'contest_decision' => Mailer::liveContestDecision($to, (string)$a['name'], (string)$a['session_title'], (string)$a['course_title'], !empty($a['accepted']), (string)($a['response'] ?? ''), (string)($a['teacher'] ?? ''), (string)($a['lang'] ?? 'fr'), (string)$a['url']),
+            'live_reminder'    => Mailer::liveEvalReminder($to, (string)$a['name'], (array)$a['session'], (string)$a['link'], (string)($a['lang'] ?? 'fr'), (int)($a['minutes_left'] ?? 15), !empty($a['rescheduled'])),
+            'comment_reply'    => Mailer::commentReply($to, (string)$a['name'], (string)$a['lesson_title'], (string)$a['course_title'], (string)$a['question'], (string)$a['reply'], (string)($a['teacher'] ?? ''), (string)($a['lang'] ?? 'fr'), (string)$a['url']),
+            'request_received' => Mailer::requestReceived($to, (string)$a['teacher'], (string)$a['student'], (string)$a['subject'], (string)$a['message'], (string)$a['context'], (string)($a['lang'] ?? 'fr'), (string)$a['url']),
+            'request_answer'   => Mailer::requestAnswer($to, (string)$a['name'], (string)$a['subject'], (string)$a['context'], (string)$a['response'], (string)($a['teacher'] ?? ''), (string)($a['lang'] ?? 'fr'), (string)$a['url']),
             'assignment_graded'   => Mailer::assignmentGraded($to, (string)$a['name'], (string)$a['title'], (string)$a['lesson_title'], (string)$a['course_title'], (float)$a['score'], (float)$a['max'], (string)($a['feedback'] ?? ''), (string)($a['teacher'] ?? ''), (string)($a['lang'] ?? 'fr'), (string)$a['url']),
             'assignment_revision' => Mailer::assignmentRevision($to, (string)$a['name'], (string)$a['title'], (string)$a['lesson_title'], (string)$a['course_title'], (string)$a['note'], (string)($a['teacher'] ?? ''), (string)($a['lang'] ?? 'fr'), (string)$a['url']),
             default            => false,

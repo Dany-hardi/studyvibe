@@ -201,3 +201,14 @@ html.dark .pi-tag { color: var(--clay); }
   .pi-mf-bar i, .pi-fn-track i { animation: none; }
   .pi-kpi, .pi-qr, .pi-heat i { transition: none; }
 }
+
+/* Account creation and deletion dialogs (administrator) */
+.cu-modes { border: 0; padding: 0; margin: 0 0 1rem; } .cu-modes legend { font-weight: 600; margin-bottom: .35rem; }
+.cu-mode { display: flex; gap: .55rem; align-items: flex-start; margin: .35rem 0; cursor: pointer; font-size: .92rem; } .cu-mode input { margin-top: .25rem; }
+#cu-pass-wrap { margin: .3rem 0 .6rem 1.5rem; }
+.cu-courses { max-height: 9rem; overflow: auto; border: 1px solid var(--line, #ddd); border-radius: 10px; padding: .4rem .6rem; }
+.cu-courses label { display: flex; gap: .5rem; margin: .2rem 0; font-weight: 400; cursor: pointer; }
+.cu-pass { margin: .8rem 0; padding: .7rem .9rem; border-radius: 10px; background: color-mix(in srgb, #D9A23B 18%, transparent); }
+.cu-pass code { font-size: 1.15rem; font-weight: 700; letter-spacing: .03em; user-select: all; word-break: break-all; }
+.dd-impact { margin: .4rem 0 .8rem 1.1rem; padding: 0; list-style: disc; } .dd-impact li { margin: .2rem 0; }
+.cu-result[hidden], #create-user-form[hidden] { display: none; }

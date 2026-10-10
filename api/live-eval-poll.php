@@ -135,6 +135,9 @@ function getCachedSessionData(PDO $pdo, string $code): ?array
 
 try {
     $pdo = Database::getInstance();
+    // Students waiting in the room poll all the time: the reminder of an exam about to start leaves from here too (throttled)
+    require_once __DIR__ . '/../lib/LiveReminders.php';
+    LiveReminders::tick($pdo);
 
     // Load active session using caching function
     $cachedData = getCachedSessionData($pdo, $code);

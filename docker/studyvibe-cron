@@ -1,0 +1,2 @@
+# Sends the e-mail queue and, 15 minutes before a live evaluation, its reminder (see lib/LiveReminders.php). Every minute.
+* * * * * www-data /usr/local/bin/php /var/www/html/lib/email-worker.php >/dev/null 2>&1

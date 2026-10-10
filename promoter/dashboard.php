@@ -487,7 +487,7 @@ $TX = [
  'close' => ['Fermer', 'Close'],
  'back' => ['Retour', 'Back'],
  'cu_h' => ['Créer un compte', 'Create an account'],
- 'cu_p' => ['La personne pourra se connecter tout de suite avec ce mot de passe.', 'The person can sign in right away with this password.'],
+ 'cu_p' => ['Le compte est prêt immédiatement : e-mail confirmé, actif, validé. Choisissez comment la personne obtient son mot de passe.', 'The account is ready at once: email confirmed, active, approved. Choose how the person gets their password.'],
  'cu_name' => ['Nom complet', 'Full name'],
  'cu_name_ph' => ['ex : Dr Isabelle Martin', 'e.g. Dr Isabelle Martin'],
  'cu_email' => ['Adresse e-mail', 'Email address'],
@@ -497,6 +497,25 @@ $TX = [
  'cu_role' => ['Rôle', 'Role'],
  'cu_role_promoter' => ['Promoteur (co-administrateur)', 'Promoter (co-administrator)'],
  'cu_submit' => ['Créer le compte', 'Create account'],
+ 'cu_lang' => ['Langue', 'Language'],
+ 'cu_matricule' => ['Matricule (étudiant)', 'Student number (students)'],
+ 'cu_matricule_hint' => ['Facultatif, format 26A123. Nécessaire pour déposer des devoirs.', 'Optional, format 26A123. Needed to hand in assignments.'],
+ 'cu_mode' => ['Mot de passe', 'Password'],
+ 'cu_mode_password' => ['Je le saisis maintenant', 'I type it now'],
+ 'cu_mode_generate' => ['Générer un mot de passe solide (affiché une seule fois)', 'Generate a strong password (shown once)'],
+ 'cu_mode_invite' => ['Envoyer une invitation : la personne choisit elle-même son mot de passe (lien valable 72 h)', 'Send an invitation: the person chooses their own password (link valid 72 h)'],
+ 'cu_courses' => ['Inscrire à des cours (facultatif)', 'Enrol in courses (optional)'],
+ 'cu_courses_none' => ['Aucun cours pour le moment.', 'No course yet.'],
+ 'cu_welcome' => ['Envoyer un e-mail « votre compte est prêt »', 'Send a “your account is ready” email'],
+ 'cu_done_h' => ['Compte créé', 'Account created'],
+ 'cu_done_another' => ['Créer un autre compte', 'Create another account'],
+ 'cu_done_close' => ['Terminer', 'Done'],
+ 'dd_will' => ['La suppression efface :', 'Deleting erases:'],
+ 'dd_teacher' => ['Que deviennent ses cours et ses évaluations ?', 'What happens to their courses and evaluations?'],
+ 'dd_reassign' => ['Les confier à un autre enseignant (rien n’est perdu)', 'Hand them to another teacher (nothing is lost)'],
+ 'dd_cascade' => ['Les supprimer avec lui : étudiants inscrits, progression, certificats et résultats compris', 'Delete them with the teacher: enrolled students, progress, certificates and results included'],
+ 'dd_pick' => ['Choisir un enseignant…', 'Choose a teacher…'],
+ 'dd_delete' => ['Supprimer définitivement', 'Delete permanently'],
  'confirm' => ['Confirmer', 'Confirm'],
  'jserr' => ['Une erreur est survenue.', 'Something went wrong.'],
 ];
@@ -537,6 +556,13 @@ $JT = [
   'ak_created' => 'Clé créée.', 'ak_default' => 'Clé du {d}', 'ak_active' => 'Active', 'ak_revoked' => 'Révoquée', 'ak_revoke' => 'Révoquer', 'ak_none' => 'Aucune clé pour le moment.',
   'ak_copied' => 'Copiée', 'ak_copy' => 'Copier', 'ak_revoked_ok' => 'Clé révoquée.',
   'cert_ok' => 'Certificat {code} délivré à {name}.', 'ai_ok' => 'Rapport généré.', 'dm_sending' => 'Envoi…', 'dm_send' => 'Envoyer le message', 'creating' => 'Création…', 'cu_submit' => 'Créer le compte',
+  'dd_pick' => 'Choisir un enseignant…', 'cu_courses_none' => 'Aucun cours pour le moment.',
+  'cu_pass_shown' => 'Mot de passe à transmettre à la personne (il ne sera plus affiché) :', 'cu_copy' => 'Copier', 'cu_invited' => 'Une invitation a été envoyée à {email} : la personne choisira son mot de passe.', 'cu_invite_failed' => 'Compte créé, mais l’invitation n’a pas pu être envoyée. Utilisez « Mot de passe oublié » sur la page de connexion.', 'cu_created' => 'Le compte de {name} est prêt.', 'cu_enrolled' => '{n} inscription(s) à des cours.', 'cu_mail_sent' => 'E-mail envoyé.',
+  'dd_t' => 'Supprimer {name} ?', 'dd_lead' => 'Cette action est définitive.', 'dd_phrase_need' => 'Pour confirmer, tapez « {w} » ci-dessous.', 'dd_need_choice' => 'Choisissez un enseignant ou confirmez la suppression de ses cours.', 'dd_nothing' => 'Rien d’autre n’est lié à ce compte.',
+  'imp_courses' => '{n} cours', 'imp_students_in_courses' => '{n} étudiant(s) inscrit(s) à ces cours', 'imp_certificates' => '{n} certificat(s)', 'imp_live_sessions' => '{n} évaluation(s) en direct', 'imp_live_results' => '{n} résultat(s) d’évaluation', 'imp_announcements' => '{n} annonce(s)',
+  'imp_enrollments' => '{n} inscription(s) et la progression', 'imp_assignments' => '{n} devoir(s) rendu(s), fichiers compris', 'imp_comments' => '{n} commentaire(s)', 'imp_live_results_kept' => '{n} résultat(s) d’évaluation en direct restent chez les enseignants, sans compte',
+  'imp_api_keys' => '{n} clé(s) API : reprises par vous', 'imp_campaigns' => '{n} campagne(s) d’envoi : reprises par vous',
+  'bulk_skipped' => '{n} enseignant(s) avec des cours ou des évaluations n’ont pas été supprimés : traitez-les un par un.', 'del_err_last_admin' => 'C’est le dernier administrateur : impossible de le supprimer.',
   'notif_none' => 'Aucune notification.', 'smtp_test' => 'Test SMTP lancé.',
   'prev_nosub' => '(sans objet)', 'a_sub' => 'les abonnés actifs de la newsletter', 'a_stu' => 'tous les comptes apprenants, confirmés ou non', 'a_all' => 'les abonnés et tous les apprenants (sans doublon)',
   'line' => 'Ce message sera envoyé à {n} personnes : {d}.', 'prev_to' => 'À : {a} ({n} personnes)', 'edit' => 'Modifier', 'role_you' => 'vous',
@@ -570,6 +596,13 @@ $JT = [
   'ak_created' => 'Key created.', 'ak_default' => 'Key of {d}', 'ak_active' => 'Active', 'ak_revoked' => 'Revoked', 'ak_revoke' => 'Revoke', 'ak_none' => 'No key yet.',
   'ak_copied' => 'Copied', 'ak_copy' => 'Copy', 'ak_revoked_ok' => 'Key revoked.',
   'cert_ok' => 'Certificate {code} issued to {name}.', 'ai_ok' => 'Report generated.', 'dm_sending' => 'Sending…', 'dm_send' => 'Send message', 'creating' => 'Creating…', 'cu_submit' => 'Create account',
+  'dd_pick' => 'Choose a teacher…', 'cu_courses_none' => 'No course yet.',
+  'cu_pass_shown' => 'Password to give to the person (it will not be shown again):', 'cu_copy' => 'Copy', 'cu_invited' => 'An invitation was sent to {email}: the person will choose their password.', 'cu_invite_failed' => 'Account created, but the invitation could not be sent. Use “Forgot password” on the sign-in page.', 'cu_created' => '{name}’s account is ready.', 'cu_enrolled' => '{n} course enrolment(s).', 'cu_mail_sent' => 'Email sent.',
+  'dd_t' => 'Delete {name}?', 'dd_lead' => 'This cannot be undone.', 'dd_phrase_need' => 'To confirm, type “{w}” below.', 'dd_need_choice' => 'Choose a teacher or confirm the deletion of their courses.', 'dd_nothing' => 'Nothing else is linked to this account.',
+  'imp_courses' => '{n} course(s)', 'imp_students_in_courses' => '{n} student(s) enrolled in those courses', 'imp_certificates' => '{n} certificate(s)', 'imp_live_sessions' => '{n} live evaluation(s)', 'imp_live_results' => '{n} evaluation result(s)', 'imp_announcements' => '{n} announcement(s)',
+  'imp_enrollments' => '{n} enrolment(s) and the progress', 'imp_assignments' => '{n} handed-in assignment(s), files included', 'imp_comments' => '{n} comment(s)', 'imp_live_results_kept' => '{n} live evaluation result(s) stay with the teachers, without an account',
+  'imp_api_keys' => '{n} API key(s): taken over by you', 'imp_campaigns' => '{n} sending campaign(s): taken over by you',
+  'bulk_skipped' => '{n} teacher(s) with courses or evaluations were not deleted: handle them one by one.', 'del_err_last_admin' => 'This is the last administrator: it cannot be deleted.',
   'notif_none' => 'No notifications.', 'smtp_test' => 'SMTP test started.',
   'prev_nosub' => '(no subject)', 'a_sub' => 'the active newsletter subscribers', 'a_stu' => 'every student account, confirmed or not', 'a_all' => 'subscribers and all students (no duplicates)',
   'line' => 'This message will be sent to {n} people: {d}.', 'prev_to' => 'To: {a} ({n} people)', 'edit' => 'Edit', 'role_you' => 'you',
@@ -1207,18 +1240,52 @@ X-API-Key: &lt;key&gt;</div>
     <h2 id="cu-h"><?= $t('cu_h') ?></h2>
     <p class="dlg-p"><?= $t('cu_p') ?></p>
     <p class="err" id="modal-error" hidden></p>
-    <div class="field"><label for="cu-name"><?= $t('cu_name') ?></label><input class="input" id="cu-name" type="text" name="name" required placeholder="<?= $h($t('cu_name_ph')) ?>"></div>
-    <div class="field"><label for="cu-email"><?= $t('cu_email') ?></label><input class="input" id="cu-email" type="email" name="email" required placeholder="<?= $h($t('cu_email_ph')) ?>"></div>
     <div class="row2">
-      <div class="field"><label for="cu-pass"><?= $t('cu_pass') ?></label><input class="input" id="cu-pass" type="password" name="password" required minlength="8" autocomplete="new-password"><span class="hint"><?= $t('cu_pass_hint') ?></span></div>
+      <div class="field"><label for="cu-name"><?= $t('cu_name') ?></label><input class="input" id="cu-name" type="text" name="name" required placeholder="<?= $h($t('cu_name_ph')) ?>"></div>
+      <div class="field"><label for="cu-email"><?= $t('cu_email') ?></label><input class="input" id="cu-email" type="email" name="email" required placeholder="<?= $h($t('cu_email_ph')) ?>"></div>
+    </div>
+    <div class="row2">
       <div class="field"><label for="cu-role"><?= $t('cu_role') ?></label>
         <select class="input" id="cu-role" name="role" required>
-          <option value="teacher"><?= $t('role_teacher') ?></option>
           <option value="student"><?= $t('role_student') ?></option>
+          <option value="teacher"><?= $t('role_teacher') ?></option>
           <option value="promoter"><?= $t('cu_role_promoter') ?></option>
         </select></div>
+      <div class="field"><label for="cu-lang"><?= $t('cu_lang') ?></label>
+        <select class="input" id="cu-lang" name="lang"><option value="fr" <?= $lang === 'fr' ? 'selected' : '' ?>>Français</option><option value="en" <?= $lang === 'en' ? 'selected' : '' ?>>English</option></select></div>
     </div>
+    <div class="field" id="cu-mat-wrap"><label for="cu-mat"><?= $t('cu_matricule') ?></label><input class="input" id="cu-mat" type="text" name="matricule" maxlength="12" autocomplete="off" placeholder="26A123"><span class="hint"><?= $t('cu_matricule_hint') ?></span></div>
+    <fieldset class="field cu-modes"><legend><?= $t('cu_mode') ?></legend>
+      <label class="cu-mode"><input type="radio" name="mode" value="password" checked> <span><?= $t('cu_mode_password') ?></span></label>
+      <div id="cu-pass-wrap"><input class="input" id="cu-pass" type="password" name="password" minlength="8" autocomplete="new-password" aria-label="<?= $h($t('cu_pass')) ?>"><span class="hint"><?= $t('cu_pass_hint') ?></span></div>
+      <label class="cu-mode"><input type="radio" name="mode" value="generate"> <span><?= $t('cu_mode_generate') ?></span></label>
+      <label class="cu-mode"><input type="radio" name="mode" value="invite"> <span><?= $t('cu_mode_invite') ?></span></label>
+    </fieldset>
+    <div class="field" id="cu-courses-wrap"><label><?= $t('cu_courses') ?></label><div class="cu-courses" id="cu-courses"></div></div>
+    <label class="cu-mode" id="cu-welcome-wrap"><input type="checkbox" name="welcome" value="1"> <span><?= $t('cu_welcome') ?></span></label>
     <div class="dlg-actions"><button type="button" class="btn btn-ghost" data-close><?= $t('cancel') ?></button><button type="submit" class="btn btn-primary" id="create-user-btn"><?= $t('cu_submit') ?></button></div>
+  </form>
+  <div id="cu-result" class="cu-result" hidden>
+    <h2><?= $t('cu_done_h') ?></h2>
+    <p class="dlg-p" id="cu-result-text"></p>
+    <div class="cu-pass" id="cu-pass-box" hidden><p id="cu-pass-label"></p><code id="cu-pass-value"></code> <button type="button" class="btn btn-sm btn-ghost" id="cu-pass-copy"></button></div>
+    <div class="dlg-actions"><button type="button" class="btn btn-ghost" id="cu-another"><?= $t('cu_done_another') ?></button><button type="button" class="btn btn-primary" id="cu-done"><?= $t('cu_done_close') ?></button></div>
+  </div>
+</dialog>
+
+<dialog class="dlg" id="delete-user-dlg" aria-labelledby="dd-h">
+  <form id="delete-user-form" method="dialog">
+    <h2 id="dd-h"></h2>
+    <p class="dlg-p" id="dd-lead"></p>
+    <p class="err" id="dd-error" hidden></p>
+    <div id="dd-impact-box"><strong><?= $t('dd_will') ?></strong><ul id="dd-impact" class="dd-impact"></ul></div>
+    <fieldset class="field" id="dd-decision" hidden><legend><?= $t('dd_teacher') ?></legend>
+      <label class="cu-mode"><input type="radio" name="dd_mode" value="reassign" checked> <span><?= $t('dd_reassign') ?></span></label>
+      <select class="input" id="dd-teacher" aria-label="<?= $h($t('dd_pick')) ?>"></select>
+      <label class="cu-mode"><input type="radio" name="dd_mode" value="cascade"> <span><?= $t('dd_cascade') ?></span></label>
+    </fieldset>
+    <div class="field" id="dd-phrase-wrap"><label for="dd-phrase" id="dd-phrase-hint"></label><input class="input" id="dd-phrase" type="text" autocomplete="off"></div>
+    <div class="dlg-actions"><button type="button" class="btn btn-ghost" data-close><?= $t('cancel') ?></button><button type="submit" class="btn btn-danger" id="dd-go" disabled><?= $t('dd_delete') ?></button></div>
   </form>
 </dialog>
 

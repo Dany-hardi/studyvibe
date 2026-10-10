@@ -4,18 +4,18 @@ declare(strict_types=1);
 require_once __DIR__ . '/../auth.php';
 require_once __DIR__ . '/../Mailer.php';
 require_once __DIR__ . '/../lib/Notifications.php';
+require_once __DIR__ . '/../lib/Security.php';
+require_once __DIR__ . '/../lib/AdminUsers.php';
 
 header('Content-Type: application/json');
 
 if (!isLoggedIn() || $_SESSION['user_role'] !== 'promoter') {
+    http_response_code(403);
     echo json_encode(['success' => false, 'message' => 'Accès non autorisé.']);
     exit;
 }
 
-if ($_SERVER['REQUEST_METHOD'] !== 'POST') {
-    echo json_encode(['success' => false, 'message' => 'Méthode non autorisée.']);
-    exit;
-}
+Security::requirePostFromSameSite();   // also refuses anything but POST
 
 $action = trim((string)($_POST['action'] ?? ''));
 $userId = (int)($_POST['user_id'] ?? 0);
@@ -40,7 +40,7 @@ try {
     $targetUser = $stmt->fetch();
 
     if (!$targetUser) {
-        echo json_encode(['success' => false, 'message' => 'Utilisateur introuvable.']);
+        echo json_encode(['success' => false, 'error' => 'not_found', 'message' => 'Utilisateur introuvable.']);
         exit;
     }
 
@@ -87,17 +87,18 @@ try {
         ]);
         exit;
 
+    } elseif ($action === 'impact') {
+        // What deleting this account would take with it (for the confirmation window)
+        echo json_encode(['success' => true, 'impact' => AdminUsers::impact($pdo, $userId)], JSON_UNESCAPED_UNICODE);
+        exit;
+
     } elseif ($action === 'delete') {
-        // Supprimer l'utilisateur
-        $stmt = $pdo->prepare("DELETE FROM users WHERE id = :id");
-        $stmt->execute(['id' => $userId]);
-
-        auditLog('user_deleted', "User deleted: {$targetUser['email']} (role: {$targetUser['role']})");
-
-        echo json_encode([
-            'success' => true,
-            'message' => 'Le compte a été supprimé définitivement.'
+        // Only an administrator can delete an account (this file is the only place in the application that does). The rules, the
+        // guard rails and the clean-up are in AdminUsers::delete().
+        $res = AdminUsers::delete($pdo, (int)$_SESSION['user_id'], $userId, [
+            'reassign_to' => (int)($_POST['reassign_to'] ?? 0), 'cascade' => !empty($_POST['cascade']),
         ]);
+        echo json_encode(['success' => $res['ok']] + $res, JSON_UNESCAPED_UNICODE);
         exit;
     }
 

@@ -8,6 +8,7 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
     texlive-fonts-recommended \
     texlive-lang-french \
     poppler-utils \
+    cron \
     && rm -rf /var/lib/apt/lists/*
 
 # Installer l'extension pdo_mysql requise par la base de données
@@ -21,6 +22,13 @@ RUN docker-php-ext-install opcache
 COPY docker/php-tuning.ini /usr/local/etc/php/conf.d/zz-studyvibe-tuning.ini
 COPY docker/apache-tuning.conf /etc/apache2/conf-available/studyvibe-tuning.conf
 RUN a2enconf studyvibe-tuning
+
+# Tâche planifiée : e-mails en attente et rappel 15 minutes avant les évaluations en direct (chaque minute)
+COPY docker/studyvibe-cron /etc/cron.d/studyvibe
+COPY docker/entrypoint.sh /usr/local/bin/studyvibe-entrypoint
+RUN chmod 0644 /etc/cron.d/studyvibe && chmod +x /usr/local/bin/studyvibe-entrypoint
+ENTRYPOINT ["studyvibe-entrypoint"]
+CMD ["apache2-foreground"]
 
 # Copier les fichiers du projet dans le conteneur
 COPY . /var/www/html/

@@ -559,6 +559,14 @@ class Database
             ");
         } catch (PDOException $ex) {}
 
+        // Migration 2.6k: the reminder sent 15 minutes before a live evaluation. reminder_version holds the version (hash of the start
+        // time) of the session for which it was sent, so moving the exam later sends a new reminder at the new time.
+        try {
+            $pdo->exec("ALTER TABLE `live_eval_sessions` ADD COLUMN `reminder_version` VARCHAR(16) DEFAULT NULL");
+        } catch (PDOException $ex) {
+            // already applied
+        }
+
         // Migration 2.7: Support binary storage backups for course cover images and lesson PDFs
         try {
             $pdo->query("SELECT cover_image_data FROM courses LIMIT 1");

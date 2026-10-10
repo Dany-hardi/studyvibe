@@ -208,6 +208,46 @@ class Mailer
         return self::send($to, 'Bienvenue sur StudyVibe', $html);
     }
 
+    /**
+     * An account an administrator created for someone. With a token: an invitation, the person chooses their password from the link
+     * (valid $hours hours). Without: "your account is ready" and the way to sign in (the password was given to them by the administrator).
+     */
+    public static function accountCreatedByAdmin(string $to, string $name, string $role, string $lang = 'fr', ?string $token = null, array $courses = [], int $hours = 0): bool
+    {
+        $en = $lang === 'en';
+        $label = ['student' => [$en ? 'student' : 'apprenant'], 'teacher' => [$en ? 'teacher' : 'enseignant'], 'promoter' => [$en ? 'administrator' : 'administrateur']][$role][0] ?? $role;
+        $invite = $token !== null;
+        $url = $invite ? self::app() . '/reset-password.php?token=' . urlencode($token) : self::app();
+        $what = $role === 'teacher'
+            ? ($en ? 'You can create courses, schedule live evaluations and follow your students’ results.' : 'Vous pouvez créer vos cours, programmer des évaluations en direct et suivre les résultats de vos étudiants.')
+            : ($role === 'promoter'
+                ? ($en ? 'You can manage accounts, courses, certificates and communications.' : 'Vous pouvez gérer les comptes, les cours, les certificats et les communications.')
+                : ($en ? 'Open your space to find your courses, take your evaluations and keep your certificates in one place.' : 'Ouvrez votre espace pour retrouver vos cours, passer vos évaluations et garder vos certificats au même endroit.'));
+        $list = '';
+        if ($courses) {
+            $list = EmailTheme::sectionTitle($en ? 'Your courses' : 'Vos cours')
+                . EmailTheme::facts(array_map(fn($t) => [self::h((string)$t), $en ? 'enrolled' : 'inscrit'], $courses));
+        }
+        $html = EmailTheme::layout(
+            EmailTheme::badge($invite ? ($en ? 'Invitation' : 'Invitation') : ($en ? 'Account ready' : 'Compte prêt'), 'clay')
+            . EmailTheme::title($invite ? ($en ? 'Choose your password' : 'Choisissez votre mot de passe') : ($en ? 'Your account is ready' : 'Votre compte est prêt'))
+            . self::hello($name, $lang)
+            . EmailTheme::lede($en
+                ? 'An administrator created a StudyVibe <strong>' . self::h($label) . '</strong> account for you with this email address.'
+                : 'Un administrateur a créé pour vous un compte <strong>' . self::h($label) . '</strong> StudyVibe avec cette adresse e-mail.')
+            . EmailTheme::p($what)
+            . $list
+            . EmailTheme::button($url, $invite ? ($en ? 'Choose my password' : 'Choisir mon mot de passe') : ($en ? 'Open my space' : 'Ouvrir mon espace'))
+            . ($invite ? EmailTheme::callout($en
+                ? 'This link is valid for <strong>' . $hours . ' hours</strong> and works once. After that, use “Forgot password” on the sign-in page.'
+                : 'Ce lien reste valable <strong>' . $hours . ' heures</strong> et ne sert qu’une fois. Ensuite, utilisez « Mot de passe oublié » sur la page de connexion.', 'ink') . EmailTheme::linkFallback($url, $lang)
+                : EmailTheme::small($en ? 'Your administrator gave you your password. Change it from your security settings after your first sign-in.' : 'Votre administrateur vous a communiqué votre mot de passe. Changez-le depuis vos paramètres de sécurité après votre première connexion.'))
+            . EmailTheme::signature($lang),
+            ['preheader' => $invite ? ($en ? 'Choose the password of your new StudyVibe account.' : 'Choisissez le mot de passe de votre nouveau compte StudyVibe.') : ($en ? 'Your StudyVibe account is ready.' : 'Votre compte StudyVibe est prêt.'), 'lang' => $lang]
+        );
+        return self::send($to, $invite ? ($en ? 'Your StudyVibe invitation' : 'Votre invitation StudyVibe') : ($en ? 'Your StudyVibe account is ready' : 'Votre compte StudyVibe est prêt'), $html);
+    }
+
     public static function emailVerification(string $to, string $name, string $token): bool
     {
         $url = self::app() . '/verify-email.php?token=' . urlencode($token);
@@ -488,6 +528,87 @@ class Mailer
             ['preheader' => $async ? $title : ($title . ' · ' . self::longDate($ts, $lang) . ' ' . $hm($ts)), 'lang' => $lang]
         );
         return self::send($to, ($rescheduled ? ($en ? 'New time: ' : 'Nouveau créneau : ') : ($en ? 'Evaluation scheduled: ' : 'Évaluation programmée : ')) . $title . ' — StudyVibe', $html);
+    }
+
+    /**
+     * The reminder that goes out 15 minutes before a live evaluation (see lib/LiveReminders.php): when it starts, the link, what to do
+     * right now, and the rules in a nutshell. Only for live sessions: an asynchronous evaluation has no start to remind of.
+     *
+     * @param array{title:string,course_title:string,start_time:string,n_questions?:int,minutes?:int,integrity_watch?:int,teacher_name?:string} $s
+     */
+    public static function liveEvalReminder(string $to, string $name, array $s, string $link, string $lang = 'fr', int $minutesLeft = 15, bool $rescheduled = false): bool
+    {
+        $en = $lang === 'en';
+        $watch = !empty($s['integrity_watch']);
+        $title = (string)$s['title'];
+        $course = (string)$s['course_title'];
+        $n = (int)($s['n_questions'] ?? 0);
+        $min = (int)($s['minutes'] ?? 0);
+        $ts = strtotime((string)$s['start_time']);
+        $hm = $en ? date('H:i', $ts) : date('H \\h i', $ts);
+        $left = max(1, $minutesLeft);
+        $rows = [
+            [$en ? 'Course' : 'Cours', self::h($course)],
+            [$en ? 'Evaluation' : 'Évaluation', self::h($title)],
+            [$en ? 'Starts at' : 'Début', '<strong>' . self::h($hm) . '</strong>' . ($en ? " · in about {$left} min · everyone starts together" : " · dans environ {$left} min · tout le monde démarre ensemble")],
+            [$en ? 'Waiting room' : 'Salle d’attente', $en ? 'open now: join as soon as you are ready' : 'ouverte maintenant : rejoignez-la dès que vous êtes prêt'],
+        ];
+        $detail = [];
+        if ($min > 0) { $detail[] = $min . ' min'; }
+        if ($n > 0) { $detail[] = $n . ' questions'; }
+        if ($detail) { $rows[] = ['Format', self::h(implode(' · ', $detail))]; }
+
+        $steps = $en ? [
+            ['Get ready', 'Charge your device, check your connection, find a quiet place. Close other apps and tabs.'],
+            ['Open the link', 'Use the button above. You arrive in the waiting room and see a countdown that follows the server clock: no need to refresh.'],
+            ['Identify yourself', 'Sign in with your StudyVibe account, or enter your full name and email exactly as your teacher knows them, so the result is attached to you.'],
+            ['At the start second', 'The first question appears. Click your answer: it is saved at once. Each question has its own timer; no answer means 0. No going back.'],
+        ] : [
+            ['Préparez-vous', 'Chargez votre appareil, vérifiez votre connexion, installez-vous au calme. Fermez les autres applications et onglets.'],
+            ['Ouvrez le lien', 'Avec le bouton ci-dessus. Vous arrivez dans la salle d’attente, avec un compte à rebours qui suit l’horloge du serveur : inutile de rafraîchir.'],
+            ['Identifiez-vous', 'Connectez-vous avec votre compte StudyVibe, ou saisissez votre nom complet et votre e-mail tels que votre enseignant les connaît, pour que le résultat vous soit attribué.'],
+            ['À la seconde du départ', 'La première question apparaît. Cliquez votre réponse : elle est enregistrée aussitôt. Chaque question a son chrono ; sans réponse, 0. On ne revient pas en arrière.'],
+        ];
+        $do = $en ? [
+            'Stay on the exam page from start to end, ideally full screen, on one device only.',
+            'If your connection drops, reopen <strong>the same link</strong>: your answers are kept. Do not register a second time.',
+        ] : [
+            'Restez sur la page de l’examen du début à la fin, de préférence en plein écran, sur un seul appareil.',
+            'Si votre connexion tombe, rouvrez <strong>le même lien</strong> : vos réponses sont conservées. Ne vous inscrivez pas une seconde fois.',
+        ];
+        $dont = $en ? [
+            'Leave the exam tab or open other sites and apps' . ($watch ? ' (tab exits are tracked and visible to your teacher)' : '') . '.',
+            'Use notes, a second device or an AI assistant, or share questions and answers, unless your teacher explicitly allows it.',
+            'Take the exam for someone else, or let someone take yours.',
+        ] : [
+            'Quitter l’onglet de l’examen ou ouvrir d’autres sites et applications' . ($watch ? ' (les sorties d’onglet sont suivies et visibles pour votre enseignant)' : '') . '.',
+            'Utiliser des notes, un second appareil ou un assistant IA, ou partager questions et réponses, sauf autorisation expresse de votre enseignant.',
+            'Passer l’examen à la place d’un autre, ou laisser quelqu’un passer le vôtre.',
+        ];
+        $after = $en
+            ? 'Suspicious copies can be examined and a result can be <strong>cancelled</strong>; you would be told by email and could contest it from your StudyVibe space.'
+            : 'Les copies suspectes peuvent être examinées et un résultat peut être <strong>annulé</strong> ; vous en seriez informé par e-mail et pourriez le contester depuis votre espace StudyVibe.';
+
+        $html = EmailTheme::layout(
+            EmailTheme::badge($rescheduled ? ($en ? 'New time' : 'Nouvel horaire') : ($en ? 'Starting soon' : 'Bientôt'), 'ochre')
+            . EmailTheme::title($en ? "Your evaluation starts in {$left} minutes" : "Votre évaluation commence dans {$left} minutes")
+            . self::hello($name, $lang)
+            . EmailTheme::lede($en
+                ? '<strong>' . self::h($title) . '</strong> (' . self::h($course) . ') starts at <strong>' . self::h($hm) . '</strong>.' . ($rescheduled ? ' The time was changed by your teacher.' : '')
+                : '<strong>' . self::h($title) . '</strong> (' . self::h($course) . ') démarre à <strong>' . self::h($hm) . '</strong>.' . ($rescheduled ? ' L’horaire a été modifié par votre enseignant.' : ''))
+            . EmailTheme::button($link, $en ? 'Join the waiting room' : 'Rejoindre la salle d’attente')
+            . EmailTheme::linkFallback($link, $lang)
+            . EmailTheme::facts($rows)
+            . EmailTheme::sectionTitle($en ? 'Do this now' : 'À faire maintenant')
+            . EmailTheme::steps($steps)
+            . EmailTheme::rules($en ? 'What to do' : 'À faire', $do, 'pine')
+            . EmailTheme::rules($en ? 'What not to do' : 'À ne pas faire', $dont, 'red')
+            . EmailTheme::callout($after, 'ochre', $en ? 'What follows' : 'Ce qui suit')
+            . EmailTheme::small($en ? 'Good luck!' : 'Bonne chance !')
+            . EmailTheme::signature($lang, (string)($s['teacher_name'] ?? '')),
+            ['preheader' => ($en ? "Starts at {$hm}: " : "Départ à {$hm} : ") . $title, 'lang' => $lang]
+        );
+        return self::send($to, ($en ? "In {$left} min: " : "Dans {$left} min : ") . $title . ' — StudyVibe', $html);
     }
 
     /** Tells a student that their result of an evaluation was cancelled by the teacher (or restored). */

@@ -173,6 +173,14 @@ function requireRole(string $role): void
         session_regenerate_id(true);
         $_SESSION['last_regen'] = time();
     }
+
+    // Any signed-in page load is a chance to send the reminder of a live evaluation that is about to start (at most every 20 s)
+    try {
+        require_once __DIR__ . '/lib/LiveReminders.php';
+        LiveReminders::tick(Database::getInstance());
+    } catch (Throwable $e) {
+        error_log('reminder tick: ' . $e->getMessage());
+    }
 }
 
 // =========================================================================

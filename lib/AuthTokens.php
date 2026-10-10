@@ -25,14 +25,15 @@ class AuthTokens
      * 
      * @param PDO $pdo    Database connection instance.
      * @param int $userId Target user primary key.
+     * @param int|null $hours Lifespan in hours (2 by default; an invitation from an administrator lasts longer).
      * @return string The raw cryptographically secure token to send in the email.
      */
-    public static function createPasswordReset(PDO $pdo, int $userId): string
+    public static function createPasswordReset(PDO $pdo, int $userId, ?int $hours = null): string
     {
         // Generate raw security token
         $token = bin2hex(random_bytes(32));
         $hash  = hash('sha256', $token);
-        $expires = date('Y-m-d H:i:s', time() + self::RESET_HOURS * 3600);
+        $expires = date('Y-m-d H:i:s', time() + ($hours ?? self::RESET_HOURS) * 3600);
 
         // Revoke active, unconsumed password reset tokens for this user
         $pdo->prepare("UPDATE password_reset_tokens SET used_at = NOW() WHERE user_id = :uid AND used_at IS NULL")

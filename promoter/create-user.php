@@ -1,70 +1,58 @@
 <?php
 declare(strict_types=1);
 
+/**
+ * The administrator (promoter) creates an account: student, teacher or another administrator.
+ *
+ *   POST name, email, role (student|teacher|promoter), mode (password | generate | invite), password (mode=password),
+ *        matricule (student), lang (fr|en), phone, courses[] (student: enrol at once), welcome=1 (send "your account is ready")
+ *
+ * The account is ready at once: email confirmed, active, approved. mode=generate returns the password once; mode=invite emails a link
+ * (72 hours) to choose the password. Logic and rules: lib/AdminUsers.php.
+ */
+
 require_once __DIR__ . '/../auth.php';
+require_once __DIR__ . '/../lib/Security.php';
+require_once __DIR__ . '/../lib/RateLimit.php';
+require_once __DIR__ . '/../lib/AdminUsers.php';
 
 header('Content-Type: application/json');
+header('Cache-Control: no-store');
 
-if (!isLoggedIn() || $_SESSION['user_role'] !== 'promoter') {
+if (!isLoggedIn() || ($_SESSION['user_role'] ?? '') !== 'promoter') {
+    http_response_code(403);
     echo json_encode(['success' => false, 'message' => 'Accès non autorisé.']);
     exit;
 }
-
-if ($_SERVER['REQUEST_METHOD'] !== 'POST') {
-    echo json_encode(['success' => false, 'message' => 'Méthode non autorisée.']);
-    exit;
-}
-
-
-// requireCsrf();
-$name     = trim((string)($_POST['name']     ?? ''));
-$email    = trim((string)($_POST['email']    ?? ''));
-$password = (string)($_POST['password']      ?? '');
-$role     = trim((string)($_POST['role']     ?? ''));
-
-// Validation
-if (empty($name) || empty($email) || empty($password) || empty($role)) {
-    echo json_encode(['success' => false, 'message' => 'Tous les champs sont obligatoires.']);
-    exit;
-}
-if (!filter_var($email, FILTER_VALIDATE_EMAIL)) {
-    echo json_encode(['success' => false, 'message' => 'Adresse électronique invalide.']);
-    exit;
-}
-if (!in_array($role, ['teacher', 'promoter', 'student'], true)) {
-    echo json_encode(['success' => false, 'message' => 'Rôle invalide.']);
-    exit;
-}
-require_once __DIR__ . '/../lib/PasswordPolicy.php';
-if (($pwError = PasswordPolicy::check($password, $email ?? '')) !== null) {
-    echo json_encode(['success' => false, 'message' => $pwError]);
-    exit;
-}
+Security::requirePostFromSameSite();
 
 try {
     $pdo = Database::getInstance();
-
-    // Check for duplicate email
-    $stmt = $pdo->prepare("SELECT id FROM users WHERE email = :email");
-    $stmt->execute(['email' => $email]);
-    if ($stmt->fetch()) {
-        echo json_encode(['success' => false, 'message' => 'Cette adresse électronique est déjà utilisée.']);
+    $adminId = (int)$_SESSION['user_id'];
+    if (!RateLimit::allow($pdo, 'adminusers:create:' . $adminId, 120, 3600)) {
+        http_response_code(429);
+        echo json_encode(['success' => false, 'message' => 'Trop de créations en peu de temps. Réessayez dans un moment.']);
         exit;
     }
-
-    $hashed = password_hash($password, PASSWORD_DEFAULT);
-
-    $stmt = $pdo->prepare("INSERT INTO users (name, email, password, role, email_verified_at, plan_id) VALUES (:name, :email, :password, :role, NOW(), :plan_id)");
-    $stmt->execute(['name' => $name, 'email' => $email, 'password' => $hashed, 'role' => $role, 'plan_id' => defaultPlanId($pdo, $role)]);
-
-    $newId = (int)$pdo->lastInsertId();
-    echo json_encode([
-        'success' => true,
-        'message' => "Compte créé avec succès.",
-        'user' => ['id' => $newId, 'name' => $name, 'email' => $email, 'role' => $role]
+    $res = AdminUsers::create($pdo, $adminId, [
+        'name' => $_POST['name'] ?? '', 'email' => $_POST['email'] ?? '', 'role' => $_POST['role'] ?? '', 'mode' => $_POST['mode'] ?? 'password',
+        'password' => $_POST['password'] ?? '', 'matricule' => $_POST['matricule'] ?? '', 'lang' => $_POST['lang'] ?? 'fr', 'phone' => $_POST['phone'] ?? '',
+        'courses' => (array)($_POST['courses'] ?? []), 'welcome' => !empty($_POST['welcome']),
     ]);
-    exit;
-
-} catch (PDOException $e) {
-    jsonError('Erreur serveur. Veuillez réessayer.', $e, 'create-user.php');
+    if (!$res['ok']) {
+        echo json_encode(['success' => false, 'error' => $res['error'], 'message' => $res['message']], JSON_UNESCAPED_UNICODE);
+        exit;
+    }
+    $msg = 'Compte créé avec succès.';
+    if ($res['invited']) {
+        $msg = $res['mail_sent'] ? 'Compte créé : une invitation a été envoyée pour choisir le mot de passe.' : 'Compte créé, mais l’invitation n’a pas pu être envoyée. Utilisez « Mot de passe oublié » ou recréez le compte avec un mot de passe.';
+    }
+    echo json_encode([
+        'success' => true, 'message' => $msg, 'user' => $res['user'], 'password' => $res['password'], 'invited' => $res['invited'],
+        'mail_sent' => $res['mail_sent'], 'enrolled' => $res['enrolled'],
+    ], JSON_UNESCAPED_UNICODE);
+} catch (Throwable $e) {
+    logServerError($e, 'promoter/create-user');
+    http_response_code(500);
+    echo json_encode(['success' => false, 'message' => 'Erreur serveur. Veuillez réessayer.']);
 }

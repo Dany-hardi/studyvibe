@@ -123,6 +123,8 @@ $currentUserEmail = $currentUser['email'] ?? '';
 // Fetch the targeted live evaluation metadata from database
 try {
     $pdo = Database::getInstance();
+    require_once __DIR__ . '/lib/LiveReminders.php';
+    LiveReminders::tick($pdo);
     if ($code !== '') {
         $stmt = $pdo->prepare("
             SELECT s.*, c.title AS course_title

@@ -231,8 +231,50 @@
     var fd = new FormData(); fd.append('user_id', id); fd.append('action', action);
     return post('/promoter/manage-user.php', fd);
   }
+  /* Deleting an account: first show what it would take with it; a teacher who owns courses or evaluations must either hand them to
+     another teacher or accept their deletion. The server enforces all of it again (lib/AdminUsers.php). */
+  function deleteFlow(id, name) {
+    var fd = new FormData(); fd.append('user_id', id); fd.append('action', 'impact');
+    post('/promoter/manage-user.php', fd).then(function (d) {
+      if (!d.success || !d.impact) { toast(d.message || T.err, 'err'); return; }
+      var imp = d.impact, dlg = $('#delete-user-dlg'), form = $('#delete-user-form'), list = $('#dd-impact'), err = $('#dd-error');
+      var phrase = $('#dd-phrase'), go = $('#dd-go'), dec = $('#dd-decision'), sel = $('#dd-teacher');
+      $('#dd-h').textContent = tpl(T.dd_t, { name: name }); $('#dd-lead').textContent = T.dd_lead;
+      $('#dd-phrase-hint').textContent = tpl(T.dd_phrase_need, { w: T.phrase });
+      err.hidden = true; phrase.value = ''; go.disabled = true; list.textContent = '';
+      Object.keys(imp.counts || {}).forEach(function (k) {
+        var n = imp.counts[k];
+        if (n > 0 && T['imp_' + k]) { var li = document.createElement('li'); li.textContent = tpl(T['imp_' + k], { n: n }); list.appendChild(li); }
+      });
+      if (!list.children.length) { var none = document.createElement('li'); none.textContent = T.dd_nothing; list.appendChild(none); }
+      dec.hidden = !imp.needs_decision;
+      sel.textContent = '';
+      var ph = document.createElement('option'); ph.value = ''; ph.textContent = T.dd_pick; sel.appendChild(ph);
+      (imp.teachers || []).forEach(function (t) { var o = document.createElement('option'); o.value = t.id; o.textContent = t.name + ' (' + t.email + ')'; sel.appendChild(o); });
+      $$('input[name="dd_mode"]', form)[0].checked = true;
+      function mode() { return ($$('input[name="dd_mode"]:checked', form)[0] || {}).value; }
+      function ready() {
+        var typed = phrase.value.trim().toLowerCase() === String(T.phrase).toLowerCase();
+        var decided = !imp.needs_decision || (mode() === 'reassign' ? !!sel.value : true);
+        go.disabled = !(typed && decided);
+        sel.disabled = mode() !== 'reassign';
+      }
+      phrase.oninput = ready; sel.onchange = ready; $$('input[name="dd_mode"]', form).forEach(function (r) { r.onchange = ready; }); ready();
+      form.onsubmit = function (e) {
+        e.preventDefault(); go.disabled = true;
+        var f = new FormData(); f.append('user_id', id); f.append('action', 'delete');
+        if (imp.needs_decision) { if (mode() === 'reassign') f.append('reassign_to', sel.value); else f.append('cascade', '1'); }
+        post('/promoter/manage-user.php', f).then(function (r) {
+          if (r.success) { dlg.close(); toast(r.message || T.ok); setTimeout(function () { location.reload(); }, 700); }
+          else { err.textContent = r.message || T.err; err.hidden = false; ready(); }
+        }).catch(function (x) { ready(); netErr(x); });
+      };
+      dlg.showModal(); phrase.focus();
+    }).catch(netErr);
+  }
   function userAction(id, act, name) {
     if (act === 'contact') { $('#dm-student-id').value = id; $('#dm-student-name').value = name; openDlg('direct-message-modal'); return; }
+    if (act === 'delete') { deleteFlow(id, name); return; }
     var map = { approve: 'approve', suspend: 'toggle_active', reactivate: 'toggle_active', delete: 'delete' };
     var o = { title: tpl(T[act + '_t'], { name: name }), body: tpl(T[act + '_p'], { name: name }), label: T[act + '_b'], danger: act === 'delete' };
     if (act === 'delete') o.phrase = T.phrase;
@@ -261,22 +303,61 @@
       var map = { approve: 'approve', suspend: 'toggle_active', reactivate: 'toggle_active', delete: 'delete' };
       confirmDlg(o).then(function (ok) {
         if (!ok) return;
-        var okN = 0, chain = Promise.resolve();
-        targets.forEach(function (id) { chain = chain.then(function () { return manage(id, map[act]).then(function (d) { if (d.success) okN++; }).catch(function () {}); }); });
-        chain.then(function () { toast(tpl(T.bulk_done, { ok: okN, n: targets.length }), okN === targets.length ? '' : 'err'); setTimeout(function () { location.reload(); }, 900); });
+        var okN = 0, skipped = 0, chain = Promise.resolve();
+        targets.forEach(function (id) { chain = chain.then(function () { return manage(id, map[act]).then(function (d) { if (d.success) okN++; else if (d.error === 'needs_decision') skipped++; }).catch(function () {}); }); });
+        chain.then(function () {
+          toast(tpl(T.bulk_done, { ok: okN, n: targets.length }), okN === targets.length ? '' : 'err');
+          if (skipped) toast(tpl(T.bulk_skipped, { n: skipped }), 'err');
+          setTimeout(function () { location.reload(); }, skipped ? 2600 : 900);
+        });
       });
     });
   });
 
   /* ---------- Create user / direct message ---------- */
-  var cu = $('#create-user-form');
+  var cu = $('#create-user-form'), cuBox = $('#cu-result');
+  function cuToggle() {
+    var role = $('#cu-role').value, mode = (cu.querySelector('input[name="mode"]:checked') || {}).value;
+    $('#cu-mat-wrap').hidden = role !== 'student'; $('#cu-courses-wrap').hidden = role !== 'student';
+    $('#cu-pass-wrap').hidden = mode !== 'password'; $('#cu-pass').required = mode === 'password';
+    $('#cu-welcome-wrap').hidden = mode === 'invite';
+  }
+  function cuCourses() {
+    var box = $('#cu-courses'); box.textContent = '';
+    var list = window.PM_COURSES || [];
+    if (!list.length) { box.textContent = T.cu_courses_none; return; }
+    list.forEach(function (c) {
+      var l = document.createElement('label'), i = document.createElement('input');
+      i.type = 'checkbox'; i.name = 'courses[]'; i.value = c.id; l.appendChild(i); l.appendChild(document.createTextNode(' ' + c.title)); box.appendChild(l);
+    });
+  }
+  cuCourses();
+  $('#cu-role').addEventListener('change', cuToggle);
+  $$('input[name="mode"]', cu).forEach(function (r) { r.addEventListener('change', cuToggle); });
+  cuToggle();
+  function cuReset() { cu.reset(); cuCourses(); cuToggle(); cu.hidden = false; cuBox.hidden = true; $('#modal-error').hidden = true; }
+  $('[data-open="user-modal"]') && $$('[data-open="user-modal"]').forEach(function (b) { b.addEventListener('click', cuReset); });
+  $('#cu-another').addEventListener('click', cuReset);
+  $('#cu-done').addEventListener('click', function () { $('#user-modal').close(); location.reload(); });
+  $('#cu-pass-copy').textContent = T.cu_copy;
+  $('#cu-pass-copy').addEventListener('click', function () {
+    var v = $('#cu-pass-value').textContent;
+    (navigator.clipboard ? navigator.clipboard.writeText(v) : Promise.reject()).then(function () { toast(T.copied); }, function () { var r = document.createRange(); r.selectNodeContents($('#cu-pass-value')); var sel = getSelection(); sel.removeAllRanges(); sel.addRange(r); });
+  });
   cu.addEventListener('submit', function (e) {
     e.preventDefault();
     var btn = $('#create-user-btn'), err = $('#modal-error'); err.hidden = true; btn.disabled = true; btn.textContent = T.creating;
     post('/promoter/create-user.php', new FormData(cu)).then(function (d) {
       btn.disabled = false; btn.textContent = T.cu_submit;
-      if (d.success) { $('#user-modal').close(); cu.reset(); toast(T.ok); setTimeout(function () { location.reload(); }, 700); }
-      else { err.textContent = d.message || T.err; err.hidden = false; }
+      if (!d.success) { err.textContent = d.message || T.err; err.hidden = false; return; }
+      var lines = [tpl(T.cu_created, { name: d.user.name })];
+      if (d.enrolled) lines.push(tpl(T.cu_enrolled, { n: d.enrolled }));
+      if (d.invited) lines.push(d.mail_sent ? tpl(T.cu_invited, { email: d.user.email }) : T.cu_invite_failed);
+      else if (d.mail_sent) lines.push(T.cu_mail_sent);
+      $('#cu-result-text').textContent = lines.join(' ');
+      var pb = $('#cu-pass-box'); pb.hidden = !d.password;
+      if (d.password) { $('#cu-pass-label').textContent = T.cu_pass_shown; $('#cu-pass-value').textContent = d.password; }
+      cu.hidden = true; cuBox.hidden = false;
     }).catch(function (x) { btn.disabled = false; btn.textContent = T.cu_submit; netErr(x); });
   });
   var dm = $('#direct-message-form');

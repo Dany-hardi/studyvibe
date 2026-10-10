@@ -177,6 +177,18 @@ sudo a2enmod rewrite
 sudo systemctl reload apache2
 ```
 
+### Tâche planifiée : rappel 15 minutes avant une évaluation en direct
+
+Quinze minutes avant le début d'une évaluation **en direct** (séance activée, non asynchrone), chaque étudiant du cours (compte actif, e-mail confirmé) et chaque personne déjà inscrite dans la salle d'attente avec une adresse e-mail reçoit automatiquement un rappel avec le lien et les consignes. Une évaluation asynchrone n'en reçoit pas. Déplacer l'examen renvoie un rappel 15 minutes avant la nouvelle heure ; un même horaire n'envoie jamais deux fois.
+
+Pour que le rappel parte **à l'heure même si personne ne consulte le site**, planifiez le worker chaque minute :
+
+```
+* * * * * www-data php /var/www/studyvibe/lib/email-worker.php >/dev/null 2>&1
+```
+
+(L'image Docker le fait déjà : `cron` démarre avec Apache.) Sans cron, le rappel part quand même dès qu'une page connectée est chargée ou qu'un étudiant attend dans la salle (au plus toutes les 20 secondes), mais seule la tâche planifiée l'assure sur un site calme.
+
 ### Lecture des PDF pour la vérification des ressemblances (facultatif)
 
 La vérification des ressemblances entre devoirs lit le texte des PDF avec `pdftotext` (paquet `poppler-utils`, déjà dans l'image Docker : `sudo apt install poppler-utils` ailleurs). Sans lui, un lecteur intégré ne comprend que les PDF simples ; les autres sont signalés « illisibles » au lieu d'être comparés sur du texte faux.
