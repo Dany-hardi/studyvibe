@@ -1748,6 +1748,7 @@ $tdHasCourse = (bool)$selectedCourse;
 
             <!-- HELP: import guide / FAQ (tab-help). Needs no course, so it sits outside the course-only block. -->
             <div id="tab-help" class="tab-content hidden" data-title="<?= tde('nav_help') ?>">
+                <?php $mkfPrefix = 'mkf-help'; require __DIR__ . '/partials/marking-faq.php'; ?>
                 <?php require __DIR__ . '/partials/live-import-faq.php'; ?>
             </div>
 
@@ -2966,6 +2967,12 @@ $tdHasCourse = (bool)$selectedCourse;
                     </div>
                     <?php endif; ?>
                 </header>
+
+                <?php $mkfPrefix = 'mkf-forum'; ?>
+                <details class="mkf-wrap">
+                    <summary><?= tde('mk_wrap') ?></summary>
+                    <?php require __DIR__ . '/partials/marking-faq.php'; ?>
+                </details>
 
                 <?php
                 // Requests from students: review of a mark, question about a result, free messages (api/requests.php -> teacher/requests.php)

@@ -284,6 +284,16 @@ t('sms: async announcement mentions the deadline', function () {
     eq(str_contains($m, '25/10/2026 23:00'), true);
 });
 
+t('marking FAQ: both languages render, ids carry the prefix, rules match the code', function () {
+    foreach (['fr', 'en'] as $lang) {
+        $tdLang = $lang; $mkfPrefix = 'mkf-x';
+        ob_start(); include __DIR__ . '/../../teacher/partials/marking-faq.php'; $h = ob_get_clean();
+        eq(substr_count($h, '<details'), 11);
+        eq(str_contains($h, 'id="mkf-x-live"'), true);
+        eq(str_contains($h, '80') && str_contains($h, '50'), true);
+    }
+});
+
 t('bulk import FAQ: both languages render with the real limits and every item', function () {
     require_once __DIR__ . '/../../lib/BulkPackage.php';
     foreach (['fr', 'en'] as $lang) {
