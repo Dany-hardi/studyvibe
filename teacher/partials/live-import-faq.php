@@ -418,17 +418,25 @@ $fill = static fn(string $h): string => strtr($h, ['__IMG__' => $lifMaxImg, '__Q
             <button type="button" class="t-btn t-btn-ghost" data-lif-all="close"><?= htmlspecialchars($T['collapse'], ENT_QUOTES, 'UTF-8') ?></button>
         </div>
     </header>
-    <nav class="lif-chips" aria-label="FAQ">
-        <?php foreach ($T['items'] as $i => $it): ?>
-            <a href="#lif-<?= $it['id'] ?>" data-lif-open="<?= $it['id'] ?>"><?= ($i + 1) ?>. <?= htmlspecialchars($it['q'], ENT_QUOTES, 'UTF-8') ?></a>
-        <?php endforeach; ?>
-    </nav>
-    <?php foreach ($T['items'] as $i => $it): ?>
-        <details class="lif-item" id="lif-<?= $it['id'] ?>"<?= $i === 0 ? ' open' : '' ?>>
-            <summary><span class="lif-n"><?= ($i + 1) ?></span><?= htmlspecialchars($it['q'], ENT_QUOTES, 'UTF-8') ?></summary>
-            <div class="lif-body"><?= $fill($it['a']) ?></div>
-        </details>
-    <?php endforeach; ?>
+    <?php
+    require_once __DIR__ . '/faq-ui.php';
+    $lifSec = [
+     'fr' => [
+      ['id' => 'prep', 'theme' => 'prep', 'title' => 'Préparer vos questions', 'lede' => 'Choisir la bonne méthode, remplir le fichier CSV ou Excel, écrire vrai/faux, réponses écrites, durées et formules.', 'items' => ['choose', 'single', 'csv-columns', 'csv-excel', 'types']],
+      ['id' => 'zip', 'theme' => 'zip', 'title' => 'Les packs ZIP avec images', 'lede' => 'Construire le pack, nommer les images, écrire le fichier questions.csv qui les relie.', 'items' => ['zip-steps', 'naming', 'zip-csv']],
+      ['id' => 'fix', 'theme' => 'fix', 'title' => 'Vérifier, corriger, aller plus loin', 'lede' => 'Lire le rapport, comprendre les messages d’erreur, connaître les limites et construire un examen solide.', 'items' => ['checks', 'errors', 'limits', 'after', 'tips']],
+     ],
+     'en' => [
+      ['id' => 'prep', 'theme' => 'prep', 'title' => 'Preparing your questions', 'lede' => 'Pick the right method, fill the CSV or Excel file, write true/false, written answers, times and formulas.', 'items' => ['choose', 'single', 'csv-columns', 'csv-excel', 'types']],
+      ['id' => 'zip', 'theme' => 'zip', 'title' => 'ZIP packages with pictures', 'lede' => 'Build the package, name the pictures, write the questions.csv that links them.', 'items' => ['zip-steps', 'naming', 'zip-csv']],
+      ['id' => 'fix', 'theme' => 'fix', 'title' => 'Check, fix, go further', 'lede' => 'Read the report, understand the error messages, know the limits and build a solid exam.', 'items' => ['checks', 'errors', 'limits', 'after', 'tips']],
+     ],
+    ];
+    $lifItems = [];
+    foreach ($T['items'] as $it) { $lifItems[$it['id']] = $it; }
+    faqRender($lifSec[$lifLang], $lifItems, 'lif-', $fill, true);
+    faqStyles();
+    ?>
 </section>
 <style>
 .lif-lede { color: var(--ink-2); max-width: 46rem; margin: 0; }
@@ -457,7 +465,7 @@ $fill = static fn(string $h): string => strtr($h, ['__IMG__' => $lifMaxImg, '__Q
 (function () {
   var root = document.getElementById('live-import-faq'); if (!root) return;
   function openById(id) { var d = document.getElementById('lif-' + id); if (d) { d.open = true; d.scrollIntoView({ behavior: 'smooth', block: 'start' }); } }
-  root.querySelectorAll('[data-lif-open]').forEach(function (a) { a.addEventListener('click', function (e) { e.preventDefault(); openById(a.getAttribute('data-lif-open')); }); });
+  root.querySelectorAll('[data-fa-sec]').forEach(function (a) { a.addEventListener('click', function (e) { e.preventDefault(); var t = document.getElementById(a.getAttribute('data-fa-sec')); if (t) t.scrollIntoView({ behavior: 'smooth', block: 'start' }); }); });
   root.querySelectorAll('[data-lif-all]').forEach(function (b) { b.addEventListener('click', function () { var o = b.getAttribute('data-lif-all') === 'open'; root.querySelectorAll('details.lif-item').forEach(function (d) { d.open = o; }); }); });
   window.openLiveImportFaq = function (id) {
     if (typeof switchDashboardTab === 'function') switchDashboardTab('tab-help');

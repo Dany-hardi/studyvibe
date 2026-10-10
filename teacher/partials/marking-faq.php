@@ -175,20 +175,39 @@ HTML],
 ],
 ];
 $MK = $MKF[$mkfLang];
+require_once __DIR__ . '/faq-ui.php';
+$mkSec = [
+ 'fr' => [
+  ['id' => 'auto', 'theme' => 'auto', 'title' => 'Les notes automatiques', 'lede' => 'Quiz de leçon, examen final, évaluation en direct : la plateforme calcule, vous n’avez rien à saisir.', 'items' => ['map', 'quiz', 'final', 'live']],
+  ['id' => 'assign', 'theme' => 'assign', 'title' => 'Noter les devoirs', 'lede' => 'Barème, copie annotée, publication des notes, ressemblances et exports : tout ce que vous faites à la main, étape par étape.', 'items' => ['asg', 'release', 'similar', 'exports']],
+  ['id' => 'talk', 'theme' => 'talk', 'title' => 'Répondre aux étudiants', 'lede' => 'Résultat annulé, demande de révision, question sous une leçon : quoi faire et ce que l’étudiant reçoit.', 'items' => ['cancel', 'requests', 'qa']],
+ ],
+ 'en' => [
+  ['id' => 'auto', 'theme' => 'auto', 'title' => 'Automatic marks', 'lede' => 'Lesson quizzes, the final exam, live evaluations: the platform calculates, you enter nothing.', 'items' => ['map', 'quiz', 'final', 'live']],
+  ['id' => 'assign', 'theme' => 'assign', 'title' => 'Marking assignments', 'lede' => 'Rubric, annotated copy, release of marks, similarity and exports: everything you do by hand, step by step.', 'items' => ['asg', 'release', 'similar', 'exports']],
+  ['id' => 'talk', 'theme' => 'talk', 'title' => 'Answering students', 'lede' => 'Cancelled result, review request, question under a lesson: what to do and what the student receives.', 'items' => ['cancel', 'requests', 'qa']],
+ ],
+];
+$mkItems = [];
+foreach ($MK['items'] as $it) { $mkItems[$it['id']] = $it; }
 ?>
 <section class="lif mkf" id="<?= $mkfP ?>" aria-label="<?= htmlspecialchars($MK['title'], ENT_QUOTES, 'UTF-8') ?>">
     <h3 class="mkf-title"><?= htmlspecialchars($MK['title'], ENT_QUOTES, 'UTF-8') ?></h3>
     <p class="lif-lede"><?= htmlspecialchars($MK['lede'], ENT_QUOTES, 'UTF-8') ?></p>
-    <?php foreach ($MK['items'] as $i => $it): ?>
-        <details class="lif-item" id="<?= $mkfP ?>-<?= $it['id'] ?>">
-            <summary><span class="lif-n"><?= ($i + 1) ?></span><?= htmlspecialchars($it['q'], ENT_QUOTES, 'UTF-8') ?></summary>
-            <div class="lif-body"><?= $it['a'] ?></div>
-        </details>
-    <?php endforeach; ?>
+    <?php faqRender($mkSec[$mkfLang], $mkItems, $mkfP . '-', static fn($h) => $h); ?>
 </section>
+<script>
+(function () {
+  var root = document.getElementById(<?= json_encode($mkfP) ?>); if (!root) return;
+  root.querySelectorAll('[data-fa-sec]').forEach(function (a) { a.addEventListener('click', function (e) { e.preventDefault(); var t = document.getElementById(a.getAttribute('data-fa-sec')); if (t) t.scrollIntoView({ behavior: 'smooth', block: 'start' }); }); });
+})();
+</script>
+<?php faqStyles(); ?>
 <style>
 .mkf-title { font-size: 1.25rem; margin: .4rem 0 .2rem; }
 .mkf-wrap { margin: 0 0 1.6rem; }
 .mkf-wrap > summary { cursor: pointer; font-weight: 600; padding: .5rem 0; color: var(--ink); }
-.mkf { margin-bottom: 1.6rem; }
+.mkf { margin-bottom: 2.6rem; padding-bottom: 2rem; border-bottom: 1px solid var(--line); }
+.mkf .lif-lede { margin-bottom: 1.3rem; }
+.mkf-title { font-family: var(--font-display, inherit); }
 </style>
