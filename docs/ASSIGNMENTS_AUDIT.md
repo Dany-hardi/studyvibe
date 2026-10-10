@@ -1,6 +1,6 @@
 # Assignments: audit and what was put in place
 
-*9 October 2026. Written after reading every file involved and running the feature end to end with test accounts.*
+*9 October 2026. Written after reading every file involved and running the feature end to end with test accounts. Updated 10 October 2026: rubrics, an annotated copy returned to the student, a similarity check and release of marks are now built (section 7).*
 
 ## 1. What existed before
 
@@ -43,13 +43,15 @@ The CSV was the only "report", and it had no marks.
 | Request for a new version, versions history | Yes |
 | Student sees status, mark and feedback; list of all their assignments | Yes |
 | Marks export (Excel, PDF) with matricule | Yes |
-| Audit trail of who marked what and when | Partly: `graded_by` and `graded_at` are stored and every action is in the audit log |
+| Audit trail of who marked what and when | Partly: `graded_by` and `graded_at` are stored and every action (marking, releasing, withdrawing, similarity check) is in the audit log |
+| Rubrics (criteria with points and levels), the mark is the sum of the criteria | Yes (section 7) |
+| Annotated copy or model answer returned to the student | Yes (section 7) |
+| Release of marks: hold them and release all together | Yes (section 7) |
+| Similarity check between submissions, with the shared passages | Yes (section 7); not against the web |
 | **Not yet**, in priority order | |
-| Rubrics (criteria with points) and reusable comment banks | No. The next step for large classes |
-| Feedback file or annotated copy returned to the student | No |
 | Extensions for one student (a personal deadline) | No. Today the teacher can ask for a new version, which has the same effect |
-| Hide marks until the teacher releases them for the whole class | No. Marks reach the student as soon as they are saved |
-| Plagiarism check (similarity between submissions or against the web) | No. Needs an external service or a heavier comparison engine |
+| Similarity against the web or earlier years | No. Needs an external service; today the check compares the students of one assignment with each other |
+| Reusable comment banks | No |
 | Group assignments | No |
 | Anonymous marking | No |
 | Marks counted into the course grade automatically | No. The course grade and the certificate still come from the final exam; assignment marks are reported separately |
@@ -58,9 +60,44 @@ The CSV was the only "report", and it had no marks.
 ## 5. What to decide next
 
 1. **Should the assignment mark count in the course result or the certificate?** If yes, we need a weight per assignment and a rule (for example 30 % assignments, 70 % exam). Today they are reported side by side.
-2. **Release of marks.** For a graded assignment with many students, most universities mark everything first and release together. A "release all" switch per assignment is small to add.
-3. **Rubrics** if teachers will mark long reports or projects.
+2. **Reusable comment banks** and a similarity check against the web, the next steps for large classes.
+3. **Extensions for one student**, group assignments, anonymous marking (see the table above).
 
 ## 6. How to check it yourself
 
 `php tests/integration/assignments_flow.php` (needs the app running): 52 checks covering the rules, uploads, identity, downloads, marking, new versions and the marks sheet.
+
+`php tests/integration/assignments_advanced.php` (same): 101 checks covering rubrics, release of marks, annotated copies and the similarity check.
+
+## 7. Rubrics, annotated copy, similarity check, release of marks
+
+### Rubric (marking grid)
+- **Where:** the lesson form, assignment section, "Barème". Each criterion has a title, a maximum number of points, an optional description and optional levels written one per line (`Excellent : 4`). Up to 20 criteria, 1000 points in all.
+- **Marking:** the marking window shows one block per criterion with the level names as shortcuts, a points field and a comment. The **server adds the points up**: whatever total the browser sends is ignored, every criterion must be given points between 0 and its maximum.
+- **Scale:** with a rubric the maximum mark is the total of the criteria (the field is locked).
+- **Snapshot:** when a work is marked, the grid with the points and comments is stored on the submission. Editing the rubric afterwards never changes marks already given (the form says so).
+- **Student:** sees the grid on the assignment before handing in, and the detail by criterion (points, level, comment) once the mark is released, in the lesson and in *Résultats → Mes devoirs*.
+
+### Annotated copy
+- **Where:** the marking window, "Copie annotée ou corrigé". PDF, DOCX, DOC, ODT, TXT, MD, PNG, JPG or ZIP, 20 MB at most, checked like any upload (extension, real content, size; PHP source renamed `.pdf` is refused).
+- **Access:** `download.php?type=assignment_feedback`. The student gets it **only when the mark is released**; the teacher of the course and a promoter always; nobody else (another teacher or student gets 403).
+- A new copy replaces the old one (which is deleted); the teacher can remove it. When the student sends a new version, the annotated copy goes to the history (still downloadable by the teacher).
+
+### Release of marks
+- **Where:** the lesson form, "Publication des notes": *immediate* (the default and the old behaviour) or *after my approval*.
+- **In manual mode:** a mark is saved but **hidden**. The student sees "handed in / waiting for a mark" and gets nothing: no mark, no feedback, no grid, no annotated copy, no e-mail, no notification, not even the marking date (this is enforced on the server in the lesson API and on the results page, not only in the interface). The work stays locked against a new version.
+- **Releasing:** "Publier les notes (N)" on the assignment card releases every marked-but-hidden work and tells each student (e-mail and notification), or "Publier cette note" in the marking window for one. "Masquer les notes publiées" hides them again (nobody is told).
+- A mark already released stays released when the teacher corrects it (the student is told again only if the mark changed).
+- The teacher always sees every mark (marks sheet, exports); only the student's side is held.
+- Marks given before this feature stay visible (`released_at` was filled with `graded_at`).
+
+### Similarity check
+- **Where:** the assignment card, "Vérifier les ressemblances" (teacher only; students never see it, the endpoint answers 403).
+- **How:** the text of each handed-in file is extracted (txt, md, code, ipynb, docx, odt, pdf: `pdftotext` when installed, otherwise a basic reader), normalised (lower case, no accents, no punctuation) and cut into overlapping 5-word shingles. Two works are compared by the share of the **smaller** one that the other contains (containment): copying a whole report into a longer one scores about 100 %.
+- **Boilerplate:** passages found in half of the works or more (the statement copied by everybody, a template) are ignored (from 4 works on).
+- **Result:** pairs from 15 % up, with names, matricules, the matching passages, and a level (30 % high, 60 % very high). A chip with the worst score appears on each submission row and in the marking window. The page says when new work arrived since the analysis.
+- **Not compared, and why:** no file (link only), unreadable (scan, picture, unsupported format), too short (under 30 words). They are listed after each run.
+- **Limits, to say plainly:** it compares students with each other, not with the web or earlier years; a score is a reason to look, never a proof. Scanned PDFs cannot be read. Without `pdftotext` the PDF reader only handles simple PDFs.
+
+### What changed in the code
+`lib/AssignmentRubric.php`, `lib/AssignmentSimilarity.php`, `lib/Assignments.php` (grade with a rubric and a file, release, withdraw, student view and state), `teacher/grade-assignment.php`, `teacher/assignment-similarity.php`, `download.php`, `student/get-lesson-details.php`, `student/dashboard.php`, `assets/js/assignment-rubric.js`, `assets/js/assignment-grading.js`, `assets/js/student.js`, `Database.php` (migration 2.6j, also `schema_v15_assignments_advanced.sql`).

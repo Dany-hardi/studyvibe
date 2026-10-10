@@ -257,7 +257,8 @@ try {
         $stmt = $pdo->prepare("
             SELECT l.id AS lesson_id, l.title AS lesson_title, l.assignment_title, l.assignment_deadline, l.assignment_max_score,
                    c.id AS course_id, c.title AS course_title,
-                   s.submitted_at, s.is_late, s.score, s.feedback, s.graded_at, s.revision_requested_at
+                   s.submitted_at, s.is_late, s.score, s.feedback, s.graded_at, s.revision_requested_at,
+                   s.released_at, s.rubric_scores, s.feedback_file_path, s.feedback_file_name
             FROM enrollments e
             JOIN courses c ON c.id = e.course_id
             JOIN chapters ch ON ch.course_id = c.id
@@ -268,6 +269,13 @@ try {
         ");
         $stmt->execute(['sid' => $user['id']]);
         $myAssignments = $stmt->fetchAll();
+        // A mark the teacher has not released yet is invisible here too (no mark, feedback, grid or annotated copy)
+        require_once __DIR__ . '/../lib/Assignments.php';
+        foreach ($myAssignments as $i => $row) {
+            if ($row['submitted_at'] !== null) {
+                $myAssignments[$i] = Assignments::studentView($row);
+            }
+        }
     } catch (Throwable $asgEx) {
         $myAssignments = [];
     }
@@ -820,6 +828,16 @@ $nav = [
                     <td class="r num" data-label="<?= sdH(sd('th_score')) ?>">
                         <?php if ($ma['score'] !== null): ?><?= sdH(rtrim(rtrim(number_format((float)$ma['score'], 2, ',', ''), '0'), ',')) ?> / <?= sdH($maMax) ?><?php else: ?>—<?php endif; ?>
                         <?php if (!empty($ma['feedback'])): ?><details class="sd-meta"><summary><?= sdH(sd('as_feedback_link')) ?></summary><?= nl2br(sdH($ma['feedback'])) ?></details><?php endif; ?>
+                        <?php if (!empty($ma['rubric_scores'])): ?>
+                            <details class="sd-meta"><summary><?= sdH(sd('as_rubric_link')) ?></summary>
+                                <ul class="sd-rubric">
+                                <?php foreach ($ma['rubric_scores'] as $rs): ?>
+                                    <li><strong><?= sdH($rs['title']) ?></strong> <span class="num"><?= sdH(rtrim(rtrim(number_format((float)$rs['points'], 2, ',', ''), '0'), ',')) ?> / <?= sdH(rtrim(rtrim(number_format((float)$rs['max'], 2, ',', ''), '0'), ',')) ?></span><?= !empty($rs['level']) ? ' · ' . sdH($rs['level']) : '' ?><?= !empty($rs['comment']) ? '<br><em>' . sdH($rs['comment']) . '</em>' : '' ?></li>
+                                <?php endforeach; ?>
+                                </ul>
+                            </details>
+                        <?php endif; ?>
+                        <?php if (!empty($ma['feedback_file_url'])): ?><div class="sd-meta"><a href="<?= sdH($ma['feedback_file_url']) ?>"><?= sdH(sd('as_fbfile')) ?></a></div><?php endif; ?>
                     </td>
                 </tr>
             <?php endforeach; ?>

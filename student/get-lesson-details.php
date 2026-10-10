@@ -150,17 +150,22 @@ try {
     if (!empty($lesson['has_assignment'])) {
         $subStmt = $pdo->prepare("
             SELECT id, submission_type, submitted_file_path, submitted_file_name, submitted_link, student_comment, submitted_at,
-                   is_late, attempt_count, score, feedback, graded_at, revision_requested_at, revision_note
+                   is_late, attempt_count, score, feedback, graded_at, revision_requested_at, revision_note,
+                   released_at, rubric_scores, feedback_file_path, feedback_file_name
             FROM lesson_assignment_submissions
             WHERE lesson_id = :lid AND student_id = :sid
         ");
         $subStmt->execute(['lid' => $lessonId, 'sid' => $studentId]);
-        $submission = $subStmt->fetch(PDO::FETCH_ASSOC) ?: null;
+        $submissionRaw = $subStmt->fetch(PDO::FETCH_ASSOC) ?: null;
         require_once __DIR__ . '/../lib/Assignments.php';
-        $full = $pdo->prepare("SELECT assignment_deadline, assignment_allow_late, assignment_allow_resubmit, assignment_max_score FROM lessons WHERE id = :id");
+        $full = $pdo->prepare("SELECT assignment_deadline, assignment_allow_late, assignment_allow_resubmit, assignment_max_score, assignment_rubric FROM lessons WHERE id = :id");
         $full->execute(['id' => $lessonId]);
         $policy = $full->fetch(PDO::FETCH_ASSOC) ?: [];
-        $assignmentState = Assignments::state($policy, $submission) + ['max_score' => (float)($policy['assignment_max_score'] ?? 20)];
+        // The state is worked out on the full row (a marked work stays locked), then shown the way the student may see it:
+        // while the mark is held, nothing about the marking is sent to the browser
+        $assignmentState = Assignments::studentState(Assignments::state($policy, $submissionRaw) + ['max_score' => (float)($policy['assignment_max_score'] ?? 20)], $submissionRaw);
+        $submission = Assignments::studentView($submissionRaw);
+        $assignmentRubric = AssignmentRubric::decode($policy['assignment_rubric'] ?? null);
     }
 
     echo json_encode([
@@ -174,6 +179,7 @@ try {
         'content_consumed' => $contentConsumed || $completed || $quizComplete,
         'submission'       => $submission,
         'assignment_state' => $assignmentState ?? null,
+        'assignment_rubric' => $assignmentRubric ?? [],
     ]);
 
 } catch (PDOException $e) {

@@ -776,7 +776,7 @@ function loadLesson(lessonId) {
             }
 
             const box = byId('lesson-assignment-container');
-            if ((l.has_assignment == 1 || l.has_assignment === '1') && box) { renderLessonAssignmentBox(l, data.submission, data.assignment_state); box.classList.remove('hidden'); }
+            if ((l.has_assignment == 1 || l.has_assignment === '1') && box) { renderLessonAssignmentBox(l, data.submission, data.assignment_state, data.assignment_rubric); box.classList.remove('hidden'); }
             else if (box) box.classList.add('hidden');
 
             SessionTimer.start(lessonId, 'lesson-session-timer');
@@ -937,7 +937,7 @@ byId('lesson-quiz-form').addEventListener('submit', function (e) {
 });
 
 /* ───────── assignment ───────── */
-function renderLessonAssignmentBox(lesson, submission, state) {
+function renderLessonAssignmentBox(lesson, submission, state, rubric) {
     const box = byId('lesson-assignment-container');
     if (!box) return;
     state = state || { can_submit: !submission, reason: '', late: false, status: submission ? 'submitted' : 'none', max_score: 20 };
@@ -956,6 +956,25 @@ function renderLessonAssignmentBox(lesson, submission, state) {
     const instr = byId('assignment-display-instructions');
     if (lesson.assignment_instructions) renderRich(instr, lesson.assignment_instructions);
     else instr.innerHTML = '<em>' + esc(T('assignment_none')) + '</em>';
+
+    // The marking grid, visible before and after handing in: the student knows what the mark is made of
+    let rb = byId('assignment-display-rubric');
+    if (!rb) { rb = document.createElement('div'); rb.id = 'assignment-display-rubric'; rb.className = 'rd-rubric'; instr.parentNode.insertBefore(rb, instr.nextSibling); }
+    rb.textContent = '';
+    if (Array.isArray(rubric) && rubric.length) {
+        const fmtR = (n) => String(Math.round(parseFloat(n) * 100) / 100).replace('.', ',');
+        const h = document.createElement('strong'); h.textContent = T('as_rubric') + ' · ' + T('as_rubric_hint'); rb.appendChild(h);
+        const ul = document.createElement('ul');
+        rubric.forEach(c => {
+            const li = document.createElement('li');
+            const t1 = document.createElement('strong'); t1.textContent = c.title; li.appendChild(t1);
+            li.appendChild(document.createTextNode(' (' + fmtR(c.max) + ' pts)'));
+            if (c.description) { const d = document.createElement('div'); d.className = 'sd-meta'; d.textContent = c.description; li.appendChild(d); }
+            ul.appendChild(li);
+        });
+        rb.appendChild(ul);
+        rb.classList.remove('hidden');
+    } else { rb.classList.add('hidden'); }
 
     byId('assignment-display-deadline').textContent = lesson.assignment_deadline ? T('deadline_on', { date: fmtDateTime(lesson.assignment_deadline) }) : '';
 
@@ -983,7 +1002,9 @@ function renderLessonAssignmentBox(lesson, submission, state) {
         if (state.status === 'graded' || (state.status === 'revision' && submission.score !== null)) {
             h += '<div class="rd-grade"><strong>' + esc(T('as_mark')) + ' : <span class="num">' + esc(fmtN(submission.score)) + ' / ' + esc(fmtN(state.max_score)) + '</span></strong>'
               + (submission.graded_at ? ' <small>(' + esc(fmtDateTime(submission.graded_at)) + ')</small>' : '')
-              + (submission.feedback ? '<div class="rd-feedback-text"><em>' + esc(T('as_feedback')) + '</em><br>' + esc(submission.feedback).replace(/\n/g, '<br>') + '</div>' : '') + '</div>';
+              + (submission.feedback ? '<div class="rd-feedback-text"><em>' + esc(T('as_feedback')) + '</em><br>' + esc(submission.feedback).replace(/\n/g, '<br>') + '</div>' : '')
+              + ((submission.rubric_scores && submission.rubric_scores.length) ? '<div class="rd-feedback-text"><em>' + esc(T('as_crit_detail')) + '</em><ul class="rd-crit">' + submission.rubric_scores.map(r => '<li><strong>' + esc(r.title) + '</strong> <span class="num">' + esc(fmtN(r.points)) + ' / ' + esc(fmtN(r.max)) + '</span>' + (r.level ? ' · ' + esc(r.level) : '') + (r.comment ? '<br><em>' + esc(r.comment) + '</em>' : '') + '</li>').join('') + '</ul></div>' : '')
+              + (submission.feedback_file_url ? '<div class="rd-feedback-text">📎 <a href="' + esc(submission.feedback_file_url) + '">' + esc(T('as_fbfile')) + (submission.feedback_file_name ? ' (' + esc(submission.feedback_file_name) + ')' : '') + '</a></div>' : '') + '</div>';
         } else if (state.status === 'submitted') {
             h += '<div class="rd-grade"><em>' + esc(T('as_waiting')) + '</em></div>';
         }

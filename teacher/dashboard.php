@@ -25,6 +25,8 @@ declare(strict_types=1);
 require_once __DIR__ . '/../auth.php';
 require_once __DIR__ . '/../lib/MediaStore.php';
 require_once __DIR__ . '/../lib/BulkPackage.php';
+require_once __DIR__ . '/../lib/AssignmentRubric.php';
+require_once __DIR__ . '/../lib/AssignmentSimilarity.php';
 require_once __DIR__ . '/../lib/LiveSmsNotifier.php';
 require_once __DIR__ . '/../lib/LiveMailNotifier.php';
 require_once __DIR__ . '/../Mailer.php';
@@ -265,6 +267,18 @@ try {
             $asgMaxScore = max(1.0, min(1000.0, (float)str_replace(',', '.', (string)($_POST['assignment_max_score'] ?? '20')) ?: 20.0));
             $asgAllowLate = !empty($_POST['assignment_allow_late']) ? 1 : 0;
             $asgAllowResubmit = isset($_POST['assignment_policy_sent']) ? (!empty($_POST['assignment_allow_resubmit']) ? 1 : 0) : 1;
+            // Rubric (marking grid) and release of marks. With a rubric the scale is the total of its criteria.
+            $asgRubricJson = null;
+            $asgRelease = 'immediate';
+            if ($hasAssignment) {
+                $rb = AssignmentRubric::normalize((string)($_POST['assignment_rubric_json'] ?? ''));
+                if (!$rb['ok']) {
+                    header("Location: /teacher/dashboard.php?course_id={$selectedCourse['id']}&error=rubric_invalid#tab-course"); exit;
+                }
+                $asgRubricJson = AssignmentRubric::encode($rb['criteria']);
+                if ($rb['criteria']) { $asgMaxScore = $rb['total']; }
+                $asgRelease = (($_POST['assignment_release_mode'] ?? 'immediate') === 'manual') ? 'manual' : 'immediate';
+            }
             $pdfPath     = null;
 
             if (in_array($contentType, ['pdf','mixed'], true) && !empty($_FILES['lesson_pdf']['name'])) {
@@ -282,8 +296,8 @@ try {
                 $maxSort = (int)$stmt->fetchColumn();
 
                 $stmt = $pdo->prepare("
-                    INSERT INTO lessons (chapter_id,title,content_type,text_content,pdf_path,pdf_data,video_url,sort_order,is_compulsory,quiz_deadline,has_assignment,assignment_title,assignment_type,allowed_file_types,assignment_instructions,assignment_deadline,assignment_max_score,assignment_allow_late,assignment_allow_resubmit)
-                    VALUES (:cid,:title,:ct,:tc,:pp,:pd,NULL,:so,:ic,:qd,:ha,:at,:atype,:aft,:ai,:ad,:amax,:alate,:are)
+                    INSERT INTO lessons (chapter_id,title,content_type,text_content,pdf_path,pdf_data,video_url,sort_order,is_compulsory,quiz_deadline,has_assignment,assignment_title,assignment_type,allowed_file_types,assignment_instructions,assignment_deadline,assignment_max_score,assignment_allow_late,assignment_allow_resubmit,assignment_rubric,assignment_release_mode)
+                    VALUES (:cid,:title,:ct,:tc,:pp,:pd,NULL,:so,:ic,:qd,:ha,:at,:atype,:aft,:ai,:ad,:amax,:alate,:are,:rub,:rel)
                 ");
                 $stmt->execute([
                     'cid' => $chapterId, 'title' => $title, 'ct' => $contentType,
@@ -293,6 +307,7 @@ try {
                     'atype' => $assignmentType, 'aft' => $allowedFileTypes,
                     'ai'  => $assignmentInstructions, 'ad' => $assignmentDeadline,
                     'amax' => $asgMaxScore, 'alate' => $asgAllowLate, 'are' => $asgAllowResubmit,
+                    'rub' => $asgRubricJson, 'rel' => $asgRelease,
                 ]);
                 $lessonId = (int)$pdo->lastInsertId();
 
@@ -326,6 +341,21 @@ try {
             $asgMaxScore = max(1.0, min(1000.0, (float)str_replace(',', '.', (string)($_POST['assignment_max_score'] ?? '20')) ?: 20.0));
             $asgAllowLate = !empty($_POST['assignment_allow_late']) ? 1 : 0;
             $asgAllowResubmit = isset($_POST['assignment_policy_sent']) ? (!empty($_POST['assignment_allow_resubmit']) ? 1 : 0) : 1;
+            // Rubric and release of marks: changed only when the form sent them, otherwise kept as they are
+            $curAsg = $pdo->prepare("SELECT assignment_rubric, assignment_release_mode FROM lessons WHERE id = :id");
+            $curAsg->execute(['id' => $lessonId]);
+            $curAsg = $curAsg->fetch(PDO::FETCH_ASSOC) ?: ['assignment_rubric' => null, 'assignment_release_mode' => 'immediate'];
+            $asgRubricJson = $curAsg['assignment_rubric'];
+            $asgRelease = $curAsg['assignment_release_mode'] ?: 'immediate';
+            if ($hasAssignment && isset($_POST['assignment_policy_sent'])) {
+                $rb = AssignmentRubric::normalize((string)($_POST['assignment_rubric_json'] ?? ''));
+                if (!$rb['ok']) {
+                    header("Location: /teacher/dashboard.php?course_id={$selectedCourse['id']}&error=rubric_invalid#tab-course"); exit;
+                }
+                $asgRubricJson = AssignmentRubric::encode($rb['criteria']);
+                if ($rb['criteria']) { $asgMaxScore = $rb['total']; }
+                $asgRelease = (($_POST['assignment_release_mode'] ?? 'immediate') === 'manual') ? 'manual' : 'immediate';
+            }
             $deletePdf   = !empty($_POST['delete_pdf']) && $_POST['delete_pdf'] === '1';
 
             if ($lessonId > 0 && !empty($title)) {
@@ -367,21 +397,21 @@ try {
 
                     if ($updatePdfData) {
                         $stmt = $pdo->prepare("
-                            UPDATE lessons SET title=:t,content_type=:ct,text_content=:tc,pdf_path=:pp,pdf_data=:pd,is_compulsory=:ic,quiz_deadline=:qd,has_assignment=:ha,assignment_title=:at,assignment_type=:atype,allowed_file_types=:aft,assignment_instructions=:ai,assignment_deadline=:ad,assignment_max_score=:amax,assignment_allow_late=:alate,assignment_allow_resubmit=:are
+                            UPDATE lessons SET title=:t,content_type=:ct,text_content=:tc,pdf_path=:pp,pdf_data=:pd,is_compulsory=:ic,quiz_deadline=:qd,has_assignment=:ha,assignment_title=:at,assignment_type=:atype,allowed_file_types=:aft,assignment_instructions=:ai,assignment_deadline=:ad,assignment_max_score=:amax,assignment_allow_late=:alate,assignment_allow_resubmit=:are,assignment_rubric=:rub,assignment_release_mode=:rel
                             WHERE id=:id
                         ");
                         $stmt->execute([
                             't'=>$title,'ct'=>$contentType,'tc'=>$textContent,'pp'=>$finalPdf,'pd'=>$pdfData,'ic'=>$isCompulsory,'qd'=>$quizDeadline,
-                            'ha'=>$hasAssignment,'at'=>$assignmentTitle,'atype'=>$assignmentType,'aft'=>$allowedFileTypes,'ai'=>$assignmentInstructions,'ad'=>$assignmentDeadline,'amax'=>$asgMaxScore,'alate'=>$asgAllowLate,'are'=>$asgAllowResubmit,'id'=>$lessonId
+                            'ha'=>$hasAssignment,'at'=>$assignmentTitle,'atype'=>$assignmentType,'aft'=>$allowedFileTypes,'ai'=>$assignmentInstructions,'ad'=>$assignmentDeadline,'amax'=>$asgMaxScore,'alate'=>$asgAllowLate,'are'=>$asgAllowResubmit,'rub'=>$asgRubricJson,'rel'=>$asgRelease,'id'=>$lessonId
                         ]);
                     } else {
                         $stmt = $pdo->prepare("
-                            UPDATE lessons SET title=:t,content_type=:ct,text_content=:tc,is_compulsory=:ic,quiz_deadline=:qd,has_assignment=:ha,assignment_title=:at,assignment_type=:atype,allowed_file_types=:aft,assignment_instructions=:ai,assignment_deadline=:ad,assignment_max_score=:amax,assignment_allow_late=:alate,assignment_allow_resubmit=:are
+                            UPDATE lessons SET title=:t,content_type=:ct,text_content=:tc,is_compulsory=:ic,quiz_deadline=:qd,has_assignment=:ha,assignment_title=:at,assignment_type=:atype,allowed_file_types=:aft,assignment_instructions=:ai,assignment_deadline=:ad,assignment_max_score=:amax,assignment_allow_late=:alate,assignment_allow_resubmit=:are,assignment_rubric=:rub,assignment_release_mode=:rel
                             WHERE id=:id
                         ");
                         $stmt->execute([
                             't'=>$title,'ct'=>$contentType,'tc'=>$textContent,'ic'=>$isCompulsory,'qd'=>$quizDeadline,
-                            'ha'=>$hasAssignment,'at'=>$assignmentTitle,'atype'=>$assignmentType,'aft'=>$allowedFileTypes,'ai'=>$assignmentInstructions,'ad'=>$assignmentDeadline,'amax'=>$asgMaxScore,'alate'=>$asgAllowLate,'are'=>$asgAllowResubmit,'id'=>$lessonId
+                            'ha'=>$hasAssignment,'at'=>$assignmentTitle,'atype'=>$assignmentType,'aft'=>$allowedFileTypes,'ai'=>$assignmentInstructions,'ad'=>$assignmentDeadline,'amax'=>$asgMaxScore,'alate'=>$asgAllowLate,'are'=>$asgAllowResubmit,'rub'=>$asgRubricJson,'rel'=>$asgRelease,'id'=>$lessonId
                         ]);
                     }
 
@@ -1096,7 +1126,7 @@ try {
                 las.submitted_link,
                 las.student_comment,
                 las.submitted_at,
-                las.is_late, las.attempt_count, las.score, las.feedback, las.graded_at, las.revision_requested_at,
+                las.is_late, las.attempt_count, las.score, las.feedback, las.graded_at, las.revision_requested_at, las.released_at, las.feedback_file_name,
                 u.name AS student_name,
                 u.email AS student_email,
                 u.avatar_path AS student_avatar
@@ -1107,6 +1137,9 @@ try {
         ");
         $subStmt->execute(['lid' => $asgLes['id']]);
         $asgLes['submissions'] = $subStmt->fetchAll(PDO::FETCH_ASSOC);
+        $asgLes['held_count'] = count(array_filter($asgLes['submissions'], fn($x) => !empty($x['graded_at']) && empty($x['released_at'])));
+        $asgLes['released_count'] = count(array_filter($asgLes['submissions'], fn($x) => !empty($x['graded_at']) && !empty($x['released_at'])));
+        $asgLes['sim'] = !empty($asgLes['assignment_similarity_at']) ? AssignmentSimilarity::results($pdo, (int)$asgLes['id'], $teacherId)['by_submission'] : [];
         foreach ($asgLes['submissions'] as $sItem) {
             $sItem['lesson_title'] = $asgLes['title'];
             $sItem['course_title'] = $asgLes['course_title'];
@@ -1478,6 +1511,7 @@ $tdHasCourse = (bool)$selectedCourse;
                 'live_image_too_big'   => td('err_upload_size'),
                 'live_image_server'    => td('err_upload'),
                 'live_image_upload'    => td('err_upload'),
+                'rubric_invalid'       => td('asg_rubric_err'),
             ];
             $errorMsg = $errorMessages[$errorKey] ?? null;
             if ($errorMsg): ?>
@@ -2789,6 +2823,28 @@ $tdHasCourse = (bool)$selectedCourse;
                                     </div>
                                 <?php endif; ?>
 
+                                <?php
+                                    $asgManual = ($lesAsg['assignment_release_mode'] ?? 'immediate') === 'manual';
+                                    $asgRubricN = count(AssignmentRubric::decode($lesAsg['assignment_rubric'] ?? null));
+                                ?>
+                                <div class="asg-tools">
+                                    <?php if ($asgRubricN): ?><span class="t-chip" style="padding:0 .6rem"><?= $asgRubricN ?> <?= $tdLang === 'en' ? 'criteria' : 'critère(s)' ?></span><?php endif; ?>
+                                    <?php if ($asgManual): ?>
+                                        <span class="t-chip" style="padding:0 .6rem"><?= tde('asg_mode_manual') ?></span>
+                                        <?php if ((int)$lesAsg['held_count'] > 0): ?>
+                                            <span class="asg-held"><?= td('asg_release_pending', ['n' => (int)$lesAsg['held_count']]) ?></span>
+                                            <button type="button" class="t-btn t-btn-primary" style="padding:.3rem .9rem" onclick="AsgGrade.releaseAll(<?= (int)$lesAsg['id'] ?>, <?= (int)$lesAsg['held_count'] ?>)"><?= td('asg_release_all', ['n' => (int)$lesAsg['held_count']]) ?></button>
+                                        <?php endif; ?>
+                                        <?php if ((int)$lesAsg['released_count'] > 0): ?>
+                                            <button type="button" class="t-btn t-btn-ghost" style="padding:.3rem .9rem" onclick="AsgGrade.withdrawAll(<?= (int)$lesAsg['id'] ?>)"><?= tde('asg_withdraw') ?></button>
+                                        <?php endif; ?>
+                                    <?php endif; ?>
+                                    <?php if (!empty($subs)): ?>
+                                        <button type="button" class="t-btn t-btn-ghost" style="padding:.3rem .9rem" data-sim-lesson="<?= (int)$lesAsg['id'] ?>" data-sim-checked="<?= !empty($lesAsg['assignment_similarity_at']) ? '1' : '0' ?>" onclick="AsgSim.run(<?= (int)$lesAsg['id'] ?>, this)"><?= tde('asg_sim_check') ?></button>
+                                    <?php endif; ?>
+                                </div>
+                                <div id="asg-sim-<?= (int)$lesAsg['id'] ?>" class="asg-sim" hidden></div>
+
                                 <!-- Tableau des soumissions pour cette leçon -->
                                 <?php if (empty($subs)): ?>
                                     <div class="p-6 text-center text-xs text-[var(--ink-3)]  italic">
@@ -2827,6 +2883,9 @@ $tdHasCourse = (bool)$selectedCourse;
                                                                         </div>
                                                                     <?php endif; ?>
                                                                     <div class="text-xs text-[var(--ink-3)] "><?= htmlspecialchars($asg['student_email']); ?></div>
+                                                                    <?php $simHit = $lesAsg['sim'][(int)$asg['id']] ?? null; if ($simHit && $simHit['score'] >= AssignmentSimilarity::MEDIUM): ?>
+                                                                        <span class="asg-simchip <?= $simHit['score'] >= AssignmentSimilarity::HIGH ? 'high' : 'med' ?>" title="<?= htmlspecialchars(td('ag_sim', ['score' => number_format($simHit['score'], 0, ',', ''), 'name' => $simHit['with']])) ?>">≈ <?= number_format($simHit['score'], 0, ',', '') ?> %</span>
+                                                                    <?php endif; ?>
                                                                 </div>
                                                             </div>
                                                         </td>
@@ -2864,7 +2923,7 @@ $tdHasCourse = (bool)$selectedCourse;
                                                         </td>
                                                         <?php
                                                             $asgMax = (float)($lesAsg['assignment_max_score'] ?? 20);
-                                                            $asgStatus = !empty($asg['revision_requested_at']) && strtotime($asg['revision_requested_at']) >= strtotime($asg['submitted_at']) ? 'revision' : (!empty($asg['graded_at']) ? 'graded' : 'submitted');
+                                                            $asgStatus = !empty($asg['revision_requested_at']) && strtotime($asg['revision_requested_at']) >= strtotime($asg['submitted_at']) ? 'revision' : (!empty($asg['graded_at']) ? (empty($asg['released_at']) ? 'held' : 'graded') : 'submitted');
                                                         ?>
                                                         <td class="py-3 px-4">
                                                             <span class="t-chip" style="padding:0 .5rem;white-space:nowrap"><?= tde('asg_st_' . $asgStatus) ?></span>
@@ -3452,6 +3511,24 @@ $tdHasCourse = (bool)$selectedCourse;
                             <label class="flex items-center gap-2 text-[11px] text-[var(--ink-2)] cursor-pointer"><input type="checkbox" name="assignment_allow_late" id="lesson-assignment-late" value="1"> <?= tde('asg_f_late') ?></label>
                         </div>
                     </div>
+                    <div>
+                        <label class="block text-[11px] font-semibold text-[var(--ink-2)] mb-1" for="lesson-assignment-release"><?= tde('asg_f_release') ?></label>
+                        <select name="assignment_release_mode" id="lesson-assignment-release" class="w-full px-3 py-1.5 bg-[var(--paper-2)] border border-[var(--line)] text-xs focus:outline-none focus:border-[var(--clay)] rounded-sm">
+                            <option value="immediate"><?= tde('asg_f_release_imm') ?></option>
+                            <option value="manual"><?= tde('asg_f_release_man') ?></option>
+                        </select>
+                    </div>
+                    <div id="asg-rubric" class="asg-rb">
+                        <div class="flex items-center justify-between gap-2">
+                            <label class="block text-[11px] font-semibold text-[var(--ink-2)]"><?= tde('asg_rubric_title') ?></label>
+                            <button type="button" id="asg-rubric-add" class="t-link"><?= tde('asg_rubric_add') ?></button>
+                        </div>
+                        <p class="text-[11px] text-[var(--ink-3)] mb-1"><?= tde('asg_rubric_hint') ?></p>
+                        <div id="asg-rubric-rows"></div>
+                        <p id="asg-rubric-total" class="text-[11px] font-semibold text-[var(--clay)]" hidden></p>
+                        <p id="asg-rubric-warn" class="text-[11px] text-[var(--ink-3)]" hidden><?= tde('asg_rubric_warn') ?></p>
+                        <input type="hidden" name="assignment_rubric_json" id="lesson-assignment-rubric" value="">
+                    </div>
                 </div>
             </div>
 
@@ -3780,6 +3857,34 @@ $tdHasCourse = (bool)$selectedCourse;
 .ag-rev { margin-top: 1rem; border-top: 1px solid var(--line, #DDD5C3); padding-top: .75rem; } .ag-rev summary { cursor: pointer; font-weight: 700; color: var(--clay, #B5482A); } .ag-rev label { display: block; margin: .6rem 0 .3rem; font-size: .9rem; font-weight: 600; }
 .ag-hist { margin-top: 1rem; font-size: .85rem; color: var(--ink-2, #4A453C); } .ag-hist p { margin: .2rem 0; }
 .ag-compact-note {}
+.asg-tools { display: flex; flex-wrap: wrap; gap: .5rem; align-items: center; padding: .6rem 1.25rem; border-bottom: 1px solid var(--line); font-size: .85rem; }
+.asg-held { color: var(--ink-2); font-weight: 600; }
+.asg-sim { padding: .8rem 1.25rem; border-bottom: 1px solid var(--line); background: var(--paper); font-size: .88rem; }
+.asg-sim .sim-sum { font-weight: 700; margin: 0 0 .3rem; } .asg-sim .sim-skip, .asg-sim .sim-note { color: var(--ink-3); font-size: .8rem; margin: .15rem 0; } .asg-sim .sim-stale { color: #7A5A12; font-weight: 600; margin: .2rem 0; } .asg-sim .sim-none { color: var(--ink-2); }
+.asg-sim .sim-pair { border: 1px solid var(--line); border-radius: 10px; background: var(--card); margin: .4rem 0; }
+.asg-sim .sim-pair > summary { cursor: pointer; display: flex; gap: .7rem; align-items: baseline; flex-wrap: wrap; padding: .5rem .75rem; list-style: none; }
+.asg-sim .sim-score { font-weight: 800; font-variant-numeric: tabular-nums; min-width: 3.4rem; } .asg-sim .sim-lv { font-size: .75rem; padding: 0 .5rem; border-radius: 999px; border: 1px solid var(--line-2); }
+.asg-sim .sim-high .sim-score { color: var(--danger, #B3261E); } .asg-sim .sim-high .sim-lv { background: color-mix(in srgb, var(--danger, #B3261E) 12%, transparent); border-color: var(--danger, #B3261E); }
+.asg-sim .sim-medium .sim-score { color: #8A5A00; } .asg-sim .sim-medium .sim-lv { background: color-mix(in srgb, #D9A23B 22%, transparent); }
+.asg-sim .sim-who { color: var(--ink-2); } .asg-sim .sim-ph { display: block; margin: .3rem .75rem 0; font-size: .8rem; }
+.asg-sim blockquote { margin: .3rem .75rem .5rem; padding: .3rem .6rem; border-left: 3px solid var(--clay); background: var(--paper-2); font-size: .8rem; color: var(--ink-2); overflow-wrap: anywhere; }
+.asg-simchip { display: inline-block; margin-top: .2rem; padding: 0 .5rem; border-radius: 999px; font-size: 10px; font-weight: 700; } .asg-simchip.med { background: color-mix(in srgb, #D9A23B 25%, transparent); color: #6B4700; } .asg-simchip.high { background: color-mix(in srgb, var(--danger, #B3261E) 15%, transparent); color: var(--danger, #B3261E); }
+.ag-held { margin: .6rem 0 0; padding: .5rem .75rem; border-left: 3px solid #D9A23B; background: color-mix(in srgb, #D9A23B 14%, transparent); font-size: .88rem; border-radius: 0 8px 8px 0; } .ag-released { margin: .6rem 0 0; font-size: .85rem; color: var(--ink-3); }
+.ag-row.is-bad .ag-v { color: var(--danger, #B3261E); font-weight: 700; }
+.ag-rb { display: grid; gap: .5rem; } .ag-rb-c { border: 1px solid var(--line); border-radius: 12px; padding: .55rem .7rem; background: var(--paper); } .ag-rb-h { display: flex; justify-content: space-between; gap: .5rem; } .ag-rb-m { color: var(--ink-3); font-variant-numeric: tabular-nums; }
+.ag-rb-d { margin: .1rem 0 .3rem; color: var(--ink-3); font-size: .82rem; } .ag-rb-l { display: flex; flex-wrap: wrap; gap: .35rem; align-items: center; margin-bottom: .35rem; }
+.ag-rb-lv { border: 1px solid var(--line-2); background: var(--card); border-radius: 999px; padding: .15rem .65rem; font-weight: 600; font-size: .8rem; cursor: pointer; color: var(--ink); } .ag-rb-lv:hover { border-color: var(--clay); }
+.ag-form input.ag-rb-p { max-width: 5.5rem; margin-left: auto; text-align: right; } .ag-form input.ag-rb-cm { max-width: 100%; font-weight: 400; }
+.ag-rb-total { font-weight: 800; text-align: right; font-variant-numeric: tabular-nums; color: var(--clay); }
+.ag-hint { color: var(--ink-3); font-size: .78rem; } .ag-cur { margin-top: .3rem; font-size: .88rem; display: flex; flex-wrap: wrap; gap: .5rem; align-items: center; } .ag-chk { font-weight: 400 !important; cursor: pointer; } .ag-form input[type=file] { max-width: 100%; font-weight: 400; padding: .4rem; }
+.asg-rb { border-top: 1px dashed var(--line); padding-top: .6rem; }
+.asg-rb-row { border: 1px solid var(--line); border-radius: 10px; padding: .55rem .65rem; margin: .45rem 0; background: var(--card); display: grid; gap: .35rem; }
+.asg-rb-top { display: grid; grid-template-columns: 1fr 6.5rem auto; gap: .5rem; align-items: end; }
+.asg-rb-f { display: grid; gap: .15rem; font-size: 11px; color: var(--ink-2); font-weight: 600; }
+.asg-rb-f input, .asg-rb-f textarea { width: 100%; box-sizing: border-box; padding: .35rem .5rem; border: 1px solid var(--line); border-radius: 6px; background: var(--paper-2); color: var(--ink); font-size: 12px; line-height: 1.4; }
+.asg-rb-rm { border: 0; background: none; color: var(--danger, #B3261E); font-size: 1.3rem; cursor: pointer; width: 2rem; height: 2rem; border-radius: 8px; }
+.asg-rb-rm:hover { background: color-mix(in srgb, var(--danger, #B3261E) 12%, transparent); }
+#lesson-assignment-max.is-locked { background: var(--paper); opacity: .8; cursor: not-allowed; }
 #tab-assignments table th, #tab-assignments table td { padding-left: .5rem !important; padding-right: .5rem !important; }
 #tab-assignments table td.max-w-xs { max-width: 9rem !important; }
 .ag-btn:focus-visible, .ag-x:focus-visible, .ag-form input:focus-visible, .ag-form textarea:focus-visible { outline: 2px solid var(--clay, #B5482A); outline-offset: 2px; }
@@ -3793,6 +3898,7 @@ $tdHasCourse = (bool)$selectedCourse;
         <div id="ag-body"></div>
     </div>
 </div>
+<script src="/assets/js/assignment-rubric.js" defer></script>
 <script src="/assets/js/assignment-grading.js" defer></script>
 
 <!-- ── Résultats : fenêtre « évaluation terminée » et tableau d'examen ────────── -->
@@ -4632,6 +4738,8 @@ function openEditLessonModal(lesson) {
     if (document.getElementById('lesson-assignment-max')) document.getElementById('lesson-assignment-max').value = lesson.assignment_max_score || 20;
     if (document.getElementById('lesson-assignment-resubmit')) document.getElementById('lesson-assignment-resubmit').checked = (lesson.assignment_allow_resubmit === undefined || lesson.assignment_allow_resubmit == 1);
     if (document.getElementById('lesson-assignment-late')) document.getElementById('lesson-assignment-late').checked = (lesson.assignment_allow_late == 1);
+    if (document.getElementById('lesson-assignment-release')) document.getElementById('lesson-assignment-release').value = (lesson.assignment_release_mode === 'manual' ? 'manual' : 'immediate');
+    if (window.AsgRubric) AsgRubric.load(lesson.assignment_rubric || '');
     updateAssignmentInstructionsPreview();
 
     // Texte
@@ -4659,6 +4767,7 @@ function openEditLessonModal(lesson) {
 // Réinitialise le formulaire leçon
 function resetLessonModal() {
     document.getElementById('lesson-form').reset();
+    if (window.AsgRubric) AsgRubric.clear();
     document.getElementById('lesson-edit-id').value = '';
     document.getElementById('lesson-quiz-deadline-input').value = '';
     const chkAsg = document.getElementById('lesson-has-assignment');

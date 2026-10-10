@@ -177,6 +177,10 @@ sudo a2enmod rewrite
 sudo systemctl reload apache2
 ```
 
+### Lecture des PDF pour la vérification des ressemblances (facultatif)
+
+La vérification des ressemblances entre devoirs lit le texte des PDF avec `pdftotext` (paquet `poppler-utils`, déjà dans l'image Docker : `sudo apt install poppler-utils` ailleurs). Sans lui, un lecteur intégré ne comprend que les PDF simples ; les autres sont signalés « illisibles » au lieu d'être comparés sur du texte faux.
+
 ### Limites d'envoi de fichiers (packs ZIP)
 
 Envoi maximal : **512 Mo** par fichier. Les valeurs doivent concorder à chaque étage, la plus petite gagne :

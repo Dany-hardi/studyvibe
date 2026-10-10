@@ -25,6 +25,7 @@ final class MediaStore
         'live_question' => 'live_questions',
         'library'       => 'library',
         'assignment'    => 'assignments',
+        'assignment_feedback' => 'assignment_feedback',
         'pdf'           => 'pdfs',
     ];
 

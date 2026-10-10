@@ -7,6 +7,7 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
     texlive-latex-extra \
     texlive-fonts-recommended \
     texlive-lang-french \
+    poppler-utils \
     && rm -rf /var/lib/apt/lists/*
 
 # Installer l'extension pdo_mysql requise par la base de données

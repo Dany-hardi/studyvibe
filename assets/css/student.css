@@ -553,3 +553,5 @@ html.dark .rd-opt:has(input:checked) .rd-opt-l { color: #1A0F09; }
 /* launched evaluation countdown */
 .sd-live-count { font-variant-numeric: tabular-nums; color: var(--clay); }
 .sd-live-count.is-live { color: var(--pine, #24402F); }
+
+.sd-rubric { margin: .4rem 0 0 1.1rem; padding: 0; list-style: disc; } .sd-rubric li { margin: .25rem 0; }

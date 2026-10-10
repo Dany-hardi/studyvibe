@@ -2,6 +2,7 @@
 declare(strict_types=1);
 
 require_once __DIR__ . '/MediaStore.php';
+require_once __DIR__ . '/AssignmentRubric.php';
 
 /**
  * The rules of assignments (homework a teacher attaches to a lesson, students hand in a file or a link, the teacher marks them).
@@ -12,11 +13,19 @@ require_once __DIR__ . '/MediaStore.php';
  *   - resubmission: allowed until the deadline when the teacher permits it, and whenever a new version was requested
  *   - a file must really be what its extension says (a PDF starts with %PDF, a DOCX is a zip with a Word document inside...)
  *   - the student's name and matricule come from the account, never from the form
- * Old versions are archived with their mark and feedback.
+ * Old versions are archived with their mark, feedback, marking grid and annotated copy.
+ *
+ * Marking can be tied to a rubric (AssignmentRubric): the points of the criteria are added up on the server and are the mark.
+ * The teacher can also return an annotated copy (a file). Both, with the written feedback and the mark, are shown to the student only
+ * once RELEASED: by default a mark is released as soon as it is saved ('immediate'); with the lesson's release mode 'manual' every mark
+ * stays hidden (the student sees "handed in") until the teacher releases all of them together.
  */
 final class Assignments
 {
     public const MAX_BYTES = 20 * 1024 * 1024;
+
+    /** What the teacher may send back as an annotated copy. */
+    public const FEEDBACK_EXT = ['pdf', 'docx', 'doc', 'odt', 'txt', 'md', 'png', 'jpg', 'jpeg', 'zip'];
 
     /** Extensions that are never accepted, whatever the teacher lists. */
     private const FORBIDDEN = ['php', 'phtml', 'phar', 'exe', 'dll', 'bat', 'cmd', 'com', 'sh', 'bash', 'msi', 'jar', 'vbs', 'scr', 'htaccess', 'svg'];
@@ -38,6 +47,52 @@ final class Assignments
             return 'revision';
         }
         return ($sub['graded_at'] ?? null) !== null ? 'graded' : 'submitted';
+    }
+
+    /** A mark is visible to the student only when it was marked AND released. */
+    public static function isReleased(?array $sub): bool
+    {
+        return $sub !== null && ($sub['graded_at'] ?? null) !== null && ($sub['released_at'] ?? null) !== null;
+    }
+
+    /** Marked by the teacher but still hidden from the student (manual release not done yet). */
+    public static function isHeld(?array $sub): bool
+    {
+        return $sub !== null && ($sub['graded_at'] ?? null) !== null && ($sub['released_at'] ?? null) === null;
+    }
+
+    /**
+     * A submission as the STUDENT may see it: while the mark is held, nothing about the marking leaks (no mark, no feedback, no grid,
+     * no annotated copy, not even the date), and the work still counts as "handed in".
+     */
+    public static function studentView(?array $sub): ?array
+    {
+        if ($sub === null) {
+            return null;
+        }
+        $sub['awaiting_release'] = self::isHeld($sub);
+        if ($sub['awaiting_release']) {
+            foreach (['score', 'feedback', 'graded_at', 'rubric_scores', 'feedback_file_path', 'feedback_file_name', 'graded_by'] as $k) {
+                if (array_key_exists($k, $sub)) {
+                    $sub[$k] = null;
+                }
+            }
+        }
+        if (isset($sub['rubric_scores'])) {
+            $sub['rubric_scores'] = AssignmentRubric::decodeScores((string)$sub['rubric_scores']);
+        }
+        $sub['feedback_file_url'] = !empty($sub['feedback_file_path']) ? '/download.php?type=assignment_feedback&file=' . rawurlencode((string)$sub['feedback_file_path']) : null;
+        return $sub;
+    }
+
+    /** State shown to the student: a held mark is "handed in", the lock (no new version once marked) stays. */
+    public static function studentState(array $state, ?array $sub): array
+    {
+        if (self::isHeld($sub) && $state['status'] === 'graded') {
+            $state['status'] = 'submitted';
+            $state['awaiting_release'] = true;
+        }
+        return $state;
     }
 
     /**
@@ -221,17 +276,19 @@ final class Assignments
             if ($existing !== null) {
                 // The previous version stays on record with its mark and feedback
                 $pdo->prepare(
-                    "INSERT INTO lesson_assignment_history (submission_id, attempt, file_path, file_name, link, comment, submitted_at, score, feedback, graded_at)
-                     VALUES (:s, :a, :fp, :fn, :l, :c, :t, :sc, :fb, :g)"
+                    "INSERT INTO lesson_assignment_history (submission_id, attempt, file_path, file_name, link, comment, submitted_at, score, feedback, graded_at, rubric_scores, feedback_file_path, feedback_file_name)
+                     VALUES (:s, :a, :fp, :fn, :l, :c, :t, :sc, :fb, :g, :rs, :ffp, :ffn)"
                 )->execute([
                     's' => $existing['id'], 'a' => (int)$existing['attempt_count'], 'fp' => $existing['submitted_file_path'], 'fn' => $existing['submitted_file_name'],
                     'l' => $existing['submitted_link'], 'c' => $existing['student_comment'], 't' => $existing['submitted_at'],
                     'sc' => $existing['score'], 'fb' => $existing['feedback'], 'g' => $existing['graded_at'],
+                    'rs' => $existing['rubric_scores'] ?? null, 'ffp' => $existing['feedback_file_path'] ?? null, 'ffn' => $existing['feedback_file_name'] ?? null,
                 ]);
                 $pdo->prepare(
                     "UPDATE lesson_assignment_submissions SET submission_type = :st, submitted_file_path = :fp, submitted_file_name = :fn, submitted_link = :l,
                             student_comment = :c, submitted_at = NOW(), student_name = :n, student_matricule = :m, is_late = :late, attempt_count = attempt_count + 1,
-                            score = NULL, feedback = NULL, graded_at = NULL, graded_by = NULL, revision_requested_at = NULL, revision_note = NULL
+                            score = NULL, feedback = NULL, graded_at = NULL, graded_by = NULL, revision_requested_at = NULL, revision_note = NULL,
+                            released_at = NULL, rubric_scores = NULL, feedback_file_path = NULL, feedback_file_name = NULL
                      WHERE id = :id"
                 )->execute(['st' => $subType, 'fp' => $filePath, 'fn' => $fileName, 'l' => $hasLink ? $link : null, 'c' => $comment !== '' ? $comment : null,
                             'n' => $student['name'], 'm' => $matricule, 'late' => $state['late'] ? 1 : 0, 'id' => $existing['id']]);
@@ -269,7 +326,7 @@ final class Assignments
     public static function ownedSubmission(PDO $pdo, int $submissionId, int $teacherId): ?array
     {
         $st = $pdo->prepare(
-            "SELECT s.*, l.title AS lesson_title, l.assignment_title, l.assignment_max_score, l.assignment_deadline, c.id AS course_id, c.title AS course_title,
+            "SELECT s.*, l.title AS lesson_title, l.assignment_title, l.assignment_max_score, l.assignment_deadline, l.assignment_rubric, l.assignment_release_mode, c.id AS course_id, c.title AS course_title,
                     u.name AS account_name, u.email AS student_email, u.lang AS student_lang, t.name AS teacher_name
              FROM lesson_assignment_submissions s
              JOIN lessons l ON l.id = s.lesson_id
@@ -294,23 +351,126 @@ final class Assignments
         return ($v < 0 || $v > $max) ? null : $v;
     }
 
-    /** @return array{ok:bool,error?:string} errors: not_found, bad_score */
-    public static function grade(PDO $pdo, int $submissionId, int $teacherId, string $scoreRaw, string $feedback): array
+    /**
+     * Saves a mark. With a rubric on the lesson the mark is the sum of the criteria (the teacher's total is never trusted).
+     *
+     * @param array $opts 'rubric' => criterion id => ['points' => .., 'comment' => ..]; 'file' => an entry of $_FILES (annotated copy);
+     *                    'remove_file' => bool, drop the annotated copy
+     * @return array{ok:bool,error?:string,released?:bool,score?:float}
+     *         errors: not_found, bad_score, rubric_incomplete, rubric_bad_points, fb_bad_type, fb_bad_content, fb_too_big, fb_upload, fb_server
+     */
+    public static function grade(PDO $pdo, int $submissionId, int $teacherId, string $scoreRaw, string $feedback, array $opts = []): array
     {
         $sub = self::ownedSubmission($pdo, $submissionId, $teacherId);
         if ($sub === null) {
             return ['ok' => false, 'error' => 'not_found'];
         }
-        $score = self::parseScore($scoreRaw, (float)$sub['assignment_max_score']);
-        if ($score === null) {
-            return ['ok' => false, 'error' => 'bad_score'];
+        $criteria = AssignmentRubric::decode($sub['assignment_rubric'] ?? null);
+        $rubricJson = null;
+        if ($criteria !== []) {
+            $r = AssignmentRubric::score($criteria, (array)($opts['rubric'] ?? []));
+            if (!$r['ok']) {
+                return ['ok' => false, 'error' => $r['error'] === 'incomplete' ? 'rubric_incomplete' : 'rubric_bad_points'];
+            }
+            $score = (float)$r['total'];
+            $rubricJson = json_encode($r['rows'], JSON_UNESCAPED_UNICODE);
+        } else {
+            $score = self::parseScore($scoreRaw, (float)$sub['assignment_max_score']);
+            if ($score === null) {
+                return ['ok' => false, 'error' => 'bad_score'];
+            }
         }
         $feedback = trim(mb_substr($feedback, 0, 5000));
-        $pdo->prepare(
-            "UPDATE lesson_assignment_submissions SET score = :sc, feedback = :fb, graded_at = NOW(), graded_by = :t, revision_requested_at = NULL, revision_note = NULL WHERE id = :id"
-        )->execute(['sc' => $score, 'fb' => $feedback !== '' ? $feedback : null, 't' => $teacherId, 'id' => $submissionId]);
-        self::tell($pdo, $sub, 'assignment_graded', ['score' => $score, 'max' => (float)$sub['assignment_max_score'], 'feedback' => $feedback]);
-        return ['ok' => true];
+
+        // The annotated copy: checked like any upload (extension, real content, size) before anything is changed
+        $file = $opts['file'] ?? null;
+        $newFile = null;
+        if (is_array($file) && (int)($file['error'] ?? UPLOAD_ERR_NO_FILE) !== UPLOAD_ERR_NO_FILE) {
+            $err = (int)$file['error'];
+            if ($err === UPLOAD_ERR_INI_SIZE || $err === UPLOAD_ERR_FORM_SIZE) {
+                return ['ok' => false, 'error' => 'fb_too_big'];
+            }
+            if ($err !== UPLOAD_ERR_OK) {
+                return ['ok' => false, 'error' => 'fb_upload'];
+            }
+            $ext = strtolower(pathinfo((string)$file['name'], PATHINFO_EXTENSION));
+            if (!in_array($ext, self::FEEDBACK_EXT, true)) {
+                return ['ok' => false, 'error' => 'fb_bad_type'];
+            }
+            if ((int)$file['size'] > self::MAX_BYTES) {
+                return ['ok' => false, 'error' => 'fb_too_big'];
+            }
+            if (!self::contentMatches((string)$file['tmp_name'], $ext)) {
+                return ['ok' => false, 'error' => 'fb_bad_content'];
+            }
+            $saved = MediaStore::saveDocument($pdo, $file, 'assignment_feedback', self::FEEDBACK_EXT, self::MAX_BYTES, 'fb_' . $submissionId . '_');
+            if (!$saved['ok']) {
+                return ['ok' => false, 'error' => $saved['error'] === 'too_big' ? 'fb_too_big' : 'fb_server'];
+            }
+            $newFile = ['path' => $saved['file'], 'name' => mb_substr(basename((string)$file['name']), 0, 250)];
+        }
+        $dropOld = $newFile !== null || !empty($opts['remove_file']);
+        $oldFile = (string)($sub['feedback_file_path'] ?? '');
+
+        $manual = ($sub['assignment_release_mode'] ?? 'immediate') === 'manual';
+        $wasReleased = ($sub['released_at'] ?? null) !== null;
+        $releaseNow = !$manual || $wasReleased;          // a mark already released stays released when the teacher corrects it
+        $changed = $sub['score'] === null || abs((float)$sub['score'] - $score) > 0.004;
+
+        $sql = "UPDATE lesson_assignment_submissions SET score = :sc, feedback = :fb, rubric_scores = :rs, graded_at = NOW(), graded_by = :t,
+                       revision_requested_at = NULL, revision_note = NULL, released_at = " . ($releaseNow ? 'COALESCE(released_at, NOW())' : 'NULL');
+        $args = ['sc' => $score, 'fb' => $feedback !== '' ? $feedback : null, 'rs' => $rubricJson, 't' => $teacherId, 'id' => $submissionId];
+        if ($dropOld) {
+            $sql .= ', feedback_file_path = :ffp, feedback_file_name = :ffn';
+            $args['ffp'] = $newFile['path'] ?? null;
+            $args['ffn'] = $newFile['name'] ?? null;
+        }
+        $pdo->prepare($sql . ' WHERE id = :id')->execute($args);
+        if ($dropOld && $oldFile !== '') {
+            MediaStore::delete($pdo, 'assignment_feedback', $oldFile);
+        }
+
+        if ($releaseNow && (!$wasReleased || $changed || $newFile !== null)) {
+            self::tell($pdo, $sub, 'assignment_graded', ['score' => $score, 'max' => (float)$sub['assignment_max_score'], 'feedback' => $feedback]);
+        }
+        return ['ok' => true, 'released' => $releaseNow, 'score' => $score];
+    }
+
+    /**
+     * Releases marks that were held: one submission, or every marked-but-hidden submission of an assignment. Each student is told.
+     *
+     * @return array{ok:bool,released:int,error?:string}
+     */
+    public static function releaseMarks(PDO $pdo, int $lessonId, int $teacherId, ?int $submissionId = null): array
+    {
+        $q = "SELECT s.id FROM lesson_assignment_submissions s
+              JOIN lessons l ON l.id = s.lesson_id JOIN chapters ch ON ch.id = l.chapter_id JOIN courses c ON c.id = ch.course_id
+              WHERE s.lesson_id = :l AND c.teacher_id = :t AND s.graded_at IS NOT NULL AND s.released_at IS NULL" . ($submissionId ? ' AND s.id = :s' : '');
+        $st = $pdo->prepare($q);
+        $st->execute($submissionId ? ['l' => $lessonId, 't' => $teacherId, 's' => $submissionId] : ['l' => $lessonId, 't' => $teacherId]);
+        $n = 0;
+        foreach ($st->fetchAll(PDO::FETCH_COLUMN) as $id) {
+            $pdo->prepare("UPDATE lesson_assignment_submissions SET released_at = NOW() WHERE id = :id AND released_at IS NULL")->execute(['id' => $id]);
+            $sub = self::ownedSubmission($pdo, (int)$id, $teacherId);
+            if ($sub !== null) {
+                self::tell($pdo, $sub, 'assignment_graded', ['score' => (float)$sub['score'], 'max' => (float)$sub['assignment_max_score'], 'feedback' => (string)($sub['feedback'] ?? '')]);
+                $n++;
+            }
+        }
+        return ['ok' => true, 'released' => $n];
+    }
+
+    /** Hides again every released mark of an assignment (a mistake was found). Nobody is told. */
+    public static function withdrawMarks(PDO $pdo, int $lessonId, int $teacherId): array
+    {
+        $st = $pdo->prepare(
+            "UPDATE lesson_assignment_submissions s
+             JOIN lessons l ON l.id = s.lesson_id JOIN chapters ch ON ch.id = l.chapter_id JOIN courses c ON c.id = ch.course_id
+             SET s.released_at = NULL
+             WHERE s.lesson_id = :l AND c.teacher_id = :t AND s.graded_at IS NOT NULL AND s.released_at IS NOT NULL"
+        );
+        $st->execute(['l' => $lessonId, 't' => $teacherId]);
+        return ['ok' => true, 'withdrawn' => $st->rowCount()];
     }
 
     /** Asks the student for a new version (allowed even after the deadline). */

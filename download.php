@@ -139,6 +139,56 @@ try {
             default => 'application/octet-stream',
         };
 
+    } elseif ($type === 'assignment_feedback') {
+        // The annotated copy a teacher returned. The student gets it only once the mark is RELEASED; the teacher of the course and a
+        // promoter always; nobody else.
+        $stmt = $pdo->prepare("
+            SELECT s.student_id, s.feedback_file_name AS fname, s.graded_at, s.released_at, c.teacher_id, 1 AS current_version
+            FROM lesson_assignment_submissions s
+            JOIN lessons l ON l.id = s.lesson_id
+            JOIN chapters ch ON ch.id = l.chapter_id
+            JOIN courses c ON c.id = ch.course_id
+            WHERE s.feedback_file_path = :file
+            UNION ALL
+            SELECT s.student_id, h.feedback_file_name, h.graded_at, h.graded_at, c.teacher_id, 0
+            FROM lesson_assignment_history h
+            JOIN lesson_assignment_submissions s ON s.id = h.submission_id
+            JOIN lessons l ON l.id = s.lesson_id
+            JOIN chapters ch ON ch.id = l.chapter_id
+            JOIN courses c ON c.id = ch.course_id
+            WHERE h.feedback_file_path = :file2
+            LIMIT 1
+        ");
+        $stmt->execute(['file' => $file, 'file2' => $file]);
+        $sub = $stmt->fetch();
+        if (!$sub) {
+            http_response_code(404);
+            exit('Fichier introuvable.');
+        }
+        $allowed = $role === 'promoter'
+            || ($role === 'teacher' && (int)$sub['teacher_id'] === $userId)
+            || ($role === 'student' && (int)$sub['student_id'] === $userId && $sub['graded_at'] !== null && $sub['released_at'] !== null);
+        if (!$allowed) {
+            http_response_code(403);
+            exit('Accès non autorisé.');
+        }
+        $downloadName = preg_replace('/[^A-Za-z0-9._-]+/', '_', (string)($sub['fname'] ?: $file)) ?: $file;
+        $forceDownload = true;
+
+        $path = MediaStore::path('assignment_feedback', $file);
+        $ext  = strtolower(pathinfo($file, PATHINFO_EXTENSION));
+        $mime = match ($ext) {
+            'pdf'  => 'application/pdf',
+            'docx' => 'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
+            'doc'  => 'application/msword',
+            'odt'  => 'application/vnd.oasis.opendocument.text',
+            'png'  => 'image/png',
+            'jpg', 'jpeg' => 'image/jpeg',
+            'zip'  => 'application/zip',
+            'txt', 'md' => 'text/plain',
+            default => 'application/octet-stream',
+        };
+
     } elseif ($type === 'library') {
         try {
             $stmt = $pdo->prepare("SELECT id FROM course_library_items WHERE file_path = :file LIMIT 1");

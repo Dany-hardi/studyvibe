@@ -103,3 +103,8 @@ See `docs/ASSIGNMENTS_AUDIT.md` for the full audit. In short: seven defects repr
 ## Bulk import of questions with pictures (9 October 2026)
 
 One ZIP (questions.csv + images folder) is checked line by line, then imported all or nothing. New optional CSV columns `image` and `time_limit`; quoted cells may now hold line breaks (code snippets); a live question may have only options A and B (true/false), also in the manual form. Details and format: `docs/BULK_IMPORT.md`. Code: `lib/BulkPackage.php`, `teacher/bulk-import.php`, `assets/js/bulk-import.js`, `QuestionImporter.php`. Tests: `tests/integration/bulk_import.php` (28), unit tests (73).
+
+## 10 October 2026: assignments, second step
+
+Built the four items the assignments audit listed as missing: **rubrics** (marking grid, total added up by the server, snapshot per mark), an **annotated copy** returned to the student, a **similarity check** between submissions (teacher only, shared passages shown), and **release of marks** (hold, release all or one, withdraw; nothing leaks to the student while held). Details in `docs/ASSIGNMENTS_AUDIT.md`, section 7. Tests: `tests/integration/assignments_advanced.php` (101 checks), `assignments_flow.php` still 52.
+

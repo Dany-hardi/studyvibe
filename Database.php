@@ -502,6 +502,63 @@ class Database
             } catch (PDOException $ex) {}
         }
 
+        // Migration 2.6j: rubrics, release of marks, annotated copies, similarity check (see docs/ASSIGNMENTS_AUDIT.md).
+        //  - lessons.assignment_rubric          JSON list of criteria (title, max points, optional levels)
+        //  - lessons.assignment_release_mode    'immediate' (default) or 'manual' (marks stay hidden until the teacher releases them)
+        //  - submissions.released_at            when the student was allowed to see the mark (NULL while held)
+        //  - submissions.rubric_scores          JSON snapshot of the marking grid as it was when the work was marked
+        //  - submissions.feedback_file_*        the annotated copy returned by the teacher
+        //  - history.*                          the same three for archived versions
+        //  - lesson_assignment_similarity       pairs of submissions that look alike (teacher only)
+        $releasedColumnIsNew = false;
+        try {
+            $pdo->query("SELECT released_at FROM lesson_assignment_submissions LIMIT 1");
+        } catch (PDOException $e) {
+            $releasedColumnIsNew = true;
+        }
+        foreach ([
+            "ALTER TABLE `lessons` ADD COLUMN `assignment_rubric` MEDIUMTEXT DEFAULT NULL",
+            "ALTER TABLE `lessons` ADD COLUMN `assignment_release_mode` VARCHAR(12) NOT NULL DEFAULT 'immediate'",
+            "ALTER TABLE `lessons` ADD COLUMN `assignment_similarity_at` DATETIME DEFAULT NULL",
+            "ALTER TABLE `lesson_assignment_submissions` ADD COLUMN `released_at` DATETIME DEFAULT NULL",
+            "ALTER TABLE `lesson_assignment_submissions` ADD COLUMN `rubric_scores` MEDIUMTEXT DEFAULT NULL",
+            "ALTER TABLE `lesson_assignment_submissions` ADD COLUMN `feedback_file_path` VARCHAR(255) DEFAULT NULL",
+            "ALTER TABLE `lesson_assignment_submissions` ADD COLUMN `feedback_file_name` VARCHAR(255) DEFAULT NULL",
+            "ALTER TABLE `lesson_assignment_history` ADD COLUMN `rubric_scores` MEDIUMTEXT DEFAULT NULL",
+            "ALTER TABLE `lesson_assignment_history` ADD COLUMN `feedback_file_path` VARCHAR(255) DEFAULT NULL",
+            "ALTER TABLE `lesson_assignment_history` ADD COLUMN `feedback_file_name` VARCHAR(255) DEFAULT NULL",
+        ] as $ddl) {
+            try {
+                $pdo->exec($ddl);
+            } catch (PDOException $ex) {
+                // already applied
+            }
+        }
+        if ($releasedColumnIsNew) {
+            // Everything marked before this feature existed was visible at once: it stays visible
+            try {
+                $pdo->exec("UPDATE `lesson_assignment_submissions` SET `released_at` = `graded_at` WHERE `graded_at` IS NOT NULL AND `released_at` IS NULL");
+            } catch (PDOException $ex) {}
+        }
+        try {
+            $pdo->exec("
+                CREATE TABLE IF NOT EXISTS `lesson_assignment_similarity` (
+                    `id`          INT AUTO_INCREMENT PRIMARY KEY,
+                    `lesson_id`   INT NOT NULL,
+                    `sub_a`       INT NOT NULL,
+                    `sub_b`       INT NOT NULL,
+                    `score`       DECIMAL(5,2) NOT NULL,
+                    `shared`      INT NOT NULL DEFAULT 0,
+                    `excerpts`    MEDIUMTEXT DEFAULT NULL,
+                    `computed_at` DATETIME NOT NULL,
+                    KEY `idx_sim_lesson` (`lesson_id`, `score`),
+                    FOREIGN KEY (`lesson_id`) REFERENCES `lessons`(`id`) ON DELETE CASCADE,
+                    FOREIGN KEY (`sub_a`) REFERENCES `lesson_assignment_submissions`(`id`) ON DELETE CASCADE,
+                    FOREIGN KEY (`sub_b`) REFERENCES `lesson_assignment_submissions`(`id`) ON DELETE CASCADE
+                ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4
+            ");
+        } catch (PDOException $ex) {}
+
         // Migration 2.7: Support binary storage backups for course cover images and lesson PDFs
         try {
             $pdo->query("SELECT cover_image_data FROM courses LIMIT 1");
