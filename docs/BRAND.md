@@ -19,7 +19,6 @@ Wrap the logo in your own `<a>` when it should link. `Brand::logo()` outputs `ro
 `Brand::emailHeader($bg, $width)` returns a table-safe header with `logo-email.png` (400 px, shown at 190 px, retina) hosted at `APP_URL/assets/img/logo-email.png`, with alt text "StudyVibe". `Mailer::wrap()` already uses it; every `Mailer::*` template gets it. Colours: `Brand::CLAY` for buttons/headings, `Brand::INK` text, `Brand::PAPER` background. Remote images need `APP_URL` to be public.
 
 ## PDF
-* Raw writer (`lib/PdfReportBuilder.php`): `$pdf->drawLogo($x, $y, $widthPt, $mono = false)` draws the real vector wordmark (no image, no font). `addCoverPage()` does it for you. `Brand::pdfHeight($w)` gives the height.
 * Anywhere else: `Brand::pdfOps($x,$y,$w,$mono)` returns PDF operators, or use the PNG `Brand::pdfPng($mono)`.
 * Use `$mono = true` for black-and-white print.
 

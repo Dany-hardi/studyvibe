@@ -2,12 +2,10 @@
 declare(strict_types=1);
 
 /**
- * Order of merit of a live evaluation as a PDF. Typeset with LaTeX (lib/ExportDocs.php); when LaTeX is not available on the
- * server the plain PDF writer below produces the same table, so the export never fails.
+ * Order of merit of a live evaluation as a PDF, typeset with LaTeX (lib/ExportDocs.php).
  */
 
 require_once __DIR__ . '/../auth.php';
-require_once __DIR__ . '/../lib/PdfReportBuilder.php';
 require_once __DIR__ . '/../lib/ExportDocs.php';
 
 // Verify teacher access
@@ -71,72 +69,9 @@ try {
         exit;
     }
 
-    // Fallback: the built-in PDF writer
-    $pdf = new PdfReportBuilder();
-    $pdf->addPage();
-
-    $top = 841.89 - 42.0;
-
-    // Brand: clay rule + vector StudyVibe logo (lib/Brand.php), then the report header below it
-    $clay = Brand::rgb(Brand::CLAY);
-    $pdf->drawFilledRect(42.0, $top - 4, 595.28 - 84.0, 4, $clay[0], $clay[1], $clay[2]);
-    $pdf->drawLogo(42.0, $top - 16 - Brand::pdfHeight(130.0), 130.0);
-    $top -= 56;
-
-    // Header styling
-    $pdf->drawText(42.0, $top - 10, "RAPPORT D'EVALUATION", 18, true);
-    $pdf->drawText(42.0, $top - 28, "Session : " . $session['title'], 11, false);
-    $pdf->drawText(42.0, $top - 44, "Cours : " . $session['course_title'], 11, false);
-    $pdf->drawText(42.0, $top - 60, "Date de generation : " . date('d/m/Y H:i'), 10, false);
-    $pdf->drawText(42.0, $top - 76, "Nombre de participants : " . count($registrations), 10, false);
-
-    // Decorative line (separator)
-    $pdf->drawLine(42.0, $top - 86, 595.28 - 42.0, $top - 86, 0.8);
-
-    // Position vertical cursor under the header line
-    $pdf->setCursorY($top - 110);
-
-    // Build the table rows
-    $headers = ['Rang', 'Nom complet', 'Adresse e-mail', 'Note / Score'];
-    $rows = [];
-    $prevScore = null;
-    $actualRank = 1;
-
-    foreach ($registrations as $index => $r) {
-        if ($r['score'] !== null) {
-            $rawScore = round(((float)$r['score'] / 100) * $totalQuestions);
-            $scoreDisplay = "{$rawScore} / {$totalQuestions} ({$r['score']}%)";
-
-            // Tie handling logic
-            if ($prevScore !== null && (float)$r['score'] < $prevScore) {
-                $actualRank = $index + 1;
-            }
-            $prevScore = (float)$r['score'];
-            $rankDisplay = (string)$actualRank;
-        } else {
-            $scoreDisplay = 'Non finalise';
-            $rankDisplay = '-';
-        }
-
-        $rows[] = [
-            $rankDisplay,
-            $r['name'],
-            $r['email'],
-            $scoreDisplay
-        ];
-    }
-
-    // Column widths sum up to 511.28 (PAGE_WIDTH - 2 * MARGIN)
-    $colWidths = [45.0, 180.0, 196.28, 90.0];
-
-    $pdf->addTable($headers, $rows, $colWidths);
-
-    // Clean file name
-    $slug = preg_replace('/[^a-z0-9_-]+/i', '_', (string)$session['title']) ?: 'evaluation';
-    $filename = 'rapport_' . mb_strtolower($slug) . '_' . date('Y-m-d') . '.pdf';
-
-    auditLog('export_live_pdf', "Session #{$sessionId}");
-    $pdf->sendDownload($filename);
+    // No technical details for the teacher: the LaTeX log stays on the server
+    http_response_code(503);
+    exit($lang === 'en' ? 'The PDF could not be produced right now. Please try again later.' : 'Le PDF n’a pas pu être produit pour le moment. Réessayez plus tard.');
 
 } catch (PDOException $e) {
     http_response_code(500);
