@@ -54,6 +54,7 @@ if ($isStudent) {
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Rejoindre — <?= htmlspecialchars($course['title']) ?> — StudyVibe</title>
     <meta name="description" content="Rejoignez le cours <?= htmlspecialchars($course['title']) ?> sur StudyVibe.">
+    <?php require_once __DIR__ . '/lib/SocialMeta.php'; echo SocialMeta::tags('Rejoindre le cours : ' . $course['title'], 'Rejoignez ce cours sur StudyVibe : leçons, devoirs et évaluations en un seul endroit.', $joinUrl, 'og-course.png'); ?>
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&family=Plus+Jakarta+Sans:ital,wght@0,300..800;1,300..800&family=Fraunces:ital,opsz,wght,SOFT@0,9..144,300..700,0..100;1,9..144,300..700,0..100&family=Hanken+Grotesk:wght@400;500;600;700&display=swap" rel="stylesheet">

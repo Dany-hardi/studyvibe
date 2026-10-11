@@ -366,6 +366,7 @@ if (!$error) {
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Téléévaluation StudyVibe LIVE</title>
+    <?php require_once __DIR__ . '/lib/SocialMeta.php'; echo SocialMeta::tags($session ? (string)$session['title'] . ' — StudyVibe' : 'Évaluation en direct — StudyVibe', 'Rejoignez cette évaluation sur StudyVibe : connectez-vous avec votre e-mail et commencez.', '/live-session.php' . ($code !== '' ? '?code=' . urlencode($code) : ''), 'og-evaluation.png'); ?>
     <?= Brand::headLinks() ?>
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>

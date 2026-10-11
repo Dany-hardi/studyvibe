@@ -40,6 +40,7 @@ $verifyUrl = APP_URL . '/verify.php?code=' . urlencode($code);
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Vérification de Certificat — StudyVibe</title>
+    <?php require_once __DIR__ . '/lib/SocialMeta.php'; echo SocialMeta::tags('Vérification de certificat StudyVibe', 'Contrôlez en un clic l’authenticité d’un certificat StudyVibe.', '/verify.php?code=' . urlencode($code), 'og-certificate.png'); ?>
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600&family=Playfair+Display:ital,wght@0,400..900;1,400..900&family=Fraunces:ital,opsz,wght,SOFT@0,9..144,300..700,0..100;1,9..144,300..700,0..100&family=Hanken+Grotesk:wght@400;500;600;700&display=swap" rel="stylesheet">
     <script src="https://cdn.tailwindcss.com"></script>

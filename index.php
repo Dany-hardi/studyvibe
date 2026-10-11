@@ -15,6 +15,7 @@ declare(strict_types=1);
 
 require_once __DIR__ . '/auth.php';
 require_once __DIR__ . '/lib/Brand.php';
+require_once __DIR__ . '/lib/SocialMeta.php';
 require_once __DIR__ . '/lib/SmsGateway.php';
 
 // =========================================================================
@@ -149,6 +150,7 @@ $e = fn(string $k): string => htmlspecialchars((string)$T[$k], ENT_QUOTES, 'UTF-
 <title><?= $e('title') ?></title>
 <meta name="description" content="<?= $e('desc') ?>">
 <meta name="theme-color" content="#F5F0E6">
+<?= SocialMeta::tags((string)$T['title'], (string)$T['desc'], '/') ?>
 <?= Brand::headLinks() ?>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
