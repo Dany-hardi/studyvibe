@@ -66,7 +66,7 @@ $envKeys = [
     'APP_SECRET', 'APP_URL', 'HTTPS_ONLY',
     'LOGIN_MAX_ATTEMPTS', 'LOGIN_LOCKOUT_MINUTES',
     'SMTP_HOST', 'SMTP_PORT', 'SMTP_USER', 'SMTP_PASS', 'SMTP_FROM', 'SMTP_FROM_NAME',
-    'GEMINI_API_KEY'
+    'GEMINI_API_KEY', 'VAPID_PRIVATE_PEM_B64', 'VAPID_SUBJECT'
 ];
 
 foreach ($envKeys as $key) {
@@ -104,6 +104,8 @@ defined('SMTP_USER')             || define('SMTP_USER', '');
 defined('SMTP_PASS')             || define('SMTP_PASS', '');
 defined('SMTP_FROM')             || define('SMTP_FROM', 'noreply@studyvibe.edu');
 defined('SMTP_FROM_NAME')        || define('SMTP_FROM_NAME', 'StudyVibe');
+defined('VAPID_PRIVATE_PEM_B64') || define('VAPID_PRIVATE_PEM_B64', '');   // web push; php scripts/generate-vapid.php
+defined('VAPID_SUBJECT')         || define('VAPID_SUBJECT', 'mailto:admin@studyvibe.edu');
 defined('GEMINI_API_KEY')        || define('GEMINI_API_KEY', 'votre_cle_api_gemini_ici');
 // Master switch for everything that needs text messages: phone number at sign-up, the verification window, codes by SMS,
 // announcements of live evaluations. Off until an SMS provider works (see DEPLOYMENT.md).

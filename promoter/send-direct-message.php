@@ -2,6 +2,7 @@
 declare(strict_types=1);
 
 require_once __DIR__ . '/../auth.php';
+require_once __DIR__ . '/../lib/Notifications.php';
 require_once __DIR__ . '/../Mailer.php';
 
 header('Content-Type: application/json');
@@ -41,6 +42,7 @@ try {
     $mailSent = Mailer::directMessage($student['email'], $student['name'], $subject, $message);
 
     if ($mailSent) {
+        Notifications::mirror($pdo, (int)$studentId, 'message', $subject, mb_strimwidth($message, 0, 200, '…'), '/student/dashboard.php');
         auditLog('direct_message_sent', "To student #{$studentId}: {$student['email']} (Subject: {$subject})");
         echo json_encode([
             'success' => true,

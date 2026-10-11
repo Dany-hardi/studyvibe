@@ -160,8 +160,9 @@ try {
 
             auditLog('course_created', "Cours « {$title} » (module: {$moduleTitle})");
 
-            $promoters = $pdo->query("SELECT email, name FROM users WHERE role = 'promoter'")->fetchAll();
+            $promoters = $pdo->query("SELECT id, email, name FROM users WHERE role = 'promoter'")->fetchAll();
             foreach ($promoters as $promoter) {
+                Notifications::mirror($pdo, (int)$promoter['id'], 'course', 'Nouveau cours : ' . $title, (string)$user['name'] . ' a créé ce cours (module : ' . $moduleTitle . ').', '/promoter/dashboard.php');
                 if (!empty($promoter['email'])) {
                     Mailer::courseCreatedByTeacher(
                         (string)$promoter['email'],
@@ -1438,6 +1439,7 @@ $tdHasCourse = (bool)$selectedCourse;
                 <?php if (!empty($user['avatar_path'])): ?><img src="<?= htmlspecialchars(mediaUrl('avatar', $user['avatar_path'])) ?>" alt="" style="width:100%;height:100%;object-fit:cover"><?php else: ?><?= htmlspecialchars($tdInitial) ?><?php endif; ?>
             </button>
             <div class="who"><b><?= htmlspecialchars($user['name']); ?></b><span><?= htmlspecialchars($user['email']); ?></span></div>
+            <a href="#" class="t-icon-link" data-sv-pwa title="<?= tde('pwa_title') ?>" aria-label="<?= tde('pwa_title') ?>"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="7" y="2.5" width="10" height="19" rx="2.5"/><path d="M11 18.5h2"/></svg></a>
             <a href="/logout.php" class="t-icon-link" title="<?= tde('logout') ?>" aria-label="<?= tde('logout') ?>"><?= tdIcon('logout') ?></a>
         </div>
     </aside>

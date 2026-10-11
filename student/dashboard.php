@@ -1052,6 +1052,9 @@ $nav = [
             <div class="sd-pref"><span><?= sdH(sd('theme')) ?></span>
                 <button type="button" class="sd-iconbtn" data-dark-toggle aria-label="<?= sdH(sd('theme')) ?>"><span class="ic-sun"><?= sdIcon('sun') ?></span><span class="ic-moon"><?= sdIcon('moon') ?></span></button>
             </div>
+            <div class="sd-pref"><span><?= sdH(sd('pwa_title')) ?></span>
+                <button type="button" class="btn btn-text" data-sv-pwa><?= sdH(sd('pwa_manage')) ?></button>
+            </div>
             <a class="sd-logout sd-logout-m" href="/logout.php"><?= sdIcon('out', 16) ?><span><?= sdH(sd('logout')) ?></span></a>
         </div>
     </div>

@@ -2,6 +2,7 @@
 declare(strict_types=1);
 
 require_once __DIR__ . '/../auth.php';
+require_once __DIR__ . '/../lib/Notifications.php';
 require_once __DIR__ . '/../Mailer.php';
 
 header('Content-Type: application/json');
@@ -59,6 +60,7 @@ try {
     foreach ($students as $student) {
         $ok = Mailer::sendEnrollmentKeys($student['email'], $student['name'], $courses);
         if ($ok) {
+            Notifications::mirror($pdo, (int)$student['id'], 'keys', 'Clés d’inscription', 'Les clés d’inscription de vos cours vous ont été envoyées par e-mail.', '/student/dashboard.php#courses/catalogue');
             $sent++;
         } else {
             $failed++;

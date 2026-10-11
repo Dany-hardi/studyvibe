@@ -447,3 +447,12 @@ mysql -u studyvibe_user -p studyvibe < schema_vX_....sql
 ---
 
 **StudyVibe** — Plateforme LMS académique. Pour toute question technique, consultez les fichiers `schema.sql` et `Instructions de developement.md`.
+
+## The installed app and push notifications
+
+- **HTTPS is required** for the install pop-up and for push (browsers refuse both on plain http, except on localhost). Set `HTTPS_ONLY=true` behind your TLS proxy.
+- **Keys:** run `php scripts/generate-vapid.php` once and put the two lines it prints (`VAPID_PRIVATE_PEM_B64`, `VAPID_SUBJECT`) in `.env` or in the host's environment. Keep the private key; if it is lost or changed, every device must subscribe again. Without keys the app still installs, notifications are simply not offered.
+- **Sending:** every in-app notification (`Notifications::send`) is also queued in `push_outbox` for the user's devices. The same worker as the e-mails sends them: `php lib/email-worker.php` (cron every minute, see above, and started right after a request). Nothing else to schedule.
+- **Devices:** table `push_subscriptions`, one row per phone or browser (8 per person at most). A device that answers 404/410 is deleted by the worker; signing out detaches the device.
+- **Migration:** automatic (2.6m) or `schema_v18_web_push.sql`.
+- **Check:** `php tests/integration/pwa_push.php` (73 checks: encryption, VAPID, API, queue, worker, manifest).

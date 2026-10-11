@@ -12,6 +12,7 @@ declare(strict_types=1);
  */
 
 require_once __DIR__ . '/../auth.php';
+require_once __DIR__ . '/../lib/Notifications.php';
 require_once __DIR__ . '/../lib/TwoFactor.php';
 require_once __DIR__ . '/../Mailer.php';
 
@@ -50,6 +51,7 @@ $fail = static function (string $code) use ($lang): never {
 $notify = static function (string $fr, string $en) use ($user, $lang): void {
     try {
         Mailer::securityNotice((string)$user['email'], (string)$user['name'], $lang === 'en' ? $en : $fr, $lang);
+        Notifications::mirror(Database::getInstance(), (int)$user['id'], 'security', $lang === 'en' ? 'Security notice' : 'Alerte de sécurité', $lang === 'en' ? $en : $fr, '/account/security.php');
     } catch (Throwable $e) {
         logServerError($e, 'security notice mail');
     }

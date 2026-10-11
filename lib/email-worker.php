@@ -15,6 +15,7 @@ if (PHP_SAPI !== 'cli') {
 require_once __DIR__ . '/../Database.php';
 require_once __DIR__ . '/EmailQueue.php';
 require_once __DIR__ . '/LiveReminders.php';
+require_once __DIR__ . '/PushQueue.php';
 
 // One worker at a time (Gmail limits parallel connections anyway); a second one exits at once
 $lock = fopen(sys_get_temp_dir() . '/studyvibe_email_worker.lock', 'c');
@@ -26,3 +27,4 @@ $pdo = Database::getInstance();
 $r = LiveReminders::dispatch($pdo);
 echo 'reminders: ' . $r['queued'] . ' for ' . $r['sessions'] . " session(s)\n";
 echo 'sent: ' . EmailQueue::work($pdo) . "\n";
+echo 'push: ' . PushQueue::work($pdo) . "\n";

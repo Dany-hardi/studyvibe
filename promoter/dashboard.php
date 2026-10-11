@@ -700,6 +700,7 @@ function pm_chips(array $u, callable $t): string {
       </div>
       <button class="chip" type="button" data-dark-toggle aria-label="<?= $t('theme') ?>"><svg width="14" height="14" viewBox="0 0 16 16" aria-hidden="true"><circle cx="8" cy="8" r="6" fill="none" stroke="currentColor" stroke-width="1.6"/><path d="M8 2a6 6 0 0 1 0 12z" fill="currentColor"/></svg></button>
       <a class="chip" href="/account/security.php"><?= TranslationService::getLang() === 'en' ? 'Security' : 'Sécurité' ?></a>
+      <a class="chip" href="#" data-sv-pwa><?= $lang === 'en' ? 'App' : 'Application' ?></a>
       <a class="chip" href="/logout.php"><?= $t('logout') ?></a>
     </div>
   </div>

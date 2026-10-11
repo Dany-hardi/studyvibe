@@ -37,6 +37,25 @@ class Notifications
             'body'  => $body,
             'link'  => $link,
         ]);
+        // The installed app also gets it as a push, when this user has a device subscribed (never breaks the caller).
+        require_once __DIR__ . '/PushQueue.php';
+        PushQueue::enqueue($pdo, $userId, $title, $body, $link, $type);
+    }
+
+    /**
+     * The in-app (and push) twin of an email: same moment, same person. Never throws, ignores a missing recipient,
+     * so a mail path can call it without caring whether the person has an account or the table is reachable.
+     */
+    public static function mirror(PDO $pdo, ?int $userId, string $type, string $title, string $body = '', ?string $link = null): void
+    {
+        if (!$userId) {
+            return;
+        }
+        try {
+            self::send($pdo, $userId, $type, $title, $body, $link);
+        } catch (Throwable $e) {
+            error_log('Notification mirror failed: ' . $e->getMessage());
+        }
     }
 
     /**

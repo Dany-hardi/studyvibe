@@ -2,6 +2,7 @@
 declare(strict_types=1);
 
 require_once __DIR__ . '/auth.php';
+require_once __DIR__ . '/lib/Notifications.php';
 require_once __DIR__ . '/Mailer.php';
 require_once __DIR__ . '/Newsletter.php';
 require_once __DIR__ . '/lib/AuthTokens.php';
@@ -108,6 +109,7 @@ try {
     $verifyToken = AuthTokens::createEmailVerification($pdo, $newUserId);
     $mailSent = Mailer::emailVerification($email, $name, $verifyToken);
     Mailer::welcome($email, $name, $roleLabel);
+    Notifications::mirror($pdo, $newUserId, 'welcome', 'Bienvenue sur StudyVibe', $role === 'teacher' ? 'Votre compte enseignant est créé. Il sera activé après validation par l’administration.' : 'Votre compte est créé. Choisissez un premier cours dans le catalogue.', $role === 'teacher' ? '/teacher/dashboard.php' : '/student/dashboard.php');
 
     if (!$mailSent) {
         auditLog('mail_failed', 'Verification email to ' . $email . ' — ' . (Mailer::getLastError() ?? 'unknown'));

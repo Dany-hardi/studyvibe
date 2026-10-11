@@ -2,6 +2,7 @@
 declare(strict_types=1);
 
 require_once __DIR__ . '/../auth.php';
+require_once __DIR__ . '/../lib/Notifications.php';
 require_once __DIR__ . '/../Mailer.php';
 
 header('Content-Type: application/json');
@@ -53,6 +54,7 @@ try {
         auditLog('teacher_revoked', "Cours #{$courseId} « {$course['title']} » — enseignant révoqué");
 
         if ($previousTeacherEmail) {
+            Notifications::mirror($pdo, $previousTeacherId, 'course', 'Assignation révoquée', 'Le cours « ' . $course['title'] . ' » ne vous est plus assigné.', '/teacher/dashboard.php');
             Mailer::courseAssignmentChanged(
                 $previousTeacherEmail,
                 $previousTeacherName,
@@ -83,6 +85,7 @@ try {
     auditLog('teacher_assigned', "Cours #{$courseId} « {$course['title']} » → {$newTeacher['name']}");
 
     if ($previousTeacherEmail && $previousTeacherId !== $teacherId) {
+        Notifications::mirror($pdo, $previousTeacherId, 'course', 'Cours réassigné', 'Le cours « ' . $course['title'] . ' » a été réassigné à un autre enseignant.', '/teacher/dashboard.php');
         Mailer::courseAssignmentChanged(
             $previousTeacherEmail,
             $previousTeacherName,
@@ -92,6 +95,7 @@ try {
     }
 
     if (!empty($newTeacher['email'])) {
+        Notifications::mirror($pdo, $teacherId, 'course', 'Nouveau cours assigné', 'Vous avez été assigné au cours « ' . $course['title'] . ' ».', '/teacher/dashboard.php?course_id=' . $courseId);
         Mailer::courseAssignmentChanged(
             (string)$newTeacher['email'],
             (string)$newTeacher['name'],

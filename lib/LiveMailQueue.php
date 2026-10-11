@@ -9,6 +9,8 @@ declare(strict_types=1);
  * exact moment everybody needed the page. Now the request only writes one row (a few milliseconds) and a background
  * process sends the mails at its own pace.
  */
+require_once __DIR__ . '/Notifications.php';
+
 final class LiveMailQueue
 {
     /** Parallel sending processes. Raise only if the SMTP provider allows it. */
@@ -132,6 +134,9 @@ final class LiveMailQueue
                 $p['err'] = $e->getMessage();
             }
             if ($ok) {
+                $who = $pdo->prepare('SELECT student_id FROM live_eval_registrations WHERE id = :r');
+                $who->execute(['r' => $job['registration_id']]);
+                Notifications::mirror($pdo, ((int)$who->fetchColumn()) ?: null, 'live_result', 'Vos résultats sont disponibles', (string)$p['session_title'] . ' — ' . (int)$p['correct'] . ' / ' . (int)$p['total'], '/student/evaluation-results.php?registration_id=' . (int)$job['registration_id'] . '&token=' . hash_hmac('sha256', (string)(int)$job['registration_id'], APP_SECRET));
                 $pdo->prepare("UPDATE live_eval_mail_queue SET status='sent', sent_at=NOW(), claim=NULL WHERE id=:id")->execute(['id' => $job['id']]);
             } else {
                 $err = substr((string)(Mailer::getLastError() ?? ($p['err'] ?? 'unknown')), 0, 250);

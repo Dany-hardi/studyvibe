@@ -151,6 +151,9 @@ $jsCards = array_map(fn($c) => ['id' => $c['id'], 'title' => $c['title'], 'cours
 <link rel="stylesheet" href="/assets/css/brand.css">
 <link rel="stylesheet" href="/assets/css/landing.css">
 <link rel="stylesheet" href="/assets/css/evaluations-page.css?v=<?= (int)@filemtime(__DIR__ . '/assets/css/evaluations-page.css') ?>">
+<link rel="manifest" href="/manifest.webmanifest">
+<script>if("serviceWorker"in navigator){window.addEventListener("load",function(){navigator.serviceWorker.register("/sw.js").catch(function(){})})}</script>
+<?= Brand::pwaTags() ?>
 <?= csrfMetaTag(); ?>
 <script>
   document.documentElement.classList.add('js');

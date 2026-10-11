@@ -2,6 +2,7 @@
 declare(strict_types=1);
 
 require_once __DIR__ . '/PasswordPolicy.php';
+require_once __DIR__ . '/Notifications.php';
 require_once __DIR__ . '/Matricule.php';
 require_once __DIR__ . '/AuthTokens.php';
 require_once __DIR__ . '/MediaStore.php';
@@ -155,6 +156,7 @@ final class AdminUsers
                 $titles = $q->fetchAll(PDO::FETCH_COLUMN);
             }
             $mailSent = Mailer::accountCreatedByAdmin($email, $name, $role, $lang, $token, $titles, $mode === 'invite' ? self::INVITE_HOURS : 0);
+            Notifications::mirror($pdo, $id, 'welcome', $lang === 'en' ? 'Your account is ready' : 'Votre compte est prêt', $lang === 'en' ? 'An administrator created your StudyVibe account.' : 'Un administrateur a créé votre compte StudyVibe.', $role === 'teacher' ? '/teacher/dashboard.php' : '/student/dashboard.php');
         }
         return [
             'ok' => true, 'user' => ['id' => $id, 'name' => $name, 'email' => $email, 'role' => $role, 'matricule' => $matricule],

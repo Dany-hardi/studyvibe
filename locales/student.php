@@ -8,7 +8,7 @@ return [
 'fr' => [
     // shell
     'page_title' => 'Espace étudiant', 'skip' => 'Aller au contenu',
-    'nav_label' => 'Navigation principale', 'nav_home' => 'Accueil', 'nav_courses' => 'Cours', 'nav_evals' => 'Évaluations', 'nav_results' => 'Résultats', 'nav_certs' => 'Certificats', 'nav_help' => 'Aide',
+    'nav_label' => 'Navigation principale', 'nav_home' => 'Accueil', 'nav_courses' => 'Cours', 'nav_evals' => 'Évaluations', 'nav_results' => 'Résultats', 'nav_certs' => 'Certificats', 'nav_help' => 'Aide', 'pwa_title' => 'Application et notifications', 'pwa_manage' => 'Gérer',
     'notifications' => 'Notifications', 'mark_all_read' => 'Tout marquer comme lu', 'theme' => 'Changer de thème', 'language' => 'Langue',
     'my_profile' => 'Mon profil', 'logout' => 'Déconnexion', 'close' => 'Fermer', 'cancel' => 'Annuler', 'save' => 'Enregistrer', 'saved' => 'Enregistré', 'send' => 'Envoyer', 'submit' => 'Valider',
     'greet_morning' => 'Bonjour', 'greet_afternoon' => 'Bon après-midi', 'greet_evening' => 'Bonsoir',
@@ -145,7 +145,7 @@ return [
 'en' => [
     // shell
     'page_title' => 'Student space', 'skip' => 'Skip to content',
-    'nav_label' => 'Main navigation', 'nav_home' => 'Home', 'nav_courses' => 'Courses', 'nav_evals' => 'Evaluations', 'nav_results' => 'Results', 'nav_certs' => 'Certificates', 'nav_help' => 'Help',
+    'nav_label' => 'Main navigation', 'nav_home' => 'Home', 'nav_courses' => 'Courses', 'nav_evals' => 'Evaluations', 'nav_results' => 'Results', 'nav_certs' => 'Certificates', 'nav_help' => 'Help', 'pwa_title' => 'App and notifications', 'pwa_manage' => 'Manage',
     'notifications' => 'Notifications', 'mark_all_read' => 'Mark all as read', 'theme' => 'Switch theme', 'language' => 'Language',
     'my_profile' => 'My profile', 'logout' => 'Log out', 'close' => 'Close', 'cancel' => 'Cancel', 'save' => 'Save', 'saved' => 'Saved', 'send' => 'Send', 'submit' => 'Submit',
     'greet_morning' => 'Good morning', 'greet_afternoon' => 'Good afternoon', 'greet_evening' => 'Good evening',

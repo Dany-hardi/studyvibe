@@ -2,6 +2,7 @@
 declare(strict_types=1);
 
 require_once __DIR__ . '/../auth.php';
+require_once __DIR__ . '/../lib/Notifications.php';
 require_once __DIR__ . '/../Mailer.php';
 require_once __DIR__ . '/../Newsletter.php';
 
@@ -55,6 +56,7 @@ try {
     $failed = 0;
     $appUrl = rtrim(APP_URL, '/');
 
+    $findUser = $pdo->prepare('SELECT id FROM users WHERE email = :e LIMIT 1');
     foreach ($recipients as $recipient) {
         $unsubUrl = $recipient['token']
             ? "{$appUrl}/newsletter-unsubscribe.php?token=" . urlencode($recipient['token'])
@@ -69,6 +71,8 @@ try {
         );
 
         if ($ok) {
+            $findUser->execute(['e' => $recipient['email']]);
+            Notifications::mirror($pdo, ((int)$findUser->fetchColumn()) ?: null, 'news', $subject, mb_strimwidth(trim(strip_tags($bodyHtml)), 0, 180, '…'), '/');
             $sent++;
         } else {
             $failed++;

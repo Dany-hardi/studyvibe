@@ -29,7 +29,43 @@ final class EmailQueue
              VALUES (:u, :t, :tpl, :a, :d, 'queued', NOW())"
         );
         $st->execute(['u' => $userId, 't' => $toEmail, 'tpl' => $template, 'a' => json_encode($args, JSON_UNESCAPED_UNICODE), 'd' => $dedupeKey]);
-        return $st->rowCount() === 1 ? (int)$pdo->lastInsertId() : null;
+        if ($st->rowCount() !== 1) {
+            return null;                          // already queued under this key: the notification was created then too
+        }
+        self::mirror($pdo, $userId, $template, $args);
+        return (int)$pdo->lastInsertId();
+    }
+
+    /**
+     * Every email that tells a person something also lands in their notifications (and as a push on their devices).
+     * The other templates create theirs where the event happens (marks, requests, contestations, results); these two have no
+     * other place, so it is done here, once per queued email.
+     */
+    private static function mirror(PDO $pdo, ?int $userId, string $template, array $args): void
+    {
+        if (!$userId || !in_array($template, ['live_scheduled', 'live_reminder'], true)) {
+            return;
+        }
+        require_once __DIR__ . '/Notifications.php';
+        $en = ($args['lang'] ?? 'fr') === 'en';
+        $s = (array)($args['session'] ?? []);
+        $title = (string)($s['title'] ?? '');
+        $course = (string)($s['course_title'] ?? '');
+        $path = (string)(parse_url((string)($args['link'] ?? ''), PHP_URL_PATH) ?? '') . (($q = parse_url((string)($args['link'] ?? ''), PHP_URL_QUERY)) ? '?' . $q : '');
+        $when = '';
+        if (!empty($s['is_async']) && !empty($s['async_deadline'])) {
+            $when = ($en ? 'Until ' : 'Jusqu’au ') . date('d/m/Y H:i', (int)strtotime((string)$s['async_deadline']));
+        } elseif (!empty($s['start_time'])) {
+            $when = date('d/m/Y H:i', (int)strtotime((string)$s['start_time']));
+        }
+        $body = trim($title . ($course !== '' ? ' · ' . $course : '') . ($when !== '' ? ' · ' . $when : ''));
+        if ($template === 'live_reminder') {
+            $n = (int)($args['minutes_left'] ?? 15);
+            Notifications::mirror($pdo, $userId, 'live_reminder', $en ? "Starts in $n minutes" : "Début dans $n minutes", $body, $path !== '' ? $path : null);
+            return;
+        }
+        $moved = !empty($args['rescheduled']);
+        Notifications::mirror($pdo, $userId, 'live_scheduled', $moved ? ($en ? 'Evaluation rescheduled' : 'Évaluation reprogrammée') : ($en ? 'Evaluation scheduled' : 'Évaluation programmée'), $body, $path !== '' ? $path : null);
     }
 
     /** Starts the background sender (at most one every 3 seconds). If it cannot start, cron picks the rows up. */

@@ -2,6 +2,7 @@
 declare(strict_types=1);
 
 require_once __DIR__ . '/../auth.php';
+require_once __DIR__ . '/../lib/Notifications.php';
 require_once __DIR__ . '/../Database.php';
 require_once __DIR__ . '/../Mailer.php';
 require_once __DIR__ . '/../lib/LiveScoring.php';
@@ -46,7 +47,7 @@ try {
 
     // Récupérer les inscrits
     $stmt = $pdo->prepare("
-        SELECT r.id, r.name, r.email, r.score,
+        SELECT r.id, r.name, r.email, r.score, r.student_id,
                (SELECT COUNT(*) FROM live_eval_answers WHERE registration_id = r.id) AS answered_count
         FROM live_eval_registrations r
         WHERE r.session_id = :sid AND r.cancelled_at IS NULL
@@ -147,6 +148,7 @@ try {
             // Envoyer l'email
             $sent = Mailer::sendLiveEvalResults($r['email'], $r['name'], $session['title'], $correctCount, $totalQuestions, $qasDetails, (int)$r['id']);
             if ($sent) {
+                Notifications::mirror($pdo, !empty($r['student_id']) ? (int)$r['student_id'] : null, 'live_result', 'Vos résultats sont disponibles', $session['title'] . ' — ' . $correctCount . ' / ' . $totalQuestions, '/student/evaluation-results.php?registration_id=' . (int)$r['id'] . '&token=' . hash_hmac('sha256', (string)(int)$r['id'], APP_SECRET));
                 $successCount++;
             } else {
                 $failCount++;

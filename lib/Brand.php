@@ -75,7 +75,23 @@ final class Brand
              // intro plays once per session: mark the session as "seen" after the animation, skip it on later loads
              . '<script>(function(){try{var d=document.documentElement;if(sessionStorage.getItem("sv_brand_seen")){d.classList.add("sv-brand-seen")}else{setTimeout(function(){try{sessionStorage.setItem("sv_brand_seen","1")}catch(e){}},4200)}}catch(e){}})();</script>'
              // installable app: the service worker keeps static files and shows an offline page (see /sw.js)
-             . '<script>if("serviceWorker"in navigator){window.addEventListener("load",function(){navigator.serviceWorker.register("/sw.js").catch(function(){})})}</script>';
+             . '<script>if("serviceWorker"in navigator){window.addEventListener("load",function(){navigator.serviceWorker.register("/sw.js").catch(function(){})})}</script>'
+             . self::pwaTags();
+    }
+
+    /** Install pop-up, notification pop-up and the "App and notifications" panel (assets/js/pwa.js). Knows only the role and id of whoever is signed in. */
+    public static function pwaTags(): string
+    {
+        $role = '';
+        $uid = '';
+        if (session_status() === PHP_SESSION_ACTIVE && !empty($_SESSION['user_id'])) {
+            $role = preg_replace('/[^a-z_]/', '', (string)($_SESSION['user_role'] ?? ''));
+            $uid = (string)(int)$_SESSION['user_id'];
+        }
+        $root = dirname(__DIR__);
+        return '<meta name="sv-auth" content="' . $role . '"><meta name="sv-uid" content="' . $uid . '">'
+             . '<link rel="stylesheet" href="/assets/css/pwa.css?v=' . (int)@filemtime($root . '/assets/css/pwa.css') . '">'
+             . '<script src="/assets/js/pwa.js?v=' . (int)@filemtime($root . '/assets/js/pwa.js') . '" defer></script>';
     }
 
     public static function mark(int $px = 24): string

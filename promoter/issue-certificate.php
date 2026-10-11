@@ -2,6 +2,7 @@
 declare(strict_types=1);
 
 require_once __DIR__ . '/../auth.php';
+require_once __DIR__ . '/../lib/Notifications.php';
 require_once __DIR__ . '/../Mailer.php';
 
 header('Content-Type: application/json');
@@ -66,6 +67,7 @@ try {
 
     auditLog('certificate_manual', "Student #{$studentId}, Course #{$courseId}, Code: {$certCode}");
     Mailer::certification($student['email'], $student['name'], $course['title'], $certCode);
+    Notifications::mirror($pdo, $studentId, 'certificate', 'Certificat délivré', 'Votre certificat du cours « ' . $course['title'] . ' » est disponible. Code : ' . $certCode, '/student/dashboard.php#certs');
 
     $pdo->prepare("INSERT IGNORE INTO student_badges (student_id, badge_type) VALUES (:sid, 'certified')")
         ->execute(['sid' => $studentId]);

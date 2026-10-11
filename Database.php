@@ -594,6 +594,41 @@ class Database
             ");
         } catch (PDOException $ex) {}
 
+        // Migration 2.6m: web push (the installed app / browser notifications): one row per device, and an outbox the worker empties.
+        try {
+            $pdo->exec("
+                CREATE TABLE IF NOT EXISTS `push_subscriptions` (
+                    `id`          INT AUTO_INCREMENT PRIMARY KEY,
+                    `user_id`     INT NOT NULL,
+                    `endpoint`    VARCHAR(600) NOT NULL,
+                    `endpoint_hash` CHAR(64) NOT NULL,
+                    `p256dh`      VARCHAR(200) NOT NULL,
+                    `auth`        VARCHAR(100) NOT NULL,
+                    `user_agent`  VARCHAR(255) DEFAULT NULL,
+                    `created_at`  DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+                    `last_ok_at`  DATETIME DEFAULT NULL,
+                    `failures`    INT NOT NULL DEFAULT 0,
+                    UNIQUE KEY `uq_push_endpoint` (`endpoint_hash`),
+                    KEY `idx_push_user` (`user_id`),
+                    FOREIGN KEY (`user_id`) REFERENCES `users`(`id`) ON DELETE CASCADE
+                ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4
+            ");
+            $pdo->exec("
+                CREATE TABLE IF NOT EXISTS `push_outbox` (
+                    `id`          INT AUTO_INCREMENT PRIMARY KEY,
+                    `user_id`     INT NOT NULL,
+                    `payload`     TEXT NOT NULL,
+                    `status`      ENUM('queued','sent','failed') NOT NULL DEFAULT 'queued',
+                    `attempts`    INT NOT NULL DEFAULT 0,
+                    `last_error`  VARCHAR(255) DEFAULT NULL,
+                    `created_at`  DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+                    `sent_at`     DATETIME DEFAULT NULL,
+                    KEY `idx_push_outbox` (`status`, `id`),
+                    FOREIGN KEY (`user_id`) REFERENCES `users`(`id`) ON DELETE CASCADE
+                ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4
+            ");
+        } catch (PDOException $ex) {}
+
         // Migration 2.7: Support binary storage backups for course cover images and lesson PDFs
         try {
             $pdo->query("SELECT cover_image_data FROM courses LIMIT 1");
