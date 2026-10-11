@@ -437,7 +437,7 @@ $nav = [
 ?>
 <aside class="sd-rail" aria-label="<?= sdH(sd('nav_label')) ?>">
     <a class="sd-logo" href="#home" data-nav="home" aria-label="StudyVibe"><?= Brand::logo('md') ?></a>
-    <nav>
+    <nav data-nav-more>
         <ul class="sd-navlist">
             <?php foreach ($nav as $key => [$ic, $label]): ?>
             <li><button type="button" class="sd-nav" data-nav="<?= $key ?>" id="tab-btn-<?= $key ?>"><?= sdIcon($ic) ?><span><?= sdH($label) ?></span></button></li>
@@ -751,7 +751,7 @@ $nav = [
                 $token = $isFinished ? hash_hmac('sha256', (string)$eval['registration_id'], APP_SECRET) : '';
                 $pass = $isFinished && (float)$eval['score'] >= 50;
             ?>
-            <li class="sd-row sd-ev">
+            <li class="sd-row sd-ev sd-ev-res">
                 <div class="sd-ev-when num">
                     <strong><?= sdH(sdDate($eval['registered_at'], 'short')) ?></strong>
                     <small><?= sdH(sdDate($eval['registered_at'], 'time')) ?></small>
@@ -1331,6 +1331,7 @@ window.SV_T = <?= json_encode(sdJs(), JSON_UNESCAPED_UNICODE | JSON_HEX_TAG | JS
 window.SV_LANG = <?= json_encode($lang) ?>;
 </script>
 <script src="/assets/js/app.js"></script>
+<script src="/assets/js/nav-more.js" defer></script>
 <script src="/assets/js/pdf-reader.js"></script>
 <script src="/assets/js/video-chain.js"></script>
 <script src="/assets/js/student.js?v=<?= (int)@filemtime(__DIR__ . "/../assets/js/student.js") ?>"></script>

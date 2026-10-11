@@ -6,9 +6,8 @@
   'use strict';
   var T = window.SV_T || {};
   var toast = function (kind, msg) { if (window.Toast && Toast[kind]) Toast[kind](msg); };
-  document.addEventListener('click', function (e) {
-    var btn = e.target.closest ? e.target.closest('.rq-send') : null;
-    if (!btn) return;
+
+  function send(btn) {
     var card = btn.closest('[data-rq]'), ta = card.querySelector('.rq-answer'), text = ta.value.trim();
     if (text.length < 10) { toast('error', T.rq_short || ''); ta.focus(); return; }
     btn.disabled = true;
@@ -17,11 +16,21 @@
       btn.disabled = false;
       if (!d.success) { toast('error', d.message || T.rq_err || ''); return; }
       toast('success', T.rq_sent || d.message);
-      var done = document.createElement('div'); done.className = 'rq-resp';
+      var done = document.createElement('div'); done.className = 'qx-resp';
       var b = document.createElement('strong'); b.textContent = T.rq_your_answer || ''; done.appendChild(b); done.appendChild(document.createElement('br')); done.appendChild(document.createTextNode(text));
-      card.classList.remove('is-open'); card.classList.add('is-done');
-      card.querySelectorAll('.rq-answer, .rq-send, .rq-hint').forEach(function (n) { n.remove(); });
+      card.querySelectorAll('.qx-reply, .qx-hint').forEach(function (n) { n.remove(); });
       card.appendChild(done);
+      if (window.qxSetState) window.qxSetState(card, 'done'); else { card.classList.remove('is-open'); card.classList.add('is-done'); }
     }).catch(function () { btn.disabled = false; toast('error', T.rq_err || ''); });
+  }
+
+  document.addEventListener('click', function (e) {
+    var btn = e.target.closest ? e.target.closest('.rq-send') : null;
+    if (btn) send(btn);
+  });
+  // Ctrl/Cmd + Enter sends from the answer box
+  document.addEventListener('keydown', function (e) {
+    if (e.key !== 'Enter' || !(e.ctrlKey || e.metaKey) || !e.target.classList || !e.target.classList.contains('rq-answer')) return;
+    var btn = e.target.closest('[data-rq]').querySelector('.rq-send'); if (btn) { e.preventDefault(); send(btn); }
   });
 })();

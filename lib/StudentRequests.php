@@ -106,11 +106,11 @@ final class StudentRequests
         $t->execute(['id' => $teacherId]);
         $teacher = $t->fetch(PDO::FETCH_ASSOC) ?: [];
         Notifications::send($pdo, $teacherId, 'request', 'Demande : ' . $student['name'], $subject . ' — ' . mb_strimwidth($message, 0, 140, '…'),
-            '/teacher/dashboard.php?course_id=' . $courseId . '#tab-comments');
+            '/teacher/dashboard.php?course_id=' . $courseId . '&focus=request-' . $id . '#tab-comments');
         if (!empty($teacher['email'])) {
             EmailQueue::enqueue($pdo, $teacherId, (string)$teacher['email'], 'request_received', [
                 'teacher' => (string)$teacher['name'], 'student' => (string)$student['name'], 'subject' => $subject, 'message' => $message, 'context' => $context,
-                'lang' => ($teacher['lang'] ?? 'fr') === 'en' ? 'en' : 'fr', 'url' => rtrim((string)APP_URL, '/') . '/teacher/dashboard.php?course_id=' . $courseId . '#tab-comments',
+                'lang' => ($teacher['lang'] ?? 'fr') === 'en' ? 'en' : 'fr', 'url' => rtrim((string)APP_URL, '/') . '/teacher/dashboard.php?course_id=' . $courseId . '&focus=request-' . $id . '#tab-comments',
             ], 'request:' . $id . ':received');
             EmailQueue::kick();
         }

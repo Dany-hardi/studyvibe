@@ -86,7 +86,7 @@ final class LessonQA
             Notifications::send(
                 $pdo, (int)$ctx['teacher_id'], 'question', 'Question : ' . $user['name'],
                 $ctx['lesson_title'] . ' — ' . mb_strimwidth($text, 0, 160, '…'),
-                '/teacher/dashboard.php?course_id=' . (int)$ctx['course_id'] . '#tab-comments'
+                '/teacher/dashboard.php?course_id=' . (int)$ctx['course_id'] . '&focus=comment-' . $id . '#tab-comments'
             );
         }
         return ['ok' => true, 'comment' => [

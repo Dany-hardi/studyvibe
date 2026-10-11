@@ -89,7 +89,7 @@ try {
     $teacher->execute(['c' => $lesson['course_id']]);
     if ($tid = (int)$teacher->fetchColumn()) {
         $attempt = (int)($res['submission']['attempt_count'] ?? 1);
-        Notifications::send($pdo, $tid, 'assignment', ($attempt > 1 ? 'Nouvelle version : ' : 'Nouveau devoir : ') . $student['name'], (string)($lesson['assignment_title'] ?: $lesson['title']) . (!empty($res['late']) ? ' (en retard)' : ''), '/teacher/dashboard.php');
+        Notifications::send($pdo, $tid, 'assignment', ($attempt > 1 ? 'Nouvelle version : ' : 'Nouveau devoir : ') . $student['name'], (string)($lesson['assignment_title'] ?: $lesson['title']) . (!empty($res['late']) ? ' (en retard)' : ''), '/teacher/dashboard.php?course_id=' . (int)$lesson['course_id'] . '&focus=submission-' . (int)($res['submission']['id'] ?? 0) . '#tab-assignments');
     }
     auditLog('assignment_submitted', "Lesson #{$lessonId}" . (!empty($res['late']) ? ' (late)' : ''));
 

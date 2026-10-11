@@ -1384,7 +1384,7 @@ $tdHasCourse = (bool)$selectedCourse;
             <span class="t-rail-role"><?= tde('role') ?></span>
         </div>
 
-        <div class="t-rail-scroll">
+        <div class="t-rail-scroll" data-nav-more>
             <div class="t-course-pick">
                 <label class="t-label" for="t-course-select"><?= tde('course') ?></label>
                 <select id="t-course-select" onchange="location.href='/teacher/dashboard.php?course_id='+this.value;" class="input">
@@ -2955,122 +2955,121 @@ $tdHasCourse = (bool)$selectedCourse;
 
             <!-- 6. COMMUNAUTÉ & Q&R (tab-comments) -->
             <div id="tab-comments" class="tab-content hidden" data-title="<?= tde('nav_qa') ?>">
+                <?php
+                // Requests from students: review of a mark, question about a result, free messages (api/requests.php -> teacher/requests.php)
+                $tdRequests = [];
+                try { $tdRequests = StudentRequests::forTeacher($pdo, $teacherId, (int)$selectedCourse['id']); } catch (Throwable $e) { $tdRequests = []; }
+                $tdReqOpenHere = count(array_filter($tdRequests, fn($r) => $r['status'] === 'open'));
+                // Open requests waiting in the teacher's OTHER courses (the inbox shows one course at a time)
+                $tdReqElsewhere = [];
+                try {
+                    $oq = $pdo->prepare("SELECT c.id, c.title, COUNT(*) AS n FROM student_requests q JOIN courses c ON c.id = q.course_id WHERE q.teacher_id = :t AND q.status = 'open' AND q.course_id <> :c GROUP BY c.id, c.title ORDER BY n DESC");
+                    $oq->execute(['t' => $teacherId, 'c' => (int)$selectedCourse['id']]);
+                    $tdReqElsewhere = $oq->fetchAll(PDO::FETCH_ASSOC);
+                } catch (Throwable $e) { $tdReqElsewhere = []; }
+                $qxOpen = $tdUnanswered + $tdReqOpenHere;
+                ?>
                 <header class="t-head">
                     <div>
                         <p class="t-kicker"><?= tde('nav_g_follow') ?></p>
                         <h2><?= tde('qa_title') ?></h2>
                         <p><?= tde('qa_lede') ?></p>
                     </div>
-                    <?php if (!empty($courseComments)): ?>
+                    <?php if (!empty($courseComments) || !empty($tdRequests)): ?>
                     <div class="t-tabs" role="group" style="padding:0;border:0" aria-label="<?= tde('qa_filter') ?>">
-                        <button type="button" id="qa-f-open" aria-selected="<?= $tdUnanswered > 0 ? 'true' : 'false' ?>" onclick="qaFilter('open')"><?= tde('qa_f_open') ?> (<?= $tdUnanswered ?>)</button>
-                        <button type="button" id="qa-f-all" aria-selected="<?= $tdUnanswered > 0 ? 'false' : 'true' ?>" onclick="qaFilter('all')"><?= tde('qa_f_all') ?> (<?= count($courseComments) ?>)</button>
+                        <button type="button" id="qa-f-open" aria-selected="<?= $qxOpen > 0 ? 'true' : 'false' ?>" onclick="qaFilter('open')"><?= tde('qa_f_open') ?> (<?= $qxOpen ?>)</button>
+                        <button type="button" id="qa-f-all" aria-selected="<?= $qxOpen > 0 ? 'false' : 'true' ?>" onclick="qaFilter('all')"><?= tde('qa_f_all') ?> (<?= count($courseComments) + count($tdRequests) ?>)</button>
                     </div>
                     <?php endif; ?>
                 </header>
 
+                <?php if (!empty($tdReqElsewhere)): ?>
+                <p class="qx-elsewhere"><span><?= tde('rq_elsewhere') ?></span>
+                    <?php foreach ($tdReqElsewhere as $oc): ?><a class="t-chip wait" href="/teacher/dashboard.php?course_id=<?= (int)$oc['id'] ?>#tab-comments"><?= htmlspecialchars($oc['title']) ?> · <?= (int)$oc['n'] ?></a><?php endforeach; ?>
+                </p>
+                <?php endif; ?>
+
                 <a class="t-link" href="#tab-comments-guide" onclick="document.getElementById('tab-comments-guide').scrollIntoView({behavior:'smooth'}); return false;" style="display:inline-block;margin:0 0 1.2rem"><?= tde('mk_wrap') ?> ↓</a>
 
-                <?php
-                // Requests from students: review of a mark, question about a result, free messages (api/requests.php -> teacher/requests.php)
-                $tdRequests = [];
-                try { $tdRequests = StudentRequests::forTeacher($pdo, $teacherId, (int)$selectedCourse['id']); } catch (Throwable $e) { $tdRequests = []; }
-                $tdReqOpenHere = count(array_filter($tdRequests, fn($r) => $r['status'] === 'open'));
-                ?>
-                <section id="rq-box" class="rq" aria-labelledby="rq-h">
-                    <div class="rq-head">
+                <section id="rq-box" class="qx-block" aria-labelledby="rq-h">
+                    <div class="qx-head">
                         <h3 id="rq-h"><?= tde('rq_title') ?> <?php if ($tdReqOpenHere): ?><span class="t-badge"><?= $tdReqOpenHere ?></span><?php endif; ?></h3>
                         <p><?= tde('rq_lede') ?></p>
                     </div>
                     <?php if (empty($tdRequests)): ?>
-                        <p class="rq-none"><?= tde('rq_none') ?></p>
+                        <p class="qx-none"><?= tde('rq_none') ?></p>
                     <?php else: foreach ($tdRequests as $rq): $open = $rq['status'] === 'open'; ?>
-                        <article class="rq-card <?= $open ? 'is-open' : 'is-done' ?>" data-rq="<?= (int)$rq['id'] ?>">
-                            <header>
-                                <span class="t-chip rq-kind"><?= tde('rq_kind_' . $rq['kind']) ?></span>
-                                <strong><?= htmlspecialchars($rq['student_name']) ?></strong><?php if (!empty($rq['student_matricule'])): ?> <span class="num rq-mat"><?= htmlspecialchars($rq['student_matricule']) ?></span><?php endif; ?>
-                                <span class="rq-date num"><?= htmlspecialchars(date('d/m/Y H:i', strtotime($rq['created_at']))) ?></span>
-                            </header>
-                            <h4><?= htmlspecialchars($rq['subject']) ?></h4>
-                            <p class="rq-msg"><?= nl2br(htmlspecialchars($rq['message'])) ?></p>
+                        <article class="qx-card <?= $open ? 'is-open' : 'is-done' ?>" id="rq-card-<?= (int)$rq['id'] ?>" data-rq="<?= (int)$rq['id'] ?>" data-qa-card data-unanswered="<?= $open ? 1 : 0 ?>">
+                            <div class="qx-top">
+                                <span class="qx-chip"><?= tde('rq_kind_' . $rq['kind']) ?></span>
+                                <span class="qx-when">
+                                    <span class="num"><?= htmlspecialchars(date('d/m/Y H:i', strtotime($rq['created_at']))) ?></span>
+                                    <span class="t-chip <?= $open ? 'wait' : 'ok' ?>"><?= $open ? tde('qa_unanswered') : tde('qa_answered') ?></span>
+                                </span>
+                            </div>
+                            <p class="qx-who"><?= htmlspecialchars($rq['student_name']) ?><?php if (!empty($rq['student_matricule'])): ?> <span class="num qx-mat"><?= htmlspecialchars($rq['student_matricule']) ?></span><?php endif; ?> <span class="qx-role">(<?= tde('qa_student') ?>)</span></p>
+                            <h4 class="qx-subject"><?= htmlspecialchars($rq['subject']) ?></h4>
+                            <p class="qx-msg"><?= nl2br(htmlspecialchars($rq['message'])) ?></p>
                             <?php if ($open): ?>
                                 <?php if ($rq['kind'] === 'assignment'): ?>
-                                    <p class="rq-hint"><?= tde('rq_hint_assignment') ?> <button type="button" class="t-link" onclick="switchDashboardTab('tab-assignments'); AsgGrade.open(<?= (int)$rq['ref_id'] ?>)"><?= tde('rq_open_grading') ?></button></p>
+                                    <p class="qx-hint"><?= tde('rq_hint_assignment') ?> <button type="button" class="t-link" onclick="switchDashboardTab('tab-assignments'); AsgGrade.open(<?= (int)$rq['ref_id'] ?>)"><?= tde('rq_open_grading') ?></button></p>
                                 <?php endif; ?>
-                                <textarea class="rq-answer" rows="3" maxlength="2000" placeholder="<?= tde('rq_answer_ph') ?>" aria-label="<?= tde('rq_answer_ph') ?>"></textarea>
-                                <button type="button" class="t-btn t-btn-primary rq-send" style="padding:.35rem 1rem"><?= tde('rq_send') ?></button>
+                                <div class="qx-reply">
+                                    <textarea class="rq-answer qx-field" rows="3" maxlength="2000" placeholder="<?= tde('rq_answer_ph') ?>" aria-label="<?= tde('rq_answer_ph') ?>"></textarea>
+                                    <div class="qx-actions"><button type="button" class="t-btn t-btn-primary rq-send"><?= tde('rq_send') ?></button></div>
+                                </div>
                             <?php else: ?>
-                                <div class="rq-resp"><strong><?= tde('rq_your_answer') ?></strong> <span class="num rq-date"><?= htmlspecialchars(date('d/m/Y H:i', strtotime((string)$rq['answered_at']))) ?></span><br><?= nl2br(htmlspecialchars((string)$rq['response'])) ?></div>
+                                <div class="qx-resp"><strong><?= tde('rq_your_answer') ?></strong> <span class="num qx-date"><?= htmlspecialchars(date('d/m/Y H:i', strtotime((string)$rq['answered_at']))) ?></span><br><?= nl2br(htmlspecialchars((string)$rq['response'])) ?></div>
                             <?php endif; ?>
                         </article>
                     <?php endforeach; endif; ?>
                 </section>
 
-                <?php if (empty($courseComments)): ?>
-                    <div class="t-empty boxed">
-                        <p><?= tde('qa_empty') ?></p>
-                        <button type="button" class="t-btn t-btn-ghost" onclick="switchDashboardTab('tab-course')"><?= tde('qa_empty_btn') ?></button>
+                <section id="qa-box" class="qx-block" aria-labelledby="qa-h">
+                    <div class="qx-head">
+                        <h3 id="qa-h"><?= tde('qa_lessons_title') ?> <?php if ($tdUnanswered): ?><span class="t-badge"><?= $tdUnanswered ?></span><?php endif; ?></h3>
+                        <p><?= tde('qa_lede_lessons') ?></p>
                     </div>
-                <?php else: ?>
-                    <div class="space-y-6">
-                        <?php foreach ($courseComments as $com): 
-                            $comHidden = (int)$com['is_hidden'] === 1;
-                        ?>
-                            <div class="border border-[var(--line)] p-6 rounded-sm bg-[var(--card)] space-y-4 relative" data-qa-card data-unanswered="<?= (($com['author_role'] ?? '') === 'student' && empty($com['teacher_reply']) && !$comHidden) ? 1 : 0 ?>" id="qa-card-<?= (int)$com['id'] ?>">
-                                <!-- Badge de statut -->
-                                <div class="flex justify-between items-start">
-                                    <div>
-                                        <span class="text-[11px]  font-bold px-2 py-0.5 rounded-sm bg-[var(--paper-2)] border border-[var(--line)] text-[var(--ink-2)]">
-                                            Leçon : <?= htmlspecialchars($com['lesson_title']) ?>
-                                        </span>
-                                    </div>
-                                    <div class="flex items-center gap-2">
-                                        <span class="text-xs text-[var(--ink-3)] num"><?= date('d/m/Y H:i', strtotime($com['created_at'])) ?></span>
-                                        <?php if (($com['author_role'] ?? '') === 'student' && empty($com['teacher_reply']) && !$comHidden): ?><span class="t-chip wait" data-qa-badge><?= tde('qa_unanswered') ?></span><?php endif; ?>
-                                        <?php if ($comHidden): ?>
-                                            <span class="px-2 py-0.5 text-[11px] font-bold   rounded-sm t-bg-danger-soft border t-bd-danger t-tx-danger">Masqué</span>
-                                        <?php endif; ?>
-                                    </div>
-                                </div>
-
-                                <!-- Corps du commentaire -->
-                                <div>
-                                    <p class="text-xs font-semibold text-[var(--ink)] mb-1"><?= htmlspecialchars($com['author_name']) ?> <span class="text-xs font-normal text-[var(--ink-3)] num">(<?= htmlspecialchars($com['author_role'] ?? 'student') ?>)</span></p>
-                                    <p class="text-xs text-[var(--ink-2)] font-light leading-relaxed whitespace-pre-line"><?= htmlspecialchars($com['comment_text']) ?></p>
-                                </div>
-
-                                <!-- Réponses existantes -->
-                                <?php if (!empty($com['teacher_reply'])): ?>
-                                    <div class="bg-[var(--paper-2)] p-4 rounded-sm border-l-2 border-[var(--clay)] space-y-1">
-                                        <p class="text-xs font-bold text-[var(--clay)]  ">Réponse de l'Enseignant</p>
-                                        <p class="text-xs text-[var(--ink)] font-light leading-relaxed whitespace-pre-line"><?= htmlspecialchars($com['teacher_reply']) ?></p>
-                                    </div>
-                                <?php endif; ?>
-
-                                <!-- Actions Moderation & Réponse -->
-                                <div class="pt-4 border-t border-[var(--paper-2)] flex flex-wrap gap-3 items-center justify-between">
-                                    <div class="flex gap-2">
-                                        <button onclick="moderateComment(<?= $com['id'] ?>, <?= $comHidden ? 0 : 1 ?>)" class="px-3 py-1 bg-[var(--card)] border border-[var(--line)] text-xs font-semibold   rounded-sm hover:bg-[var(--paper-2)] transition-colors">
-                                            <?= $comHidden ? 'Afficher' : 'Masquer' ?>
-                                        </button>
-                                        <button onclick="toggleAccordion('reply-form-<?= $com['id'] ?>')" class="px-3 py-1 bg-[var(--ink)] text-white text-xs font-semibold   rounded-sm hover:bg-[var(--clay)] transition-colors">
-                                            Répondre / Modifier la réponse
-                                        </button>
-                                    </div>
-                                </div>
-
-                                <!-- Formulaire de réponse -->
-                                <div id="reply-form-<?= $com['id'] ?>" class="hidden pt-4 border-t border-[var(--line)] space-y-3">
-                                    <textarea id="reply-text-<?= $com['id'] ?>" rows="3" placeholder="Saisissez votre réponse..." class="w-full px-3 py-2 border border-[var(--line)] rounded-sm focus:outline-none focus:border-[var(--clay)] text-xs bg-[var(--card)]"><?= htmlspecialchars($com['teacher_reply'] ?? '') ?></textarea>
-                                    <div class="flex justify-end gap-2">
-                                        <button onclick="toggleAccordion('reply-form-<?= $com['id'] ?>')" class="px-3 py-1.5 border border-[var(--line)] text-xs font-semibold   rounded-sm text-[var(--ink-2)] bg-[var(--card)] hover:bg-[var(--paper-2)]">Annuler</button>
-                                        <button onclick="submitReply(<?= $com['id'] ?>)" class="px-3 py-1.5 bg-[var(--clay)] text-white text-xs font-semibold   rounded-sm hover:bg-[var(--clay-press)]">Enregistrer</button>
-                                    </div>
+                    <?php if (empty($courseComments)): ?>
+                        <div class="t-empty boxed">
+                            <p><?= tde('qa_empty') ?></p>
+                            <button type="button" class="t-btn t-btn-ghost" onclick="switchDashboardTab('tab-course')"><?= tde('qa_empty_btn') ?></button>
+                        </div>
+                    <?php else: foreach ($courseComments as $com):
+                        $comHidden = (int)$com['is_hidden'] === 1;
+                        $comOpen = (($com['author_role'] ?? '') === 'student' && empty($com['teacher_reply']) && !$comHidden);
+                    ?>
+                        <article class="qx-card <?= $comOpen ? 'is-open' : 'is-done' ?><?= $comHidden ? ' is-hidden' : '' ?>" id="qa-card-<?= (int)$com['id'] ?>" data-qa-card data-unanswered="<?= $comOpen ? 1 : 0 ?>">
+                            <div class="qx-top">
+                                <span class="qx-chip"><?= tde('qa_lesson') ?> : <?= htmlspecialchars($com['lesson_title']) ?></span>
+                                <span class="qx-when">
+                                    <span class="num"><?= date('d/m/Y H:i', strtotime($com['created_at'])) ?></span>
+                                    <?php if ($comOpen): ?><span class="t-chip wait" data-qa-badge><?= tde('qa_unanswered') ?></span>
+                                    <?php elseif ($comHidden): ?><span class="t-chip off"><?= tde('qa_hidden') ?></span>
+                                    <?php elseif (!empty($com['teacher_reply'])): ?><span class="t-chip ok"><?= tde('qa_answered') ?></span><?php endif; ?>
+                                </span>
+                            </div>
+                            <p class="qx-who"><?= htmlspecialchars($com['author_name']) ?> <span class="qx-role">(<?= htmlspecialchars($com['author_role'] ?? 'student') ?>)</span></p>
+                            <p class="qx-msg"><?= nl2br(htmlspecialchars($com['comment_text'])) ?></p>
+                            <?php if (!empty($com['teacher_reply'])): ?>
+                                <div class="qx-resp" id="reply-container-<?= (int)$com['id'] ?>"><strong><?= tde('rq_your_answer') ?></strong><br><?= nl2br(htmlspecialchars($com['teacher_reply'])) ?></div>
+                            <?php else: ?>
+                                <div id="reply-container-<?= (int)$com['id'] ?>"></div>
+                            <?php endif; ?>
+                            <div class="qx-actions qx-actions-split">
+                                <button type="button" onclick="moderateComment(<?= (int)$com['id'] ?>, <?= $comHidden ? 0 : 1 ?>)" class="t-btn t-btn-ghost"><?= $comHidden ? tde('qa_show') : tde('qa_hide') ?></button>
+                                <button type="button" onclick="toggleAccordion('reply-form-<?= (int)$com['id'] ?>')" class="t-btn t-btn-primary"><?= empty($com['teacher_reply']) ? tde('rq_send') : tde('qa_edit_reply') ?></button>
+                            </div>
+                            <div id="reply-form-<?= (int)$com['id'] ?>" class="hidden qx-reply">
+                                <textarea id="reply-text-<?= (int)$com['id'] ?>" rows="3" placeholder="<?= tde('rq_answer_ph') ?>" class="qx-field"><?= htmlspecialchars($com['teacher_reply'] ?? '') ?></textarea>
+                                <div class="qx-actions">
+                                    <button type="button" onclick="toggleAccordion('reply-form-<?= (int)$com['id'] ?>')" class="t-btn t-btn-ghost"><?= tde('qa_cancel') ?></button>
+                                    <button type="button" onclick="submitReply(<?= (int)$com['id'] ?>)" class="t-btn t-btn-primary"><?= tde('qa_save') ?></button>
                                 </div>
                             </div>
-                        <?php endforeach; ?>
-                    </div>
-                <?php endif; ?>
+                        </article>
+                    <?php endforeach; endif; ?>
+                </section>
 
                 <div id="tab-comments-guide" style="margin-top:3rem;scroll-margin-top:5rem">
                     <?php $gdPrefix = 'gdq'; $gdOnly = ['marking']; $gdHero = false; require __DIR__ . '/partials/guides.php'; ?>
@@ -3903,12 +3902,37 @@ $tdHasCourse = (bool)$selectedCourse;
 .ag-rev { margin-top: 1rem; border-top: 1px solid var(--line, #DDD5C3); padding-top: .75rem; } .ag-rev summary { cursor: pointer; font-weight: 700; color: var(--clay, #B5482A); } .ag-rev label { display: block; margin: .6rem 0 .3rem; font-size: .9rem; font-weight: 600; }
 .ag-hist { margin-top: 1rem; font-size: .85rem; color: var(--ink-2, #4A453C); } .ag-hist p { margin: .2rem 0; }
 .ag-compact-note {}
-.rq { margin-bottom: 2rem; } .rq-head h3 { font-size: 1.35rem; display: flex; gap: .6rem; align-items: center; margin: 0 0 .2rem; } .rq-head p { color: var(--ink-2); margin: 0 0 .8rem; font-size: .92rem; } .rq-none { color: var(--ink-3); font-style: italic; }
-.rq-card { border: 1px solid var(--line); border-radius: 14px; padding: 1rem 1.1rem; background: var(--card); margin-bottom: .7rem; } .rq-card.is-open { border-left: 4px solid var(--clay); } .rq-card.is-done { opacity: .85; }
-.rq-card header { display: flex; flex-wrap: wrap; gap: .5rem .8rem; align-items: center; font-size: .9rem; } .rq-card h4 { margin: .5rem 0 .2rem; font-size: 1.05rem; } .rq-date { color: var(--ink-3); font-size: .78rem; margin-left: auto; } .rq-mat { color: var(--clay); font-weight: 700; font-size: .8rem; }
-.rq-msg { margin: .3rem 0 .6rem; white-space: normal; overflow-wrap: anywhere; } .rq-hint { color: var(--ink-3); font-size: .82rem; margin: 0 0 .5rem; }
-.rq-answer { width: 100%; box-sizing: border-box; padding: .55rem .75rem; border: 1.5px solid var(--line-2, #C9BFA9); border-radius: 12px; background: var(--paper); color: var(--ink); margin-bottom: .5rem; resize: vertical; }
-.rq-resp { border-left: 3px solid var(--pine, #24402F); background: var(--paper-2); padding: .5rem .8rem; border-radius: 0 10px 10px 0; font-size: .92rem; }
+/* Inbox of the "Questions et modération" tab: student messages and lesson questions share these cards */
+.qx-block { margin-bottom: 2.25rem; }
+.qx-head h3 { font: 500 1.35rem var(--font-display); display: flex; gap: .6rem; align-items: center; margin: 0 0 .2rem; }
+.qx-head p { color: var(--ink-2); margin: 0 0 1rem; font-size: .92rem; }
+.qx-none { color: var(--ink-3); font-size: .92rem; margin: 0; padding: 1rem 0; }
+.qx-elsewhere { display: flex; flex-wrap: wrap; align-items: center; gap: .5rem; margin: 0 0 1.1rem; font-size: .9rem; color: var(--ink-2); }
+.qx-elsewhere a { text-decoration: none; }
+.qx-card.qx-card { position: relative; border: 1px solid var(--line); border-left: 3px solid var(--line); border-radius: 6px; padding: 1.15rem 1.35rem; background: var(--card); margin: 0 0 .85rem; scroll-margin-top: 5rem; }
+.qx-card.is-open { border-left-color: var(--clay); }
+.qx-card.is-hidden { opacity: .6; background: var(--paper-2); }
+.qx-card.qx-flash { animation: qxFlash 2.4s ease-out 1; }
+@keyframes qxFlash { 0%, 35% { box-shadow: 0 0 0 3px color-mix(in srgb, var(--clay) 55%, transparent); } 100% { box-shadow: 0 0 0 3px transparent; } }
+.qx-top { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: .5rem .9rem; margin-bottom: .6rem; }
+.qx-chip { display: inline-block; max-width: 100%; padding: .12rem .55rem; border-radius: 4px; border: 1px solid var(--line); background: var(--paper-2); color: var(--ink-2); font-size: .78rem; font-weight: 700; overflow-wrap: anywhere; }
+.qx-when { display: inline-flex; align-items: center; gap: .6rem; color: var(--ink-3); font-size: .78rem; }
+.qx-who { margin: 0 0 .25rem; font-size: .88rem; font-weight: 600; color: var(--ink); }
+.qx-role, .qx-date { font-weight: 400; color: var(--ink-3); font-size: .78rem; }
+.qx-mat { color: var(--clay); font-weight: 700; font-size: .78rem; }
+.qx-subject { margin: .1rem 0 .3rem; font-size: 1.02rem; font-weight: 600; }
+.qx-msg { margin: .1rem 0 .85rem; font-size: .92rem; line-height: 1.55; color: var(--ink-2); white-space: normal; overflow-wrap: anywhere; }
+.qx-hint { color: var(--ink-3); font-size: .82rem; margin: 0 0 .6rem; }
+.qx-resp { margin: 0 0 .85rem; padding: .7rem .95rem; border-left: 2px solid var(--clay); background: var(--paper-2); border-radius: 0 4px 4px 0; font-size: .88rem; line-height: 1.55; color: var(--ink); overflow-wrap: anywhere; }
+.qx-resp strong { color: var(--clay); }
+.qx-reply { border-top: 1px solid var(--line); padding-top: .85rem; margin-top: .25rem; }
+.qx-field { width: 100%; box-sizing: border-box; padding: .6rem .8rem; border: 1px solid var(--line-2, #C9BFA9); border-radius: 6px; background: var(--paper); color: var(--ink); font: inherit; font-size: .92rem; line-height: 1.5; resize: vertical; min-height: 5.5rem; }
+.qx-field:focus { outline: none; border-color: var(--clay); box-shadow: 0 0 0 3px color-mix(in srgb, var(--clay) 18%, transparent); }
+.qx-actions { display: flex; justify-content: flex-end; gap: .6rem; margin-top: .6rem; }
+.qx-actions-split { justify-content: flex-start; margin-top: .2rem; }
+.qx-actions .t-btn { padding: .4rem 1.1rem; }
+@media (prefers-reduced-motion: reduce) { .qx-card.qx-flash { animation: none; outline: 2px solid var(--clay); } }
+@media (max-width: 640px) { .qx-card.qx-card { padding: 1rem; } .qx-actions .t-btn { flex: 1; } }
 .asg-tools { display: flex; flex-wrap: wrap; gap: .5rem; align-items: center; padding: .6rem 1.25rem; border-bottom: 1px solid var(--line); font-size: .85rem; }
 .asg-held { color: var(--ink-2); font-weight: 600; }
 .asg-sim { padding: .8rem 1.25rem; border-bottom: 1px solid var(--line); background: var(--paper); font-size: .88rem; }
@@ -5953,8 +5977,9 @@ function loadNotifications() {
         } else {
             badge.classList.add('hidden');
         }
+        // Everything coming from the database is escaped: titles and bodies carry student names and message text.
         panel.innerHTML = data.notifications.length
-            ? data.notifications.map(n => `<a href="${n.link || '#'}" class="block p-3 border-b border-[var(--line)] hover:bg-[var(--paper-2)] ${n.is_read == 0 ? 'font-semibold' : ''}"><div class="text-xs">${n.title}</div><div class="text-[11px] text-[var(--ink-3)]">${n.body || ''}</div></a>`).join('')
+            ? data.notifications.map(n => `<a href="${escHtml(n.link || '#')}" data-notif-id="${parseInt(n.id, 10) || 0}" data-unread="${n.is_read == 0 ? 1 : 0}" class="block p-3 border-b border-[var(--line)] hover:bg-[var(--paper-2)] ${n.is_read == 0 ? 'font-semibold' : ''}"><div class="text-xs">${escHtml(n.title)}</div><div class="text-[11px] text-[var(--ink-3)]">${escHtml(n.body || '')}</div></a>`).join('')
             : '<p class="p-3 text-xs text-[var(--ink-3)]">Aucune notification.</p>';
     });
 }
@@ -5966,8 +5991,98 @@ function loadNotifications() {
     btn.addEventListener('click', (e) => { e.stopPropagation(); const open = box.classList.contains('hidden'); setOpen(open); if (open) loadNotifications(); });
     document.addEventListener('click', (e) => { if (!box.contains(e.target)) setOpen(false); });
     document.addEventListener('keydown', (e) => { if (e.key === 'Escape') setOpen(false); });
+
+    // A click on a notification: mark it read, then go to the exact place. Same course and same page: no reload, the dashboard just scrolls there.
+    box.addEventListener('click', (e) => {
+        const a = e.target.closest('a[data-notif-id]'); if (!a) return;
+        const id = parseInt(a.dataset.notifId, 10) || 0;
+        if (id && a.dataset.unread === '1') {
+            try { navigator.sendBeacon('/api/notifications.php', new Blob([JSON.stringify({ action: 'mark_read', id })], { type: 'application/json' })); } catch (_) {}
+            const c = document.getElementById('notif-count'), n = Math.max(0, (parseInt(c.textContent, 10) || 0) - 1);
+            c.textContent = n; c.classList.toggle('hidden', n === 0);
+            a.dataset.unread = '0'; a.classList.remove('font-semibold');
+        }
+        let u; try { u = new URL(a.getAttribute('href'), location.href); } catch (_) { return; }
+        if (u.origin === location.origin && u.pathname === location.pathname && u.searchParams.get('course_id') === new URLSearchParams(location.search).get('course_id') && u.searchParams.get('course_id')) {
+            e.preventDefault(); setOpen(false);
+            history.replaceState(null, '', u.pathname + u.search + u.hash);
+            svFocusFromUrl();
+        }
+    });
 })();
 loadNotifications();
+
+// ── Notification deep links: ?course_id=…&focus=request-12 | comment-7 | submission-3, with #tab-… ─────────────
+function svHighlight(el) {
+    if (!el) return;
+    el.scrollIntoView({ behavior: 'smooth', block: 'center' });
+    el.classList.remove('qx-flash'); void el.offsetWidth; el.classList.add('qx-flash');
+    setTimeout(() => el.classList.remove('qx-flash'), 2600);
+}
+function svFocusFromUrl() {
+    const f = new URLSearchParams(location.search).get('focus');
+    if (!f) return;
+    const m = /^(request|comment|submission)-(\d+)$/.exec(f); if (!m) return;
+    const id = parseInt(m[2], 10);
+    if (m[1] === 'submission') {
+        switchDashboardTab('tab-assignments');
+        const go = (tries) => {
+            if (window.AsgGrade && typeof AsgGrade.open === 'function') { AsgGrade.open(id); return; }
+            if (tries > 0) setTimeout(() => go(tries - 1), 250);
+        };
+        go(12);
+        return;
+    }
+    switchDashboardTab('tab-comments');
+    if (typeof qaFilter === 'function') qaFilter('all');
+    const card = document.getElementById(m[1] === 'request' ? 'rq-card-' + id : 'qa-card-' + id);
+    if (!card) { if (window.Toast) (Toast.info || Toast.error).call(Toast, SV_T.nf_gone || ''); return; }
+    setTimeout(() => {
+        svHighlight(card);
+        const ta = m[1] === 'request' ? card.querySelector('.rq-answer') : (document.getElementById('reply-form-' + id) && (document.getElementById('reply-form-' + id).classList.remove('hidden'), document.getElementById('reply-text-' + id)));
+        if (ta && card.dataset.unanswered === '1') ta.focus({ preventScroll: true });
+    }, 120);
+}
+window.addEventListener('DOMContentLoaded', () => setTimeout(svFocusFromUrl, 60));
+
+// ── Q&A inbox: lesson questions and student requests share one card state ──────────────────
+function qxSetState(card, state) { // 'open' | 'done' | 'hidden'
+    if (!card) return;
+    const wasOpen = card.dataset.unanswered === '1';
+    card.classList.toggle('is-open', state === 'open');
+    card.classList.toggle('is-done', state !== 'open');
+    card.classList.toggle('is-hidden', state === 'hidden');
+    card.dataset.unanswered = state === 'open' ? '1' : '0';
+    const chip = card.querySelector('.qx-when .t-chip');
+    if (chip) {
+        chip.removeAttribute('data-qa-badge');
+        chip.className = 't-chip ' + (state === 'open' ? 'wait' : state === 'hidden' ? 'off' : 'ok');
+        chip.textContent = state === 'open' ? SV_T.qa_unanswered : (state === 'hidden' ? SV_T.qa_hidden : SV_T.qa_answered);
+    }
+    // sidebar badge (open items over all courses), then the counters of this tab
+    const nowOpen = state === 'open';
+    if (wasOpen !== nowOpen) {
+        const sb = document.querySelector('.sidebar-tab-btn[data-tab-target="tab-comments"] .t-badge');
+        if (sb) {
+            const n = Math.max(0, (parseInt(sb.textContent, 10) || 0) + (nowOpen ? 1 : -1));
+            sb.textContent = n; sb.style.display = n === 0 ? 'none' : '';
+        }
+    }
+    qxRecount();
+}
+function qxRecount() {
+    const all = document.querySelectorAll('#tab-comments [data-qa-card]');
+    const open = document.querySelectorAll('#tab-comments [data-qa-card][data-unanswered="1"]').length;
+    const o = document.getElementById('qa-f-open'), a = document.getElementById('qa-f-all');
+    if (o) o.textContent = SV_T.qa_f_open + ' (' + open + ')';
+    if (a) a.textContent = SV_T.qa_f_all + ' (' + all.length + ')';
+    ['rq-box', 'qa-box'].forEach(id => {
+        const box = document.getElementById(id), badge = box && box.querySelector('.qx-head .t-badge');
+        const n = box ? box.querySelectorAll('[data-qa-card][data-unanswered="1"]').length : 0;
+        if (badge) { badge.textContent = n; badge.style.display = n === 0 ? 'none' : ''; }
+    });
+    if (typeof qaFilter === 'function') qaFilter(window.__qaMode || 'all');
+}
 
 // ── Q&R : Réponse de l'enseignant ──────────────────────
 function submitReply(a, b) {
@@ -5987,16 +6102,20 @@ function submitReply(a, b) {
     .then(data => {
         if (data.success) {
             const container = document.getElementById(`reply-container-${commentId}`);
-            if (container) {
-                container.innerHTML = `<div class="mt-2 pl-3 border-l-2 border-[var(--clay)] text-[var(--ink-2)] text-xs"><strong>${SV_T.js_your_reply}</strong> ${escHtml(replyText)}</div>`;
-            }
-            if (input) input.value = '';
             const card = document.getElementById(`qa-card-${commentId}`);
+            if (container && fromForm) {
+                container.innerHTML = `<div class="mt-2 pl-3 border-l-2 border-[var(--clay)] text-[var(--ink-2)] text-xs"><strong>${SV_T.js_your_reply}</strong> ${escHtml(replyText)}</div>`;
+            } else if (container) {
+                container.className = 'qx-resp'; container.textContent = '';
+                const st = document.createElement('strong'); st.textContent = SV_T.rq_your_answer || SV_T.js_your_reply;
+                container.appendChild(st); container.appendChild(document.createElement('br')); container.appendChild(document.createTextNode(replyText));
+            }
+            if (input && fromForm) input.value = '';
             if (card) {
-                card.dataset.unanswered = '0';
-                card.querySelector('[data-qa-badge]')?.remove();
                 document.getElementById(`reply-form-${commentId}`)?.classList.add('hidden');
-                if (typeof qaFilter === 'function') qaFilter(window.__qaMode || 'all');
+                const edit = card.querySelector('.qx-actions-split .t-btn-primary');
+                if (edit) edit.textContent = SV_T.qa_edit_reply;
+                qxSetState(card, card.classList.contains('is-hidden') ? 'hidden' : 'done');
             }
             if (typeof Toast !== 'undefined') Toast.success(SV_T.js_reply_posted);
         } else {
@@ -6016,40 +6135,23 @@ function moderateComment(commentId, hide) {
     .then(r => r.json())
     .then(data => {
         if (data.success) {
-            const card = document.getElementById(`comment-card-${commentId}`);
+            const card = document.getElementById(`qa-card-${commentId}`);
             if (card) {
-                if (hide) {
-                    card.classList.add('opacity-60', 'bg-[var(--paper-2)]');
-                    // update button
-                    const btn = card.querySelector('button[onclick*="moderateComment"]');
-                    if (btn) {
-                        btn.setAttribute('onclick', `moderateComment(${commentId}, 0)`);
-                        btn.textContent = 'Afficher';
-                    }
-                    // add hidden badge
-                    const nameDiv = card.querySelector('div.flex > div');
-                    if (nameDiv && !nameDiv.querySelector('.hidden-badge')) {
-                        const badge = document.createElement('span');
-                        badge.className = 'hidden-badge text-xs t-bg-danger-soft t-tx-danger px-1.5 py-0.5 ml-2 font-semibold rounded-sm';
-                        badge.textContent = 'Masqué';
-                        nameDiv.appendChild(badge);
-                    }
-                } else {
-                    card.classList.remove('opacity-60', 'bg-[var(--paper-2)]');
-                    const btn = card.querySelector('button[onclick*="moderateComment"]');
-                    if (btn) {
-                        btn.setAttribute('onclick', `moderateComment(${commentId}, 1)`);
-                        btn.textContent = 'Masquer';
-                    }
-                    card.querySelector('.hidden-badge')?.remove();
+                const btn = card.querySelector('button[onclick*="moderateComment"]');
+                if (btn) {
+                    btn.setAttribute('onclick', `moderateComment(${commentId}, ${hide ? 0 : 1})`);
+                    btn.textContent = hide ? SV_T.qa_show : SV_T.qa_hide;
                 }
-                if (typeof Toast !== 'undefined') Toast.success(hide ? 'Commentaire masqué.' : 'Commentaire affiché.');
+                const replied = !!card.querySelector('.qx-resp');
+                card.classList.toggle('is-hidden', !!hide);
+                qxSetState(card, hide ? 'hidden' : (replied ? 'done' : 'open'));
             }
+            if (typeof Toast !== 'undefined') Toast.success(hide ? SV_T.qa_toast_hidden : SV_T.qa_toast_shown);
         } else {
-            if (typeof Toast !== 'undefined') Toast.error(data.message || 'Erreur de modération.');
+            if (typeof Toast !== 'undefined') Toast.error(data.message || SV_T.qa_toast_err);
         }
     })
-    .catch(err => { if (typeof Toast !== 'undefined') Toast.error('Erreur réseau: ' + err.message); });
+    .catch(err => { if (typeof Toast !== 'undefined') Toast.error(SV_T.js_network + ' ' + err.message); });
 }
 
 function downloadCurrentQuestions(type) {
@@ -6437,6 +6539,7 @@ function downloadConvertedCsv() {
     closeScoreConverterModal();
 }
 </script>
+<script src="/assets/js/nav-more.js" defer></script>
 <script src="/assets/js/teacher.js"></script>
 <?php
 require_once __DIR__ . '/../lib/PhonePrompt.php';

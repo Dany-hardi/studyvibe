@@ -55,8 +55,9 @@ html.dark .sd .btn-primary { color: #1A0F09; }
 
 /* ── Shell ─────────────────────────────────────────────────── */
 .sd-rail { position: fixed; inset: 0 auto 0 0; width: 232px; z-index: 40; display: flex; flex-direction: column; padding: 22px 14px 16px; background: var(--paper-2); border-right: 1px solid var(--line); overflow-y: auto; }
+.sd-rail > nav { flex: 1 1 auto; min-height: 0; overflow-y: auto; padding-bottom: 3.4rem; margin: 0 -6px; padding-left: 6px; padding-right: 6px; }
 .sd-logo { text-decoration: none; padding: 4px 10px 22px; display: block; }
-.sd-navlist { list-style: none; margin: 0; padding: 0; display: grid; gap: 2px; }
+.sd-navlist { list-style: none; margin: 0; padding: 0; display: grid; gap: 8px; }
 .sd-nav { display: flex; align-items: center; gap: .75rem; width: 100%; min-height: 44px; padding: 0 12px; border: 0; border-radius: var(--r-md); background: transparent; color: var(--ink-2); font: 600 .95rem var(--font-body); text-align: left; cursor: pointer; transition: background-color .15s var(--ease), color .15s var(--ease); }
 .sd-nav:hover { background: color-mix(in srgb, var(--ink) 6%, transparent); color: var(--ink); }
 .sd-nav[aria-current="page"] { background: var(--card); color: var(--ink); box-shadow: inset 2px 0 0 var(--clay), var(--shadow-1); }
@@ -141,10 +142,18 @@ html.dark .notif-count { color: #1A0F09; }
 .sd-course-progress { display: flex; align-items: center; gap: 12px; }
 .sd-course-progress .sd-bar { flex: 1; }
 .sd-course-act { display: flex; align-items: center; justify-content: flex-end; gap: 10px; flex-wrap: wrap; min-width: 190px; }
-.sd-ev { grid-template-columns: 88px minmax(0, 1fr) auto auto; }
-.sd-ev-when strong { display: block; font-family: var(--font-display); font-size: 1.2rem; font-weight: 450; line-height: 1.15; }
+.sd-ev { grid-template-columns: minmax(88px, 7.5rem) minmax(0, 1fr) auto auto; }
+.sd-ev > * { min-width: 0; }
+.sd-ev-when strong { display: block; white-space: nowrap; font-family: var(--font-display); font-size: 1.2rem; font-weight: 450; line-height: 1.15; }
 .sd-ev-when small { display: block; color: var(--ink-3); font-size: .82rem; }
-.sd-ev-score { display: flex; align-items: center; gap: 10px; justify-content: flex-end; }
+.sd-ev-score { display: flex; align-items: center; gap: 10px; justify-content: flex-end; flex-wrap: wrap; }
+.sd-ev-act { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; justify-content: flex-end; }
+/* a past evaluation carries a score and up to two buttons: below 1280px they go under the title, as on a phone, instead of squeezing it */
+@media (min-width: 961px) and (max-width: 1279px) {
+  .sd-ev-res { grid-template-columns: minmax(88px, 7.5rem) minmax(0, 1fr); }
+  .sd-ev-res .sd-ev-score, .sd-ev-res .sd-ev-act { grid-column: 2; justify-content: flex-start; }
+  .sd-ev-res .sd-ev-score { margin-top: -6px; }
+}
 .sd-score { font-family: var(--font-display); font-size: 1.5rem; }
 .sd-lib { grid-template-columns: minmax(0, 1fr) auto auto; }
 .sd-lib-act .btn { gap: .4rem; }
