@@ -228,8 +228,12 @@ TEX;
         }
         foreach ($parts as $i => $part) {
             if (str_starts_with($part, '$') && strlen($part) > 1) {
-                $parts[$i] = strtr($part, $unicodeMath);
-                continue;
+                $math = strtr($part, $unicodeMath);
+                if (self::mathIsSafe($math)) {
+                    $parts[$i] = $math;
+                    continue;
+                }
+                // a formula LaTeX would choke on (unbalanced braces, open environment...) or that reads files: shown as plain text, the PDF still builds
             }
             $part = strtr($part, [
                 '\\' => '\\textbackslash{}', '%' => '\\%', '_' => '\\_', '&' => '\\&', '#' => '\\#', '{' => '\\{', '}' => '\\}',
@@ -245,6 +249,28 @@ TEX;
         }
         $out = LatexCompiler::sanitize(implode('', $parts));
         return $inline ? trim((string)preg_replace('/\s*\n\s*/', ' ', $out)) : $out;
+    }
+
+    /** True when a $...$ / $$...$$ formula is balanced and uses nothing but typesetting commands, so it cannot abort the build or read files. */
+    private static function mathIsSafe(string $math): bool
+    {
+        $inner = preg_replace('/^\$\$?|\$\$?$/', '', $math) ?? $math;
+        if (preg_match('/\n\s*\n/', $inner)) {
+            return false;
+        }
+        if (preg_match('/\\\\(?:input|include|includegraphics|write|openin|openout|read|readline|immediate|catcode|csname|expandafter|def|edef|gdef|xdef|let|newcommand|renewcommand|providecommand|usepackage|documentclass|verb|url|href|special|jobname|scantokens|detokenize|string|number|romannumeral|newwrite|newread|loop|obeyspaces|endinput|batchmode|errorstopmode|stop|end\{document\}|begin\{document\})(?![A-Za-z])/', $inner)) {
+            return false;
+        }
+        $depth = 0;
+        $flat = preg_replace('/\\\\[\\\\{}]/', '', $inner) ?? $inner;   // escaped backslash and braces do not count
+        foreach (str_split($flat) as $ch) {
+            if ($ch === '{') { $depth++; } elseif ($ch === '}' && --$depth < 0) { return false; }
+        }
+        if ($depth !== 0) {
+            return false;
+        }
+        return preg_match_all('/\\\\begin\{/', $inner) === preg_match_all('/\\\\end\{/', $inner)
+            && preg_match_all('/\\\\left(?![A-Za-z])/', $inner) === preg_match_all('/\\\\right(?![A-Za-z])/', $inner);
     }
 
     /** A file name made of safe characters, for Content-Disposition and the .tex zip. */
