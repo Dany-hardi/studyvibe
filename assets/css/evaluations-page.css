@@ -63,8 +63,9 @@
 @keyframes ev-fade { from { opacity: 0; } } @keyframes ev-pop { from { opacity: 0; transform: translateY(14px) scale(.98); } }
 .ev-sheet-x { position: absolute; top: .9rem; right: .9rem; z-index: 2; width: 2.3rem; height: 2.3rem; border-radius: 50%; border: 1px solid var(--line); background: var(--card); color: var(--ink); cursor: pointer; display: grid; place-items: center; }
 .ev-sheet-x:hover { border-color: var(--clay); color: var(--clay); }
-.ev-sheet-art { position: relative; display: grid; place-items: end center; padding: 2rem 1rem 0; background: color-mix(in srgb, var(--sc, #b5472b) 13%, #fbf7ef); min-height: 220px; }
-.ev-sheet-art img { width: 100%; max-height: 360px; object-fit: contain; }
+.ev-sheet-art { position: relative; display: grid; place-items: center; padding: 3.2rem 1.2rem 3.4rem; overflow: hidden; background: color-mix(in srgb, var(--sc, #b5472b) 13%, #fbf7ef); min-height: 220px; }
+.ev-sheet-art img { width: 100%; max-width: 270px; height: auto; max-height: 300px; object-fit: contain; margin: 0 auto; }
+.ev-sheet-art .ev-theme { left: 50%; bottom: 1.1rem; transform: translateX(-50%); white-space: nowrap; }
 .ev-sheet-main { padding: 2rem 2.2rem 1.8rem; min-width: 0; }
 .ev-sheet-kicker { margin: 0 2.2rem .4rem 0; font-size: .76rem; font-weight: 700; letter-spacing: .1em; text-transform: uppercase; color: var(--sc, #b5472b); }
 .ev-sheet-main h2 { font-family: var(--font-display); font-size: clamp(1.5rem, 3vw, 2.1rem); font-weight: 450; line-height: 1.15; margin: 0 0 1.2rem; }
@@ -87,7 +88,7 @@ body.ev-lock { overflow: hidden; }
   .ev-bar { top: 52px; } .ev-search { min-width: 100%; } .ev-tools { width: 100%; }
   .ev-sheet { padding: 0; align-items: end; }
   .ev-sheet-panel { grid-template-columns: 1fr; max-height: 94vh; border-radius: 26px 26px 0 0; }
-  .ev-sheet-art { min-height: 150px; max-height: 190px; padding-top: 1.2rem; } .ev-sheet-art img { max-height: 170px; }
+  .ev-sheet-art { min-height: 150px; max-height: 210px; padding: 1.2rem 1rem 3rem; } .ev-sheet-art img { position: static; max-height: 140px; }
   .ev-sheet-main { padding: 1.4rem 1.3rem 1.5rem; } .ev-sheet-actions .btn { width: 100%; }
 }
 @media (prefers-reduced-motion: reduce) { .ev-card-open, .ev-art img, .ev-sheet-panel, .ev-sheet-backdrop { transition: none; animation: none; } }
