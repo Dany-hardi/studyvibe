@@ -49,6 +49,16 @@ if (!filter_var($email, FILTER_VALIDATE_EMAIL)) {
     exit;
 }
 
+// Sign-up is limited to Gmail and Faculty of Sciences (UY1) addresses.
+$emailDomain = strtolower((string)substr(strrchr($email, '@') ?: '', 1));
+if (!in_array($emailDomain, ['gmail.com', 'facsciences-uy1.cm'], true)) {
+    echo json_encode([
+        'success' => false,
+        'message' => 'Seules les adresses se terminant par @gmail.com ou @facsciences-uy1.cm sont acceptées.'
+    ]);
+    exit;
+}
+
 require_once __DIR__ . '/lib/Phone.php';
 require_once __DIR__ . '/lib/SmsGateway.php';
 $phonePending = SmsGateway::enabled() ? Phone::normalize($phoneRaw) : null;
