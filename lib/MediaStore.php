@@ -76,6 +76,10 @@ final class MediaStore
     /** Same as saveImage() for a file already on the disk (this is what the tests call). */
     public static function saveImageFile(PDO $pdo, string $tmp, string $kind, int $maxDim, int $quality = 84): array
     {
+        if (!function_exists('imagecreatetruecolor') || !function_exists('imagecreatefromjpeg') || !function_exists('imagecreatefrompng')) {
+            error_log('[MediaStore] the PHP GD extension is missing: pictures cannot be processed (see the Dockerfile)');
+            return ['ok' => false, 'error' => 'server'];   // a clear refusal for the person, not a fatal error
+        }
         $info = @getimagesize($tmp);
         $mime = $info['mime'] ?? '';
         if ($info === false || !in_array($mime, ['image/jpeg', 'image/png', 'image/gif', 'image/webp'], true)) {

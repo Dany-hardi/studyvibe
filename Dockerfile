@@ -16,6 +16,13 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
 # Installer l'extension pdo_mysql requise par la base de données
 RUN docker-php-ext-install pdo pdo_mysql
 
+# Images (GD : PNG, JPEG, WebP : couvertures, avatars, images des questions), archives ZIP (import en lot) et EXIF (orientation des photos)
+RUN apt-get update && apt-get install -y --no-install-recommends \
+    libpng-dev libjpeg-dev libwebp-dev libzip-dev \
+    && docker-php-ext-configure gd --with-jpeg --with-webp \
+    && docker-php-ext-install -j"$(nproc)" gd zip exif \
+    && rm -rf /var/lib/apt/lists/*
+
 # Activer le module rewrite d'Apache (mod_rewrite)
 RUN a2enmod rewrite
 
