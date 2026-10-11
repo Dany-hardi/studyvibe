@@ -501,9 +501,12 @@ html.dark .rd-opt:has(input:checked) .rd-opt-l { color: #1A0F09; }
   .sd-logout-m { display: inline-flex; margin-top: 12px; }
   .sd-pop { left: 12px; right: 12px; top: 62px; bottom: auto; width: auto; }
   #toast-container { bottom: calc(76px + env(safe-area-inset-bottom)); right: 12px; }
-  .sd-ev { grid-template-columns: 76px minmax(0, 1fr); }
-  .sd-ev-score, .sd-ev-act { grid-column: 2; justify-content: flex-start; }
-  .sd-ev .sd-ev-score { margin-top: -6px; }
+  .sd-ev, .sd-ev-res { grid-template-columns: minmax(0, 1fr); row-gap: 8px; }
+  .sd-ev-when { display: flex; align-items: baseline; gap: 10px; flex-wrap: wrap; }
+  .sd-ev-when strong { display: inline; }
+  .sd-ev-when small { display: inline; }
+  .sd-ev-score, .sd-ev-act, .sd-ev-res .sd-ev-score, .sd-ev-res .sd-ev-act { grid-column: 1; justify-content: flex-start; }
+  .sd-ev .sd-ev-score { margin-top: 0; }
   .rd-outline { position: absolute; z-index: 5; top: 0; left: 0; bottom: 0; width: min(330px, 88vw); flex: none; display: block; visibility: hidden; transform: translateX(-102%); transition: transform .25s var(--ease), visibility 0s .25s; box-shadow: var(--shadow-2); }
   .rd--outline-open .rd-outline { transform: none; visibility: visible; transition: transform .25s var(--ease), visibility 0s; }
   .rd-side { position: absolute; z-index: 6; top: 0; right: 0; bottom: 0; width: min(400px, 100%); flex: none; box-shadow: var(--shadow-2); }
