@@ -41,7 +41,7 @@
 .ev-theme { position: absolute; left: .8rem; bottom: .7rem; background: #fff; color: var(--c); font-size: .72rem; font-weight: 700; letter-spacing: .04em; padding: .28rem .65rem; border-radius: 999px; box-shadow: 0 2px 8px rgba(0,0,0,.1); }
 .ev-badges { position: absolute; top: .8rem; left: .8rem; right: .8rem; display: flex; flex-wrap: wrap; gap: .4rem; }
 .ev-badge { background: #fff; color: #2b2118; font-size: .74rem; font-weight: 700; padding: .28rem .65rem; border-radius: 999px; box-shadow: 0 2px 8px rgba(0,0,0,.12); }
-.ev-badge.ok { background: #2f6b4a; color: #fff; } .ev-badge.warn { background: #b5472b; color: #fff; } .ev-badge.new { background: #2b2118; color: #fff; }
+.ev-badge.ok { background: #2f6b4a; color: #fff; } .ev-badge.warn { background: #b5472b; color: #fff; } .ev-badge.new { background: #2b2118; color: #fff; } .ev-badge.info { background: #3b5b7a; color: #fff; }
 .ev-body { display: flex; flex-direction: column; gap: .5rem; padding: 1.1rem 1.3rem 1.2rem; flex: 1; }
 .ev-course { font-size: .74rem; font-weight: 700; letter-spacing: .1em; text-transform: uppercase; color: var(--c); }
 .ev-title { font-family: var(--font-display); font-size: 1.32rem; font-weight: 450; line-height: 1.2; color: var(--ink); }

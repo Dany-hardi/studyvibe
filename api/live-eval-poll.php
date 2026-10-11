@@ -20,6 +20,7 @@ declare(strict_types=1);
 
 require_once __DIR__ . '/../Database.php';
 require_once __DIR__ . '/../lib/LiveScoring.php';
+require_once __DIR__ . '/../lib/LiveResume.php';
 
 header('Content-Type: application/json');
 
@@ -216,13 +217,22 @@ try {
     // AUTHORIZATION VALIDATION FOR EVALUATION ACTIONS
     // =========================================================================
     $regId = (int)($_SESSION['live_registrations'][$code] ?? 0);
+    // The PHP session may be gone (browser restarted, another device) while the student is still signed in: the registration is on the server
+    if ($regId <= 0 && isset($_SESSION['user_id'], $_SESSION['user_role']) && $_SESSION['user_role'] === 'student') {
+        $rec = $pdo->prepare("SELECT id FROM live_eval_registrations WHERE session_id = :sid AND student_id = :u LIMIT 1");
+        $rec->execute(['sid' => $session['id'], 'u' => (int)$_SESSION['user_id']]);
+        $regId = (int)$rec->fetchColumn();
+        if ($regId > 0) {
+            $_SESSION['live_registrations'][$code] = $regId;
+        }
+    }
     if ($regId <= 0) {
         echo json_encode(['success' => false, 'message' => 'Vous n\'êtes pas inscrit à cette session.', 'not_registered' => true]);
         exit;
     }
 
     // Validate registration directly in DB to capture reset / removal immediately
-    $regStmt = $pdo->prepare("SELECT * FROM live_eval_registrations WHERE id = :id AND session_id = :sid");
+    $regStmt = $pdo->prepare("SELECT *, " . LiveResume::IDLE_SQL . " FROM live_eval_registrations WHERE id = :id AND session_id = :sid");
     $regStmt->execute(['id' => $regId, 'sid' => $session['id']]);
     $registration = $regStmt->fetch(PDO::FETCH_ASSOC);
     if (!$registration) {
@@ -311,11 +321,18 @@ try {
             
             $limit = $activeQ['time_limit'] !== null ? (int)$activeQ['time_limit'] : (int)$session['default_time_limit'];
             
-            if (!isset($_SESSION['async_q_start'][$session['id']][$activeQ['id']])) {
-                $_SESSION['async_q_start'][$session['id']][$activeQ['id']] = $now;
+            // The running question and its start are kept on the registration, not in the PHP session, so coming back (another tab,
+            // another day, another device) lands on the same question. Time spent away is not charged (LiveResume::CHARGE_AWAY_TIME).
+            $startTimeQ = $now;
+            if ((int)($registration['async_q_id'] ?? 0) === (int)$activeQ['id'] && !empty($registration['async_q_started_at'])) {
+                $startTimeQ = (int)strtotime((string)$registration['async_q_started_at']) + LiveResume::awayShift($registration, $now);
+                if ($startTimeQ > $now) { $startTimeQ = $now; }
+                if (LiveResume::awayShift($registration, $now) > 0) {
+                    $pdo->prepare("UPDATE live_eval_registrations SET async_q_started_at = :t WHERE id = :id")->execute(['t' => date('Y-m-d H:i:s', $startTimeQ), 'id' => $regId]);
+                }
+            } else {
+                $pdo->prepare("UPDATE live_eval_registrations SET async_q_id = :q, async_q_started_at = :t WHERE id = :id")->execute(['q' => (int)$activeQ['id'], 't' => date('Y-m-d H:i:s', $now), 'id' => $regId]);
             }
-            
-            $startTimeQ = $_SESSION['async_q_start'][$session['id']][$activeQ['id']];
             $elapsed = $now - $startTimeQ;
             $secondsLeft = max(0, $limit - $elapsed);
             
@@ -344,7 +361,7 @@ try {
                     $activeIndex = $submittedCount;
                     $activeQ = $questions[$activeIndex];
                     $limit = $activeQ['time_limit'] !== null ? (int)$activeQ['time_limit'] : (int)$session['default_time_limit'];
-                    $_SESSION['async_q_start'][$session['id']][$activeQ['id']] = $now;
+                    $pdo->prepare("UPDATE live_eval_registrations SET async_q_id = :q, async_q_started_at = :t WHERE id = :id")->execute(['q' => (int)$activeQ['id'], 't' => date('Y-m-d H:i:s', $now), 'id' => $regId]);
                     $secondsLeft = $limit;
                 }
             }

@@ -18,6 +18,7 @@ declare(strict_types=1);
 require_once __DIR__ . '/auth.php';
 require_once __DIR__ . '/lib/Brand.php';
 require_once __DIR__ . '/lib/LiveGuest.php';
+require_once __DIR__ . '/lib/LiveResume.php';
 
 // =========================================================================
 // SECTION 1: LOGOUT OR STATE RESET
@@ -100,8 +101,10 @@ if ($code !== '' && $action === 'disconnect') {
             $stmt = $pdo->prepare("SELECT score FROM live_eval_registrations WHERE id = :id");
             $stmt->execute(['id' => $regId]);
             $score = $stmt->fetchColumn();
-            if ($score === false || $score === null) {
-                // Delete empty/abandoned session registrations to keep the student dashboard clean
+            require_once __DIR__ . '/lib/LiveResume.php';
+            if (($score === false || $score === null) && LiveResume::answerCount($pdo, $regId) === 0) {
+                // Delete empty registrations (nothing answered) to keep the student dashboard clean.
+                // One that holds answers is kept: coming back resumes it (the live timeline, or the question left in an asynchronous test).
                 $delStmt = $pdo->prepare("DELETE FROM live_eval_registrations WHERE id = :id");
                 $delStmt->execute(['id' => $regId]);
             }
@@ -275,15 +278,16 @@ if (!$error && $_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['register_l
             $_SESSION['live_registrations'][$code] = $regId;
 
             if ($isAsync) {
-                $stmt = $pdo->prepare("UPDATE live_eval_registrations SET score = NULL WHERE id = :id");
-                $stmt->execute(['id' => $regId]);
-                
-                $stmt = $pdo->prepare("DELETE FROM live_eval_answers WHERE registration_id = :id");
-                $stmt->execute(['id' => $regId]);
-                
-                unset($_SESSION['verified_registrations'][$code]);
-                unset($_SESSION['async_q_start'][$session['id']]);
-                $_SESSION['answered_questions'] = [];
+                // Entering again: an unfinished attempt is resumed (within 24 h of the last activity), a finished or abandoned one starts over
+                require_once __DIR__ . '/lib/LiveResume.php';
+                $rs = $pdo->prepare("SELECT *, " . LiveResume::IDLE_SQL . " FROM live_eval_registrations WHERE id = :id");
+                $rs->execute(['id' => $regId]);
+                $existing = $rs->fetch(PDO::FETCH_ASSOC);
+                if ($existing && LiveResume::shouldRestart($existing, LiveResume::answerCount($pdo, $regId), false, true, time())) {
+                    LiveResume::reset($pdo, $regId);
+                    unset($_SESSION['verified_registrations'][$code]);
+                    $_SESSION['answered_questions'] = [];
+                }
             }
 
             header("Location: /live-session.php?code=" . urlencode($code));
@@ -314,7 +318,7 @@ if (!$error) {
         }
     }
     if ($regId > 0) {
-        $stmt = $pdo->prepare("SELECT * FROM live_eval_registrations WHERE id = :id AND session_id = :sid");
+        $stmt = $pdo->prepare("SELECT *, " . LiveResume::IDLE_SQL . " FROM live_eval_registrations WHERE id = :id AND session_id = :sid");
         $stmt->execute(['id' => $regId, 'sid' => $session['id']]);
         $registration = $stmt->fetch();
         if (!$registration) {
@@ -338,15 +342,13 @@ if (!$error) {
         }
 
         // Handle automated restart triggers for completed async student attempts
+        // Opening the link never wipes anything by itself: an unfinished attempt is resumed on the question left (within 24 h),
+        // a finished one shows its result. Only "Retake" (restart=1) or 24 h of silence on an unfinished attempt starts over.
         if ($isAsync && $registration) {
-            $shouldReset = (isset($_GET['restart']) && (int)$_GET['restart'] === 1) || ($registration && $registration['score'] !== null);
-            if ($shouldReset) {
-                $stmt = $pdo->prepare("UPDATE live_eval_registrations SET score = NULL WHERE id = :id");
-                $stmt->execute(['id' => $regId]);
-
-                $stmt = $pdo->prepare("DELETE FROM live_eval_answers WHERE registration_id = :id");
-                $stmt->execute(['id' => $regId]);
-
+            require_once __DIR__ . '/lib/LiveResume.php';
+            $explicit = isset($_GET['restart']) && (int)$_GET['restart'] === 1;
+            if (LiveResume::shouldRestart($registration, LiveResume::answerCount($pdo, $regId), $explicit, false, time())) {
+                LiveResume::reset($pdo, $regId);
                 unset($_SESSION['verified_registrations'][$code]);
                 unset($_SESSION['async_q_start'][$session['id']]);
                 $_SESSION['answered_questions'] = [];

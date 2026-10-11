@@ -333,17 +333,22 @@ HTML],
 </ul>
 <p class="lif-note">Le calcul est simple : bonnes réponses ÷ nombre total de questions × 100. Il n’y a pas de point négatif ; répondre vaut toujours mieux que laisser vide.</p>
 HTML],
-'eval-connection' => ['q' => 'Ma connexion a coupé, ou j’ai rechargé la page', 't' => 'Ce qui est sauvegardé et comment reprendre sans perdre votre place.', 'a' => <<<'HTML'
+'eval-connection' => ['q' => 'J’ai quitté l’évaluation, ma connexion a coupé ou j’ai fermé l’onglet', 't' => 'Ce qui est sauvegardé et comment reprendre exactement là où vous étiez.', 'a' => <<<'HTML'
 <h5>Coupure brève en répondant</h5>
 <p>Si le réseau devient instable au moment où vous répondez, un bandeau orange apparaît : « Connexion instable — Réponse mise en attente ». Ne cliquez pas à répétition : votre réponse est conservée et <strong>envoyée automatiquement</strong> dès que la connexion revient.</p>
 <h5>La page s’est rechargée ou fermée</h5>
 <ul>
-<li>Rouvrez le lien de la séance <strong>avec le même compte</strong> (ou le même navigateur et la même adresse e-mail si vous êtes invité) : la plateforme retrouve votre inscription et vous remet dans la salle.</li>
-<li>En évaluation en direct, la séance <strong>continue sans vous attendre</strong> : vous reprenez à la question en cours. Les questions déjà fermées ne peuvent pas être rejouées ; elles comptent 0 si elles n’ont pas de réponse.</li>
-<li>Ne quittez pas volontairement la séance en cours d’épreuve, sauf si vous renoncez : une inscription sans résultat est alors supprimée.</li>
+<li>Rouvrez le lien de la séance <strong>avec le même compte</strong> (ou, si vous êtes invité, entrez de nouveau la même adresse e-mail) : la plateforme retrouve votre inscription et <strong>les réponses déjà enregistrées</strong>, même depuis un autre appareil.</li>
+<li>En évaluation en direct, la séance <strong>continue sans vous attendre</strong> : vous êtes resynchronisé avec la classe, sur la question en cours. Les questions déjà fermées ne peuvent pas être rejouées ; elles comptent 0 si elles n’ont pas de réponse.</li>
+<li>Même le bouton « Quitter » garde vos réponses : seule une inscription où vous n’avez encore rien répondu est supprimée.</li>
 </ul>
 <h5>Évaluation libre</h5>
-<p>Le minuteur d’une question déjà commencée continue de s’écouler pendant un rechargement : ne comptez pas dessus pour gagner du temps. Vous pouvez, <strong>jusqu’à la date limite</strong>, relancer l’évaluation depuis la liste (bouton « Recommencer ») ; la nouvelle tentative <strong>remplace</strong> la précédente.</p>
+<ul>
+<li>Vous avez quitté ou fermé l’onglet ? <strong>Votre progression est gardée 24 heures</strong> après votre dernière activité. En revenant (depuis la liste, bouton <strong>« Reprendre »</strong>, ou avec le lien), vous arrivez <strong>directement à la question où vous vous étiez arrêté</strong>, avec les réponses précédentes conservées.</li>
+<li>Le temps de la question en cours <strong>ne s’écoule pas pendant votre absence</strong> : vous retrouvez à peu près le temps qu’il vous restait.</li>
+<li>Passé 24 heures sans activité, la tentative inachevée est abandonnée : la prochaine fois, vous repartez de la première question.</li>
+<li>Une évaluation terminée n’est jamais effacée en ouvrant simplement le lien. Pour la repasser, utilisez <strong>« Recommencer »</strong> (jusqu’à la date limite) : la nouvelle tentative <strong>remplace</strong> la précédente.</li>
+</ul>
 <p class="lif-note">Panne longue ou problème technique pendant une évaluation en direct ? Écrivez à votre enseignant dès que vous le pouvez, avec l’heure et ce que vous avez vu : c’est lui qui décide de la suite (voir « Mon résultat a été annulé »).</p>
 HTML],
 'eval-integrity' => ['q' => 'Quitter la fenêtre pendant l’épreuve', 't' => 'La surveillance de l’examen, quand elle est activée par l’enseignant.', 'a' => <<<'HTML'

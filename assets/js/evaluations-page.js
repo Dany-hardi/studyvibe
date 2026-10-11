@@ -69,14 +69,18 @@
     byId('sh-course').textContent = c.course; byId('ev-sheet-title').textContent = c.title;
     byId('sh-q').textContent = c.nq; byId('sh-t').textContent = c.tl + ' s'; byId('sh-total').textContent = '≈ ' + Math.max(1, c.total) + ' ' + T.min;
     byId('sh-dead').textContent = c.deadline ? new Date(c.deadline * 1000).toLocaleString(D.lang === 'en' ? 'en-GB' : 'fr-FR', { dateStyle: 'medium', timeStyle: 'short' }) : T.none;
-    var st = byId('sh-status'); if (st) st.textContent = c.state === 'done' ? T.b_done + ' · ' + Math.round(c.score) + ' %' : (c.state === 'inprog' ? T.b_inprog : T.b_todo);
+    var st = byId('sh-status'); if (st) st.textContent = c.state === 'done' ? T.b_done + ' · ' + Math.round(c.score) + ' %' : (c.state === 'inprog' ? T.b_inprog + ' · ' + T.answered_of.replace(':a', c.answered).replace(':n', c.nq) : T.b_todo);
     var r = byId('sh-rules'); r.innerHTML = '';
     r.appendChild(li(T.r_one)); r.appendChild(li(T.r_nonneg)); r.appendChild(li(T.r_score));
     if (c.shuffle) r.appendChild(li(T.r_shuffle));
     if (c.integrity) r.appendChild(li(T.r_integrity, true));
     r.appendChild(li(T.r_net));
-    r.appendChild(c.state === 'done' ? li(T.r_retry_done.replace(':s', Math.round(c.score)), true) : li(T.r_retry));
-    var go = byId('sh-go'); go.href = c.url; go.textContent = c.state === 'todo' ? T.start : T.retry;
+    r.appendChild(li(T.r_leave));
+    if (c.state === 'inprog') r.appendChild(li(T.r_resume.replace(':d', new Date(c.resumeUntil * 1000).toLocaleString(D.lang === 'en' ? 'en-GB' : 'fr-FR', { dateStyle: 'medium', timeStyle: 'short' }))));
+    else r.appendChild(c.state === 'done' ? li(T.r_retry_done.replace(':s', Math.round(c.score)), true) : li(T.r_retry));
+    var go = byId('sh-go');
+    go.href = c.state === 'done' ? c.url + '&restart=1' : c.url;                  // a finished attempt is only wiped by an explicit "Retake"
+    go.textContent = c.state === 'todo' ? T.start : (c.state === 'inprog' ? T.resume : T.retry);
     var expired = c.deadline && c.deadline <= nowS(); go.style.display = expired ? 'none' : '';
     sheet.hidden = false; document.body.classList.add('ev-lock'); panel.scrollTop = 0; panel.focus();
     if (!fromHash) { try { history.replaceState(null, '', '#eval-' + id); } catch (e) {} }

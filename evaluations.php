@@ -27,19 +27,23 @@ $evaluations = $stmt->fetchAll(PDO::FETCH_ASSOC);
 // Si l'utilisateur est connecté, vérifier ses tentatives / notes
 $userScores = [];
 $userSeen = [];
+$userReg = [];
 if (isLoggedIn()) {
     $user = getCurrentUser();
     if ($user) {
         $scoreStmt = $pdo->prepare("
-            SELECT session_id, score 
-            FROM live_eval_registrations 
-            WHERE email = :email
+            SELECT r.session_id, r.score, r.async_q_id, r.cancelled_at,
+                   TIMESTAMPDIFF(SECOND, COALESCE(r.last_activity, r.registered_at), NOW()) AS idle_seconds,
+                   (SELECT COUNT(*) FROM live_eval_answers a WHERE a.registration_id = r.id) AS answered
+            FROM live_eval_registrations r
+            WHERE r.email = :email
         ");
         $scoreStmt->execute(['email' => $user['email']]);
         $scores = $scoreStmt->fetchAll(PDO::FETCH_ASSOC);
         foreach ($scores as $s) {
             $userScores[(int)$s['session_id']] = $s['score'];
             $userSeen[(int)$s['session_id']] = true;
+            $userReg[(int)$s['session_id']] = $s;
         }
     }
 }
@@ -56,7 +60,7 @@ $T = [
  'f_all' => 'Toutes', 'f_todo' => 'À faire', 'f_done' => 'Terminées', 'f_soon' => 'Ferment bientôt', 'f_new' => 'Nouveautés',
  'sort' => 'Trier par', 's_soon' => 'Date limite proche', 's_new' => 'Plus récentes', 's_az' => 'Cours (A à Z)',
  'q' => 'questions', 'per' => 's par question', 'about' => '≈ :n min au total', 'closes' => 'Ferme dans', 'open' => 'Toujours ouverte', 'expired' => 'Date limite dépassée',
- 'b_new' => 'Nouveau', 'b_soon' => 'Ferme bientôt', 'b_done' => 'Terminée', 'b_inprog' => 'En cours de correction', 'b_todo' => 'À faire',
+ 'b_new' => 'Nouveau', 'b_soon' => 'Ferme bientôt', 'b_done' => 'Terminée', 'b_inprog' => 'En cours', 'b_todo' => 'À faire', 'resume' => 'Reprendre', 'answered_of' => ':a / :n répondues',
  'start' => 'Commencer', 'retry' => 'Recommencer', 'details' => 'Voir les règles', 'count' => 'évaluation(s)',
  'empty_h' => 'Rien à passer pour le moment', 'empty_p' => 'Les évaluations libres apparaîtront ici dès que vos enseignants les publieront. Profitez-en pour réviser : vos leçons vous attendent.',
  'empty_cta' => 'Aller à mes cours', 'nores_h' => 'Aucune évaluation ne correspond', 'nores_p' => 'Essayez un autre mot, ou retirez le filtre.', 'reset' => 'Tout afficher',
@@ -70,6 +74,8 @@ $T = [
  'r_retry' => 'Vous pouvez <strong>recommencer</strong> jusqu’à la date limite : la nouvelle tentative remplace la précédente.',
  'r_retry_done' => 'Recommencer <strong>remplace votre résultat actuel</strong> (:s %). Assurez-vous d’en avoir besoin.',
  'r_net' => 'Si la connexion coupe, vos réponses sont gardées et <strong>envoyées dès son retour</strong>.',
+ 'r_leave' => 'Vous quittez ou fermez l’onglet ? <strong>Votre progression est gardée 24 h</strong> : en revenant, vous reprenez à la question où vous vous étiez arrêté.',
+ 'r_resume' => 'Vous pouvez <strong>reprendre</strong> jusqu’au :d. Le temps de la question en cours ne s’écoule pas pendant votre absence.',
  'guest_h' => 'Pas de compte ?', 'guest_p' => 'Connectez-vous pour retrouver vos résultats dans votre espace, ou participez en invité avec votre nom et une adresse <strong>gmail.com</strong>, <strong>icloud.com</strong> ou <strong>facsciences-uy1.cm</strong> : vos résultats vous y sont envoyés.',
  'go_login' => 'Se connecter d’abord', 'help' => 'Besoin d’aide ? Consultez le guide', 'help_url' => '/student/dashboard.php#help',
  'foot_c' => 'Tous droits réservés.', 'foot_p' => 'Confidentialité', 'ev' => 'Évaluations',
@@ -83,7 +89,7 @@ $T = [
  'f_all' => 'All', 'f_todo' => 'To do', 'f_done' => 'Completed', 'f_soon' => 'Closing soon', 'f_new' => 'New',
  'sort' => 'Sort by', 's_soon' => 'Closing soonest', 's_new' => 'Newest', 's_az' => 'Course (A to Z)',
  'q' => 'questions', 'per' => 's per question', 'about' => '≈ :n min in total', 'closes' => 'Closes in', 'open' => 'Always open', 'expired' => 'Deadline passed',
- 'b_new' => 'New', 'b_soon' => 'Closing soon', 'b_done' => 'Completed', 'b_inprog' => 'Being graded', 'b_todo' => 'To do',
+ 'b_new' => 'New', 'b_soon' => 'Closing soon', 'b_done' => 'Completed', 'b_inprog' => 'In progress', 'b_todo' => 'To do', 'resume' => 'Resume', 'answered_of' => ':a / :n answered',
  'start' => 'Start', 'retry' => 'Retake', 'details' => 'See the rules', 'count' => 'evaluation(s)',
  'empty_h' => 'Nothing to take right now', 'empty_p' => 'Free evaluations will appear here as soon as your teachers publish them. Use the time to revise: your lessons are waiting.',
  'empty_cta' => 'Go to my courses', 'nores_h' => 'No evaluation matches', 'nores_p' => 'Try another word, or remove the filter.', 'reset' => 'Show all',
@@ -97,6 +103,8 @@ $T = [
  'r_retry' => 'You can <strong>retake</strong> until the deadline: the new attempt replaces the previous one.',
  'r_retry_done' => 'Retaking <strong>replaces your current result</strong> (:s %). Make sure you need it.',
  'r_net' => 'If the connection drops, your answers are kept and <strong>sent as soon as it returns</strong>.',
+ 'r_leave' => 'Leaving or closing the tab? <strong>Your progress is kept for 24 hours</strong>: when you come back, you resume at the question where you stopped.',
+ 'r_resume' => 'You can <strong>resume</strong> until :d. The time of the question in progress does not run while you are away.',
  'guest_h' => 'No account?', 'guest_p' => 'Sign in to find your results in your space, or take part as a guest with your name and a <strong>gmail.com</strong>, <strong>icloud.com</strong> or <strong>facsciences-uy1.cm</strong> address: your results are sent there.',
  'go_login' => 'Sign in first', 'help' => 'Need help? Read the guide', 'help_url' => '/student/dashboard.php#help',
  'foot_c' => 'All rights reserved.', 'foot_p' => 'Privacy', 'ev' => 'Evaluations',
@@ -119,7 +127,12 @@ foreach ($evaluations as $ev) {
     $tl = (int)$ev['default_time_limit'];
     $seen = isset($userSeen[$id]);
     $score = ($seen && $userScores[$id] !== null) ? (float)$userScores[$id] : null;
-    $state = $score !== null ? 'done' : ($seen ? 'inprog' : 'todo');
+    // done: finished. inprog: started and still resumable (24 h after the last activity). Otherwise it is to do (a stale attempt starts over).
+    $reg = $userReg[$id] ?? null;
+    $answered = $reg ? (int)$reg['answered'] : 0;
+    $resumable = $reg && $score === null && empty($reg['cancelled_at']) && ($answered > 0 || !empty($reg['async_q_id'])) && (int)$reg['idle_seconds'] <= 86400;
+    $state = $score !== null ? 'done' : ($resumable ? 'inprog' : 'todo');
+    $resumeUntil = $resumable ? $now + (86400 - (int)$reg['idle_seconds']) : 0;
     $soon = $deadline > 0 && ($deadline - $now) <= 72 * 3600;
     $isNew = !empty($ev['created_at']) && ($now - (int)strtotime((string)$ev['created_at'])) <= 3 * 86400;
     if ($soon) { $nSoon++; }
@@ -128,12 +141,12 @@ foreach ($evaluations as $ev) {
         'id' => $id, 'title' => (string)$ev['title'], 'course' => (string)$ev['course_title'], 'theme' => $theme,
         'themeLabel' => EvalTheme::label($theme, $lang), 'color' => EvalTheme::color($theme), 'art' => EvalTheme::art($theme, $id),
         'nq' => $nq, 'tl' => $tl, 'total' => (int)ceil(($nq * $tl) / 60), 'deadline' => $deadline, 'created' => (int)strtotime((string)($ev['created_at'] ?? 'now')),
-        'state' => $state, 'score' => $score, 'soon' => $soon, 'new' => $isNew,
+        'state' => $state, 'score' => $score, 'soon' => $soon, 'new' => $isNew, 'answered' => $answered, 'resumeUntil' => $resumeUntil,
         'shuffle' => (int)($ev['shuffle_options'] ?? 0) === 1, 'integrity' => (int)($ev['integrity_watch'] ?? 0) === 1,
         'url' => '/live-session.php?code=' . urlencode((string)$ev['session_code']),
     ];
 }
-$jsCards = array_map(fn($c) => ['id' => $c['id'], 'title' => $c['title'], 'course' => $c['course'], 'theme' => $c['themeLabel'], 'color' => $c['color'], 'art' => $c['art'], 'nq' => $c['nq'], 'tl' => $c['tl'], 'total' => $c['total'], 'deadline' => $c['deadline'], 'state' => $c['state'], 'score' => $c['score'], 'shuffle' => $c['shuffle'], 'integrity' => $c['integrity'], 'url' => $c['url']], $cards);
+$jsCards = array_map(fn($c) => ['id' => $c['id'], 'title' => $c['title'], 'course' => $c['course'], 'theme' => $c['themeLabel'], 'color' => $c['color'], 'art' => $c['art'], 'nq' => $c['nq'], 'tl' => $c['tl'], 'total' => $c['total'], 'deadline' => $c['deadline'], 'state' => $c['state'], 'score' => $c['score'], 'answered' => $c['answered'], 'resumeUntil' => $c['resumeUntil'], 'shuffle' => $c['shuffle'], 'integrity' => $c['integrity'], 'url' => $c['url']], $cards);
 ?>
 <!DOCTYPE html>
 <html lang="<?= $lang ?>">
@@ -236,7 +249,7 @@ $jsCards = array_map(fn($c) => ['id' => $c['id'], 'title' => $c['title'], 'cours
         <span class="ev-art"><img src="<?= $h($c['art']) ?>" alt="" loading="lazy" width="320" height="240">
           <span class="ev-badges">
             <?php if ($c['state'] === 'done'): ?><span class="ev-badge ok"><?= $h($T['b_done']) ?> · <?= number_format((float)$c['score'], 0) ?> %</span>
-            <?php elseif ($c['state'] === 'inprog'): ?><span class="ev-badge"><?= $h($T['b_inprog']) ?></span><?php endif; ?>
+            <?php elseif ($c['state'] === 'inprog'): ?><span class="ev-badge info"><?= $h($T['b_inprog']) ?> · <?= $h(str_replace([':a', ':n'], [(string)$c['answered'], (string)$c['nq']], $T['answered_of'])) ?></span><?php endif; ?>
             <?php if ($c['soon'] && $c['state'] !== 'done'): ?><span class="ev-badge warn" data-soon-badge><?= $h($T['b_soon']) ?></span>
             <?php elseif ($c['new'] && $c['state'] === 'todo'): ?><span class="ev-badge new"><?= $h($T['b_new']) ?></span><?php endif; ?>
           </span>
@@ -253,7 +266,7 @@ $jsCards = array_map(fn($c) => ['id' => $c['id'], 'title' => $c['title'], 'cours
           <span class="ev-foot">
             <?php if ($c['deadline']): ?><span class="ev-time" data-deadline="<?= $c['deadline'] ?>"><?= $h($T['closes']) ?> <strong>--</strong></span>
             <?php else: ?><span class="ev-time"><?= $h($T['open']) ?></span><?php endif; ?>
-            <span class="ev-go"><?= $h($c['state'] === 'todo' ? $T['start'] : ($c['state'] === 'done' ? $T['retry'] : $T['details'])) ?>
+            <span class="ev-go"><?= $h($c['state'] === 'todo' ? $T['start'] : ($c['state'] === 'done' ? $T['retry'] : $T['resume'])) ?>
               <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><path d="M5 12h14M13 6l6 6-6 6"/></svg></span>
           </span>
         </span>

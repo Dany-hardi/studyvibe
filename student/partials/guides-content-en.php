@@ -333,17 +333,22 @@ HTML],
 </ul>
 <p class="lif-note">The calculation is simple: correct answers ÷ total number of questions × 100. There is no negative marking; answering is always better than leaving a blank.</p>
 HTML],
-'eval-connection' => ['q' => 'My connection dropped, or I reloaded the page', 't' => 'What is saved and how to resume without losing your place.', 'a' => <<<'HTML'
+'eval-connection' => ['q' => 'I left the evaluation, my connection dropped or I closed the tab', 't' => 'What is saved and how to resume exactly where you were.', 'a' => <<<'HTML'
 <h5>A short drop while answering</h5>
 <p>If the network becomes unstable just as you answer, an orange banner appears: “Unstable connection — answer queued”. Do not click repeatedly: your answer is kept and <strong>sent automatically</strong> as soon as the connection returns.</p>
 <h5>The page reloaded or closed</h5>
 <ul>
-<li>Reopen the session link <strong>with the same account</strong> (or the same browser and the same email address if you are a guest): the platform finds your registration and puts you back in the room.</li>
-<li>In a live evaluation the session <strong>carries on without waiting for you</strong>: you resume at the current question. Questions already closed cannot be replayed; they score 0 if they have no answer.</li>
-<li>Do not leave the session on purpose during the test unless you are giving up: a registration with no result is then deleted.</li>
+<li>Reopen the session link <strong>with the same account</strong> (or, if you are a guest, enter the same email address again): the platform finds your registration and <strong>the answers already saved</strong>, even from another device.</li>
+<li>In a live evaluation the session <strong>carries on without waiting for you</strong>: you are synchronised with the class, on the current question. Questions already closed cannot be replayed; they score 0 if they have no answer.</li>
+<li>Even the “Quit” button keeps your answers: only a registration where you have not answered anything yet is deleted.</li>
 </ul>
 <h5>Free evaluation</h5>
-<p>The timer of a question already started keeps running during a reload: do not count on it to gain time. <strong>Until the deadline</strong> you may start the evaluation again from the list (“Retake” button); the new attempt <strong>replaces</strong> the previous one.</p>
+<ul>
+<li>Did you leave or close the tab? <strong>Your progress is kept for 24 hours</strong> after your last activity. When you come back (from the list, with the <strong>“Resume”</strong> button, or with the link) you land <strong>directly on the question where you stopped</strong>, with your earlier answers kept.</li>
+<li>The time of the question in progress <strong>does not run while you are away</strong>: you find roughly the time you had left.</li>
+<li>After 24 hours without activity the unfinished attempt is dropped: next time you start again from the first question.</li>
+<li>A finished evaluation is never erased just by opening the link. To take it again, use <strong>“Retake”</strong> (until the deadline): the new attempt <strong>replaces</strong> the previous one.</li>
+</ul>
 <p class="lif-note">A long outage or technical problem during a live evaluation? Write to your teacher as soon as you can, with the time and what you saw: they decide what happens next (see “My result was cancelled”).</p>
 HTML],
 'eval-integrity' => ['q' => 'Leaving the window during the test', 't' => 'Exam monitoring, when the teacher turns it on.', 'a' => <<<'HTML'

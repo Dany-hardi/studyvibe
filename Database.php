@@ -629,6 +629,16 @@ class Database
             ");
         } catch (PDOException $ex) {}
 
+        // Migration 2.6n: where a student of an asynchronous evaluation stands, so that coming back (another tab, another day, another
+        // device) puts them on the question they left, with the time they had.
+        try {
+            $pdo->query("SELECT async_q_id FROM live_eval_registrations LIMIT 1");
+        } catch (PDOException $e) {
+            try {
+                $pdo->exec("ALTER TABLE live_eval_registrations ADD COLUMN async_q_id INT DEFAULT NULL, ADD COLUMN async_q_started_at DATETIME DEFAULT NULL");
+            } catch (PDOException $ex) {}
+        }
+
         // Migration 2.7: Support binary storage backups for course cover images and lesson PDFs
         try {
             $pdo->query("SELECT cover_image_data FROM courses LIMIT 1");
