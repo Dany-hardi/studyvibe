@@ -100,6 +100,22 @@ foreach (['fr', 'en'] as $lg) {
         if ($out !== null && $pdf) { file_put_contents($out . '/student_' . str_replace(' ', '_', $what) . '.pdf', $pdf); }
     }
 }
+
+// The traceability report (PDF), from real data and from awkward data, in both languages
+require_once __DIR__ . '/../../lib/ObservabilityDocs.php';
+$per = Observability::period(null, null, 30);
+$obsReal = Observability::collect($pdo, $per['from'], $per['to'], null, null, 300);
+$obsOdd = $obsReal;
+$obsOdd['rows'][] = ['id' => 999999, 'created_at' => date('Y-m-d H:i:s'), 'user_id' => null, 'name' => 'Zoé & Fils #1 _x_', 'role' => 'student', 'action' => 'weird_action_100%', 'details' => 'Détails avec \\ { } $ ^ ~ et émojis 😀 — ' . str_repeat('très long ', 40), 'ip' => '2001:db8::1'];
+$obsEmpty = Observability::collect($pdo, '2001-01-01', '2001-01-02', null, null, 10);
+foreach (['fr', 'en'] as $lg) {
+    foreach (['real' => $obsReal, 'odd' => $obsOdd, 'empty' => $obsEmpty] as $k => $data) {
+        $d = ObservabilityDocs::report($data, Observability::stamp($data, "Zoé O'Neil"), $lg);
+        $pdf = LatexCompiler::compile($d['tex'], $d['assets']);
+        check("observability report $k $lg compiles", is_string($pdf) && str_starts_with($pdf, '%PDF'));
+        if ($out !== null && $pdf) { file_put_contents($out . "/observability_{$k}_{$lg}.pdf", $pdf); }
+    }
+}
 MediaStore::delete($pdo, 'live_question', $saved['file'] ?? '');
 @unlink($src);
 echo "$passed passed, " . count($failed) . " failed\n";

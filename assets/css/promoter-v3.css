@@ -212,3 +212,16 @@ html.dark .pi-tag { color: var(--clay); }
 .cu-pass code { font-size: 1.15rem; font-weight: 700; letter-spacing: .03em; user-select: all; word-break: break-all; }
 .dd-impact { margin: .4rem 0 .8rem 1.1rem; padding: 0; list-style: disc; } .dd-impact li { margin: .2rem 0; }
 .cu-result[hidden], #create-user-form[hidden] { display: none; }
+
+/* Traceability and observability exports (audit tab) */
+.ob-week { margin: 1.2rem 0 .6rem; font-size: .78rem; font-weight: 700; letter-spacing: .1em; text-transform: uppercase; color: var(--ink-3); }
+.ob-kpis .pi-kpi { min-height: 108px; }
+.ob-form { display: flex; flex-wrap: wrap; align-items: flex-end; gap: 1rem; margin-top: 1.4rem; padding: 1.2rem 1.3rem; border: 1px solid var(--line); border-radius: var(--r-lg, 18px); background: var(--card); }
+.ob-f { display: grid; gap: .3rem; min-width: 11rem; }
+.ob-f > span { font-size: .8rem; font-weight: 600; color: var(--ink-2); }
+.ob-grow { flex: 1 1 15rem; }
+.ob-custom { flex: 1 1 100%; font-size: .9rem; color: var(--ink-2); }
+.ob-custom summary { cursor: pointer; width: max-content; }
+.ob-dates { display: flex; flex-wrap: wrap; gap: 1rem; margin-top: .8rem; }
+.ob-actions { flex: 1 1 100%; display: flex; flex-wrap: wrap; gap: .6rem; padding-top: .3rem; }
+.ob-note { margin: .9rem 0 0; font-size: .85rem; color: var(--ink-3); max-width: 70ch; }

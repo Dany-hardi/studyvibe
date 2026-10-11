@@ -157,6 +157,10 @@ try {
         ORDER BY al.id DESC LIMIT 50
     ")->fetchAll();
 
+    // Observability snapshot of the last 7 days (counts only: one row is enough, the full log is in the exports)
+    require_once __DIR__ . '/../lib/Observability.php';
+    $obs7 = Observability::collect($pdo, date('Y-m-d', strtotime('-6 days')), date('Y-m-d'), null, null, 1);
+
     // Newsletter — abonnés et campagnes
     $newsletterSubscribers = [];
     $newsletterCampaigns   = [];
@@ -465,7 +469,7 @@ $TX = [
  'ak_nolast' => ['La date de dernière utilisation n’est pas enregistrée par l’API pour le moment.', 'The API does not record when a key was last used yet.'],
  // audit
  'au_h' => ['Journal et <em>exports</em>', 'Activity and <em>exports</em>'],
- 'au_p' => ['Les cinquante dernières actions sensibles, un rapport de synthèse et les exports complets.', 'The last fifty sensitive actions, a summary report and the full exports.'],
+ 'au_p' => ['Les cinquante dernières actions sensibles, des rapports de traçabilité en PDF, Excel, CSV ou JSON, et les exports complets.', 'The last fifty sensitive actions, traceability reports as PDF, Excel, CSV or JSON, and the full exports.'],
  'au_log' => ['Dernières actions', 'Latest actions'],
  'au_export' => ['Exporter le journal', 'Export the log'],
  'au_search' => ['Filtrer le journal', 'Filter the log'],
@@ -474,6 +478,16 @@ $TX = [
  'th_action' => ['Action', 'Action'],
  'th_details' => ['Détails', 'Details'],
  'au_none' => ['Le journal est vide.', 'The log is empty.'],
+ 'ob_h' => ['Traçabilité et observabilité', 'Traceability and observability'],
+ 'ob_p' => ['Qui a fait quoi, quand et depuis où, les échecs de connexion, la santé des envois : un rapport PDF mis en page, ou les données brutes pour vos outils.', 'Who did what, when and from where, failed sign-ins, delivery health: a typeset PDF report, or the raw data for your tools.'],
+ 'ob_week' => ['Les 7 derniers jours', 'The last 7 days'],
+ 'ob_events' => ['Événements', 'Events'], 'ob_failed' => ['Échecs de connexion', 'Failed sign-ins'], 'ob_security' => ['Événements de sécurité', 'Security events'], 'ob_mail' => ['E-mails envoyés avec succès', 'E-mails delivered'],
+ 'ob_period' => ['Période', 'Period'], 'ob_d7' => ['7 derniers jours', 'Last 7 days'], 'ob_d30' => ['30 derniers jours', 'Last 30 days'], 'ob_d90' => ['90 derniers jours', 'Last 90 days'], 'ob_d365' => ['12 derniers mois', 'Last 12 months'],
+ 'ob_from' => ['Du', 'From'], 'ob_to' => ['Au', 'To'], 'ob_custom' => ['Dates précises (remplacent la période)', 'Exact dates (replace the period)'],
+ 'ob_cat' => ['Catégorie', 'Category'], 'ob_cat_all' => ['Toutes les actions', 'All actions'], 'ob_cat_security' => ['Sécurité', 'Security'], 'ob_cat_access' => ['Accès et comptes', 'Access and accounts'],
+ 'ob_cat_academic' => ['Activité pédagogique', 'Academic activity'], 'ob_cat_exports' => ['Exports', 'Exports'], 'ob_cat_verification' => ['Vérification de documents', 'Document verification'],
+ 'ob_q' => ['Contient (action, nom, e-mail, IP…)', 'Contains (action, name, e-mail, IP…)'], 'ob_pdf' => ['Rapport PDF', 'PDF report'], 'ob_xlsx' => ['Excel', 'Excel'], 'ob_csv' => ['CSV', 'CSV'], 'ob_json' => ['JSON', 'JSON'],
+ 'ob_note' => ['Chaque export est lui-même inscrit au journal (qui, format, période, filtre). Le journal d’audit est conservé 365 jours, les tentatives de connexion 90 jours.', 'Every export is itself written to the log (who, format, period, filter). The audit log is kept 365 days, sign-in attempts 90 days.'],
  'ex_h' => ['Exports', 'Exports'],
  'ex_p' => ['Toutes les tables et mesures en un classeur Excel à plusieurs feuilles.', 'Every table and metric in one multi-sheet Excel workbook.'],
  'ex_btn' => ['Télécharger l’export complet', 'Download the full export'],
@@ -673,8 +687,8 @@ function pm_chips(array $u, callable $t): string {
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Fraunces:ital,opsz,wght,SOFT@0,9..144,300..700,0..100;1,9..144,300..700,0..100&family=Hanken+Grotesk:wght@400;500;600;700&display=swap" rel="stylesheet">
 <link rel="stylesheet" href="/assets/css/sv2.css">
-<link rel="stylesheet" href="/assets/css/promoter.css">
-<link rel="stylesheet" href="/assets/css/promoter-v3.css">
+<link rel="stylesheet" href="/assets/css/promoter.css?v=<?= (int)@filemtime(__DIR__ . "/../assets/css/promoter.css") ?>">
+<link rel="stylesheet" href="/assets/css/promoter-v3.css?v=<?= (int)@filemtime(__DIR__ . "/../assets/css/promoter-v3.css") ?>">
 <?= csrfMetaTag(); ?>
 <script>
   document.documentElement.classList.add('js');
@@ -1208,6 +1222,44 @@ X-API-Key: &lt;key&gt;</div>
         </table>
         <p class="tbl-empty" id="au-empty" hidden><?= $t('pe_none') ?></p>
       </div>
+    </section>
+
+    <section class="pm-sec" id="ob-sec">
+      <header><h2><?= $t('ob_h') ?></h2></header>
+      <p class="pm-lead"><?= $t('ob_p') ?></p>
+      <p class="ob-week"><?= $t('ob_week') ?></p>
+      <div class="pi-kpis ob-kpis">
+        <article class="pi-kpi"><p class="pi-kpi-l"><?= $t('ob_events') ?></p><p class="pi-kpi-v num"><?= (int)$obs7['summary']['events'] ?></p></article>
+        <article class="pi-kpi"><p class="pi-kpi-l"><?= $t('ob_failed') ?></p><p class="pi-kpi-v num"><?= (int)$obs7['summary']['logins_failed'] ?><small><?= $obs7['summary']['failure_rate'] > 0 ? ' · ' . $h(number_format((float)$obs7['summary']['failure_rate'], 1, $li ? '.' : ',', '')) . ' %' : '' ?></small></p></article>
+        <article class="pi-kpi"><p class="pi-kpi-l"><?= $t('ob_security') ?></p><p class="pi-kpi-v num"><?= (int)$obs7['summary']['security'] ?></p></article>
+        <article class="pi-kpi"><p class="pi-kpi-l"><?= $t('ob_mail') ?></p><p class="pi-kpi-v num"><?= $obs7['delivery']['email']['success_rate'] === null ? '—' : $h(number_format((float)$obs7['delivery']['email']['success_rate'], 1, $li ? '.' : ',', '')) . '<small>%</small>' ?></p></article>
+      </div>
+      <form class="ob-form" method="get" action="/promoter/export-observability.php">
+        <label class="ob-f"><span><?= $t('ob_period') ?></span>
+          <select class="input" name="days">
+            <?php foreach ([7 => 'ob_d7', 30 => 'ob_d30', 90 => 'ob_d90', 365 => 'ob_d365'] as $d => $k): ?><option value="<?= $d ?>"<?= $d === 30 ? ' selected' : '' ?>><?= $t($k) ?></option><?php endforeach; ?>
+          </select></label>
+        <label class="ob-f"><span><?= $t('ob_cat') ?></span>
+          <select class="input" name="category">
+            <option value=""><?= $t('ob_cat_all') ?></option>
+            <?php foreach (Observability::categories() as $c): ?><option value="<?= $h($c) ?>"><?= $t('ob_cat_' . $c) ?></option><?php endforeach; ?>
+          </select></label>
+        <label class="ob-f ob-grow"><span><?= $t('ob_q') ?></span><input class="input" type="search" name="q" maxlength="80" autocomplete="off"></label>
+        <details class="ob-custom">
+          <summary><?= $t('ob_custom') ?></summary>
+          <div class="ob-dates">
+            <label class="ob-f"><span><?= $t('ob_from') ?></span><input class="input" type="date" name="from" max="<?= date('Y-m-d') ?>"></label>
+            <label class="ob-f"><span><?= $t('ob_to') ?></span><input class="input" type="date" name="to" max="<?= date('Y-m-d') ?>"></label>
+          </div>
+        </details>
+        <div class="ob-actions">
+          <button class="btn btn-primary" type="submit" name="format" value="pdf"><?= $t('ob_pdf') ?></button>
+          <button class="btn btn-ghost" type="submit" name="format" value="xlsx"><?= $t('ob_xlsx') ?></button>
+          <button class="btn btn-ghost" type="submit" name="format" value="csv"><?= $t('ob_csv') ?></button>
+          <button class="btn btn-ghost" type="submit" name="format" value="json"><?= $t('ob_json') ?></button>
+        </div>
+      </form>
+      <p class="ob-note"><?= $t('ob_note') ?></p>
     </section>
 
     <section class="pm-sec">

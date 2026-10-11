@@ -19,6 +19,7 @@ require_once __DIR__ . '/../../lib/SmsGateway.php';
 require_once __DIR__ . '/../../lib/LiveSmsNotifier.php';
 require_once __DIR__ . '/../../lib/ExportTheme.php';
 require_once __DIR__ . '/../../lib/Transcripts.php';
+require_once __DIR__ . '/../../lib/Observability.php';
 require_once __DIR__ . '/../../Mailer.php';
 require_once __DIR__ . '/../../QuestionImporter.php';
 
@@ -369,6 +370,31 @@ t('transcripts: the fingerprint changes with any field, and the summary counts t
     $s = Transcripts::summarize([['best_score' => 80, 'progress_percent' => 100], ['best_score' => null, 'progress_percent' => 50]], [['score' => 90], ['score' => 70]], [['x' => 1]]);
     eq([$s['courses'], $s['lessons'], $s['failed'], $s['avg_best'], $s['avg_lessons'], $s['progress_avg']], [2, 2, 1, 80.0, 80.0, 75.0]);
 });
+
+// ---- Observability: periods, categories, stamp
+t('observability: the default period is the last N days up to today, inclusive', function () {
+    $p = Observability::period(null, null, 7);
+    eq($p['to'], date('Y-m-d'));
+    eq($p['days'], 7);
+    eq($p['from'], date('Y-m-d', strtotime('-6 days')));
+});
+t('observability: dates given in reverse are put in order, and a period never exceeds a year', function () {
+    $p = Observability::period('2026-03-10', '2026-03-01');
+    eq([$p['from'], $p['to'], $p['days']], ['2026-03-01', '2026-03-10', 10]);
+    $big = Observability::period('2020-01-01', '2026-01-01');
+    eq($big['days'], 366);
+    eq(Observability::period(null, null, 9999)['days'], 365);
+    eq(Observability::period('garbage', 'nonsense', 5)['days'], 5);
+});
+t('observability: the stamp is stable for the same data and changes when a log line is added', function () {
+    $d = ['period' => ['from' => '2026-10-01', 'to' => '2026-10-02', 'days' => 2], 'filters' => ['category' => null, 'q' => ''], 'summary' => ['events' => 2], 'rows' => [['id' => 2], ['id' => 1]]];
+    $a = Observability::stamp($d, 'Admin'); $b = Observability::stamp($d, 'Someone else');
+    eq($a['fingerprint'], $b['fingerprint']);   // who generated it is not part of the content
+    $d['rows'][] = ['id' => 0];
+    eq($a['fingerprint'] === Observability::stamp($d, 'Admin')['fingerprint'], false);
+    eq(str_starts_with($a['id'], 'OBS-'), true);
+});
+t('observability: five categories are offered', fn() => eq(Observability::categories(), ['security', 'access', 'academic', 'exports', 'verification']));
 
 echo "$passed passed, " . count($failed) . " failed\n";
 foreach ($failed as $f) {
