@@ -3,7 +3,7 @@ declare(strict_types=1);
 
 /**
  * Background check used by the live-evaluation entry form: is this email acceptable, and does it
- * belong to a StudyVibe account? Throttled per browser session to make bulk probing impractical.
+ * belong to a StudyVibe STUDENT account? (Any other role answers "not registered".) Throttled per browser session to make bulk probing impractical.
  */
 require_once __DIR__ . '/../Database.php';
 require_once __DIR__ . '/../lib/LiveGuest.php';

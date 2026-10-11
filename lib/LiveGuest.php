@@ -3,7 +3,7 @@ declare(strict_types=1);
 
 /**
  * Rules for joining a live evaluation without being logged in: a working email on an accepted domain,
- * plus a lookup telling whether that email belongs to a StudyVibe account.
+ * plus a lookup telling whether that email belongs to a StudyVibe student account.
  */
 final class LiveGuest
 {
@@ -40,10 +40,13 @@ final class LiveGuest
         return null;
     }
 
-    /** @return array{id:int,name:string}|null the active StudyVibe student/user with this email */
+    /**
+     * @return array{id:int,name:string}|null the active STUDENT account with this email. Teachers, administrators and
+     * every other role are never recognised here: only a student's account may be linked to a live evaluation entry.
+     */
     public static function findUser(PDO $pdo, string $email): ?array
     {
-        $stmt = $pdo->prepare("SELECT id, name FROM users WHERE email = :email AND is_active = 1 LIMIT 1");
+        $stmt = $pdo->prepare("SELECT id, name FROM users WHERE email = :email AND role = 'student' AND is_active = 1 LIMIT 1");
         $stmt->execute(['email' => $email]);
         $row = $stmt->fetch();
         return $row ? ['id' => (int)$row['id'], 'name' => (string)$row['name']] : null;
