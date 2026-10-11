@@ -282,6 +282,24 @@ class Mailer
         return self::send($to, 'Réinitialisation du mot de passe — StudyVibe', $html);
     }
 
+    /** The one-time code that opens the control center. */
+    public static function opsCode(string $to, string $name, string $code, int $minutes, string $ip, string $lang = 'fr'): bool
+    {
+        $en = $lang === 'en';
+        $spaced = substr($code, 0, 4) . ' ' . substr($code, 4);
+        $html = EmailTheme::layout(
+            EmailTheme::badge($en ? 'Control center' : 'Centre de contrôle', 'red')
+            . EmailTheme::title($en ? 'Your one-time code' : 'Votre code à usage unique')
+            . self::hello($name, $lang)
+            . EmailTheme::lede($en ? 'Someone asked to open the control center with your account. Enter this code together with the code from your authenticator app.' : 'Une demande d’ouverture du centre de contrôle a été faite avec votre compte. Saisissez ce code avec celui de votre application d’authentification.')
+            . EmailTheme::callout('<span style="font-size:30px;letter-spacing:6px;font-weight:700;font-family:Menlo,Consolas,monospace">' . self::h($spaced) . '</span>', 'ochre')
+            . EmailTheme::p($en ? "It is valid for <strong>{$minutes} minutes</strong> and works once. Request from: " . self::h($ip) . '.' : "Il est valable <strong>{$minutes} minutes</strong> et ne sert qu’une fois. Demande depuis : " . self::h($ip) . '.')
+            . EmailTheme::small($en ? 'You did not ask for this? Do not share the code, and change your password now.' : 'Vous n’êtes pas à l’origine de cette demande ? Ne communiquez pas ce code et changez votre mot de passe maintenant.'),
+            ['preheader' => $en ? 'Your control center code' : 'Votre code du centre de contrôle', 'lang' => $lang]
+        );
+        return self::send($to, ($en ? 'Your control center code' : 'Votre code du centre de contrôle') . ' — StudyVibe', $html);
+    }
+
     /**
      * Security notice after a change to the account's protection (two-factor turned on or off, new recovery codes).
      */

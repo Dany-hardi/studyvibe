@@ -659,6 +659,24 @@ class Database
             ");
         } catch (PDOException $ex) {}
 
+        // Migration 2.6p: one-time codes e-mailed to open the control center (kept hashed, short-lived, single use).
+        try {
+            $pdo->exec("
+                CREATE TABLE IF NOT EXISTS `ops_unlock_codes` (
+                    `id`          INT AUTO_INCREMENT PRIMARY KEY,
+                    `user_id`     INT NOT NULL,
+                    `code_hash`   CHAR(64) NOT NULL,
+                    `attempts`    INT NOT NULL DEFAULT 0,
+                    `ip`          VARCHAR(45) DEFAULT NULL,
+                    `created_at`  DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+                    `expires_at`  DATETIME NOT NULL,
+                    `consumed_at` DATETIME DEFAULT NULL,
+                    KEY `idx_ops_unlock_user` (`user_id`, `consumed_at`),
+                    FOREIGN KEY (`user_id`) REFERENCES `users`(`id`) ON DELETE CASCADE
+                ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4
+            ");
+        } catch (PDOException $ex) {}
+
         // Migration 2.7: Support binary storage backups for course cover images and lesson PDFs
         try {
             $pdo->query("SELECT cover_image_data FROM courses LIMIT 1");

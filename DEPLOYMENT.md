@@ -456,3 +456,16 @@ mysql -u studyvibe_user -p studyvibe < schema_vX_....sql
 - **Devices:** table `push_subscriptions`, one row per phone or browser (8 per person at most). A device that answers 404/410 is deleted by the worker; signing out detaches the device.
 - **Migration:** automatic (2.6m) or `schema_v18_web_push.sql`.
 - **Check:** `php tests/integration/pwa_push.php` (73 checks: encryption, VAPID, API, queue, worker, manifest).
+
+
+## Centre de contrôle (console super-administrateur)
+
+Le centre de contrôle (`/ops-5f208f200992fc7ea994/`) est accessible depuis le tableau de bord administrateur (menu « Centre de contrôle », visible seulement pour un propriétaire). Il n'a **pas de mot de passe** : il s'ouvre avec une vérification renforcée en deux preuves données ensemble.
+
+1. **Qui peut le voir.** Un promoteur ; si `CONTROL_OWNER_EMAIL` est renseigné (variable d'environnement ou `.env`, adresses séparées par des virgules), seulement ceux-là. Toute autre personne reçoit un 404 identique à une adresse inexistante.
+2. **Ce qu'il faut pour l'ouvrir.** Un code à 8 chiffres envoyé à l'adresse e-mail vérifiée du compte (valable 10 minutes, usage unique, 5 essais, stocké uniquement sous forme d'empreinte) **et** un code courant de l'application d'authentification (les codes de secours sont refusés, un code déjà utilisé ne peut pas être rejoué). Une mauvaise tentative ne dit jamais laquelle des deux preuves est fausse.
+3. **Pré-requis (fermé par défaut).** Le compte doit avoir l'authentification à deux facteurs activée et une adresse vérifiée, `APP_SECRET` doit être une vraie valeur (32 caractères ou plus) et un serveur d'e-mail (`SMTP_*`) doit être configuré. Sinon la page l'explique et rien ne s'ouvre. Hors production (`APP_DEBUG=true`, sans serveur d'e-mail), le code s'affiche à l'écran pour les essais locaux.
+4. **Une fois ouvert.** Session liée au navigateur et au réseau (IPv4 /24, IPv6 /48), fermée après 20 minutes sans activité et au bout de 2 heures quoi qu'il arrive ; bouton « Verrouiller » ; la déconnexion ferme aussi. Le propriétaire reçoit un e-mail à chaque ouverture.
+5. **Traçabilité.** Demande de code, échecs, blocages, ouvertures et verrouillages sont inscrits au journal d'audit (`ops_unlock_*`, `ops_locked`) et apparaissent dans le rapport de traçabilité.
+
+Test : `php tests/integration/ops_unlock.php`.

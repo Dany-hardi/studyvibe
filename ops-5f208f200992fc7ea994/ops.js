@@ -33,6 +33,7 @@
       init = { credentials: 'same-origin', method: 'POST', body: fd, headers: { 'X-Ops-Token': window.OPS.token } };
     }
     const r = await fetch('api.php?action=' + action, init);
+    if (r.status === 401) { location.href = 'unlock.php'; throw new Error('Locked. Verify again.'); }   // the center closed itself: back to the second lock
     const j = await r.json().catch(() => ({ success: false, message: 'Unreadable answer (' + r.status + ')' }));
     if (!j.success) throw new Error(j.message || 'Request failed');
     return j;

@@ -10,23 +10,53 @@ declare(strict_types=1);
  */
 final class ControlGate
 {
-    public static function enter(bool $json = false): array
+    /** The folder of the control center, as a URL path. */
+    public const PATH = '/ops-5f208f200992fc7ea994/';
+
+    /**
+     * Who may even see the door: a promoter, and, if CONTROL_OWNER_EMAIL is set, one of the listed addresses. The administrator dashboard
+     * uses this to decide whether to show the link; it opens nothing by itself.
+     */
+    public static function isOwner(?array $user): bool
     {
-        if (!isLoggedIn() || ($_SESSION['user_role'] ?? '') !== 'promoter') {
-            self::deny($json);
-        }
-        $user = getCurrentUser();
-        if (!$user) {
-            self::deny($json);
+        if (!$user || ($user['role'] ?? '') !== 'promoter' || ($_SESSION['user_role'] ?? '') !== 'promoter') {
+            return false;
         }
         if (defined('CONTROL_OWNER_EMAIL') && trim((string)CONTROL_OWNER_EMAIL) !== '') {
             $allowed = array_map('strtolower', array_map('trim', explode(',', (string)CONTROL_OWNER_EMAIL)));
-            if (!in_array(strtolower((string)$user['email']), $allowed, true)) {
-                self::deny($json);
-            }
+            return in_array(strtolower((string)$user['email']), $allowed, true);
+        }
+        return true;
+    }
+
+    /**
+     * @param bool $requireUnlock false only for the page that does the unlocking itself. Everything else needs the second lock open
+     *                            (see ControlUnlock): pages send the owner to the unlock page, JSON answers 401 {locked:true}.
+     */
+    public static function enter(bool $json = false, bool $requireUnlock = true): array
+    {
+        if (!isLoggedIn()) {
+            self::deny($json);
+        }
+        $user = getCurrentUser();
+        if (!self::isOwner($user)) {
+            self::deny($json);
         }
         header('X-Robots-Tag: noindex, nofollow, noarchive');
         header('Cache-Control: no-store');
+        if ($requireUnlock) {
+            require_once __DIR__ . '/ControlUnlock.php';
+            if (!ControlUnlock::isUnlocked((int)$user['id'])) {
+                if ($json) {
+                    http_response_code(401);
+                    header('Content-Type: application/json');
+                    echo '{"success":false,"locked":true,"message":"Locked. Verify again."}';
+                    exit;
+                }
+                header('Location: ' . self::PATH . 'unlock.php');
+                exit;
+            }
+        }
         return $user;
     }
 

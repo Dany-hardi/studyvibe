@@ -5,6 +5,7 @@ require_once __DIR__ . '/../auth.php';
 require_once __DIR__ . '/../Mailer.php';
 require_once __DIR__ . '/../Newsletter.php';
 require_once __DIR__ . '/../lib/Brand.php';
+require_once __DIR__ . '/../lib/ControlGate.php';
 requireRole('promoter');
 
 if ($_SERVER['REQUEST_METHOD'] === 'POST') {
@@ -239,6 +240,7 @@ $TX = [
  'nav_msgs' => ['Messages', 'Messages'],
  'nav_api' => ['Clés API', 'API keys'],
  'nav_audit' => ['Journal et exports', 'Activity and exports'],
+ 'nav_ops' => ['Centre de contrôle', 'Control center'], 'nav_ops_hint' => ['Vérification renforcée requise', 'Strict verification required'],
  'rail_foot' => ['Chaque action sensible demande une confirmation avant de s’exécuter.', 'Every sensitive action asks for confirmation before it runs.'],
  'ok_generic' => ['Opération effectuée.', 'Done.'],
  'ok_certificate_removed' => ['Certificat révoqué.', 'Certificate revoked.'],
@@ -740,6 +742,9 @@ function pm_chips(array $u, callable $t): string {
     <ul>
       <li><a href="#tab-api" data-tab="tab-api"><span><?= $t('nav_api') ?></span></a></li>
       <li><a href="#tab-audit" data-tab="tab-audit"><span><?= $t('nav_audit') ?></span></a></li>
+      <?php if (ControlGate::isOwner($user)): ?>
+      <li class="pm-ops"><a href="<?= $h(ControlGate::PATH) ?>unlock.php" title="<?= $h($t('nav_ops_hint')) ?>"><span><?= $t('nav_ops') ?></span><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="5" y="11" width="14" height="9" rx="2"/><path d="M8 11V8a4 4 0 018 0v3"/></svg></a></li>
+      <?php endif; ?>
     </ul>
     <p class="pm-rail-foot"><?= $t('rail_foot') ?></p>
   </nav>

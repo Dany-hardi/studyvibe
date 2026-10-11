@@ -155,6 +155,12 @@ final class TwoFactor
         return ['ok' => true, 'uid' => $uid, 'role' => (string)$p['role'], 'redirect' => $p['redirect'] ?? null];
     }
 
+    /** A current code from the authenticator app only (no recovery code), used once: for actions that need proof of the device. */
+    public static function verifyAuthenticator(PDO $pdo, int $userId, string $code): bool
+    {
+        return self::checkSecondFactor($pdo, $userId, $code, false);
+    }
+
     // ---- internals -----------------------------------------------------------------------------------------------
 
     private static function allowAttempt(PDO $pdo, int $userId, string $ip): bool

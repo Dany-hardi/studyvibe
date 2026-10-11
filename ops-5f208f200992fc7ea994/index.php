@@ -6,6 +6,7 @@ require_once __DIR__ . '/../auth.php';
 require_once __DIR__ . '/../Mailer.php';
 require_once __DIR__ . '/../lib/Brand.php';
 require_once __DIR__ . '/../lib/ControlGate.php';
+require_once __DIR__ . '/../lib/ControlUnlock.php';
 require_once __DIR__ . '/../lib/ControlCommands.php';
 
 $user = ControlGate::enter();
@@ -33,7 +34,9 @@ $v = (string)@filemtime(__DIR__ . '/ops.js');
     <button role="tab" data-tab="cmd" aria-selected="false">Commands</button>
     <button role="tab" data-tab="cal" aria-selected="false">Calibration</button>
   </nav>
-  <div class="ops-who"><span><?= $h($user['name']) ?></span><span class="ops-clock" id="clock"></span></div>
+  <div class="ops-who"><span><?= $h($user['name']) ?></span><span class="ops-clock" id="clock"></span>
+    <span class="dim" title="Closes by itself after <?= (int)(ControlUnlock::IDLE_SECONDS / 60) ?> minutes without activity"><?= (int)ceil(ControlUnlock::secondsLeft() / 60) ?> min</span>
+    <form method="post" action="unlock.php" style="margin:0"><input type="hidden" name="token" value="<?= $h(ControlGate::token()) ?>"><input type="hidden" name="action" value="lock"><button class="btn ghost" type="submit">Lock now</button></form></div>
 </header>
 
 <main class="ops-main">

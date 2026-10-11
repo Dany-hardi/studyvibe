@@ -225,3 +225,7 @@ html.dark .pi-tag { color: var(--clay); }
 .ob-dates { display: flex; flex-wrap: wrap; gap: 1rem; margin-top: .8rem; }
 .ob-actions { flex: 1 1 100%; display: flex; flex-wrap: wrap; gap: .6rem; padding-top: .3rem; }
 .ob-note { margin: .9rem 0 0; font-size: .85rem; color: var(--ink-3); max-width: 70ch; }
+
+/* Control center entry (owners only) */
+.pm-ops a { display: flex; align-items: center; justify-content: space-between; gap: .6rem; }
+.pm-ops svg { flex: none; color: var(--clay); opacity: .85; }
