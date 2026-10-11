@@ -4,7 +4,7 @@
  *
  * This controller retrieves, processes, and formats the student's complete academic
  * transcript, including course progress, lesson quiz scores, and certification attempts.
- * Supports printable CSS and PDF export via html2pdf.js.
+ * Prints from the browser and downloads as a LaTeX-built PDF (student/export-transcript-pdf.php).
  *
  * PHP version 8.2
  *
@@ -111,7 +111,7 @@ $genDate = sdDate(time(), 'year') . ' · ' . sdDate(time(), 'time');
     <a class="doc-back" href="/student/dashboard.php#results"><?= sdIcon('arrow', 16) ?><?= sdH(sd('doc_back')) ?></a>
     <div class="doc-actions">
         <button type="button" class="btn btn-ghost btn-sm" onclick="window.print()"><?= sdIcon('print', 16) ?><?= sdH(sd('doc_print')) ?></button>
-        <button type="button" class="btn btn-primary btn-sm" id="btn-pdf"><?= sdIcon('down', 16) ?><?= sdH(sd('doc_pdf')) ?></button>
+        <a class="btn btn-primary btn-sm" href="/student/export-transcript-pdf.php" download><?= sdIcon('down', 16) ?><?= sdH(sd('doc_pdf')) ?></a>
     </div>
 </div>
 <main class="doc-wrap">
@@ -181,14 +181,5 @@ $genDate = sdDate(time(), 'year') . ' · ' . sdDate(time(), 'time');
     <p class="tr-foot"><?= sdH(sd('doc_footer', ['date' => sdDate(time(), 'date')])) ?></p>
 </article>
 </main>
-<script src="https://cdnjs.cloudflare.com/ajax/libs/html2pdf.js/0.10.1/html2pdf.bundle.min.js"></script>
-<script>
-document.getElementById('btn-pdf')?.addEventListener('click', () => {
-    const root = document.documentElement, wasDark = root.classList.contains('dark');
-    root.classList.remove('dark');
-    html2pdf().set({ margin: 8, filename: 'releve-notes-studyvibe.pdf', html2canvas: { scale: 2 }, jsPDF: { unit: 'mm', format: 'a4', orientation: 'portrait' } })
-        .from(document.getElementById('releve-content')).save().then(() => { if (wasDark) root.classList.add('dark'); });
-});
-</script>
 </body>
 </html>

@@ -215,7 +215,7 @@ TEX;
     {
         $spec = implode('', array_map(fn($c) => $c[1], $columns));
         $heads = implode(' & ', array_map(fn($c) => '\\textbf{' . self::esc($c[0]) . '}', $columns));
-        $out = "{\\small\n\\begin{longtable}{@{}{$spec}@{}}\n\\toprule\n{$heads} \\\\\n\\midrule\n\\endfirsthead\n";
+        $out = "{\\small\\setlength{\\LTleft}{0pt}\\setlength{\\LTright}{0pt}\n\\begin{longtable}{@{}{$spec}@{}}\n\\toprule\n{$heads} \\\\\n\\midrule\n\\endfirsthead\n";
         $out .= "\\toprule\n{$heads} \\\\\n\\midrule\n\\endhead\n\\bottomrule\n\\endfoot\n\\bottomrule\n\\endlastfoot\n";
         foreach ($rows as $r) {
             $out .= implode(' & ', $r) . " \\\\\n";

@@ -3,7 +3,7 @@
  * StudyVibe Academic LMS - Certification Attempt Report Controller
  *
  * This controller processes and displays the detailed report page for a student's
- * certification attempt. It supports printing and PDF export via html2pdf.js.
+ * certification attempt. It prints from the browser and downloads as a LaTeX-built PDF (student/export-attempt-pdf.php).
  *
  * PHP version 8.2
  *
@@ -94,7 +94,7 @@ $approxOk   = $totalQ > 0 ? (int)round(($score / 100) * $totalQ) : null;
     <a class="doc-back" href="/student/dashboard.php#results"><?= sdIcon('arrow', 16) ?><?= sdH(sd('doc_back')) ?></a>
     <div class="doc-actions">
         <button type="button" class="btn btn-ghost btn-sm" onclick="window.print()"><?= sdIcon('print', 16) ?><?= sdH(sd('doc_print')) ?></button>
-        <button type="button" class="btn btn-primary btn-sm" id="btn-pdf"><?= sdIcon('down', 16) ?><?= sdH(sd('doc_pdf')) ?></button>
+        <a class="btn btn-primary btn-sm" href="/student/export-attempt-pdf.php?attempt_id=<?= (int)$attemptId ?>" download><?= sdIcon('down', 16) ?><?= sdH(sd('doc_pdf')) ?></a>
     </div>
 </div>
 <main class="doc-wrap">
@@ -128,14 +128,5 @@ $approxOk   = $totalQ > 0 ? (int)round(($score / 100) * $totalQ) : null;
     <p class="tr-foot"><?= sdH(sd('doc_footer', ['date' => sdDate(time(), 'date')])) ?></p>
 </article>
 </main>
-<script src="https://cdnjs.cloudflare.com/ajax/libs/html2pdf.js/0.10.1/html2pdf.bundle.min.js"></script>
-<script>
-document.getElementById('btn-pdf')?.addEventListener('click', () => {
-    const root = document.documentElement, wasDark = root.classList.contains('dark');
-    root.classList.remove('dark');
-    html2pdf().set({ margin: 10, filename: 'releve-tentative-<?= (int)$attemptId; ?>.pdf', image: { type: 'jpeg', quality: 0.98 }, html2canvas: { scale: 2 }, jsPDF: { unit: 'mm', format: 'a4', orientation: 'portrait' } })
-        .from(document.getElementById('report-content')).save().then(() => { if (wasDark) root.classList.add('dark'); });
-});
-</script>
 </body>
 </html>

@@ -74,7 +74,7 @@ $sealText = strtoupper(sd('doc_cert_word')) . ' · STUDYVIBE · ' . strtoupper(s
         <a class="btn btn-text" href="/verify.php?code=<?= urlencode($code) ?>" target="_blank" rel="noopener"><?= sdIcon('link', 16) ?>&nbsp;<?= sdH(sd('doc_verify_page')) ?></a>
         <a class="btn btn-text" href="<?= sdH($linkedinUrl) ?>" target="_blank" rel="noopener"><?= sdH(sdLang() === 'en' ? 'Add to LinkedIn' : 'Ajouter à LinkedIn') ?></a>
         <button type="button" class="btn btn-ghost btn-sm" onclick="window.print()"><?= sdIcon('print', 16) ?><?= sdH(sd('doc_print')) ?></button>
-        <button type="button" class="btn btn-primary btn-sm" id="btn-download-pdf"><?= sdIcon('down', 16) ?><?= sdH(sd('doc_pdf')) ?></button>
+        <a class="btn btn-primary btn-sm" href="/student/export-certificate-pdf.php?code=<?= urlencode($code) ?>" download><?= sdIcon('down', 16) ?><?= sdH(sd('doc_pdf')) ?></a>
     </div>
 </div>
 
@@ -125,7 +125,6 @@ $sealText = strtoupper(sd('doc_cert_word')) . ' · STUDYVIBE · ' . strtoupper(s
   </div>
 </div>
 
-<script src="https://cdnjs.cloudflare.com/ajax/libs/html2pdf.js/0.10.1/html2pdf.bundle.min.js"></script>
 <script>
 (function () {
     const fit = document.getElementById('cert-fit');
@@ -134,16 +133,6 @@ $sealText = strtoupper(sd('doc_cert_word')) . ' · STUDYVIBE · ' . strtoupper(s
         fit.style.setProperty('--s', Math.min(1, (window.innerWidth - 32) / w).toFixed(4));
     }
     scale(); window.addEventListener('resize', scale);
-    document.getElementById('btn-download-pdf')?.addEventListener('click', () => {
-        const root = document.documentElement, wasDark = root.classList.contains('dark');
-        root.classList.remove('dark');
-        const s = fit.style.getPropertyValue('--s'); fit.style.setProperty('--s', '1');
-        html2pdf().set({
-            margin: 0, filename: 'certificat-<?= htmlspecialchars($cert['certificate_code']) ?>.pdf',
-            image: { type: 'jpeg', quality: 0.98 }, html2canvas: { scale: 2, useCORS: true },
-            jsPDF: { unit: 'mm', format: 'a4', orientation: 'landscape' }
-        }).from(document.getElementById('cert-page')).save().then(() => { fit.style.setProperty('--s', s); if (wasDark) root.classList.add('dark'); });
-    });
 })();
 </script>
 </body>

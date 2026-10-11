@@ -73,6 +73,27 @@ foreach ($docs as $name => $d) {
         }
     }
 }
+
+// The student's own documents (certificate with its QR code, transcript, failed-attempt report), in both languages
+require_once __DIR__ . '/../../lib/StudentDocs.php';
+require_once __DIR__ . '/../../lib/student_i18n.php';
+$_SERVER['HTTP_HOST'] = 'localhost';
+foreach (['fr', 'en'] as $lg) {
+    $t = StudentDocs::strings(['issued_year' => '2026', 'generated_at' => '11/10/2026', 'date_text' => '10/10/2026', 'score_text' => '21,3'], $lg);
+    $docs = [
+        "certificate $lg" => StudentDocs::certificate(['student_name' => "Éloïse O'Neil & Fils", 'course_title' => 'Maths 50 % & plus_tard #A', 'certificate_code' => 'SV-2026-A8F3K2'], $t, 'https://exemple.cm/verify.php?code=SV-2026-A8F3K2', 'exemple.cm/verify.php'),
+        "transcript $lg" => StudentDocs::transcript(['name' => 'Éloïse Ndzié', 'matricule' => '20A1234'],
+            [['course_title' => 'Programmation Web & co', 'module_title' => 'L3', 'progress_percent' => 85, 'best_text' => '78,5', 'attempts' => 2], ['course_title' => 'Algèbre', 'module_title' => 'L1', 'progress_percent' => 0, 'best_text' => '', 'attempts' => 0]],
+            [['lesson_title' => 'Intro_PHP #1', 'course_title' => 'Web', 'date_text' => '09/10/2026', 'score' => 90]], [['course_title' => 'Web', 'date_text' => '10/10/2026', 'score_text' => '21,3']], $t),
+        "transcript empty $lg" => StudentDocs::transcript(['name' => 'Sans Cours'], [], [], [], $t),
+        "attempt $lg" => StudentDocs::attemptReport(['student_name' => 'Éloïse', 'course_title' => 'Web & co', 'score' => 21.3], $t, 80.0, 80),
+    ];
+    foreach ($docs as $what => $d) {
+        $pdf = LatexCompiler::compile($d['tex'], $d['assets']);
+        check("$what compiles", is_string($pdf) && str_starts_with($pdf, '%PDF'));
+        if ($out !== null && $pdf) { file_put_contents($out . '/student_' . str_replace(' ', '_', $what) . '.pdf', $pdf); }
+    }
+}
 MediaStore::delete($pdo, 'live_question', $saved['file'] ?? '');
 @unlink($src);
 echo "$passed passed, " . count($failed) . " failed\n";
