@@ -55,7 +55,7 @@ $docs = [
   'empty_paper' => ExportDocs::questionPaper($pdo, $session, [], 'subject', 'fr'),
 ];
 foreach ($docs as $name => $d) {
-    $isPaper = str_contains($name, 'paper');   // exam papers and answer keys keep the traditional Computer Modern look
+    $isPaper = str_contains($name, 'paper') || str_contains($name, 'student');   // exam papers, answer keys and the student correction report keep the traditional Computer Modern look
     check("$name: " . ($isPaper ? 'traditional Latin Modern, no sans-serif' : 'Palatino text with Helvetica labels, the brand colours defined'),
         $isPaper ? (str_contains($d['tex'], '{lmodern}') && !str_contains($d['tex'], 'helvet')) : (str_contains($d['tex'], '{mathpazo}') && str_contains($d['tex'], '{helvet}') && str_contains($d['tex'], 'svpine')));
     $pdf = LatexCompiler::compile($d['tex'], $d['assets']);
