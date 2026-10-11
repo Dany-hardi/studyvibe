@@ -425,6 +425,11 @@ TEX;
                     $part = str_replace($uni, '$' . $lat . '$', $part);
                 }
             }
+            if (!$inline) {
+                // A single line break written in a question (a code snippet) stays a line break, and its indentation is kept.
+                // "\\{}" so that a line starting with [ or * is not taken for the optional argument of the line break.
+                $part = preg_replace_callback('/(?<!\n)\n(?!\n)( *)/', fn($m) => "\\\\{}\n" . ($m[1] !== '' ? '\\hspace*{' . round(strlen($m[1]) * 0.45, 2) . 'em}' : ''), $part) ?? $part;
+            }
             $parts[$i] = $part;
         }
         $out = LatexCompiler::sanitize(implode('', $parts));

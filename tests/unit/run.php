@@ -146,6 +146,12 @@ t('latex: a formula that could read files or break the build is shown as text', 
     eq(str_contains(ExportTheme::tex('$\\input{/etc/passwd}$'), '\\textbackslash{}input'), true);
     eq(ExportTheme::tex('$x^2$'), '$x^2$');
 });
+t('latex: a single line break in a question (a code snippet) is kept, with its indentation, and a blank line is still a paragraph', function () {
+    $o = ExportTheme::tex("int a = 1;\n    [x] = 2;\n\nNew paragraph");
+    eq(str_contains($o, "int a = 1;\\\\{}\n\\hspace*{1.8em}[x] = 2;"), true);
+    eq(str_contains($o, "\n\nNew paragraph"), true);
+    eq(str_contains(ExportTheme::tex("a\nb", true), "\\\\"), false);   // inline text (options) stays on one line
+});
 t('latex: file names are plain', fn() => eq(ExportTheme::slug('Contrôle d\'Algèbre n°2 — 50 %'), 'controle_d_algebre_n_2_50'));
 
 // ---- Email design and message structure
