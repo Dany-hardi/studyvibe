@@ -135,10 +135,14 @@ t('latex: paragraphs from <br> but one line when inline', function () {
     eq(str_contains(ExportTheme::tex("a<br>b"), "\n\n"), true);
     eq(str_contains(ExportTheme::tex("a<br>b", true), "\n"), false);
 });
-t('latex: the document uses the traditional typeface and no sans-serif', function () {
+t('latex: the document sets Palatino with Helvetica labels and needs no font toolchain', function () {
     $d = ExportTheme::document('x', ['lang' => 'fr']);
-    eq(str_contains($d, '{lmodern}'), true);
-    eq(str_contains($d, 'sfdefault') || str_contains($d, 'helvet') || str_contains($d, 'fontspec'), false);
+    eq(str_contains($d, '{mathpazo}') && str_contains($d, '{helvet}'), true);
+    eq(str_contains($d, 'fontspec'), false);
+});
+t('latex: a formula that could read files or break the build is shown as text', function () {
+    eq(str_contains(ExportTheme::tex('$\\input{/etc/passwd}$'), '\\textbackslash{}input'), true);
+    eq(ExportTheme::tex('$x^2$'), '$x^2$');
 });
 t('latex: file names are plain', fn() => eq(ExportTheme::slug('Contrôle d\'Algèbre n°2 — 50 %'), 'controle_d_algebre_n_2_50'));
 

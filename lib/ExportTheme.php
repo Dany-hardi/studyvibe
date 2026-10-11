@@ -57,51 +57,74 @@ final class ExportTheme
         $hl = self::esc((string)($o['header_left'] ?? ''));
         $hr = self::esc((string)($o['header_right'] ?? ''));
         $fl = self::esc((string)($o['footer_left'] ?? 'StudyVibe'));
-        $geometry = (!empty($o['landscape']) ? 'a4paper,landscape' : 'a4paper') . ',top=2.4cm,bottom=2.2cm,left=2.2cm,right=2.2cm,headheight=14pt,footskip=1.1cm';
+        $geometry = (!empty($o['landscape']) ? 'a4paper,landscape' : 'a4paper') . ',top=2.3cm,bottom=2.2cm,left=2cm,right=2cm,headheight=14pt,footskip=1.1cm';
         $size = in_array($o['font'] ?? '11pt', ['10pt', '11pt', '12pt'], true) ? ($o['font'] ?? '11pt') : '11pt';
 
         $pre = <<<'TEX'
 \documentclass[@@size@@,a4paper]{article}
 \usepackage[utf8]{inputenc}
 \usepackage[T1]{fontenc}
-\usepackage{lmodern}% Latin Modern: the traditional Computer Modern typeface, as vector fonts with all accents
+\usepackage[sc]{mathpazo}% Palatino for the text and the maths: a book face that prints well and has every French accent
+\usepackage[scaled=.92]{helvet}% Helvetica for titles, badges and labels
 \usepackage[@@babel@@]{babel}
 \usepackage[@@geometry@@]{geometry}
 \usepackage{microtype}
 \usepackage{amsmath,amssymb}
-\usepackage{booktabs,longtable,array,tabularx}
+\usepackage{booktabs,longtable,array,tabularx,colortbl}
 \usepackage{enumitem}
 \usepackage{needspace}
+\usepackage{multicol}
 \usepackage{fancyhdr}
 \usepackage{lastpage}
 \usepackage{graphicx}
 \usepackage{xcolor}
 \usepackage[hidelinks,pdftitle={@@title@@},pdfauthor={StudyVibe},pdfcreator={StudyVibe}]{hyperref}
 @@brand@@
+\definecolor{svpine}{HTML}{24402F}
+\definecolor{svgreenbg}{HTML}{E2EFE4}
+\definecolor{svredbg}{HTML}{F9E3DB}
+\definecolor{svgray}{HTML}{6B665C}
+\definecolor{svline}{HTML}{DDD5C3}
+\definecolor{svcard}{HTML}{F6F2E9}
+\linespread{1.04}
 \setlength{\parindent}{0pt}
-\setlength{\parskip}{0.55em}
+\setlength{\parskip}{0.5em}
 \renewcommand{\arraystretch}{1.18}
 \setlength{\emergencystretch}{2em}
+\setlength{\columnsep}{9mm}
+\setlength{\columnseprule}{0.4pt}
+\renewcommand{\columnseprulecolor}{\color{svline}}
+\setlist{nosep}
+
+% Number badge, a labelled option row (shaded when it is the right or the chosen one), and a calm note with a bar on the left
+\newcommand{\svbadge}[1]{\colorbox{svclay}{\hbox to 1.5em{\hss\color{white}\sffamily\bfseries\small #1\hss}}}
+\newcommand{\svopt}[4]{\par\vspace{1pt}\noindent\colorbox{#1}{\parbox{\dimexpr\linewidth-2\fboxsep\relax}{\hangindent=2.3em\hangafter=1\raggedright #2\hspace{0.4em}{\sffamily\bfseries\color{svclay}#3}\hspace{0.5em}#4\strut}}}
+\newcommand{\svnote}[1]{\par\noindent\begin{tabular}{@{}!{\color{svclay}\vrule width 2.4pt}>{\columncolor{svcard}\raggedright\arraybackslash}p{\dimexpr\linewidth-2.4pt-2\tabcolsep\relax}}\small #1\end{tabular}\par}
+\newcommand{\svfield}[1]{{\sffamily\scriptsize\bfseries\color{svgray}#1}}
 
 \fancypagestyle{svpage}{%
   \fancyhf{}%
-  \renewcommand{\headrulewidth}{0.4pt}%
-  \lhead{\small\textsc{@@hl@@}}%
-  \rhead{\small @@hr@@}%
-  \lfoot{\scriptsize @@fl@@}%
-  \cfoot{\small \thepage\,/\,\pageref{LastPage}}%
+  \renewcommand{\headrule}{\ifdim\headrulewidth>0pt{\color{svclay}\hrule width\headwidth height\headrulewidth}\fi}%
+  \renewcommand{\footrule}{\ifdim\footrulewidth>0pt{\color{svline}\hrule width\headwidth height\footrulewidth}\fi}%
+  \renewcommand{\headrulewidth}{0.5pt}\renewcommand{\footrulewidth}{0.4pt}%
+  \lhead{\sffamily\scriptsize\bfseries\color{svgray}@@hl@@}%
+  \rhead{\sffamily\scriptsize\color{svgray}@@hr@@}%
+  \lfoot{\sffamily\scriptsize\color{svgray}@@fl@@}%
+  \rfoot{\sffamily\scriptsize\color{svgray}\thepage\,/\,\pageref{LastPage}}%
 }
 \fancypagestyle{svfirst}{%
   \fancyhf{}%
   \renewcommand{\headrulewidth}{0pt}%
-  \lfoot{\scriptsize @@fl@@}%
-  \cfoot{\small \thepage\,/\,\pageref{LastPage}}%
+  \renewcommand{\footrule}{\ifdim\footrulewidth>0pt{\color{svline}\hrule width\headwidth height\footrulewidth}\fi}%
+  \renewcommand{\footrulewidth}{0.4pt}%
+  \lfoot{\sffamily\scriptsize\color{svgray}@@fl@@}%
+  \rfoot{\sffamily\scriptsize\color{svgray}\thepage\,/\,\pageref{LastPage}}%
 }
 \pagestyle{svpage}
 
-% Section titles in the plain article style, only a little smaller
+% Section titles: sans, clay, a little smaller than the article default
 \makeatletter
-\renewcommand{\section}{\@startsection{section}{1}{0pt}{2.2ex plus .4ex}{1ex}{\normalfont\large\bfseries}}
+\renewcommand{\section}{\@startsection{section}{1}{0pt}{2.4ex plus .4ex}{1ex}{\sffamily\large\bfseries\color{svclay}}}
 \makeatother
 
 \begin{document}
@@ -120,33 +143,66 @@ TEX;
     // ---------------------------------------------------------------------------------------------------------------
 
     /**
-     * Logo, kind of document in small capitals, title, subtitle, then a rule and a two-column table of facts.
+     * Compact banner: logo on the left, the kind of document in small capitals, the title and the subtitle on the right, a clay rule,
+     * then the facts as a strip of labelled cells.
      *
      * @param array<int,array{0:string,1:string}> $info [label, value] pairs; values are plain text
      */
     public static function titleBlock(string $kind, string $title, string $subtitle = '', array $info = []): string
     {
-        $out = "\\begin{center}\n\\svlogomono[3.2cm]\\par\\vspace{1.4em}\n";
-        $out .= '{\\normalsize\\scshape ' . self::esc($kind) . "\\par}\\vspace{0.5em}\n";
-        $out .= '{\\LARGE\\bfseries ' . self::esc($title) . "\\par}\n";
+        $out = "\\noindent\\begin{tabularx}{\\textwidth}{@{}l@{\\hspace{1em}}>{\\raggedleft\\arraybackslash}X@{}}\n";
+        $out .= "\\raisebox{-0.2ex}{\\svlogo[3.3cm]} & {\\textsc{\\color{svclay}" . self::esc($kind) . "}\\par\\vspace{0.3em}\n";
+        $out .= '{\\Large\\sffamily\\bfseries\\raggedleft ' . self::esc($title) . "\\par}\n";
         if ($subtitle !== '') {
-            $out .= '\\vspace{0.4em}{\\large ' . self::esc($subtitle) . "\\par}\n";
+            $out .= '\\vspace{0.2em}{\\small\\color{svgray} ' . self::esc($subtitle) . "\\par}\n";
         }
-        $out .= "\\end{center}\n\\vspace{-0.4em}\\noindent\\rule{\\textwidth}{0.8pt}\\par\n";
+        $out .= "}\n\\end{tabularx}\\par\\vspace{0.5em}\n{\\color{svclay}\\rule{\\textwidth}{1.3pt}}\\par\\vspace{-0.3em}\n";
         if ($info) {
             $out .= self::infoTable($info);
         }
         return $out;
     }
 
-    /** @param array<int,array{0:string,1:string}> $rows */
+    /**
+     * The facts as a shaded strip of cells, a small grey label over a bold value. At most four to a row.
+     *
+     * @param array<int,array{0:string,1:string}> $rows
+     */
     public static function infoTable(array $rows): string
     {
-        $out = "\\begin{center}\n\\begin{tabular}{@{}r@{\\hspace{1.2em}}l@{}}\n";
-        foreach ($rows as [$label, $value]) {
-            $out .= '\\textit{' . self::esc($label) . '} & ' . self::esc($value) . " \\\\\n";
+        $n = count($rows);
+        $perRow = $n <= 4 ? max(1, $n) : (int)ceil($n / (int)ceil($n / 4));
+        $out = "\\par\\vspace{0.3em}\\noindent{\\setlength{\\fboxsep}{7pt}\\colorbox{svcard}{\\begin{minipage}{\\dimexpr\\textwidth-14pt\\relax}\\renewcommand{\\arraystretch}{1.3}\n"
+            . '\\begin{tabularx}{\\linewidth}{@{}*{' . $perRow . "}{>{\\raggedright\\arraybackslash}X}@{}}\n";
+        foreach (array_chunk($rows, $perRow) as $chunk) {
+            $cells = [];
+            foreach ($chunk as [$label, $value]) {
+                $cells[] = '\\svfield{' . self::esc($label) . '}\\newline{\\small\\sffamily\\bfseries ' . self::esc($value) . '}';
+            }
+            while (count($cells) < $perRow) {
+                $cells[] = '';
+            }
+            $out .= implode(" &\n", $cells) . " \\\\\n";
         }
-        return $out . "\\end{tabular}\n\\end{center}\n";
+        return $out . "\\end{tabularx}\\end{minipage}}}\\par\n";
+    }
+
+    /** Lines to fill in: name, student number, mark and signature, in a light frame. */
+    public static function candidateBox(string $lang, int $outOf): string
+    {
+        $L = fn(string $k) => self::label($k, $lang);
+        $f = fn(string $k) => '\\rule{0pt}{4.4ex}\\svfield{' . self::esc($L($k)) . '}';
+        return "\\par\\vspace{0.4em}\\noindent{\\arrayrulecolor{svline}\\setlength{\\tabcolsep}{8pt}\\renewcommand{\\arraystretch}{1}\n"
+            . "\\begin{tabularx}{\\textwidth}{|>{\\raggedright\\arraybackslash}p{0.5\\textwidth}|>{\\raggedright\\arraybackslash}p{0.2\\textwidth}|>{\\raggedright\\arraybackslash}X|}\\hline\n"
+            . $f('name') . ' & ' . $f('mark') . ' \\hfill {\\small/\\,' . $outOf . '} & ' . $f('signature') . " \\\\[2.8ex]\\hline\n"
+            . $f('class') . ' & \\multicolumn{2}{l|}{' . $f('date') . "} \\\\[2.8ex]\\hline\n"
+            . "\\end{tabularx}}\\par\n";
+    }
+
+    /** The question list in $cols columns (1 or 2), with a thin rule between the columns. */
+    public static function columns(string $content, int $cols = 1): string
+    {
+        return $cols >= 2 ? "\\begin{multicols}{2}\n{$content}\\end{multicols}\n" : $content;
     }
 
     /**
@@ -172,7 +228,7 @@ TEX;
     {
         $out = "\\par\\vspace{0.2em}\n";
         for ($i = 0; $i < $n; $i++) {
-            $out .= "\\noindent\\rule[-0.6ex]{\\textwidth}{0.25pt}\\\\[2.6ex]\n";
+            $out .= "\\noindent{\\color{svline}\\rule[-0.6ex]{\\linewidth}{0.5pt}}\\\\[3ex]\n";
         }
         return $out;
     }
@@ -184,7 +240,7 @@ TEX;
         $out = "{\\small\\begin{tabular}{@{}r@{\\hspace{0.8em}}l@{\\hspace{0.6em}}l@{}}\n";
         foreach ($labels as $i => $label) {
             $w = round($values[$i] / $max * $maxWidthMm, 1);
-            $out .= self::esc((string)$label) . ' & ' . ($w > 0 ? "\\rule{{$w}mm}{2.4mm}" : '\\rule{0pt}{2.4mm}') . ' & ' . (int)$values[$i] . " \\\\\n";
+            $out .= self::esc((string)$label) . ' & ' . ($w > 0 ? "\\textcolor{svclay}{\\rule{{$w}mm}{2.4mm}}" : '\\rule{0pt}{2.4mm}') . ' & ' . (int)$values[$i] . " \\\\\n";
         }
         return $out . "\\end{tabular}}\n";
     }

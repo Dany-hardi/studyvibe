@@ -55,13 +55,13 @@ $docs = [
   'empty_paper' => ExportDocs::questionPaper($pdo, $session, [], 'subject', 'fr'),
 ];
 foreach ($docs as $name => $d) {
-    check("$name: traditional font, no sans-serif or helvetica", !str_contains($d['tex'], 'helvet') && !str_contains($d['tex'], 'sfdefault') && str_contains($d['tex'], '{lmodern}'));
+    check("$name: Palatino text with Helvetica labels, the brand colours defined", str_contains($d['tex'], '{mathpazo}') && str_contains($d['tex'], '{helvet}') && str_contains($d['tex'], 'svpine'));
     $pdf = LatexCompiler::compile($d['tex'], $d['assets']);
     check("$name compiles", $pdf !== null && str_starts_with((string)$pdf, '%PDF'));
     if ($pdf !== null && $out !== null) { file_put_contents("$out/$name.pdf", $pdf); }
     if ($pdf !== null && $name === 'paper_subject_fr') {
         check('picture is embedded in the paper', str_contains($pdf, '/Subtype/Image') || str_contains($pdf, '/Subtype /Image'));
-        // Every font embedded in the paper is Latin Modern (the Computer Modern family)
+        // Every font embedded in the paper is Palatino (text, maths), Helvetica (labels) or the AMS symbol font
         if (trim((string)shell_exec('command -v pdffonts')) !== '') {
             $tmp = tempnam(sys_get_temp_dir(), 'zzpdf'); file_put_contents($tmp, $pdf);
             $names = [];
@@ -69,7 +69,7 @@ foreach ($docs as $name => $d) {
                 if (preg_match('/^\S+?\+(\S+)/', $line, $m)) { $names[] = $m[1]; }
             }
             @unlink($tmp);
-            check('paper uses Latin Modern (plus the AMS symbol font) only', $names !== [] && count(array_filter($names, fn($f) => !preg_match('/^(LM|MSAM|MSBM)/', $f))) === 0, implode(',', array_unique($names)));
+            check('paper uses Palatino, Helvetica and the maths fonts only', $names !== [] && count(array_filter($names, fn($f) => !preg_match('/(Palladio|Pazo|Nimbus|CM|MSAM|MSBM)/', $f))) === 0, implode(',', array_unique($names)));
         }
     }
 }
