@@ -45,6 +45,59 @@ final class ExportTheme
     // The document
     // ---------------------------------------------------------------------------------------------------------------
 
+    /** The traditional preamble: Computer Modern (Latin Modern), black on white, booktabs: used by the exam paper and the answer key. */
+    private static function classicPreamble(): string
+    {
+        return <<<'TEX'
+\documentclass[@@size@@,a4paper]{article}
+\usepackage[utf8]{inputenc}
+\usepackage[T1]{fontenc}
+\usepackage{lmodern}% Latin Modern: the traditional Computer Modern typeface, as vector fonts with all accents
+\usepackage[@@babel@@]{babel}
+\usepackage[@@geometry@@]{geometry}
+\usepackage{microtype}
+\usepackage{amsmath,amssymb}
+\usepackage{booktabs,longtable,array,tabularx}
+\usepackage{enumitem}
+\usepackage{needspace}
+\usepackage{fancyhdr}
+\usepackage{lastpage}
+\usepackage{graphicx}
+\usepackage{xcolor}
+\usepackage[hidelinks,pdftitle={@@title@@},pdfauthor={StudyVibe},pdfcreator={StudyVibe}]{hyperref}
+@@brand@@
+\setlength{\parindent}{0pt}
+\setlength{\parskip}{0.55em}
+\renewcommand{\arraystretch}{1.18}
+\setlength{\emergencystretch}{2em}
+
+\fancypagestyle{svpage}{%
+  \fancyhf{}%
+  \renewcommand{\headrulewidth}{0.4pt}%
+  \lhead{\small\textsc{@@hl@@}}%
+  \rhead{\small @@hr@@}%
+  \lfoot{\scriptsize @@fl@@}%
+  \cfoot{\small \thepage\,/\,\pageref{LastPage}}%
+}
+\fancypagestyle{svfirst}{%
+  \fancyhf{}%
+  \renewcommand{\headrulewidth}{0pt}%
+  \lfoot{\scriptsize @@fl@@}%
+  \cfoot{\small \thepage\,/\,\pageref{LastPage}}%
+}
+\pagestyle{svpage}
+
+% Section titles in the plain article style, only a little smaller
+\makeatletter
+\renewcommand{\section}{\@startsection{section}{1}{0pt}{2.2ex plus .4ex}{1ex}{\normalfont\large\bfseries}}
+\makeatother
+
+\begin{document}
+\thispagestyle{svfirst}
+
+TEX;
+    }
+
     /**
      * @param array{lang?:string,title?:string,header_left?:string,header_right?:string,footer_left?:string,font?:string} $o
      *        header_*, footer_left and title are plain text (they are escaped here)
@@ -60,7 +113,11 @@ final class ExportTheme
         $geometry = (!empty($o['landscape']) ? 'a4paper,landscape' : 'a4paper') . ',top=2.3cm,bottom=2.2cm,left=2cm,right=2cm,headheight=14pt,footskip=1.1cm';
         $size = in_array($o['font'] ?? '11pt', ['10pt', '11pt', '12pt'], true) ? ($o['font'] ?? '11pt') : '11pt';
 
-        $pre = <<<'TEX'
+        $classic = !empty($o['classic']);
+        if ($classic) {
+            $geometry = (!empty($o['landscape']) ? 'a4paper,landscape' : 'a4paper') . ',top=2.4cm,bottom=2.2cm,left=2.2cm,right=2.2cm,headheight=14pt,footskip=1.1cm';
+        }
+        $pre = $classic ? self::classicPreamble() : <<<'TEX'
 \documentclass[@@size@@,a4paper]{article}
 \usepackage[utf8]{inputenc}
 \usepackage[T1]{fontenc}
@@ -197,6 +254,36 @@ TEX;
             . $f('name') . ' & ' . $f('mark') . ' \\hfill {\\small/\\,' . $outOf . '} & ' . $f('signature') . " \\\\[2.8ex]\\hline\n"
             . $f('class') . ' & \\multicolumn{2}{l|}{' . $f('date') . "} \\\\[2.8ex]\\hline\n"
             . "\\end{tabularx}}\\par\n";
+    }
+
+    /** The traditional title block: centred logo, kind in small capitals, title, subtitle, a rule and a two-column list of facts. */
+    public static function titleBlockClassic(string $kind, string $title, string $subtitle = '', array $info = []): string
+    {
+        $out = "\\begin{center}\n\\svlogomono[3.2cm]\\par\\vspace{1.4em}\n";
+        $out .= '{\\normalsize\\scshape ' . self::esc($kind) . "\\par}\\vspace{0.5em}\n";
+        $out .= '{\\LARGE\\bfseries ' . self::esc($title) . "\\par}\n";
+        if ($subtitle !== '') {
+            $out .= '\\vspace{0.4em}{\\large ' . self::esc($subtitle) . "\\par}\n";
+        }
+        $out .= "\\end{center}\n\\vspace{-0.4em}\\noindent\\rule{\\textwidth}{0.8pt}\\par\n";
+        if ($info) {
+            $out .= "\\begin{center}\n\\begin{tabular}{@{}r@{\\hspace{1.2em}}l@{}}\n";
+            foreach ($info as [$label, $value]) {
+                $out .= '\\textit{' . self::esc($label) . '} & ' . self::esc($value) . " \\\\\n";
+            }
+            $out .= "\\end{tabular}\n\\end{center}\n";
+        }
+        return $out;
+    }
+
+    /** Lines to write on, plain black rules (traditional papers). */
+    public static function answerLinesClassic(int $n = 3): string
+    {
+        $out = "\\par\\vspace{0.2em}\n";
+        for ($i = 0; $i < $n; $i++) {
+            $out .= "\\noindent\\rule[-0.6ex]{\\textwidth}{0.25pt}\\\\[2.6ex]\n";
+        }
+        return $out;
     }
 
     /** The question list in $cols columns (1 or 2), with a thin rule between the columns. */

@@ -25,25 +25,21 @@ final class ExportDocs
      * @param array $questions rows of live_eval_questions
      * @param string $mode     'subject' (blank paper for students) or 'correction' (answer key)
      */
-    public static function questionPaper(PDO $pdo, array $session, array $questions, string $mode, string $lang = 'fr', ?int $cols = null): array
+    public static function questionPaper(PDO $pdo, array $session, array $questions, string $mode, string $lang = 'fr'): array
     {
         $key = $mode === 'correction';
-        $en = $lang === 'en';
         $L = fn(string $k) => ExportTheme::label($k, $lang);
         $n = count($questions);
 
         $seconds = 0;
-        $written = false;
         foreach ($questions as $q) {
             $seconds += $q['time_limit'] !== null ? (int)$q['time_limit'] : (int)$session['default_time_limit'];
-            $written = $written || (string)($q['question_type'] ?? 'mcq') !== 'mcq';
         }
         $minutes = (int)ceil($seconds / 60);
-        // Two columns for multiple-choice papers (short items, a lot per page); written questions need the full width
-        $cols = $cols === 2 || ($cols === null && !$written && $n > 3) ? 2 : 1;
 
         $info = [
             [$L('course'), (string)$session['course_title']],
+            [$L('session'), (string)$session['title']],
             [$L('date'), date('d/m/Y', strtotime((string)$session['start_time']))],
             [$L('questions'), (string)$n],
         ];
@@ -52,67 +48,69 @@ final class ExportDocs
         }
         $info[] = [$L('points'), $L('one_point')];
 
-        $body = ExportTheme::titleBlock($key ? ($en ? 'Answer key' : 'Corrigé') : ($en ? 'Written paper' : 'Épreuve écrite'), (string)$session['title'], '', $info);
+        $body = ExportTheme::titleBlockClassic($key ? ($lang === 'en' ? 'Answer key' : 'Corrigé') : ($lang === 'en' ? 'Written paper' : 'Épreuve écrite'), (string)$session['title'], (string)$session['course_title'], $info);
 
         if (!$key) {
-            $body .= ExportTheme::candidateBox($lang, $n);
-            $body .= "\\vspace{0.7em}\n\\svnote{\\itshape " . ($en
+            // The candidate's identity: lines to fill in
+            $body .= "\\vspace{0.6em}\n\\noindent\\begin{tabular}{@{}p{0.60\\textwidth}@{\\hspace{1.5em}}p{0.31\\textwidth}@{}}\n";
+            $body .= '\\textbf{' . ExportTheme::esc($L('name')) . "} \\dotfill & \\textbf{" . ExportTheme::esc($L('mark')) . "} \\dotfill\\,/\\," . $n . " \\\\[1.8ex]\n";
+            $body .= '\\textbf{' . ExportTheme::esc($L('class')) . "} \\dotfill & \\textbf{" . ExportTheme::esc($L('signature')) . "} \\dotfill \\\\\n\\end{tabular}\n\\par\\vspace{0.4em}\n";
+            $body .= '\\noindent\\textit{' . ($lang === 'en'
                 ? 'Read each question carefully. For a multiple-choice question tick one box only; for a written question answer on the lines provided.'
                 : 'Lisez attentivement chaque question. Pour une question à choix multiples, cochez une seule case ; pour une question rédigée, répondez sur les lignes prévues.')
-                . "}\n\\vspace{0.9em}\n";
-        } else {
-            $body .= "\\vspace{0.6em}\n";
+                . "}\n\\par\\vspace{0.2em}\\noindent\\rule{\\textwidth}{0.3pt}\n";
         }
 
         $assets = [];
-        $items = '';
         foreach ($questions as $i => $q) {
             $num = $i + 1;
             $type = (string)($q['question_type'] ?? 'mcq');
-            $item = '\\svbadge{' . $num . '}\\hfill{\\scriptsize\\sffamily\\color{svgray}1~' . ExportTheme::esc($L('point')) . "}\\par\\vspace{0.15em}\\nopagebreak\n";
-            $item .= ExportTheme::tex((string)$q['question_text']) . "\n";
-            $item .= self::picture($pdo, $q, $num, $assets);
+            $qStart = strlen($body);
+            // a question with a picture needs the room of the picture too, so the picture never ends up apart from its choices
+            $body .= "\n\\needspace{" . (empty($q['image_path']) ? '7' : '17') . "\\baselineskip}\n";
+            $body .= '\\textbf{' . ExportTheme::esc($L('question')) . "~{$num}.}\\hfill\\textit{\\small(1~" . ExportTheme::esc($L('point')) . ")}\\par\\nopagebreak\n";
+            $body .= ExportTheme::tex((string)$q['question_text']) . "\n";
+
+            $body .= self::picture($pdo, $q, $num, $assets);
 
             if ($type === 'mcq') {
+                $body .= "\\begin{itemize}[label={},leftmargin=3.4em,labelwidth=3em,labelsep=0.4em,align=right,itemsep=0.3ex,topsep=0.5ex,parsep=0pt]\n";
                 foreach (['A', 'B', 'C', 'D'] as $letter) {
                     $text = trim((string)($q['option_' . strtolower($letter)] ?? ''));
                     if ($text === '') {
                         continue;   // true/false questions only fill A and B
                     }
                     $isRight = $key && (string)$q['correct_option'] === $letter;
+                    $box = $isRight ? '$\\boxtimes$' : '$\\square$';
                     $t = ExportTheme::tex($text, true);
-                    $item .= '\\svopt{' . ($isRight ? 'svgreenbg' : 'white') . '}{'
-                        . ($isRight ? '\\textcolor{svpine}{$\\blacksquare$}' : '$\\square$') . "}{{$letter}}{" . ($isRight ? "\\textbf{{$t}}" : $t) . "}\n";
+                    $body .= "  \\item[{$box}~\\textbf{{$letter}.}] " . ($isRight ? "\\textbf{{$t}}" : $t) . "\n";
                 }
+                $body .= "\\end{itemize}\n";
             } elseif (!$key) {
-                $item .= ExportTheme::answerLines(4);
+                $body .= ExportTheme::answerLinesClassic(4);
             }
 
             if ($key) {
-                $note = '';
-                if ($type !== 'mcq') {
-                    $note .= '\\textbf{' . ExportTheme::esc($L('correct_answer')) . '.} ' . ExportTheme::tex(LiveScoring::displayAnswer((string)$q['correct_option'], $lang), true);
-                }
+                $right = ExportTheme::tex($type === 'mcq' ? (string)$q['correct_option'] : LiveScoring::displayAnswer((string)$q['correct_option'], $lang), true);
+                $body .= "\\begin{quote}\\small\\textit{" . ExportTheme::esc($L('correct_answer')) . '.} '
+                    . ($type === 'mcq' ? '\\textbf{' . $right . '}' : $right);
                 if (!empty($q['explanation'])) {
-                    $note .= ($note !== '' ? '\\par ' : '') . '\\textbf{' . ExportTheme::esc($L('justification')) . '.} ' . ExportTheme::tex((string)$q['explanation'], true);
+                    $body .= "\\par\\textit{" . ExportTheme::esc($L('justification')) . '.} ' . ExportTheme::tex((string)$q['explanation'], true);
                 }
-                if ($note !== '') {
-                    $item .= "\\vspace{3pt}\n\\svnote{" . $note . "}\n";
-                }
+                $body .= "\\end{quote}\n";
             }
-            // a question stays whole in its column unless it is very long
-            $items .= strlen($item) < 2600
-                ? "\\begin{minipage}[t]{\\linewidth}\n{$item}\\end{minipage}\\par\\vspace{0.6em}\n"
-                : "\\needspace{8\\baselineskip}\n{$item}\\par\\vspace{0.8em}\n";
+            // the question, its picture and its choices stay on one page (unless it is very long)
+            if (strlen($body) - $qStart < 2600) {
+                $body = substr($body, 0, $qStart) . "\\begin{samepage}" . substr($body, $qStart) . "\\end{samepage}\n";
+            }
         }
-        $body .= ExportTheme::columns($items, $cols);
 
         $tex = ExportTheme::document($body, [
-            'lang' => $lang,
-            'title' => ($key ? ($en ? 'Answer key: ' : 'Corrigé : ') : ($en ? 'Paper: ' : 'Épreuve : ')) . $session['title'],
+            'classic' => true, 'lang' => $lang,
+            'title' => ($key ? ($lang === 'en' ? 'Answer key: ' : 'Corrigé : ') : ($lang === 'en' ? 'Paper: ' : 'Épreuve : ')) . $session['title'],
             'header_left' => (string)$session['course_title'],
             'header_right' => (string)$session['title'],
-            'footer_left' => 'StudyVibe · ' . ($key ? ($en ? 'answer key' : 'corrigé') : ($en ? 'paper' : 'épreuve')),
+            'footer_left' => 'StudyVibe · ' . ($key ? ($lang === 'en' ? 'answer key' : 'corrigé') : ($lang === 'en' ? 'paper' : 'épreuve')),
         ]);
         return ['tex' => $tex, 'assets' => $assets];
     }
