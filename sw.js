@@ -9,7 +9,7 @@
  * always come from the network first, so a student never sees somebody else's cached page or an old exam.
  * The exam room keeps its own queue of unsent answers (see live-session.php) and replays it when the connection returns.
  */
-const VERSION = 'sv-v2';
+const VERSION = 'sv-v3';
 const STATIC = 'sv-static-' + VERSION;
 const OFFLINE_URL = '/offline.html';
 

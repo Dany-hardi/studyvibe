@@ -1332,8 +1332,8 @@ $tdHasCourse = (bool)$selectedCourse;
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
     <link href="https://fonts.googleapis.com/css2?family=Fraunces:ital,opsz,wght,SOFT@0,9..144,300..700,0..100;1,9..144,300..700,0..100&family=Hanken+Grotesk:wght@400;500;600;700&display=swap" rel="stylesheet">
-    <link rel="stylesheet" href="/assets/css/sv2.css">
-    <link rel="stylesheet" href="/assets/css/teacher.css">
+    <link rel="stylesheet" href="/assets/css/sv2.css?v=<?= (int)@filemtime(__DIR__ . "/../assets/css/sv2.css") ?>">
+    <link rel="stylesheet" href="/assets/css/teacher.css?v=<?= (int)@filemtime(__DIR__ . "/../assets/css/teacher.css") ?>">
 
     <!-- KaTeX: formulas in questions and lessons -->
     <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/katex@0.16.8/dist/katex.min.css">
@@ -1367,7 +1367,7 @@ $tdHasCourse = (bool)$selectedCourse;
             theme: { extend: { fontFamily: { sans: ['Hanken Grotesk', 'system-ui', 'sans-serif'], serif: ['Fraunces', 'Georgia', 'serif'] } } }
         }
     </script>
-    <script src="/assets/js/app.js"></script>
+    <script src="/assets/js/app.js?v=<?= (int)@filemtime(__DIR__ . "/../assets/js/app.js") ?>"></script>
     <script src="https://cdn.sheetjs.com/xlsx-0.20.1/package/dist/xlsx.full.min.js"></script>
     <script>window.SV_T = <?= json_encode($tdDict[$tdLang] ?? [], JSON_UNESCAPED_UNICODE) ?>; window.SV_LANG = <?= json_encode($tdLang) ?>;</script>
 </head>
@@ -3884,7 +3884,7 @@ $tdHasCourse = (bool)$selectedCourse;
 .bi-table td { padding: .4rem .6rem; border-bottom: 1px solid var(--line); vertical-align: top; } .bi-table tr.is-error td { background: color-mix(in srgb, var(--danger, #B3261E) 8%, transparent); }
 .bi-ok { color: var(--pine, #24402F); font-weight: 600; } .bi-bad { color: var(--danger, #B3261E); font-weight: 600; }
 </style>
-<script src="/assets/js/bulk-import.js" defer></script>
+<script src="/assets/js/bulk-import.js?v=<?= (int)@filemtime(__DIR__ . "/../assets/js/bulk-import.js") ?>" defer></script>
 
 <!-- ── Devoirs : fenêtre de notation ────────── -->
 <style>
@@ -3974,12 +3974,12 @@ $tdHasCourse = (bool)$selectedCourse;
         <div id="ag-body"></div>
     </div>
 </div>
-<script src="/assets/js/assignment-rubric.js" defer></script>
-<script src="/assets/js/teacher-requests.js" defer></script>
-<script src="/assets/js/assignment-grading.js" defer></script>
+<script src="/assets/js/assignment-rubric.js?v=<?= (int)@filemtime(__DIR__ . "/../assets/js/assignment-rubric.js") ?>" defer></script>
+<script src="/assets/js/teacher-requests.js?v=<?= (int)@filemtime(__DIR__ . "/../assets/js/teacher-requests.js") ?>" defer></script>
+<script src="/assets/js/assignment-grading.js?v=<?= (int)@filemtime(__DIR__ . "/../assets/js/assignment-grading.js") ?>" defer></script>
 
 <!-- ── Résultats : fenêtre « évaluation terminée » et tableau d'examen ────────── -->
-<link rel="stylesheet" href="/assets/css/results-review.css">
+<link rel="stylesheet" href="/assets/css/results-review.css?v=<?= (int)@filemtime(__DIR__ . "/../assets/css/results-review.css") ?>">
 <?php
 $rvPrompt = null;
 try {
@@ -4069,7 +4069,7 @@ try {
         </div>
     </div>
 </div>
-<script src="/assets/js/results-review.js" defer></script>
+<script src="/assets/js/results-review.js?v=<?= (int)@filemtime(__DIR__ . "/../assets/js/results-review.js") ?>" defer></script>
 
 <!-- ── Modal : Créer une séance de téléévaluation ────────── -->
 <div id="add-live-session-modal" class="hidden fixed inset-0 bg-black/40  z-[60] flex items-center justify-center p-6">
@@ -6539,8 +6539,8 @@ function downloadConvertedCsv() {
     closeScoreConverterModal();
 }
 </script>
-<script src="/assets/js/nav-more.js" defer></script>
-<script src="/assets/js/teacher.js"></script>
+<script src="/assets/js/nav-more.js?v=<?= (int)@filemtime(__DIR__ . "/../assets/js/nav-more.js") ?>" defer></script>
+<script src="/assets/js/teacher.js?v=<?= (int)@filemtime(__DIR__ . "/../assets/js/teacher.js") ?>"></script>
 <?php
 require_once __DIR__ . '/../lib/PhonePrompt.php';
 $phoneBlocks = PhonePrompt::render($user, $tdLang);

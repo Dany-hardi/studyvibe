@@ -408,10 +408,10 @@ function sdCourseRow(array $c, array $certByCourse, array $lessonCounts): string
     <link rel="icon" type="image/png" href="/assets/img/favicon.png" sizes="32x32">
     <link rel="apple-touch-icon" href="/assets/img/apple-touch-icon.png">
     <?= sdFontsLink() ?>
-    <link rel="stylesheet" href="/assets/css/sv2.css">
+    <link rel="stylesheet" href="/assets/css/sv2.css?v=<?= (int)@filemtime(__DIR__ . "/../assets/css/sv2.css") ?>">
     <?= Brand::headLinks() ?>
-    <link rel="stylesheet" href="/assets/css/student.css">
-    <link rel="stylesheet" href="/assets/css/reader-flow.css">
+    <link rel="stylesheet" href="/assets/css/student.css?v=<?= (int)@filemtime(__DIR__ . "/../assets/css/student.css") ?>">
+    <link rel="stylesheet" href="/assets/css/reader-flow.css?v=<?= (int)@filemtime(__DIR__ . "/../assets/css/reader-flow.css") ?>">
     <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/katex@0.16.8/dist/katex.min.css">
     <script defer src="https://cdn.jsdelivr.net/npm/katex@0.16.8/dist/katex.min.js"></script>
     <script defer src="https://cdn.jsdelivr.net/npm/katex@0.16.8/dist/contrib/auto-render.min.js"></script>
@@ -1330,12 +1330,12 @@ if (empty($user['matricule']) || $matDuplicate): ?>
 window.SV_T = <?= json_encode(sdJs(), JSON_UNESCAPED_UNICODE | JSON_HEX_TAG | JSON_HEX_AMP) ?>;
 window.SV_LANG = <?= json_encode($lang) ?>;
 </script>
-<script src="/assets/js/app.js"></script>
-<script src="/assets/js/nav-more.js" defer></script>
-<script src="/assets/js/pdf-reader.js"></script>
-<script src="/assets/js/video-chain.js"></script>
+<script src="/assets/js/app.js?v=<?= (int)@filemtime(__DIR__ . "/../assets/js/app.js") ?>"></script>
+<script src="/assets/js/nav-more.js?v=<?= (int)@filemtime(__DIR__ . "/../assets/js/nav-more.js") ?>" defer></script>
+<script src="/assets/js/pdf-reader.js?v=<?= (int)@filemtime(__DIR__ . "/../assets/js/pdf-reader.js") ?>"></script>
+<script src="/assets/js/video-chain.js?v=<?= (int)@filemtime(__DIR__ . "/../assets/js/video-chain.js") ?>"></script>
 <script src="/assets/js/student.js?v=<?= (int)@filemtime(__DIR__ . "/../assets/js/student.js") ?>"></script>
-<script src="/assets/js/student-requests.js"></script>
+<script src="/assets/js/student-requests.js?v=<?= (int)@filemtime(__DIR__ . "/../assets/js/student-requests.js") ?>"></script>
 <?php
 $matBlocks = empty($user['matricule']) || !empty($matDuplicate);
 require_once __DIR__ . '/../lib/PhonePrompt.php';
