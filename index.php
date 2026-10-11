@@ -40,19 +40,19 @@ Analytics::captureSource();      // ?src=qr-campus-1 is remembered for the sessi
 Analytics::hit('view:landing');
 $T = [
 'fr' => [
- 'title' => 'StudyVibe — L’examen en direct, sans accroc',
- 'desc' => "Toute la promo démarre à la même seconde, les notes arrivent sans correction à la main, et chaque réussite devient un certificat vérifiable. Pour les universités et les centres de formation.",
- 'nav_eval' => 'Évaluations', 'nav_how' => 'Le parcours', 'nav_live' => 'Examen en direct', 'nav_who' => 'Pour qui',
+ 'title' => 'StudyVibe — Apprendre sans perdre le fil',
+ 'desc' => "Des cours clairs, des devoirs, des évaluations notées sans correction à la main, et un certificat vérifiable à la clé. Pour les universités et les centres de formation.",
+ 'nav_eval' => 'Évaluations', 'nav_how' => 'Le parcours', 'nav_live' => 'Évaluations en direct', 'nav_who' => 'Pour qui',
  'login' => 'Se connecter', 'join' => 'Créer un compte', 'theme' => 'Changer de thème', 'menu' => 'Menu',
- 'kicker' => 'Examens en direct pour l’enseignement supérieur et la formation',
- 'h1' => 'L’examen en direct, <em>sans accroc.</em>',
- 'lede' => 'Toute la promo démarre à la même seconde, les notes arrivent sans correction à la main, et chaque réussite devient un certificat vérifiable. Les cours sont là pour préparer la salle.',
- 'cta1' => 'Commencer gratuitement', 'cta2' => 'Voir un examen en direct',
+ 'kicker' => 'La plateforme d’apprentissage pour l’enseignement supérieur et la formation',
+ 'h1' => 'Apprendre sans <em>perdre le fil.</em>',
+ 'lede' => 'Des cours clairs, des devoirs, des évaluations notées sans correction à la main, et un certificat vérifiable à la clé. Tout est au même endroit, dans le navigateur.',
+ 'cta1' => 'Commencer gratuitement', 'cta2' => 'Voir comment ça marche',
  'note' => 'Testé avec 300 étudiants simulés connectés en même temps. Dans le navigateur, sans application à installer.',
  'room_live' => 'EN DIRECT', 'room_title' => 'INF242 · QCM de fin de module', 'room_count' => '47 connectés',
  'room_q_n' => 'Question 6 sur 20', 'room_q' => 'Quelle est la complexité d’une recherche dans un arbre binaire de recherche équilibré ?',
  'room_o' => ['O(1)', 'O(log n)', 'O(n)', 'O(n log n)'],
- 'study_alt' => 'Une étudiante révise sur son ordinateur', 'cert_alt' => 'Une étudiante consulte son certificat', 'end_alt' => 'Des diplômés qui célèbrent', 'end_p' => 'Créez votre compte, préparez la séance, et laissez la salle se remplir. Le reste se fait tout seul.',
+ 'study_alt' => 'Une étudiante révise sur son ordinateur', 'cert_alt' => 'Une étudiante consulte son certificat', 'end_alt' => 'Des diplômés qui célèbrent', 'end_p' => 'Créez votre compte, préparez votre cours, et laissez vos étudiants arriver. Le reste se fait tout seul.',
  'art_alt' => 'Un étudiant lit sur un canapé', 'live_alt' => 'Une étudiante suit une séance en direct sur son ordinateur',
  's1_k' => 'Le parcours', 's1_h' => 'Trois temps, un seul compte.',
  's1_p' => 'Un étudiant s’inscrit, apprend, se fait évaluer, puis reçoit une preuve qu’il peut montrer à n’importe qui.',
@@ -73,7 +73,7 @@ $T = [
  's4_k' => 'Certificats', 's4_h' => 'Un certificat qui se vérifie.', 's4_p' => 'Vous avez un code reçu avec un certificat ? Collez-le ici pour confirmer qu’il est authentique.',
  'v_ph' => 'Code du certificat', 'v_btn' => 'Vérifier',
  'cert_k' => 'Certificat de réussite', 'cert_h' => 'Module validé', 'cert_p' => 'Remis à un étudiant ayant validé l’ensemble des évaluations du module.', 'cert_c' => 'Code', 'cert_ex' => 'exemple',
- 'end_h' => 'Prêt à ouvrir <em>votre première séance ?</em>',
+ 'end_h' => 'Prêt à lancer <em>votre premier cours ?</em>',
  'foot_c' => 'Tous droits réservés.', 'foot_p' => 'Confidentialité',
  'a_login_h' => 'Bon retour', 'a_login_s' => 'Connectez-vous pour reprendre là où vous vous étiez arrêté.',
  'email' => 'Adresse e-mail', 'email_ph' => 'vous@exemple.com', 'pw' => 'Mot de passe', 'show' => 'Afficher', 'hide' => 'Masquer',
@@ -90,19 +90,19 @@ $T = [
  'auth_req' => 'Connectez-vous pour accéder à cette évaluation.', 'close' => 'Fermer',
 ],
 'en' => [
- 'title' => 'StudyVibe — Live exams that hold up',
- 'desc' => 'The whole cohort starts on the same second, grades arrive without marking by hand, and every pass becomes a certificate anyone can verify. For universities and training centres.',
- 'nav_eval' => 'Evaluations', 'nav_how' => 'How it works', 'nav_live' => 'Live exams', 'nav_who' => 'Who it’s for',
+ 'title' => 'StudyVibe — Learn without losing the thread',
+ 'desc' => 'Clear courses, assignments, assessments graded without marking by hand, and a certificate anyone can verify. For universities and training centres.',
+ 'nav_eval' => 'Evaluations', 'nav_how' => 'How it works', 'nav_live' => 'Live assessments', 'nav_who' => 'Who it’s for',
  'login' => 'Sign in', 'join' => 'Create account', 'theme' => 'Toggle theme', 'menu' => 'Menu',
- 'kicker' => 'Live exams for higher education and training',
- 'h1' => 'Live exams <em>that hold up.</em>',
- 'lede' => 'The whole cohort starts on the same second, grades arrive without marking by hand, and every pass becomes a certificate anyone can verify. The courses are there to prepare the room.',
- 'cta1' => 'Get started free', 'cta2' => 'See a live exam',
+ 'kicker' => 'The learning platform for higher education and training',
+ 'h1' => 'Learn without <em>losing the thread.</em>',
+ 'lede' => 'Clear courses, assignments, assessments graded without marking by hand, and a certificate anyone can verify. Everything in one place, in the browser.',
+ 'cta1' => 'Get started free', 'cta2' => 'See how it works',
  'note' => 'Tested with 300 simulated students connected at the same time. In the browser, nothing to install.',
  'room_live' => 'LIVE', 'room_title' => 'INF242 · End-of-module quiz', 'room_count' => '47 connected',
  'room_q_n' => 'Question 6 of 20', 'room_q' => 'What is the time complexity of a lookup in a balanced binary search tree?',
  'room_o' => ['O(1)', 'O(log n)', 'O(n)', 'O(n log n)'],
- 'study_alt' => 'A student revising at her computer', 'cert_alt' => 'A student looking at her certificate', 'end_alt' => 'Graduates celebrating', 'end_p' => 'Create your account, set up the session, and let the room fill up. The rest takes care of itself.',
+ 'study_alt' => 'A student revising at her computer', 'cert_alt' => 'A student looking at her certificate', 'end_alt' => 'Graduates celebrating', 'end_p' => 'Create your account, set up your course, and let your students arrive. The rest takes care of itself.',
  'art_alt' => 'A student reading on a couch', 'live_alt' => 'A student following a live session on a laptop',
  's1_k' => 'How it works', 's1_h' => 'Three moments, one account.',
  's1_p' => 'A student signs up, learns, gets assessed, then walks away with proof they can show anyone.',
@@ -123,7 +123,7 @@ $T = [
  's4_k' => 'Certificates', 's4_h' => 'A certificate you can check.', 's4_p' => 'Got a code with a certificate? Paste it here to confirm it is genuine.',
  'v_ph' => 'Certificate code', 'v_btn' => 'Verify',
  'cert_k' => 'Certificate of achievement', 'cert_h' => 'Module completed', 'cert_p' => 'Awarded to a student who passed every assessment in the module.', 'cert_c' => 'Code', 'cert_ex' => 'example',
- 'end_h' => 'Ready to open <em>your first session?</em>',
+ 'end_h' => 'Ready to launch <em>your first course?</em>',
  'foot_c' => 'All rights reserved.', 'foot_p' => 'Privacy',
  'a_login_h' => 'Welcome back', 'a_login_s' => 'Sign in to pick up where you left off.',
  'email' => 'Email address', 'email_ph' => 'you@example.com', 'pw' => 'Password', 'show' => 'Show', 'hide' => 'Hide',
@@ -196,7 +196,7 @@ $e = fn(string $k): string => htmlspecialchars((string)$T[$k], ENT_QUOTES, 'UTF-
       <p class="lede"><?= $e('lede') ?></p>
       <div class="hero-cta">
         <button class="btn btn-primary btn-lg" type="button" data-open-auth="signup"><?= $e('cta1') ?></button>
-        <a class="btn btn-ghost btn-lg" href="#direct"><?= $e('cta2') ?></a>
+        <a class="btn btn-ghost btn-lg" href="#parcours"><?= $e('cta2') ?></a>
       </div>
       <p class="hero-note"><?= $e('note') ?></p>
     </div>
