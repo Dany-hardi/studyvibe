@@ -87,6 +87,10 @@ foreach (['fr', 'en'] as $lg) {
         "transcript $lg" => StudentDocs::transcript(['name' => 'Éloïse Ndzié', 'matricule' => '20A1234'],
             [['course_title' => 'Programmation Web & co', 'module_title' => 'L3', 'progress_percent' => 85, 'best_text' => '78,5', 'attempts' => 2], ['course_title' => 'Algèbre', 'module_title' => 'L1', 'progress_percent' => 0, 'best_text' => '', 'attempts' => 0]],
             [['lesson_title' => 'Intro_PHP #1', 'course_title' => 'Web', 'date_text' => '09/10/2026', 'score' => 90]], [['course_title' => 'Web', 'date_text' => '10/10/2026', 'score_text' => '21,3']], $t),
+        "transcript with QR $lg" => StudentDocs::transcript(['name' => 'Éloïse Ndzié', 'matricule' => '20A1234'],
+            [['course_title' => 'Programmation Web & co', 'module_title' => 'L3', 'progress_percent' => 85, 'best_score' => 78.5, 'best_text' => '78,5', 'attempts' => 2]],
+            [['lesson_title' => 'Intro_PHP #1', 'course_title' => 'Web', 'date_text' => '09/10/2026', 'score' => 90], ['lesson_title' => 'CSS', 'course_title' => 'Web', 'date_text' => '09/10/2026', 'score' => 40]], [],
+            $t, ['code' => 'TR-ABCD-EFGH-JKMN', 'issued_at' => '2026-10-11 10:00:00', 'fingerprint' => str_repeat('ab12', 16)], 'https://exemple.cm/verify.php?code=TR-ABCD-EFGH-JKMN'),
         "transcript empty $lg" => StudentDocs::transcript(['name' => 'Sans Cours'], [], [], [], $t),
         "attempt $lg" => StudentDocs::attemptReport(['student_name' => 'Éloïse', 'course_title' => 'Web & co', 'score' => 21.3], $t, 80.0, 80),
     ];

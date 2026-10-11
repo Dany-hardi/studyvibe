@@ -1,0 +1,85 @@
+/* Public verification page (verify.php): illustrated hero, one clear verdict card, how-it-works. Uses the sv2 variables and follows dark mode. */
+.vf-body { min-height: 100vh; display: flex; flex-direction: column; }
+.vf-sr { position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0 0 0 0); white-space: nowrap; }
+.vf-top { position: sticky; top: 0; z-index: 10; background: color-mix(in srgb, var(--paper) 88%, transparent); backdrop-filter: blur(10px); border-bottom: 1px solid var(--line); }
+.vf-top-in { max-width: 1080px; margin: 0 auto; padding: .8rem 1.25rem; display: flex; align-items: center; justify-content: space-between; gap: 1rem; }
+.vf-logo { display: inline-flex; }
+.vf-badge { display: inline-flex; align-items: center; gap: .4rem; font-size: .78rem; font-weight: 600; letter-spacing: .04em; text-transform: uppercase; color: var(--pine); background: var(--pine-soft); padding: .35rem .75rem; border-radius: 999px; }
+.vf-wrap { width: 100%; max-width: 1080px; margin: 0 auto; padding: 0 1.25rem 3rem; flex: 1; }
+
+/* hero */
+.vf-hero { display: grid; grid-template-columns: minmax(0, 1.1fr) minmax(0, .9fr); align-items: center; gap: 2rem; margin: 1.6rem 0 1.8rem; padding: 2.4rem 2.6rem; border-radius: 30px; border: 1px solid var(--line); background: linear-gradient(135deg, var(--card), color-mix(in srgb, var(--clay-soft) 55%, var(--card))); }
+.vf-kicker { margin: 0; font-size: .78rem; font-weight: 700; letter-spacing: .12em; text-transform: uppercase; color: var(--clay); }
+.vf-hero h1 { font-size: clamp(2rem, 4.2vw, 3.2rem); font-weight: 450; line-height: 1.06; margin: .55rem 0 .85rem; }
+.vf-hero h1 em { font-style: italic; color: var(--clay); font-weight: 400; }
+.vf-lede { margin: 0 0 1.4rem; max-width: 46ch; color: var(--ink-2); font-size: 1.05rem; line-height: 1.6; }
+.vf-form { display: flex; gap: .6rem; flex-wrap: wrap; max-width: 34rem; }
+.vf-form input { flex: 1 1 15rem; min-width: 0; padding: .85rem 1.1rem; border-radius: 999px; border: 1px solid var(--line-2); background: var(--card); color: var(--ink); font: 600 .98rem var(--font-body); letter-spacing: .02em; }
+.vf-form input::placeholder { font-weight: 400; letter-spacing: 0; color: var(--ink-3); }
+.vf-form input:focus-visible { outline: 2px solid var(--clay); outline-offset: 2px; border-color: var(--clay); }
+.vf-art { position: relative; margin: 0; display: grid; place-items: center; }
+.vf-art img { position: relative; width: 100%; height: auto; max-height: 320px; object-fit: contain; }
+.vf-blob { position: absolute; inset: 8% 6%; border-radius: 46% 54% 52% 48% / 50% 44% 56% 50%; background: color-mix(in srgb, var(--clay) 12%, transparent); }
+
+/* verdict card */
+.vf-result { margin: 0 0 1.2rem; border-radius: 26px; border: 1px solid var(--line); background: var(--card); overflow: hidden; box-shadow: var(--shadow-2); animation: vf-in .35s ease; }
+@keyframes vf-in { from { opacity: 0; transform: translateY(10px); } }
+.vf-status { position: relative; display: flex; align-items: center; gap: 1rem; padding: 1.2rem 1.6rem; }
+.vf-status h2 { font-size: 1.5rem; font-weight: 500; }
+.vf-status p { margin: .2rem 0 0; font-size: .92rem; color: var(--ink-2); max-width: 60ch; }
+.vf-ico { flex: none; width: 3rem; height: 3rem; border-radius: 50%; display: grid; place-items: center; font-size: 1.4rem; font-weight: 700; color: #fff; }
+.is-ok .vf-status { background: var(--pine-soft); color: var(--pine); }
+.is-ok .vf-ico { background: var(--ok); }
+.is-ok .vf-status p { color: var(--ink-2); }
+.is-bad .vf-status { background: color-mix(in srgb, var(--danger) 10%, var(--card)); }
+.is-bad .vf-ico { background: var(--danger); }
+.is-warn .vf-status { background: color-mix(in srgb, #D9A23B 18%, var(--card)); }
+.is-warn .vf-ico { background: #B7791F; }
+.vf-seal { position: absolute; right: 1.4rem; top: 50%; width: 4.4rem; height: 4.4rem; transform: translateY(-50%) rotate(-10deg); color: var(--pine); opacity: .55; }
+.vf-codeline { margin: 0; padding: .9rem 1.6rem 1.2rem; color: var(--ink-3); font-size: .9rem; }
+.vf-body-card { padding: 1.4rem 1.6rem 1.6rem; display: grid; gap: 1.1rem; }
+.vf-eyebrow { margin: 0; font-size: .72rem; font-weight: 700; letter-spacing: .12em; text-transform: uppercase; color: var(--ink-3); }
+.vf-name { margin: -.6rem 0 0; font-family: var(--font-display); font-size: clamp(1.7rem, 3.4vw, 2.4rem); font-weight: 450; line-height: 1.1; letter-spacing: -.01em; overflow-wrap: anywhere; }
+.vf-grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 1rem 2rem; margin: 0; padding-top: 1.1rem; border-top: 1px solid var(--line); }
+.vf-grid dt { font-size: .76rem; color: var(--ink-3); }
+.vf-grid dd { margin: .15rem 0 0; font-weight: 600; overflow-wrap: anywhere; }
+.vf-grid .vf-wide { grid-column: 1 / -1; }
+.vf-grid .vf-wide dd { font-weight: 400; color: var(--ink-2); }
+.vf-grid code, .vf-codeline code { font: 600 .86rem ui-monospace, SFMono-Regular, Menlo, monospace; color: var(--clay); background: var(--clay-soft); padding: .12rem .5rem; border-radius: 8px; letter-spacing: .03em; }
+.vf-good { color: var(--ok); }
+.vf-stats { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: .7rem; }
+.vf-stats > div { background: var(--paper-2); border-radius: 16px; padding: .8rem 1rem; }
+.vf-stats b { display: block; font-family: var(--font-display); font-size: 1.7rem; font-weight: 500; line-height: 1.1; color: var(--clay); }
+.vf-stats span { display: block; margin-top: .2rem; font-size: .76rem; color: var(--ink-3); line-height: 1.3; }
+.vf-note { margin: 0; font-size: .86rem; color: var(--ink-3); }
+.vf-actions { display: flex; flex-wrap: wrap; gap: .6rem; margin: 0 0 1.4rem; }
+
+/* how it works */
+.vf-block { margin: 2rem 0 0; }
+.vf-block > h2 { font-size: 1.5rem; margin-bottom: 1rem; }
+.vf-steps { list-style: none; margin: 0; padding: 0; display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 1rem; counter-reset: s; }
+.vf-steps li { display: flex; gap: .9rem; padding: 1.1rem 1.2rem; border: 1px solid var(--line); border-radius: 20px; background: var(--card); }
+.vf-n { flex: none; width: 2rem; height: 2rem; border-radius: 50%; background: var(--clay); color: #fff; font-weight: 700; font-size: .9rem; display: grid; place-items: center; }
+.vf-steps h3, .vf-card h3 { font-size: 1.05rem; font-family: var(--font-body); font-weight: 700; letter-spacing: 0; margin: 0 0 .25rem; }
+.vf-steps p, .vf-card p { margin: 0; font-size: .92rem; color: var(--ink-2); }
+.vf-can { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 1rem; }
+.vf-card { padding: 1.2rem 1.3rem; border: 1px solid var(--line); border-radius: 20px; background: var(--card); }
+.vf-card-ico { display: inline-grid; place-items: center; width: 2.6rem; height: 2.6rem; border-radius: 14px; background: var(--clay-soft); color: var(--clay); margin-bottom: .7rem; }
+
+.vf-foot { display: flex; flex-wrap: wrap; justify-content: center; gap: .6rem; padding: 1.2rem; border-top: 1px solid var(--line); color: var(--ink-3); font-size: .85rem; }
+.vf-foot a { color: var(--ink-2); }
+
+@media (max-width: 860px) {
+  .vf-hero { grid-template-columns: 1fr; padding: 1.6rem 1.3rem; }
+  .vf-art { order: -1; }
+  .vf-art img { max-height: 200px; }
+  .vf-steps { grid-template-columns: 1fr; }
+  .vf-stats { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+}
+@media (max-width: 560px) {
+  .vf-grid, .vf-can { grid-template-columns: 1fr; }
+  .vf-status { padding: 1rem 1.1rem; flex-wrap: wrap; }
+  .vf-seal { display: none; }
+  .vf-body-card { padding: 1.1rem; }
+}
+@media (prefers-reduced-motion: reduce) { .vf-result { animation: none; } }

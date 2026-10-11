@@ -103,20 +103,65 @@ TEX;
         ]), 'assets' => []];
     }
 
+    /** Words of the transcript that are not in lib/student_i18n.php. */
+    private const TR = [
+        'fr' => [
+            'doc_no' => 'N° du document', 'courses' => 'Cours suivis', 'lessons' => 'Leçons validées', 'avg_best' => 'Moyenne des meilleurs scores',
+            'avg_progress' => 'Progression moyenne', 'dist' => 'Répartition des scores aux leçons', 'dist_note' => 'Nombre de leçons par tranche de score',
+            'verify_h' => 'Vérifier ce document', 'verify_p' => 'Scannez le QR code ou saisissez le code sur la page de vérification : elle confirme que ce relevé a bien été délivré par StudyVibe et résume son contenu. Un relevé modifié après impression ne correspond plus à l’empreinte enregistrée.',
+            'code' => 'Code du relevé', 'fingerprint' => 'Empreinte', 'issued' => 'Délivré le', 'student' => 'Étudiant',
+            'bins' => ['moins de 50', '50 à 69', '70 à 84', '85 et plus'],
+        ],
+        'en' => [
+            'doc_no' => 'Document no.', 'courses' => 'Courses followed', 'lessons' => 'Lessons completed', 'avg_best' => 'Average of best scores',
+            'avg_progress' => 'Average progress', 'dist' => 'Lesson score distribution', 'dist_note' => 'Number of lessons per score band',
+            'verify_h' => 'Check this document', 'verify_p' => 'Scan the QR code or type the code on the verification page: it confirms that StudyVibe issued this transcript and summarises its content. A transcript altered after printing no longer matches the fingerprint on record.',
+            'code' => 'Transcript code', 'fingerprint' => 'Fingerprint', 'issued' => 'Issued on', 'student' => 'Student',
+            'bins' => ['under 50', '50 to 69', '70 to 84', '85 and over'],
+        ],
+    ];
+
     /**
-     * The transcript: courses (progress, best score, attempts), completed lessons with their scores, failed certification attempts.
+     * The transcript: figures at a glance, courses with progress bars, a distribution of lesson scores, completed lessons, failed
+     * certification attempts and, at the end, the verification block (QR code, code, fingerprint).
      *
      * @param array{name:string,matricule?:?string} $user
+     * @param array{code:string,issued_at:string,fingerprint:string}|null $issue the record from Transcripts::issue()
      */
-    public static function transcript(array $user, array $courses, array $lessons, array $failed, array $t): array
+    public static function transcript(array $user, array $courses, array $lessons, array $failed, array $t, ?array $issue = null, string $verifyUrl = ''): array
     {
         $e = fn(string $s) => ExportTheme::esc($s);
-        $info = [];
+        $L = self::TR[$t['_lang'] === 'en' ? 'en' : 'fr'];
+        $pc = fn($v) => str_replace('.', ',', (string)round((float)$v, 1));
+
+        $body = '';
+        if ($issue && $verifyUrl !== '') {
+            $body .= ExportTheme::qrBox($verifyUrl);
+        }
+        $info = [[$L['student'], (string)$user['name']]];
         if (!empty($user['matricule'])) {
             $info[] = [$t['matricule'], (string)$user['matricule']];
         }
         $info[] = [$t['doc_generated_label'], $t['generated_at']];
-        $body = ExportTheme::titleBlock($t['doc_transcript'], (string)$user['name'], '', $info);
+        if ($issue) {
+            $info[] = [$L['doc_no'], (string)$issue['code']];
+        }
+        $body .= ExportTheme::titleBlock($t['doc_transcript'], (string)$user['name'], '', $info);
+
+        // Figures at a glance
+        $best = [];
+        foreach ($courses as $c) {
+            if (($c['best_score'] ?? null) !== null) {
+                $best[] = (float)$c['best_score'];
+            }
+        }
+        $prog = $courses ? array_sum(array_map(fn($c) => (float)$c['progress_percent'], $courses)) / count($courses) : null;
+        $body .= ExportTheme::statCards([
+            [(string)count($courses), $L['courses']],
+            [(string)count($lessons), $L['lessons']],
+            [$best ? $pc(array_sum($best) / count($best)) . ' %' : '—', $L['avg_best']],
+            [$prog !== null ? $pc($prog) . ' %' : '—', $L['avg_progress']],
+        ]);
 
         $sub = fn(string $main, string $small) => $e($main) . ($small !== '' ? '\\newline{\\scriptsize\\color{svgray}' . $e($small) . '}' : '');
         $body .= '\\section*{' . $e($t['by_course']) . "}\n";
@@ -125,19 +170,30 @@ TEX;
         } else {
             $rows = [];
             foreach ($courses as $c) {
-                $rows[] = [$sub((string)$c['course_title'], (string)$c['module_title']), (int)$c['progress_percent'] . '\\,\\%',
+                $p = (float)$c['progress_percent'];
+                $rows[] = [$sub((string)$c['course_title'], (string)$c['module_title']),
+                    ExportTheme::miniBar($p) . '\;{\\small ' . (int)$p . '\\,\\%}',
                     ($c['best_text'] ?? '') !== '' ? $e((string)$c['best_text']) . '\\,\\%' : '---', (string)(int)$c['attempts']];
             }
-            $body .= ExportTheme::table([[$t['th_course'], 'p{9.6cm}'], [$t['th_progress'], 'r'], [$t['th_best'], 'r'], [$t['th_attempts'], 'r']], $rows);
+            $body .= ExportTheme::table([[$t['th_course'], 'p{7.6cm}'], [$t['th_progress'], 'r'], [$t['th_best'], 'r'], [$t['th_attempts'], 'r']], $rows);
         }
 
         if ($lessons) {
+            // Illustration: how the lesson scores are spread
+            $bins = [0, 0, 0, 0];
+            foreach ($lessons as $l) {
+                $v = (float)$l['score'];
+                $bins[$v < 50 ? 0 : ($v < 70 ? 1 : ($v < 85 ? 2 : 3))]++;
+            }
+            $body .= '\\section*{' . $e($L['dist']) . "}\n{\\small\\color{svgray}" . $e($L['dist_note']) . "}\\par\\vspace{0.3em}\n";
+            $body .= ExportTheme::barChart($L['bins'], $bins, 80.0);
+
             $body .= '\\section*{' . $e($t['doc_completed_lessons']) . "}\n";
             $rows = [];
             foreach ($lessons as $l) {
                 $rows[] = [$sub((string)$l['lesson_title'], (string)$l['course_title']), $e((string)$l['date_text']), (int)$l['score'] . '\\,\\%'];
             }
-            $body .= ExportTheme::table([[$t['th_lesson'], 'p{12.2cm}'], [$t['th_date'], 'r'], [$t['th_score'], 'r']], $rows);
+            $body .= ExportTheme::table([[$t['th_lesson'], 'p{13.3cm}'], [$t['th_date'], 'r'], [$t['th_score'], 'r']], $rows);
         }
 
         if ($failed) {
@@ -150,11 +206,27 @@ TEX;
             $body .= ExportTheme::table([[$t['th_course'], 'p{8.8cm}'], [$t['th_date'], 'r'], [$t['th_score'], 'r'], [$t['doc_th_result'], 'r']], $rows);
             $body .= '\\vspace{0.6em}\\svnote{' . $e($t['doc_failed_note']) . "}\n";
         }
-        $body .= '\\vfill\\begin{center}{\\scriptsize\\color{svgray}' . $e($t['doc_footer']) . "}\\end{center}\n";
 
+        // Verification block, kept in one piece at the end
+        if ($issue && $verifyUrl !== '') {
+            $fp = strtoupper(implode('-', str_split(substr((string)$issue['fingerprint'], 0, 16), 4)));
+            $short = preg_replace('#^https?://#', '', (string)strtok($verifyUrl, '?'));   // the query part is the code, printed separately
+            $body .= "\\par\\needspace{7cm}\\vspace{1.4em}\\noindent{\\setlength{\\fboxsep}{10pt}\\colorbox{svcard}{\\begin{minipage}{\\dimexpr\\textwidth-20pt\\relax}\n"
+                . "\\begin{minipage}[c]{3.1cm}\\centering\\usebox{\\svqr}\\end{minipage}\\hfill\n"
+                . "\\begin{minipage}[c]{\\dimexpr\\linewidth-3.4cm\\relax}"
+                . '{\\sffamily\\bfseries\\color{svclay}' . $e($L['verify_h']) . "}\\par\\vspace{3pt}\n"
+                . '{\\small ' . $e($L['verify_p']) . "}\\par\\vspace{5pt}\n"
+                . '{\\scriptsize\\sffamily\\color{svgray}\\textbf{' . $e($L['code']) . '} \\ {\\ttfamily ' . preg_replace('/[^A-Z0-9-]/', '', (string)$issue['code'])
+                . '}\\quad\\textbf{' . $e($L['fingerprint']) . '} \\ {\\ttfamily ' . $fp . "}\\par\n"
+                . '\\textbf{' . $e($L['issued']) . '} \\ ' . $e($t['generated_at']) . '\\quad ' . $e($short) . "}\n"
+                . "\\end{minipage}\n\\end{minipage}}}\\par\n";
+        }
+        $body .= '\\vspace{1em}\\begin{center}{\\scriptsize\\color{svgray}' . $e($t['doc_footer']) . "}\\end{center}\n";
+
+        $footer = 'StudyVibe · ' . $t['doc_transcript'] . ($issue ? ' · ' . $issue['code'] : '');
         return ['tex' => ExportTheme::document($body, [
             'lang' => $t['_lang'], 'title' => $t['doc_transcript'] . ': ' . $user['name'],
-            'header_left' => (string)$user['name'], 'header_right' => $t['doc_transcript'], 'footer_left' => 'StudyVibe · ' . $t['doc_transcript'],
+            'header_left' => (string)$user['name'], 'header_right' => $t['doc_transcript'], 'footer_left' => $footer,
         ]), 'assets' => []];
     }
 

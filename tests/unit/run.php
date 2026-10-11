@@ -18,6 +18,7 @@ require_once __DIR__ . '/../../lib/Totp.php';
 require_once __DIR__ . '/../../lib/SmsGateway.php';
 require_once __DIR__ . '/../../lib/LiveSmsNotifier.php';
 require_once __DIR__ . '/../../lib/ExportTheme.php';
+require_once __DIR__ . '/../../lib/Transcripts.php';
 require_once __DIR__ . '/../../Mailer.php';
 require_once __DIR__ . '/../../QuestionImporter.php';
 
@@ -344,6 +345,29 @@ t('guides: cards, readers and limits, both languages and both placements', funct
 t('bulk package: size labels are readable', function () {
     eq(BulkPackage::label(26214400), '25 Mo');
     eq(BulkPackage::label(1610612736), '1,5 Go');
+});
+
+// ---- Transcript codes and fingerprints
+t('transcripts: a new code has the TR-XXXX-XXXX-XXXX shape and never repeats in a thousand draws', function () {
+    $seen = [];
+    for ($i = 0; $i < 1000; $i++) { $c = Transcripts::newCode(); eq(Transcripts::looksLikeCode($c), true); $seen[$c] = 1; }
+    eq(count($seen), 1000);
+});
+t('transcripts: only well-formed codes are looked up', function () {
+    eq(Transcripts::looksLikeCode("TR-ABCD-EFGH-JKMN"), true);
+    eq(Transcripts::looksLikeCode("TR-ABCD-EFGH-JKM0"), false);   // 0 is not in the alphabet
+    eq(Transcripts::looksLikeCode("tr-abcd-efgh-jkmn"), false);
+    eq(Transcripts::looksLikeCode("SV-1-A3F7B2C8"), false);
+    eq(Transcripts::looksLikeCode("TR-ABCD-EFGH-JKMN' OR 1=1"), false);
+});
+t('transcripts: the fingerprint changes with any field, and the summary counts the rows', function () {
+    $a = Transcripts::fingerprint('TR-AAAA-BBBB-CCCC', 5, '2026-10-11 10:00:00', '{"courses":2}');
+    eq(strlen($a), 64);
+    eq($a === Transcripts::fingerprint('TR-AAAA-BBBB-CCCC', 5, '2026-10-11 10:00:00', '{"courses":3}'), false);
+    eq($a === Transcripts::fingerprint('TR-AAAA-BBBB-CCCC', 6, '2026-10-11 10:00:00', '{"courses":2}'), false);
+    eq($a === Transcripts::fingerprint('TR-AAAA-BBBB-CCCC', 5, '2026-10-11 10:00:01', '{"courses":2}'), false);
+    $s = Transcripts::summarize([['best_score' => 80, 'progress_percent' => 100], ['best_score' => null, 'progress_percent' => 50]], [['score' => 90], ['score' => 70]], [['x' => 1]]);
+    eq([$s['courses'], $s['lessons'], $s['failed'], $s['avg_best'], $s['avg_lessons'], $s['progress_avg']], [2, 2, 1, 80.0, 80.0, 75.0]);
 });
 
 echo "$passed passed, " . count($failed) . " failed\n";

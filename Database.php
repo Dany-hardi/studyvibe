@@ -639,6 +639,26 @@ class Database
             } catch (PDOException $ex) {}
         }
 
+        // Migration 2.6o: every transcript handed out is recorded (code, summary, fingerprint) so that its QR code can be checked on verify.php.
+        try {
+            $pdo->exec("
+                CREATE TABLE IF NOT EXISTS `transcript_issues` (
+                    `id`            INT AUTO_INCREMENT PRIMARY KEY,
+                    `code`          VARCHAR(24) NOT NULL,
+                    `student_id`    INT NOT NULL,
+                    `summary`       TEXT NOT NULL,
+                    `fingerprint`   CHAR(64) NOT NULL,
+                    `issued_at`     DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+                    `issued_ip`     VARCHAR(45) DEFAULT NULL,
+                    `revoked_at`    DATETIME DEFAULT NULL,
+                    `revoked_reason` VARCHAR(255) DEFAULT NULL,
+                    UNIQUE KEY `uq_transcript_code` (`code`),
+                    KEY `idx_transcript_student` (`student_id`, `issued_at`),
+                    FOREIGN KEY (`student_id`) REFERENCES `users`(`id`) ON DELETE CASCADE
+                ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4
+            ");
+        } catch (PDOException $ex) {}
+
         // Migration 2.7: Support binary storage backups for course cover images and lesson PDFs
         try {
             $pdo->query("SELECT cover_image_data FROM courses LIMIT 1");

@@ -135,6 +135,7 @@ TEX;
 \usepackage{lastpage}
 \usepackage{graphicx}
 \usepackage{xcolor}
+\usepackage{qrcode}
 \usepackage[hidelinks,pdftitle={@@title@@},pdfauthor={StudyVibe},pdfcreator={StudyVibe}]{hyperref}
 @@brand@@
 \definecolor{svpine}{HTML}{24402F}
@@ -242,6 +243,42 @@ TEX;
             $out .= implode(" &\n", $cells) . " \\\\\n";
         }
         return $out . "\\end{tabularx}\\end{minipage}}}\\par\n";
+    }
+
+    /**
+     * Defines \svqr, a box holding the QR code of $url. It goes through an environment (not a macro argument) so that the French
+     * punctuation shorthands of babel cannot touch the address. Put it before the first use of \usebox{\svqr}.
+     */
+    public static function qrBox(string $url, string $height = '2.6cm'): string
+    {
+        $url = preg_replace('/[^A-Za-z0-9:\/\.\-_~?=]/', '', $url) ?? '';
+        return "\\newsavebox{\\svqr}\n\\begin{lrbox}{\\svqr}\\shorthandoff{:;!?}\\qrcode[height={$height}]{" . $url . "}\\end{lrbox}\n";
+    }
+
+    /**
+     * A row of shaded figure cards: a large number over a small label.
+     *
+     * @param array<int,array{0:string,1:string}> $cards [value, label], values and labels are plain text
+     */
+    public static function statCards(array $cards): string
+    {
+        $n = max(1, count($cards));
+        $w = round((1 - 0.02 * ($n - 1)) / $n, 4);
+        $out = "\\par\\vspace{0.4em}\\noindent\n";
+        foreach ($cards as $i => [$value, $label]) {
+            $out .= '{\\setlength{\\fboxsep}{8pt}\\colorbox{svcard}{\\begin{minipage}[t]{\\dimexpr' . $w . '\\textwidth-16pt\\relax}'
+                . '{\\fontsize{22}{24}\\selectfont\\sffamily\\bfseries\\color{svclay}' . self::esc($value) . '}\\par\\vspace{1pt}'
+                . '{\\scriptsize\\sffamily\\color{svgray}' . self::esc($label) . "}\\end{minipage}}}"
+                . ($i < $n - 1 ? "\\hfill\n" : "\n");
+        }
+        return $out . "\\par\n";
+    }
+
+    /** A small progress bar of $percent (0-100), $mm wide, in pine over a grey track. */
+    public static function miniBar(float $percent, float $mm = 22.0, string $color = 'svpine'): string
+    {
+        $on = round($mm * max(0.0, min(100.0, $percent)) / 100, 2);
+        return '\\textcolor{' . $color . '}{' . ($on > 0 ? "\\rule{{$on}mm}{1.7mm}" : '') . '}\\textcolor{svline}{\\rule{' . round($mm - $on, 2) . 'mm}{1.7mm}}';
     }
 
     /** Lines to fill in: name, student number, mark and signature, in a light frame. */

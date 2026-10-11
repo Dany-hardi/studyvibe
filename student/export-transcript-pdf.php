@@ -6,6 +6,7 @@ require_once __DIR__ . '/../auth.php';
 require_once __DIR__ . '/../lib/Brand.php';
 require_once __DIR__ . '/../lib/student_i18n.php';
 require_once __DIR__ . '/../lib/StudentDocs.php';
+require_once __DIR__ . '/../lib/Transcripts.php';
 requireRole('student');
 
 $user = getCurrentUser();
@@ -51,5 +52,17 @@ try {
     exit('Erreur lors de la récupération de votre relevé.');
 }
 
+// Record this issue: its code and QR let anybody check the document on /verify.php
+$issue = null;
+try {
+    $issue = Transcripts::issue($pdo, (int)$user['id'], Transcripts::summarize($courses, $lessons, $failed), getClientIp());
+} catch (Throwable $e) {
+    error_log('[Transcripts] could not record the issue: ' . $e->getMessage());   // the transcript is still produced, without a QR code
+}
+$verifyUrl = $issue ? rtrim((string)APP_URL, '/') . '/verify.php?code=' . urlencode($issue['code']) : '';
+
 $t = StudentDocs::strings(['generated_at' => sdDate(time(), 'year') . ' · ' . sdDate(time(), 'time')]);
-StudentDocs::send(StudentDocs::transcript($user, $courses, $lessons, $failed, $t), 'releve-notes-studyvibe.pdf', 'export_transcript_pdf');
+if ($issue) {
+    auditLog('transcript_issued', $issue['code']);
+}
+StudentDocs::send(StudentDocs::transcript($user, $courses, $lessons, $failed, $t, $issue, $verifyUrl), 'releve-notes-' . ($issue['code'] ?? 'studyvibe') . '.pdf');
