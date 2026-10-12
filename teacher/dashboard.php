@@ -1071,15 +1071,16 @@ try {
 
         // Charger les commentaires globaux du cours
         $stmt = $pdo->prepare("
-            SELECT lc.*, u.name AS author_name, u.role AS author_role, l.title AS lesson_title
+            SELECT lc.*, u.name AS author_name, u.role AS author_role, l.title AS lesson_title, c.id AS course_id, c.title AS course_title
             FROM lesson_comments lc
             JOIN users u ON u.id = lc.user_id
             JOIN lessons l ON l.id = lc.lesson_id
             JOIN chapters ch ON ch.id = l.chapter_id
-            WHERE ch.course_id = :cid
+            JOIN courses c ON c.id = ch.course_id
+            WHERE c.teacher_id = :tid
             ORDER BY lc.created_at DESC
         ");
-        $stmt->execute(['cid' => $selectedCourse['id']]);
+        $stmt->execute(['tid' => $teacherId]);
         $courseComments = $stmt->fetchAll();
 
         // Charger les éléments de la bibliothèque du cours
@@ -2958,15 +2959,8 @@ $tdHasCourse = (bool)$selectedCourse;
                 <?php
                 // Requests from students: review of a mark, question about a result, free messages (api/requests.php -> teacher/requests.php)
                 $tdRequests = [];
-                try { $tdRequests = StudentRequests::forTeacher($pdo, $teacherId, (int)$selectedCourse['id']); } catch (Throwable $e) { $tdRequests = []; }
+                try { $tdRequests = StudentRequests::forTeacher($pdo, $teacherId); } catch (Throwable $e) { $tdRequests = []; }
                 $tdReqOpenHere = count(array_filter($tdRequests, fn($r) => $r['status'] === 'open'));
-                // Open requests waiting in the teacher's OTHER courses (the inbox shows one course at a time)
-                $tdReqElsewhere = [];
-                try {
-                    $oq = $pdo->prepare("SELECT c.id, c.title, COUNT(*) AS n FROM student_requests q JOIN courses c ON c.id = q.course_id WHERE q.teacher_id = :t AND q.status = 'open' AND q.course_id <> :c GROUP BY c.id, c.title ORDER BY n DESC");
-                    $oq->execute(['t' => $teacherId, 'c' => (int)$selectedCourse['id']]);
-                    $tdReqElsewhere = $oq->fetchAll(PDO::FETCH_ASSOC);
-                } catch (Throwable $e) { $tdReqElsewhere = []; }
                 $qxOpen = $tdUnanswered + $tdReqOpenHere;
                 ?>
                 <header class="t-head">
@@ -2983,12 +2977,6 @@ $tdHasCourse = (bool)$selectedCourse;
                     <?php endif; ?>
                 </header>
 
-                <?php if (!empty($tdReqElsewhere)): ?>
-                <p class="qx-elsewhere"><span><?= tde('rq_elsewhere') ?></span>
-                    <?php foreach ($tdReqElsewhere as $oc): ?><a class="t-chip wait" href="/teacher/dashboard.php?course_id=<?= (int)$oc['id'] ?>#tab-comments"><?= htmlspecialchars($oc['title']) ?> · <?= (int)$oc['n'] ?></a><?php endforeach; ?>
-                </p>
-                <?php endif; ?>
-
                 <a class="t-link" href="#tab-comments-guide" onclick="document.getElementById('tab-comments-guide').scrollIntoView({behavior:'smooth'}); return false;" style="display:inline-block;margin:0 0 1.2rem"><?= tde('mk_wrap') ?> ↓</a>
 
                 <section id="rq-box" class="qx-block" aria-labelledby="rq-h">
@@ -3001,7 +2989,7 @@ $tdHasCourse = (bool)$selectedCourse;
                     <?php else: foreach ($tdRequests as $rq): $open = $rq['status'] === 'open'; ?>
                         <article class="qx-card <?= $open ? 'is-open' : 'is-done' ?>" id="rq-card-<?= (int)$rq['id'] ?>" data-rq="<?= (int)$rq['id'] ?>" data-qa-card data-unanswered="<?= $open ? 1 : 0 ?>">
                             <div class="qx-top">
-                                <span class="qx-chip"><?= tde('rq_kind_' . $rq['kind']) ?></span>
+                                <span class="qx-chip"><?= htmlspecialchars($rq['course_title']) ?> · <?= tde('rq_kind_' . $rq['kind']) ?></span>
                                 <span class="qx-when">
                                     <span class="num"><?= htmlspecialchars(date('d/m/Y H:i', strtotime($rq['created_at']))) ?></span>
                                     <span class="t-chip <?= $open ? 'wait' : 'ok' ?>"><?= $open ? tde('qa_unanswered') : tde('qa_answered') ?></span>
@@ -3041,7 +3029,7 @@ $tdHasCourse = (bool)$selectedCourse;
                     ?>
                         <article class="qx-card <?= $comOpen ? 'is-open' : 'is-done' ?><?= $comHidden ? ' is-hidden' : '' ?>" id="qa-card-<?= (int)$com['id'] ?>" data-qa-card data-unanswered="<?= $comOpen ? 1 : 0 ?>">
                             <div class="qx-top">
-                                <span class="qx-chip"><?= tde('qa_lesson') ?> : <?= htmlspecialchars($com['lesson_title']) ?></span>
+                                <span class="qx-chip"><?= htmlspecialchars($com['course_title']) ?> · <?= tde('qa_lesson') ?> : <?= htmlspecialchars($com['lesson_title']) ?></span>
                                 <span class="qx-when">
                                     <span class="num"><?= date('d/m/Y H:i', strtotime($com['created_at'])) ?></span>
                                     <?php if ($comOpen): ?><span class="t-chip wait" data-qa-badge><?= tde('qa_unanswered') ?></span>
