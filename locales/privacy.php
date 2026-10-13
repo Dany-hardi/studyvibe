@@ -14,8 +14,8 @@ return [
     'kicker'   => 'Confidentialité et données personnelles',
     'h1'       => 'Vos données, <em>expliquées en détail.</em>',
     'lede'     => 'StudyVibe sert à apprendre, à passer des examens et à obtenir des certificats. Pour y arriver, la plateforme doit connaître quelques informations sur vous. Cette page dit lesquelles, ce que nous en faisons, qui y a accès, et comment vous gardez la main dessus.',
-    'updated'  => 'Dernière mise à jour : 8 octobre 2026',
-    'version'  => 'Version 2.0',
+    'updated'  => 'Dernière mise à jour : 13 octobre 2026',
+    'version'  => 'Version 2.1',
     'back'     => 'Retour à l’accueil',
     'toc'      => 'Dans cette page',
     'top'      => 'Haut de page',
@@ -232,6 +232,21 @@ return [
             ],
         ],
         [
+            'id' => 'careers', 'h' => 'Candidatures et recrutement',
+            'blocks' => [
+                ['p' => 'Si vous postulez à un poste sur la page Carrières, nous traitons les informations que vous nous envoyez : nom, adresse e-mail, téléphone, ville, liens, lettre de motivation, CV, parcours (poste actuel, années d’expérience, niveau d’études, compétences, langues) et, si vous les indiquez, votre disponibilité et vos prétentions salariales. Nous ne demandons ni photo, ni âge, ni sexe, ni nationalité.'],
+                ['ul' => [
+                    '<strong>À quoi cela sert :</strong> étudier votre candidature, vous répondre, organiser un entretien et vous permettre de suivre votre dossier. Rien d’autre.',
+                    '<strong>Lecture automatique :</strong> une première lecture compare votre dossier aux critères du poste (compétences demandées, expérience, formation, lieu). Elle ne produit qu’un score et des raisons. Elle ne décide jamais seule : une personne examine chaque dossier qu’elle met de côté et peut le remettre dans le processus. Vous pouvez demander à tout moment une relecture humaine.',
+                    '<strong>Qui y a accès :</strong> uniquement les administrateurs chargés du recrutement. Votre CV est stocké à part des documents des cours et n’est jamais accessible aux étudiants ni aux enseignants. Chaque téléchargement de CV est journalisé.',
+                    '<strong>Votre page de suivi :</strong> un lien personnel, envoyé par e-mail, montre où en est votre candidature et les détails d’un entretien. Gardez-le pour vous : il donne accès à votre dossier.',
+                    '<strong>Combien de temps :</strong> 12 mois après la dernière étape si vous n’êtes pas recruté(e) ; 24 mois si vous avez coché « garder mon profil pour de futures offres ». Passé ce délai, le dossier et le CV sont effacés automatiquement. Les candidatures recrutées suivent les règles du personnel.',
+                    '<strong>Votre base légale :</strong> votre consentement, donné en cochant la case du formulaire et que vous pouvez retirer à tout moment.',
+                ]],
+                ['p' => 'Depuis votre page de suivi, vous pouvez retirer votre candidature ou <strong>effacer immédiatement vos données</strong> (dossier, CV, historique). Vous pouvez aussi nous écrire avec votre référence (elle commence par CA-) pour consulter ou corriger votre dossier.'],
+            ],
+        ],
+        [
             'id' => 'minors', 'h' => 'Mineurs',
             'blocks' => [
                 ['p' => 'StudyVibe s’adresse en priorité à l’enseignement supérieur. Si vous avez moins de 18 ans, ou moins de l’âge de consentement numérique de votre pays, utilisez la plateforme avec l’accord de votre établissement ou de votre représentant légal. Un parent ou tuteur peut exercer les droits décrits plus haut au nom de l’enfant. Si nous apprenons qu’un compte a été créé sans cet accord, nous pouvons le suspendre et effacer ses données.'],
@@ -247,7 +262,7 @@ return [
             'id' => 'contact', 'h' => 'Nous contacter',
             'blocks' => [
                 ['p' => 'Pour toute question, demande liée à vos données, signalement de sécurité ou réclamation, écrivez au Promoteur de la plateforme :'],
-                ['p' => '<a class="pv-mail" href="mailto:danielwilfriedtakou@gmail.com">danielwilfriedtakou@gmail.com</a>'],
+                ['p' => '<a class="pv-mail" href="mailto:{{mail}}">Nous contacter</a>'],
                 ['p' => 'Indiquez l’adresse e-mail de votre compte et, si possible, l’objet de votre demande. Nous accusons réception rapidement et nous répondons dans le délai de 30 jours indiqué plus haut.'],
             ],
         ],
@@ -265,8 +280,8 @@ return [
     'kicker'   => 'Privacy and personal data',
     'h1'       => 'Your data, <em>explained in detail.</em>',
     'lede'     => 'StudyVibe exists to help you learn, sit exams and earn certificates. To do that, the platform has to know a few things about you. This page says which ones, what we do with them, who has access, and how you stay in control.',
-    'updated'  => 'Last updated: 8 October 2026',
-    'version'  => 'Version 2.0',
+    'updated'  => 'Last updated: 13 October 2026',
+    'version'  => 'Version 2.1',
     'back'     => 'Back to home',
     'toc'      => 'On this page',
     'top'      => 'Back to top',
@@ -483,6 +498,21 @@ return [
             ],
         ],
         [
+            'id' => 'careers', 'h' => 'Job applications',
+            'blocks' => [
+                ['p' => 'If you apply for a position on the Careers page, we process what you send us: name, e-mail address, phone, city, links, cover letter, résumé, background (current role, years of experience, education, skills, languages) and, if you give them, your availability and salary expectations. We do not ask for a photo, age, gender or nationality.'],
+                ['ul' => [
+                    '<strong>What it is for:</strong> reviewing your application, answering you, arranging an interview and letting you follow your file. Nothing else.',
+                    '<strong>Automatic screening:</strong> a first read compares your file with the position’s criteria (requested skills, experience, education, place). It only produces a score and reasons. It never decides alone: a person reviews every file it sets aside and can put it back into the process. You can ask for a human review at any time.',
+                    '<strong>Who can see it:</strong> only the administrators in charge of hiring. Your résumé is stored apart from course documents and is never available to students or teachers. Every résumé download is logged.',
+                    '<strong>Your tracking page:</strong> a personal link sent by e-mail shows where your application stands and the details of any interview. Keep it to yourself: it gives access to your file.',
+                    '<strong>How long:</strong> 12 months after the last step if you are not hired; 24 months if you ticked “keep my profile for future positions”. After that, the file and the résumé are erased automatically. Hired candidates follow staff rules.',
+                    '<strong>Legal basis:</strong> your consent, given by ticking the box on the form, which you can withdraw at any time.',
+                ]],
+                ['p' => 'From your tracking page you can withdraw your application or <strong>erase your data immediately</strong> (file, résumé, history). You can also write to us with your reference (it starts with CA-) to see or correct your file.'],
+            ],
+        ],
+        [
             'id' => 'minors', 'h' => 'Minors',
             'blocks' => [
                 ['p' => 'StudyVibe is aimed mainly at higher education. If you are under 18, or under the age of digital consent in your country, use the platform with the agreement of your institution or legal guardian. A parent or guardian can exercise the rights described above on the child’s behalf. If we learn that an account was created without that agreement, we may suspend it and erase its data.'],
@@ -498,7 +528,7 @@ return [
             'id' => 'contact', 'h' => 'Contact us',
             'blocks' => [
                 ['p' => 'For any question, data request, security report or complaint, write to the Platform Promoter:'],
-                ['p' => '<a class="pv-mail" href="mailto:danielwilfriedtakou@gmail.com">danielwilfriedtakou@gmail.com</a>'],
+                ['p' => '<a class="pv-mail" href="mailto:{{mail}}">Contact us</a>'],
                 ['p' => 'Please give the email address of your account and, if possible, the subject of your request. We acknowledge receipt quickly and answer within the 30-day period stated above.'],
             ],
         ],

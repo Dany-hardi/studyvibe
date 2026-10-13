@@ -234,3 +234,7 @@ dialog.auth[open] { animation: pop .28s var(--ease); }
 .login-fail-card { position: sticky; top: 16px; margin-top: clamp(0px, 10dvh, 80px); width: 100%; }
 dialog.auth { max-height: calc(100dvh - 24px); overscroll-behavior: contain; }
 @media (max-height: 520px) { .auth h2 { font-size: 1.6rem; margin-top: .4rem; } .auth-in { padding-top: 22px; padding-bottom: 18px; } }
+
+/* Consent notice under the sign-up button */
+.auth-legal { margin-top: 1rem; font-size: .8rem; line-height: 1.5; color: var(--ink-3); text-align: center; text-wrap: pretty; }
+.auth-legal a { color: var(--clay); font-weight: 600; text-underline-offset: 3px; }

@@ -44,6 +44,7 @@ graph TD
 * **Gestionnaire de Certificats** : Émission manuelle ou automatique de certificats de réussite avec validation publique par code unique.
 * **Broadcaster de Newsletters** : Envoi ciblé de mails d'information ou de suivi de cours avec système de désinscription conforme au RGPD.
 * **Développeur API Keys** : Génération et révocation de jetons d'accès API pour connecter StudyVibe à des systèmes d'information tiers (Scolarité, ERP).
+* **Recrutement (espace isolé)** : `/promoter/careers/` permet de publier des offres d'emploi et d'étudier les candidatures (pipeline, tableau, notes, appréciation, e-mail au candidat, export CSV). Il a ses propres pages, API, tables (`career_*`) et stockage de CV (`uploads/career-resumes/`, lu uniquement par `promoter/careers/resume.php`). Côté public : `careers.php`, `career.php`, `career-apply.php`. Une **lecture automatique 24 h/24** (`lib/CareersScreening.php`) note chaque candidature de 0 à 100 avec ses raisons et met à part les dossiers très éloignés de l'offre (jamais un refus sans validation humaine), un planificateur d'**entretiens** (e-mails à part, rappels, ICS), une **page de suivi** pour le candidat (`track.php`) et un moteur d'arrière-plan (`lib/CareersWorker.php`, voir DEPLOYMENT.md). Un pied de page commun (`lib/SiteChrome.php`) relie la documentation (`documentation.php`), les carrières et la confidentialité.
 
 ---
 
@@ -121,12 +122,13 @@ DB_NAME=studyvibe
 DB_USER=root
 DB_PASS=votre_mot_de_passe
 
-MAIL_HOST=smtp.gmail.com
-MAIL_PORT=587
-MAIL_USER=votre_adresse_mail
-MAIL_PASS=votre_mot_de_passe_application
-MAIL_FROM=noreply@studyvibe.com
-MAIL_FROM_NAME=StudyVibe
+SMTP_HOST=smtp.gmail.com
+SMTP_PORT=587
+SMTP_USER=votre_adresse_mail
+SMTP_PASS=votre_mot_de_passe_application
+SMTP_FROM=votre_adresse_mail
+SMTP_FROM_NAME=StudyVibe
+CONTACT_EMAIL=studyvibelms@gmail.com   # adresse publique (pied de page, confidentialité)
 
 APP_URL=https://studyvibe.railway.internal
 APP_ENV=production

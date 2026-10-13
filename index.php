@@ -15,6 +15,7 @@ declare(strict_types=1);
 
 require_once __DIR__ . '/auth.php';
 require_once __DIR__ . '/lib/Brand.php';
+require_once __DIR__ . '/lib/SiteChrome.php';
 require_once __DIR__ . '/lib/SocialMeta.php';
 require_once __DIR__ . '/lib/SmsGateway.php';
 
@@ -74,6 +75,7 @@ $T = [
  'cert_k' => 'Certificat de réussite', 'cert_h' => 'Module validé', 'cert_p' => 'Remis à un étudiant ayant validé l’ensemble des évaluations du module.', 'cert_c' => 'Code', 'cert_ex' => 'exemple',
  'end_h' => 'Prêt à lancer <em>votre premier cours ?</em>',
  'foot_c' => 'Tous droits réservés.', 'foot_p' => 'Confidentialité',
+ 'terms_note' => 'En créant un compte, vous acceptez les <a href="/terms.php" target="_blank" rel="noopener">conditions d’utilisation</a> et la <a href="/privacy.php" target="_blank" rel="noopener">politique de confidentialité</a>.',
  'a_login_h' => 'Bon retour', 'a_login_s' => 'Connectez-vous pour reprendre là où vous vous étiez arrêté.',
  'email' => 'Adresse e-mail', 'email_ph' => 'vous@exemple.com', 'pw' => 'Mot de passe', 'show' => 'Afficher', 'hide' => 'Masquer',
  'forgot' => 'Mot de passe oublié ?', 'forgot_s' => 'Indiquez votre e-mail, nous vous envoyons un lien pour en choisir un nouveau.', 'forgot_btn' => 'Envoyer le lien', 'back' => 'Retour',
@@ -123,6 +125,7 @@ $T = [
  'cert_k' => 'Certificate of achievement', 'cert_h' => 'Module completed', 'cert_p' => 'Awarded to a student who passed every assessment in the module.', 'cert_c' => 'Code', 'cert_ex' => 'example',
  'end_h' => 'Ready to launch <em>your first course?</em>',
  'foot_c' => 'All rights reserved.', 'foot_p' => 'Privacy',
+ 'terms_note' => 'By creating an account, you accept the <a href="/terms.php" target="_blank" rel="noopener">terms of use</a> and the <a href="/privacy.php" target="_blank" rel="noopener">privacy policy</a>.',
  'a_login_h' => 'Welcome back', 'a_login_s' => 'Sign in to pick up where you left off.',
  'email' => 'Email address', 'email_ph' => 'you@example.com', 'pw' => 'Password', 'show' => 'Show', 'hide' => 'Hide',
  'forgot' => 'Forgot your password?', 'forgot_s' => 'Enter your email and we will send a link to choose a new one.', 'forgot_btn' => 'Send the link', 'back' => 'Back',
@@ -155,6 +158,7 @@ $e = fn(string $k): string => htmlspecialchars((string)$T[$k], ENT_QUOTES, 'UTF-
 <link href="https://fonts.googleapis.com/css2?family=Fraunces:ital,opsz,wght,SOFT@0,9..144,300..700,0..100;1,9..144,300..700,0..100&family=Hanken+Grotesk:wght@400;500;600;700&display=swap" rel="stylesheet">
 <link rel="stylesheet" href="/assets/css/sv2.css">
 <link rel="stylesheet" href="/assets/css/landing.css">
+<link rel="stylesheet" href="/assets/css/site.css">
 <?= csrfMetaTag(); ?>
 <script>
   document.documentElement.classList.add('js');
@@ -298,10 +302,7 @@ $e = fn(string $k): string => htmlspecialchars((string)$T[$k], ENT_QUOTES, 'UTF-
 </section>
 </main>
 
-<footer class="foot"><div class="wrap foot-in">
-  <a href="#top" class="brand" aria-label="StudyVibe"><?= Brand::logo('sm') ?></a>
-  <span>© <?= date('Y') ?> StudyVibe. <?= $e('foot_c') ?> · <a href="/privacy.php"><?= $e('foot_p') ?></a></span>
-</div></footer>
+<?= SiteChrome::footer($lang) ?>
 
 <!-- Auth dialog: login, password reset and two-step signup -->
 <dialog class="auth" id="auth" aria-labelledby="auth-title">
@@ -385,6 +386,7 @@ $e = fn(string $k): string => htmlspecialchars((string)$T[$k], ENT_QUOTES, 'UTF-
             <button class="btn btn-ghost" type="button" id="signup-back"><?= $e('back') ?></button>
             <button class="btn btn-primary btn-lg" type="submit" id="signup-btn" disabled><?= $e('create') ?></button>
           </div>
+          <p class="auth-legal"><?= $T['terms_note'] ?></p>
         </div>
             <div class="fg-status" id="signup-status" role="status" aria-live="polite" hidden></div>
       </form>

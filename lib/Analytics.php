@@ -11,7 +11,7 @@ final class Analytics
 {
     /** Events the site is allowed to count. Anything else is ignored. */
     public const EVENTS = [
-        'view:landing', 'view:privacy', 'view:join', 'view:verify', 'view:evaluations', 'view:live_invite', 'view:verify_email',
+        'view:landing', 'view:privacy', 'view:terms', 'view:careers', 'view:career', 'view:docs', 'career_apply', 'view:join', 'view:verify', 'view:evaluations', 'view:live_invite', 'view:verify_email',
         'visitor', 'signup_open', 'signup_step2', 'signup_submit', 'login_open', 'login_submit', 'login_fail',
     ];
 

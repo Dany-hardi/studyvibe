@@ -469,3 +469,32 @@ Le centre de contrôle (`/ops-5f208f200992fc7ea994/`) est accessible depuis le t
 5. **Traçabilité.** Demande de code, échecs, blocages, ouvertures et verrouillages sont inscrits au journal d'audit (`ops_unlock_*`, `ops_locked`) et apparaissent dans le rapport de traçabilité.
 
 Test : `php tests/integration/ops_unlock.php`.
+
+## Recrutement : lecture automatique (ATS), entretiens et rappels
+
+Le moteur de recrutement travaille 24 h/24 (`lib/CareersWorker.php`) :
+
+| Tâche | Ce qu'elle fait |
+|---|---|
+| Lecture | Lit chaque candidature (texte du CV extrait des PDF, DOCX et DOC, sans bibliothèque externe), calcule un score de 0 à 100 avec les raisons, place les dossiers très éloignés de l'offre dans la section « Lecture auto ». Relit les dossiers d'une offre dont les critères ont changé. Un CV illisible n'est jamais écarté. |
+| Offres | Clôture les offres dont la date limite est passée, prévient les administrateurs 3 jours avant. |
+| Entretiens | Rappel la veille et 2 heures avant, relance après 48 h sans réponse, marque les entretiens passés comme terminés. |
+| Refus poli | Si l'offre l'a demandé (`auto_decline_days`), refuse poliment un dossier écarté que personne n'a examiné. |
+| Conservation | Efface les dossiers de personnes hors processus après 12 mois (24 mois avec consentement au vivier). Chaque effacement est journalisé (`audit_logs`). |
+| Point du jour | Un e-mail par jour (dès 07 h 30) aux administrateurs : dossiers en attente, entretiens du jour et du lendemain. |
+
+**Où il tourne.** Le cron de l'image Docker lance déjà `lib/email-worker.php` chaque minute, qui appelle le moteur : rien de plus à planifier. Sur un autre hébergement, ajoutez (ou gardez la ligne du worker d'e-mails ci-dessus) :
+
+```cron
+* * * * * www-data php /var/www/studyvibe/lib/careers-worker.php >/dev/null 2>&1
+```
+
+Sans cron, le moteur démarre quand même sur les pages Carrières, la page de suivi et l'espace recrutement, au plus une fois par minute, une fois la réponse envoyée.
+
+**Fuseau horaire.** Les horaires d'entretien sont saisis et envoyés dans le fuseau du serveur (`Africa/Douala`, défini dans `config.php`).
+
+**Fichiers.** Les CV sont stockés dans `uploads/career-resumes/` (jamais servis par `download.php`), avec une copie en base comme les autres fichiers, et ne sont lus que par `promoter/careers/resume.php` (administrateurs, téléchargements journalisés).
+
+**Adresse de contact.** `CONTACT_EMAIL` (par défaut `studyvibelms@gmail.com`) sert au pied de page, à la politique de confidentialité et aux conditions d'utilisation. L'expéditeur des e-mails reste `SMTP_FROM`.
+
+**Vérifications.** `php tests/unit/careers_screening.php` (moteur et extraction), `php tests/integration/careers_flow.php` et `php tests/integration/careers_ats.php` (base de données requise).

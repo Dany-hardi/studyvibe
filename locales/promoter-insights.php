@@ -7,7 +7,7 @@ return [
 
 'fr' => [
     // navigation
-    'nav_g_steer' => 'Piloter', 'nav_g_manage' => 'Gérer', 'nav_g_system' => 'Système',
+    'nav_g_steer' => 'Piloter', 'nav_g_manage' => 'Gérer', 'nav_g_system' => 'Système', 'nav_careers' => 'Recrutement', 'nav_careers_hint' => 'Offres d’emploi et candidatures (espace séparé)',
     'nav_command' => 'Pilotage', 'nav_growth' => 'Croissance', 'nav_insights' => 'Analyses',
     // command page
     'cmd_kicker' => 'Pilotage', 'cmd_hello' => 'Bonjour :name, voici StudyVibe aujourd’hui.',
@@ -70,7 +70,7 @@ return [
 ],
 
 'en' => [
-    'nav_g_steer' => 'Steer', 'nav_g_manage' => 'Manage', 'nav_g_system' => 'System',
+    'nav_g_steer' => 'Steer', 'nav_g_manage' => 'Manage', 'nav_g_system' => 'System', 'nav_careers' => 'Careers', 'nav_careers_hint' => 'Job postings and applications (separate workspace)',
     'nav_command' => 'Command', 'nav_growth' => 'Growth', 'nav_insights' => 'Insights',
     'cmd_kicker' => 'Command', 'cmd_hello' => 'Hello :name, here is StudyVibe today.',
     'range' => 'Period', 'r7' => '7 days', 'r30' => '30 days', 'r90' => '90 days',

@@ -16,6 +16,7 @@ require_once __DIR__ . '/../Database.php';
 require_once __DIR__ . '/EmailQueue.php';
 require_once __DIR__ . '/LiveReminders.php';
 require_once __DIR__ . '/PushQueue.php';
+require_once __DIR__ . '/CareersWorker.php';
 
 // One worker at a time (Gmail limits parallel connections anyway); a second one exits at once
 $lock = fopen(sys_get_temp_dir() . '/studyvibe_email_worker.lock', 'c');
@@ -28,3 +29,5 @@ $r = LiveReminders::dispatch($pdo);
 echo 'reminders: ' . $r['queued'] . ' for ' . $r['sessions'] . " session(s)\n";
 echo 'sent: ' . EmailQueue::work($pdo) . "\n";
 echo 'push: ' . PushQueue::work($pdo) . "\n";
+// Careers: screening, interview reminders, daily digest (own lock, runs only what is due)
+echo 'careers: ' . json_encode(CareersWorker::run($pdo, 15)) . "\n";

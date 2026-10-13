@@ -6,6 +6,7 @@ require_once __DIR__ . '/../Mailer.php';
 require_once __DIR__ . '/../Newsletter.php';
 require_once __DIR__ . '/../lib/Brand.php';
 require_once __DIR__ . '/../lib/ControlGate.php';
+require_once __DIR__ . '/../lib/Careers.php';
 requireRole('promoter');
 
 if ($_SERVER['REQUEST_METHOD'] === 'POST') {
@@ -745,6 +746,7 @@ function pm_chips(array $u, callable $t): string {
       <li><a href="#tab-live" data-tab="tab-live"><span><?= $t('nav_live') ?></span></a></li>
       <li><a href="#tab-certificates" data-tab="tab-certificates"><span><?= $t('nav_certs') ?></span><?php if (count($awaitingCerts) > 0): ?><span class="pm-count num"><?= count($awaitingCerts) ?></span><?php endif; ?></a></li>
       <li><a href="#tab-communications" data-tab="tab-communications"><span><?= $t('nav_msgs') ?></span></a></li>
+      <li><a href="/promoter/careers/" title="<?= $h($PI['nav_careers_hint']) ?>"><span><?= $h($PI['nav_careers']) ?></span><?php $careersNew = Careers::newCount($pdo); if ($careersNew > 0): ?><span class="pm-count num"><?= $careersNew ?></span><?php endif; ?></a></li>
     </ul>
     <p class="pm-rail-g"><?= $h($PI['nav_g_system']) ?></p>
     <ul>

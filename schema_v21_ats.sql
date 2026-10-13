@@ -1,0 +1,9 @@
+-- StudyVibe v21: ATS (screening, buckets, interviews, tracking).
+-- Applied automatically by Database.php (migration 2.21); this file documents the changes for a manual install.
+-- career_jobs: screen_enabled, must_have, nice_have, min_years, min_education, screen_threshold, auto_decline_days, screen_version
+-- career_applications: years_experience, current_title, current_company, education_level, skills, languages, work_pref, relocate, heard_from,
+--   talent_consent, bucket (inbox|screened_out|archived), bucket_changed_at, screen_state, screen_score, screen_verdict, screen_report,
+--   screened_at, screen_version, track_token (UNIQUE, 40 hex), archived_at, withdrawn_at; status gains 'withdrawn'
+-- career_application_events: kind gains screen|interview|candidate|bucket; visible (shown on the candidate's tracking page)
+-- New tables: career_application_texts (extracted résumé text), career_interviews, career_state (worker bookkeeping).
+-- See Database.php for the exact statements.

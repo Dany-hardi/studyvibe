@@ -911,6 +911,198 @@ class Database
         ] as $ddl) {
             try { $pdo->exec($ddl); } catch (PDOException $ex) { /* already there */ }
         }
+
+        // Migration 2.20: careers. Job postings the administrator publishes, the applications they receive, and the review trail.
+        // Kept apart from every other table on purpose: nothing here references courses, lessons or students, and the files live in
+        // their own storage kind (career_resume) that only the administrator's careers workspace can read.
+        try {
+            $pdo->exec("
+                CREATE TABLE IF NOT EXISTS `career_jobs` (
+                    `id`               INT AUTO_INCREMENT PRIMARY KEY,
+                    `slug`             VARCHAR(120) NOT NULL,
+                    `title`            VARCHAR(160) NOT NULL,
+                    `department`       VARCHAR(80)  NOT NULL DEFAULT '',
+                    `location`         VARCHAR(120) NOT NULL DEFAULT '',
+                    `work_mode`        ENUM('onsite','hybrid','remote') NOT NULL DEFAULT 'onsite',
+                    `employment_type`  ENUM('full_time','part_time','internship','contract','volunteer') NOT NULL DEFAULT 'full_time',
+                    `level`            VARCHAR(40)  NOT NULL DEFAULT '',
+                    `summary`          VARCHAR(400) NOT NULL DEFAULT '',
+                    `description`      TEXT DEFAULT NULL,
+                    `responsibilities` TEXT DEFAULT NULL,
+                    `requirements`     TEXT DEFAULT NULL,
+                    `nice_to_have`     TEXT DEFAULT NULL,
+                    `benefits`         TEXT DEFAULT NULL,
+                    `salary_note`      VARCHAR(160) NOT NULL DEFAULT '',
+                    `openings`         SMALLINT UNSIGNED NOT NULL DEFAULT 1,
+                    `status`           ENUM('draft','open','paused','closed') NOT NULL DEFAULT 'draft',
+                    `closes_at`        DATE DEFAULT NULL,
+                    `published_at`     DATETIME DEFAULT NULL,
+                    `closed_at`        DATETIME DEFAULT NULL,
+                    `created_by`       INT DEFAULT NULL,
+                    `created_at`       DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+                    `updated_at`       DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+                    UNIQUE KEY `uq_career_slug` (`slug`),
+                    KEY `idx_career_status` (`status`, `published_at`),
+                    FOREIGN KEY (`created_by`) REFERENCES `users`(`id`) ON DELETE SET NULL
+                ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4
+            ");
+            // job_id is NULL for an open (spontaneous) application, and after a posting is deleted; job_title keeps what it was.
+            $pdo->exec("
+                CREATE TABLE IF NOT EXISTS `career_applications` (
+                    `id`                INT AUTO_INCREMENT PRIMARY KEY,
+                    `reference`         VARCHAR(16) NOT NULL,
+                    `job_id`            INT DEFAULT NULL,
+                    `job_title`         VARCHAR(160) NOT NULL DEFAULT '',
+                    `full_name`         VARCHAR(120) NOT NULL,
+                    `email`             VARCHAR(190) NOT NULL,
+                    `phone`             VARCHAR(40)  NOT NULL DEFAULT '',
+                    `location`          VARCHAR(120) NOT NULL DEFAULT '',
+                    `linkedin_url`      VARCHAR(255) NOT NULL DEFAULT '',
+                    `portfolio_url`     VARCHAR(255) NOT NULL DEFAULT '',
+                    `cover_letter`      TEXT DEFAULT NULL,
+                    `resume_file`       VARCHAR(80)  DEFAULT NULL,
+                    `resume_name`       VARCHAR(160) DEFAULT NULL,
+                    `resume_size`       INT UNSIGNED NOT NULL DEFAULT 0,
+                    `availability`      VARCHAR(80)  NOT NULL DEFAULT '',
+                    `salary_expectation` VARCHAR(80) NOT NULL DEFAULT '',
+                    `source`            VARCHAR(60)  NOT NULL DEFAULT '',
+                    `lang`              CHAR(2) NOT NULL DEFAULT 'fr',
+                    `consent_at`        DATETIME NOT NULL,
+                    `status`            ENUM('new','reviewing','shortlisted','interview','offer','hired','rejected') NOT NULL DEFAULT 'new',
+                    `rating`            TINYINT UNSIGNED DEFAULT NULL,
+                    `is_starred`        TINYINT(1) NOT NULL DEFAULT 0,
+                    `ip_hash`           CHAR(64) DEFAULT NULL,
+                    `created_at`        DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+                    `updated_at`        DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+                    `status_changed_at` DATETIME DEFAULT NULL,
+                    `reviewed_by`       INT DEFAULT NULL,
+                    UNIQUE KEY `uq_career_app_ref` (`reference`),
+                    UNIQUE KEY `uq_career_app_once` (`job_id`, `email`),
+                    KEY `idx_career_app_status` (`status`, `created_at`),
+                    KEY `idx_career_app_job` (`job_id`, `status`),
+                    KEY `idx_career_app_email` (`email`),
+                    FOREIGN KEY (`job_id`) REFERENCES `career_jobs`(`id`) ON DELETE SET NULL,
+                    FOREIGN KEY (`reviewed_by`) REFERENCES `users`(`id`) ON DELETE SET NULL
+                ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4
+            ");
+            // The review trail: notes, status changes, e-mails sent to the candidate.
+            $pdo->exec("
+                CREATE TABLE IF NOT EXISTS `career_application_events` (
+                    `id`             INT AUTO_INCREMENT PRIMARY KEY,
+                    `application_id` INT NOT NULL,
+                    `actor_id`       INT DEFAULT NULL,
+                    `kind`           ENUM('note','status','email','rating') NOT NULL,
+                    `from_status`    VARCHAR(20) DEFAULT NULL,
+                    `to_status`      VARCHAR(20) DEFAULT NULL,
+                    `body`           TEXT DEFAULT NULL,
+                    `created_at`     DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+                    KEY `idx_career_event_app` (`application_id`, `created_at`),
+                    FOREIGN KEY (`application_id`) REFERENCES `career_applications`(`id`) ON DELETE CASCADE,
+                    FOREIGN KEY (`actor_id`) REFERENCES `users`(`id`) ON DELETE SET NULL
+                ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4
+            ");
+        } catch (PDOException $ex) {
+            error_log('Migration 2.20 (careers): ' . $ex->getMessage());
+        }
+
+        // Migration 2.21: applicant tracking (ATS). Screening criteria on the posting; profile, screening result, bucket and tracking token on
+        // the application; the interview schedule; the text extracted from the résumé (kept apart so lists stay light); worker bookkeeping.
+        foreach ([
+            "ALTER TABLE `career_jobs`
+                ADD COLUMN `screen_enabled` TINYINT(1) NOT NULL DEFAULT 1,
+                ADD COLUMN `must_have` TEXT DEFAULT NULL,
+                ADD COLUMN `nice_have` TEXT DEFAULT NULL,
+                ADD COLUMN `min_years` TINYINT UNSIGNED NOT NULL DEFAULT 0,
+                ADD COLUMN `min_education` VARCHAR(16) NOT NULL DEFAULT '',
+                ADD COLUMN `screen_threshold` TINYINT UNSIGNED NOT NULL DEFAULT 35,
+                ADD COLUMN `auto_decline_days` SMALLINT UNSIGNED NOT NULL DEFAULT 0,
+                ADD COLUMN `screen_version` SMALLINT UNSIGNED NOT NULL DEFAULT 1",
+            "ALTER TABLE `career_applications`
+                ADD COLUMN `years_experience` TINYINT UNSIGNED DEFAULT NULL,
+                ADD COLUMN `current_title` VARCHAR(120) NOT NULL DEFAULT '',
+                ADD COLUMN `current_company` VARCHAR(120) NOT NULL DEFAULT '',
+                ADD COLUMN `education_level` VARCHAR(16) NOT NULL DEFAULT '',
+                ADD COLUMN `skills` VARCHAR(500) NOT NULL DEFAULT '',
+                ADD COLUMN `languages` VARCHAR(160) NOT NULL DEFAULT '',
+                ADD COLUMN `work_pref` VARCHAR(12) NOT NULL DEFAULT '',
+                ADD COLUMN `relocate` TINYINT(1) DEFAULT NULL,
+                ADD COLUMN `heard_from` VARCHAR(40) NOT NULL DEFAULT '',
+                ADD COLUMN `talent_consent` TINYINT(1) NOT NULL DEFAULT 0,
+                ADD COLUMN `bucket` ENUM('inbox','screened_out','archived') NOT NULL DEFAULT 'inbox',
+                ADD COLUMN `bucket_changed_at` DATETIME DEFAULT NULL,
+                ADD COLUMN `screen_state` ENUM('pending','done','error') NOT NULL DEFAULT 'pending',
+                ADD COLUMN `screen_score` TINYINT UNSIGNED DEFAULT NULL,
+                ADD COLUMN `screen_verdict` ENUM('strong','potential','review','weak') DEFAULT NULL,
+                ADD COLUMN `screen_report` MEDIUMTEXT DEFAULT NULL,
+                ADD COLUMN `screened_at` DATETIME DEFAULT NULL,
+                ADD COLUMN `screen_version` SMALLINT UNSIGNED NOT NULL DEFAULT 0,
+                ADD COLUMN `track_token` CHAR(40) NOT NULL DEFAULT '',
+                ADD COLUMN `archived_at` DATETIME DEFAULT NULL,
+                ADD COLUMN `withdrawn_at` DATETIME DEFAULT NULL",
+            "ALTER TABLE `career_applications` MODIFY COLUMN `status` ENUM('new','reviewing','shortlisted','interview','offer','hired','rejected','withdrawn') NOT NULL DEFAULT 'new'",
+            "ALTER TABLE `career_application_events` MODIFY COLUMN `kind` ENUM('note','status','email','rating','screen','interview','candidate','bucket') NOT NULL",
+            "ALTER TABLE `career_application_events` ADD COLUMN `visible` TINYINT(1) NOT NULL DEFAULT 0",
+        ] as $ddl) {
+            try { $pdo->exec($ddl); } catch (PDOException $ex) { /* already applied */ }
+        }
+        try {
+            $pdo->exec("UPDATE `career_applications` SET `track_token` = SHA1(CONCAT(id, RAND(), UUID(), NOW())) WHERE `track_token` = ''");
+            $pdo->exec("UPDATE `career_applications` SET `bucket_changed_at` = `created_at` WHERE `bucket_changed_at` IS NULL");
+        } catch (PDOException $ex) {}
+        foreach ([
+            "ALTER TABLE `career_applications` ADD UNIQUE KEY `uq_career_app_token` (`track_token`)",
+            "ALTER TABLE `career_applications` ADD KEY `idx_career_app_bucket` (`bucket`, `created_at`)",
+            "ALTER TABLE `career_applications` ADD KEY `idx_career_app_screen` (`screen_state`, `screen_version`)",
+        ] as $ddl) {
+            try { $pdo->exec($ddl); } catch (PDOException $ex) { /* already there */ }
+        }
+        try {
+            $pdo->exec("
+                CREATE TABLE IF NOT EXISTS `career_application_texts` (
+                    `application_id` INT NOT NULL PRIMARY KEY,
+                    `resume_text`    MEDIUMTEXT DEFAULT NULL,
+                    `chars`          INT NOT NULL DEFAULT 0,
+                    `via`            VARCHAR(12) NOT NULL DEFAULT '',
+                    `updated_at`     DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+                    FOREIGN KEY (`application_id`) REFERENCES `career_applications`(`id`) ON DELETE CASCADE
+                ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4
+            ");
+            $pdo->exec("
+                CREATE TABLE IF NOT EXISTS `career_interviews` (
+                    `id`              INT AUTO_INCREMENT PRIMARY KEY,
+                    `application_id`  INT NOT NULL,
+                    `scheduled_at`    DATETIME NOT NULL,
+                    `duration_min`    SMALLINT UNSIGNED NOT NULL DEFAULT 45,
+                    `mode`            ENUM('video','onsite','phone') NOT NULL DEFAULT 'video',
+                    `location`        VARCHAR(255) NOT NULL DEFAULT '',
+                    `interviewer`     VARCHAR(120) NOT NULL DEFAULT '',
+                    `instructions`    TEXT DEFAULT NULL,
+                    `status`          ENUM('scheduled','confirmed','declined','reschedule_requested','completed','cancelled') NOT NULL DEFAULT 'scheduled',
+                    `candidate_note`  VARCHAR(500) DEFAULT NULL,
+                    `responded_at`    DATETIME DEFAULT NULL,
+                    `invited_at`      DATETIME DEFAULT NULL,
+                    `reminder24_at`   DATETIME DEFAULT NULL,
+                    `reminder2_at`    DATETIME DEFAULT NULL,
+                    `chase_at`        DATETIME DEFAULT NULL,
+                    `created_by`      INT DEFAULT NULL,
+                    `created_at`      DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+                    `updated_at`      DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+                    KEY `idx_career_int_app` (`application_id`, `scheduled_at`),
+                    KEY `idx_career_int_when` (`status`, `scheduled_at`),
+                    FOREIGN KEY (`application_id`) REFERENCES `career_applications`(`id`) ON DELETE CASCADE,
+                    FOREIGN KEY (`created_by`) REFERENCES `users`(`id`) ON DELETE SET NULL
+                ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4
+            ");
+            $pdo->exec("
+                CREATE TABLE IF NOT EXISTS `career_state` (
+                    `name`       VARCHAR(60) NOT NULL PRIMARY KEY,
+                    `value`      VARCHAR(255) NOT NULL DEFAULT '',
+                    `updated_at` DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP
+                ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4
+            ");
+        } catch (PDOException $ex) {
+            error_log('Migration 2.21 (ATS): ' . $ex->getMessage());
+        }
     }
 
     /**

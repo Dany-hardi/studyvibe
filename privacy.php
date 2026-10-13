@@ -8,6 +8,7 @@ declare(strict_types=1);
 
 require_once __DIR__ . '/auth.php';
 require_once __DIR__ . '/lib/Brand.php';
+require_once __DIR__ . '/lib/SiteChrome.php';
 
 $lang = TranslationService::getLang() === 'en' ? 'en' : 'fr';
 
@@ -17,12 +18,13 @@ $all  = require __DIR__ . '/locales/privacy.php';
 $P    = $all[$lang];
 
 $h = fn(string $s): string => htmlspecialchars($s, ENT_QUOTES, 'UTF-8');
+$contactMail = SiteChrome::contactEmail();
 
 /** Renders one content block. Text comes from our own locale file, so inline tags are allowed. */
 function pvBlock(array $b): void
 {
     if (isset($b['p'])) {
-        echo '<p>' . $b['p'] . '</p>';
+        echo '<p>' . str_replace('{{mail}}', htmlspecialchars(SiteChrome::contactEmail(), ENT_QUOTES, 'UTF-8'), $b['p']) . '</p>';
     } elseif (isset($b['ul'])) {
         echo '<ul class="pv-list">';
         foreach ($b['ul'] as $li) {
@@ -69,12 +71,13 @@ function pvBlock(array $b): void
 <link href="https://fonts.googleapis.com/css2?family=Fraunces:ital,opsz,wght,SOFT@0,9..144,300..700,0..100;1,9..144,300..700,0..100&family=Hanken+Grotesk:wght@400;500;600;700&display=swap" rel="stylesheet">
 <link rel="stylesheet" href="/assets/css/sv2.css">
 <link rel="stylesheet" href="/assets/css/privacy.css">
+<link rel="stylesheet" href="/assets/css/site.css">
 <script>
   document.documentElement.classList.add('js');
   try { var s = localStorage.getItem('sv_dark'); if (s === '1' || (s === null && matchMedia('(prefers-color-scheme: dark)').matches)) document.documentElement.classList.add('dark'); } catch (e) {}
 </script>
 </head>
-<body class="v2 pv-body">
+<body class="v2 pv-body" id="top">
 
 <header class="pv-top" id="pv-top">
   <div class="pv-top-in">
@@ -151,7 +154,7 @@ function pvBlock(array $b): void
             <div>
               <h3><?= $h($P['contact_h']) ?></h3>
               <p><?= $h($P['contact_p']) ?></p>
-              <a class="btn btn-primary btn-lg" href="mailto:danielwilfriedtakou@gmail.com?subject=<?= rawurlencode($lang === 'en' ? 'My data' : 'Mes données') ?>">
+              <a class="btn btn-primary btn-lg" href="mailto:<?= $h(SiteChrome::contactEmail()) ?>?subject=<?= rawurlencode($lang === 'en' ? 'My data' : 'Mes données') ?>">
                 <?= $h($P['contact_cta']) ?>
                 <svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M5 12h14"/><path d="m13 6 6 6-6 6"/></svg>
               </a>
@@ -164,10 +167,7 @@ function pvBlock(array $b): void
 </div>
 </main>
 
-<footer class="pv-foot"><div class="pv-wrap pv-foot-in">
-  <a href="/index.php" class="brand" aria-label="StudyVibe"><?= Brand::logo('sm') ?></a>
-  <span>© <?= date('Y') ?> StudyVibe · <?= $h($P['version']) ?> · <?= $h($P['updated']) ?></span>
-</div></footer>
+<?= SiteChrome::footer($lang) ?>
 
 <button type="button" class="pv-up" id="pv-up" aria-label="<?= $h($P['top']) ?>" title="<?= $h($P['top']) ?>">
   <svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 19V5"/><path d="m6 11 6-6 6 6"/></svg>

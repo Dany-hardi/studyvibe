@@ -67,6 +67,7 @@ $envKeys = [
     'LOGIN_MAX_ATTEMPTS', 'LOGIN_LOCKOUT_MINUTES',
     'SMTP_HOST', 'SMTP_PORT', 'SMTP_USER', 'SMTP_PASS', 'SMTP_FROM', 'SMTP_FROM_NAME',
     'GEMINI_API_KEY', 'VAPID_PRIVATE_PEM_B64', 'VAPID_SUBJECT',
+    'CONTACT_EMAIL',   // public contact address shown in the footer and on the privacy page
     'CONTROL_OWNER_EMAIL', 'REQUIRE_2FA_ROLES'   // the control center allow-list and the roles that must use an authenticator app
 ];
 

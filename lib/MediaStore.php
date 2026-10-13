@@ -27,6 +27,7 @@ final class MediaStore
         'assignment'    => 'assignments',
         'assignment_feedback' => 'assignment_feedback',
         'pdf'           => 'pdfs',
+        'career_resume' => 'career-resumes',   // résumés of job applicants: read only through promoter/careers/resume.php
     ];
 
     public static function dir(string $kind): string
