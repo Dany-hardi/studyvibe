@@ -498,3 +498,16 @@ Sans cron, le moteur démarre quand même sur les pages Carrières, la page de s
 **Adresse de contact.** `CONTACT_EMAIL` (par défaut `studyvibelms@gmail.com`) sert au pied de page, à la politique de confidentialité et aux conditions d'utilisation. L'expéditeur des e-mails reste `SMTP_FROM`.
 
 **Vérifications.** `php tests/unit/careers_screening.php` (moteur et extraction), `php tests/integration/careers_flow.php` et `php tests/integration/careers_ats.php` (base de données requise).
+
+### Importer des offres depuis des fichiers Markdown
+
+Les offres peuvent s'écrire dans un fichier (`docs/careers/job-template.md`, ou `job-template.fr.md`). Dans l'espace recrutement, **Offres > Importer un fichier Markdown** affiche un aperçu et la liste de tous les problèmes (erreurs bloquantes et remarques), puis l'approbation crée l'offre avec les règles du formulaire. L'équipe est choisie parmi une liste fixe (`Careers::TEAMS`) : engineering, education, product, sales, success, marketing, data, operations, people.
+
+En ligne de commande, sur le serveur (même moteur, publication au nom du premier administrateur actif) :
+
+```bash
+php scripts/import-job.php docs/careers/postings/*.md --dry-run   # vérifie sans rien créer
+php scripts/import-job.php docs/careers/postings/*.md             # publie (ajoutez --draft pour un brouillon)
+```
+
+Trois offres prêtes à publier sont dans `docs/careers/postings/` (ingénierie, ventes, éducation), lecture automatique activée. Relisez-les avant publication : l'organisation, les avantages et la rémunération y sont des propositions à adapter.

@@ -23,6 +23,35 @@ final class Careers
     public const WORK_PREFS    = ['any', 'onsite', 'hybrid', 'remote'];
     public const HEARD         = ['website', 'linkedin', 'referral', 'social', 'school', 'event', 'other'];
     /** Months an application is kept after its last move when the person did not ask to stay in the talent pool (hired people excepted). */
+    /**
+     * The teams of StudyVibe. A posting belongs to exactly one, chosen from this list (never typed). The key is what is stored in
+     * career_jobs.department; labels are shown in the visitor's or administrator's language.
+     */
+    public const TEAMS = [
+        'engineering' => ['fr' => 'Ingénierie', 'en' => 'Engineering'],
+        'education'   => ['fr' => 'Éducation et pédagogie', 'en' => 'Education'],
+        'product'     => ['fr' => 'Produit et design', 'en' => 'Product & Design'],
+        'sales'       => ['fr' => 'Ventes et partenariats', 'en' => 'Sales & Partnerships'],
+        'success'     => ['fr' => 'Succès clients et support', 'en' => 'Customer Success'],
+        'marketing'   => ['fr' => 'Marketing et croissance', 'en' => 'Marketing & Growth'],
+        'data'        => ['fr' => 'Données et IA', 'en' => 'Data & AI'],
+        'operations'  => ['fr' => 'Opérations et finance', 'en' => 'Operations & Finance'],
+        'people'      => ['fr' => 'Personnes et culture', 'en' => 'People & Culture'],
+    ];
+
+    /** Words that mean each team (used to map older free-text values and Markdown files), lower case, without accents. */
+    private const TEAM_ALIASES = [
+        'engineering' => ['engineering', 'ingenierie', 'dev', 'developpement', 'development', 'tech', 'technology', 'technique', 'it'],
+        'education' => ['education', 'pedagogie', 'academic', 'academique', 'learning', 'content', 'contenu', 'formation', 'education et pedagogie'],
+        'product' => ['product', 'produit', 'design', 'ux', 'product design', 'produit et design'],
+        'sales' => ['sales', 'vente', 'ventes', 'commercial', 'business development', 'partnerships', 'partenariats', 'ventes et partenariats'],
+        'success' => ['success', 'succes', 'support', 'customer success', 'succes clients', 'succes clients et support'],
+        'marketing' => ['marketing', 'growth', 'communication', 'marketing et croissance'],
+        'data' => ['data', 'donnees', 'ai', 'ia', 'analytics', 'donnees et ia'],
+        'operations' => ['operations', 'ops', 'finance', 'administration', 'operations et finance'],
+        'people' => ['people', 'rh', 'hr', 'ressources humaines', 'culture', 'personnes et culture', 'recrutement'],
+    ];
+
     /** Code shared by every open (spontaneous) application, so its reference has the same shape as the others. */
     public const OPEN_CODE = 'OPEN';
     private const REF_ALPHABET = 'ABCDEFGHJKMNPQRSTUVWXYZ23456789';     // no 0/O, 1/I/L: a reference is read aloud and typed
@@ -221,6 +250,12 @@ final class Careers
         $autoDecline = max(0, min(90, (int)($in['auto_decline_days'] ?? 0)));
         $closes = trim((string)($in['closes_at'] ?? ''));
         $fields = [];
+        // The team is chosen from the list: required on creation, kept when an update does not send it
+        $teamIn = array_key_exists('department', $in) ? trim((string)$in['department']) : null;
+        $team = $teamIn === null ? '' : self::teamKey($teamIn);
+        if ($teamIn !== null && $team === '') {
+            $fields['department'] = $teamIn === '' ? 'required' : 'invalid';
+        }
         $codeRaw = trim((string)($in['code'] ?? ''));
         $code = self::normalizeCode($codeRaw);
         if ($codeRaw !== '' && $code === '') {
@@ -270,12 +305,19 @@ final class Careers
         if ($code !== '' && self::codeTaken($pdo, $code, $id ?: null)) {
             return ['ok' => false, 'error' => 'validation', 'fields' => ['code' => 'taken'], 'message' => 'Ce code est déjà utilisé.'];
         }
+        if ($teamIn === null) {
+            if ($existing && isset(self::TEAMS[(string)$existing['department']])) {
+                $team = (string)$existing['department'];
+            } else {
+                return ['ok' => false, 'error' => 'validation', 'fields' => ['department' => 'required'], 'message' => 'Choisissez une équipe.'];
+            }
+        }
         if ($code === '') {
             $code = $existing ? (string)$existing['code'] : self::uniqueCode($pdo, $title);
         }
 
         $data = [
-            'title' => $title, 'department' => self::line($in['department'] ?? '', 80), 'location' => self::line($in['location'] ?? '', 120),
+            'title' => $title, 'department' => $team, 'location' => self::line($in['location'] ?? '', 120),
             'mode' => $mode, 'type' => $type, 'level' => self::line($in['level'] ?? '', 40), 'summary' => $summary,
             'description' => $description, 'resp' => $resp, 'req' => $req, 'nice' => $nice, 'ben' => $ben,
             'salary' => self::line($in['salary_note'] ?? '', 160), 'openings' => $openings, 'status' => $status,
@@ -435,6 +477,56 @@ final class Careers
             default => false,
         };
         return $ok ? null : 'bad_type';
+    }
+
+    /** The team key for a key, a label in either language, or an alias ('' when it is none of them). */
+    public static function teamKey(string $v): string
+    {
+        $n = self::plain($v);
+        if ($n === '') {
+            return '';
+        }
+        if (isset(self::TEAMS[$n])) {
+            return $n;
+        }
+        foreach (self::TEAMS as $k => $labels) {
+            if (self::plain($labels['fr']) === $n || self::plain($labels['en']) === $n) {
+                return $k;
+            }
+        }
+        foreach (self::TEAM_ALIASES as $k => $words) {
+            if (in_array($n, $words, true)) {
+                return $k;
+            }
+        }
+        return '';
+    }
+
+    /** Label of a team in a language; a value that is not a team (an older free-text one) is shown as it is. */
+    public static function teamLabel(string $key, string $lang = 'fr'): string
+    {
+        return self::TEAMS[$key][$lang === 'en' ? 'en' : 'fr'] ?? $key;
+    }
+
+    /** Teams as [key => label] in a language, for dropdowns. */
+    public static function teamsFor(string $lang): array
+    {
+        $o = [];
+        foreach (self::TEAMS as $k => $l) {
+            $o[$k] = $l[$lang === 'en' ? 'en' : 'fr'];
+        }
+        return $o;
+    }
+
+    /** Lower case, no accents, no punctuation: for comparing words. */
+    public static function plain(string $v): string
+    {
+        $v = mb_strtolower(trim($v), 'UTF-8');
+        if (class_exists('Normalizer')) {
+            $n = Normalizer::normalize($v, Normalizer::FORM_D);
+            $v = $n !== false ? (string)preg_replace('/\p{Mn}+/u', '', $n) : $v;
+        }
+        return trim((string)preg_replace('/[^a-z0-9 ]+/', ' ', str_replace(['&', '+'], [' ', ' '], $v)) ?: '');
     }
 
     // ---------------------------------------------------------------------------------------------------------------

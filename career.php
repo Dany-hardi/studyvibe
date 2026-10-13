@@ -116,7 +116,7 @@ function caOptions(array $map): string
     <?php endif; ?>
 
     <header class="ca-jhead">
-      <p class="kicker"><?= $h($spont ? $L['crumb_careers'] : ($job['department'] !== '' ? $job['department'] : $L['crumb_careers'])) ?></p>
+      <p class="kicker"><?= $h($spont ? $L['crumb_careers'] : ($job['department'] !== '' ? Careers::teamLabel((string)$job['department'], $lang) : $L['crumb_careers'])) ?></p>
       <h1><?= $h($title) ?></h1>
       <?php if ($spont): ?>
         <p class="ca-lede"><?= $h($L['spont_lede']) ?></p>
@@ -164,7 +164,7 @@ function caOptions(array $map): string
           <h2><?= $h($L['facts_h']) ?></h2>
           <dl class="ca-facts">
             <?php $facts = [
-                [$L['fact_team'], $job['department']], [$L['fact_place'], $job['location']], [$L['fact_mode'], $L['modes'][$job['work_mode']] ?? ''],
+                [$L['fact_team'], Careers::teamLabel((string)$job['department'], $lang)], [$L['fact_place'], $job['location']], [$L['fact_mode'], $L['modes'][$job['work_mode']] ?? ''],
                 [$L['fact_type'], $L['types'][$job['employment_type']] ?? ''], [$L['fact_level'], $job['level']],
                 [$L['fact_openings'], (int)$job['openings'] > 1 ? (string)(int)$job['openings'] : ''], [$L['fact_salary'], $job['salary_note']],
                 [$L['fact_deadline'], $date($job['closes_at'])], [$L['fact_posted'], $date($job['published_at'])], [$L['fact_code'], (string)$job['code']],

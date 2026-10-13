@@ -9,6 +9,7 @@ declare(strict_types=1);
  *   job_get{id}  job_save{id?,...fields}  job_status{id,status}  job_delete{id}
  *   apps{job_id?,status?,q?,starred?}                list of applications
  *   app_bucket{id,bucket}  apps_bulk{ids,op}  app_rescreen{id}  interview_save{application_id,...}  interview_cancel{id}  interview_complete{id}  interviews
+ *   md_preview{md}  md_import{md,status}      a posting from a Markdown file: preview with every problem, then creation
  *   app_get{id}  app_status{id,status,notify?,message?}  app_note{id,body}  app_rate{id,rating}  app_star{id,on}  app_delete{id}
  *
  * Answers {success:true,...} or {success:false,error,message,fields?}. Same-site check + CSRF header + administrator role on every call.
@@ -17,6 +18,7 @@ declare(strict_types=1);
 require_once __DIR__ . '/_guard.php';
 require_once __DIR__ . '/../../lib/RateLimit.php';
 require_once __DIR__ . '/../../lib/CareersScreening.php';
+require_once __DIR__ . '/../../lib/CareersMarkdown.php';
 require_once __DIR__ . '/../../lib/CareersInterviews.php';
 
 $adminId = careersAdminOrFail(true);
@@ -123,6 +125,18 @@ try {
                 auditLog('career_application_deleted', 'Application #' . $id);
             }
             $out($res);
+
+        case 'md_preview':
+            $p = CareersMarkdown::parse((string)($in['md'] ?? ''), $pdo);
+            $out(['ok' => true, 'valid' => $p['ok'], 'errors' => $p['errors'], 'warnings' => $p['warnings'], 'job' => $p['job'], 'preview' => $p['preview']]);
+
+        case 'md_import':
+            $res = CareersMarkdown::import($pdo, $adminId, (string)($in['md'] ?? ''), isset($in['status']) ? (string)$in['status'] : null);
+            if ($res['ok']) {
+                auditLog('career_job_imported', 'Job #' . $res['id'] . ' ' . $res['slug'] . ' from a Markdown file');
+                $out(['ok' => true, 'id' => $res['id'], 'slug' => $res['slug'], 'job' => $res['job'], 'warnings' => $res['warnings']], 201);
+            }
+            $out(['ok' => false, 'error' => 'validation', 'errors' => $res['errors'], 'message' => 'Le fichier contient des erreurs.']);
 
         case 'app_bucket':
             $res = Careers::moveBucket($pdo, $id, $adminId, (string)($in['bucket'] ?? ''));

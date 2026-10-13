@@ -63,6 +63,7 @@
     link: '<svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M10 14a4 4 0 0 0 5.7 0l3-3a4 4 0 0 0-5.7-5.7l-1 1"/><path d="M14 10a4 4 0 0 0-5.7 0l-3 3a4 4 0 0 0 5.7 5.7l1-1"/></svg>',
     inbox: '<svg width="48" height="48" viewBox="0 0 48 48" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M6 28 12 10h24l6 18"/><path d="M6 28v8a2 2 0 0 0 2 2h32a2 2 0 0 0 2-2v-8H30a6 6 0 0 1-12 0z"/></svg>',
     brief: '<svg width="48" height="48" viewBox="0 0 48 48" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="6" y="14" width="36" height="26" rx="4"/><path d="M17 14v-3a3 3 0 0 1 3-3h8a3 3 0 0 1 3 3v3"/><path d="M6 26h36"/><path d="M21 26v3h6v-3"/></svg>',
+    md: '<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M14 3H7a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h10a2 2 0 0 0 2-2V8z"/><path d="M14 3v5h5"/><path d="M9 17v-4l2 2.500 2-2.500v4"/></svg>',
     filter: '<svg width="48" height="48" viewBox="0 0 48 48" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M6 10h36L28 26v12l-8 4V26z"/></svg>',
     clock: '<svg width="48" height="48" viewBox="0 0 48 48" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="6" y="9" width="36" height="32" rx="4"/><path d="M6 19h36M15 5v8M33 5v8"/><circle cx="24" cy="30" r="5"/><path d="M24 28v2.5l1.8 1"/></svg>'
   };
@@ -210,12 +211,12 @@
       var n = k === 'all' ? S.jobs.length : S.jobs.filter(function (j) { return j.status === k; }).length;
       return '<button type="button" class="cx-chip' + (f === k ? ' on' : '') + '" data-jf="' + k + '" aria-pressed="' + (f === k) + '">' + esc(k === 'all' ? T.all : T.st[k]) + ' <b class="num">' + n + '</b></button>';
     }).join('');
-    var html = '<div class="cx-bar-h"><div><h1>' + esc(T.jobs_h) + '</h1></div><button type="button" class="cx-btn cx-btn-primary" data-newjob>' + I.plus + '<span>' + esc(T.new_job) + '</span></button></div><div class="cx-chips" role="group">' + chips + '</div>';
+    var html = '<div class="cx-bar-h"><div><h1>' + esc(T.jobs_h) + '</h1></div><div class="cx-bar-a"><button type="button" class="cx-btn cx-btn-ghost" data-mdimport>' + I.md + '<span class="cx-hide-xs">' + esc(T.md_btn) + '</span></button><button type="button" class="cx-btn cx-btn-primary" data-newjob>' + I.plus + '<span>' + esc(T.new_job) + '</span></button></div></div><div class="cx-chips" role="group">' + chips + '</div>';
     if (!list.length) {
       html += '<div class="cx-empty">' + I.brief + '<h2>' + esc(T.no_jobs_h) + '</h2><p>' + esc(T.no_jobs_p) + '</p><button type="button" class="cx-btn cx-btn-primary" data-newjob>' + I.plus + '<span>' + esc(T.new_job) + '</span></button></div>';
     } else {
       html += '<ul class="cx-jobs">' + list.map(function (j) {
-        var n = +j.applicants, meta = [j.department, j.location, T.modes[j.work_mode], T.types[j.employment_type]].filter(Boolean).map(esc).join(' · ');
+        var n = +j.applicants, meta = [C.teams[j.department] || j.department, j.location, T.modes[j.work_mode], T.types[j.employment_type]].filter(Boolean).map(esc).join(' · ');
         return '<li class="cx-job" data-job="' + j.id + '"><div class="cx-job-main"><div class="cx-job-top"><h3>' + esc(j.title) + '</h3>' + jobPill(j.status) + '<span class="cx-code" title="' + esc(T.l_code) + '">' + esc(j.code) + '</span>' + (+j.screen_enabled ? '<span class="cx-tag" title="' + esc(T.ats_on) + '">ATS</span>' : '') + '</div>'
           + '<p class="cx-job-meta">' + meta + '</p>'
           + '<p class="cx-job-sub">' + (j.closes_at ? esc(fmt(T.closes, { date: date(j.closes_at) })) + ' · ' : '') + esc(fmt(T.updated, { date: date(j.updated_at) })) + (+j.held_applicants ? ' · ' + esc(fmt(T.n_held, { n: j.held_applicants })) : '') + '</p></div>'
@@ -243,7 +244,7 @@
       + '<fieldset><legend>' + esc(T.s_basics) + '</legend><div class="cx-fg">'
       + field('title', T.l_title, '<input class="cx-in" id="jf-title" name="title" maxlength="160" required value="' + v('title') + '" placeholder="' + esc(T.ph_title) + '">', '', 'full')
       + field('code', T.l_code, '<input class="cx-in cx-code-in" id="jf-code" name="code" maxlength="4" value="' + v('code') + '" placeholder="' + esc(T.ph_code) + '" autocomplete="off" spellcheck="false" autocapitalize="characters">', T.h_code, 'full')
-      + field('department', T.l_dept, '<input class="cx-in" id="jf-department" name="department" maxlength="80" value="' + v('department') + '" placeholder="' + esc(T.ph_dept) + '">')
+      + field('department', T.l_dept, '<select class="cx-in" id="jf-department" name="department" required><option value="">' + esc(T.choose_team) + '</option>' + opts(C.teams, j.department) + '</select>')
       + field('location', T.l_loc, '<input class="cx-in" id="jf-location" name="location" maxlength="120" value="' + v('location') + '" placeholder="' + esc(T.ph_loc) + '">')
       + field('work_mode', T.l_mode, '<select class="cx-in" id="jf-work_mode" name="work_mode">' + opts(T.modes, j.work_mode) + '</select>')
       + field('employment_type', T.l_type, '<select class="cx-in" id="jf-employment_type" name="employment_type">' + opts(T.types, j.employment_type) + '</select>')
@@ -446,6 +447,98 @@
       }).join('');
     }
     $('#panel-interviews').innerHTML = html;
+  }
+
+  /* ======================================================= IMPORT A POSITION FROM A MARKDOWN FILE */
+  function mdMsg(m) { return fmt(T.md[m.code] || m.code, Object.assign({ line: m.line }, m.params || {})); }
+  function mdList(items, cls) {
+    return '<ul class="cx-md-msgs ' + cls + '">' + items.map(function (m) { return '<li>' + (m.line ? '<b class="cx-md-ln">' + esc(fmt(T.md_line, { n: m.line })) + '</b>' : '') + '<span>' + esc(mdMsg(m)) + '</span></li>'; }).join('') + '</ul>';
+  }
+  function mdParas(text) {
+    return String(text || '').split(/\n{2,}/).filter(Boolean).map(function (p) {
+      var ls = p.split('\n');
+      if (ls.every(function (l) { return l.indexOf('• ') === 0; })) return '<ul class="cx-mdp-list">' + ls.map(function (l) { return '<li>' + esc(l.slice(2)) + '</li>'; }).join('') + '</ul>';
+      return '<p>' + ls.map(esc).join('<br>') + '</p>';
+    }).join('');
+  }
+  function mdItems(text, cls) { var a = String(text || '').split('\n').filter(Boolean); return a.length ? '<ul class="cx-mdp-list ' + (cls || '') + '">' + a.map(function (l) { return '<li>' + esc(l) + '</li>'; }).join('') + '</ul>' : ''; }
+  function kwChips(text, derived) {
+    return String(text || '').split('\n').filter(Boolean).map(function (k) { var ko = k.charAt(0) === '!'; return '<span class="cx-kw ' + (ko ? 'no cx-kw-ko' : 'ok') + '" title="' + (ko ? esc(T.md_ko) : '') + '">' + esc(ko ? k.slice(1) : k) + (ko ? ' <small>' + esc(T.md_ko) + '</small>' : '') + '</span>'; }).join('');
+  }
+  function mdPreviewHtml(job, prev) {
+    if (!job || !job.title) return '';
+    var team = (prev.team_label && prev.team_label[C.lang]) || C.teams[job.department] || '';
+    var chips = [job.location, T.modes[job.work_mode], T.types[job.employment_type], job.level].filter(Boolean).map(function (x) { return '<span class="cx-tag cx-tag-lg">' + esc(x) + '</span>'; }).join('');
+    var sec = function (h, body) { return body ? '<section><h4>' + esc(h) + '</h4>' + body + '</section>' : ''; };
+    var f = function (k, v) { return v ? '<div><dt>' + esc(k) + '</dt><dd>' + v + '</dd></div>' : ''; };
+    var scr = +job.screen_enabled;
+    return '<article class="cx-mdp"><header>' + (team ? '<p class="cx-mdp-k">' + esc(team) + '</p>' : '') + '<h3>' + esc(job.title) + '</h3>' + (job.summary ? '<p class="cx-mdp-sum">' + esc(job.summary) + '</p>' : '') + '<div class="cx-mdp-chips">' + chips + '</div></header>'
+      + '<div class="cx-mdp-grid"><div class="cx-mdp-main">'
+      + sec(T.l_desc, mdParas(job.description)) + sec(T.l_resp, mdItems(job.responsibilities)) + sec(T.l_req, mdItems(job.requirements)) + sec(T.l_nice, mdItems(job.nice_to_have, 'soft')) + sec(T.l_ben, mdItems(job.benefits))
+      + '</div><aside><section class="cx-mdp-card"><h4>' + esc(T.md_prev_facts) + '</h4><dl class="cx-dl">'
+      + f(T.l_dept, esc(team)) + f(T.l_code, '<span class="cx-code">' + esc(prev.code || '') + '</span>' + (prev.code_generated ? ' <small class="cx-muted">' + esc(T.md_code_auto) + '</small>' : ''))
+      + f(T.md_status, esc(T.st[job.status] || job.status)) + f(T.l_closes, job.closes_at ? esc(date(job.closes_at)) : '') + f(T.l_openings, +job.openings > 1 ? esc(job.openings) : '') + f(T.l_salary, esc(job.salary_note))
+      + '</dl></section><section class="cx-mdp-card cx-ats"><h4>' + esc(T.md_prev_screen) + ' · <span class="' + (scr ? 'cx-on' : 'cx-off') + '">' + esc(scr ? T.md_screen_on : T.md_screen_off) + '</span></h4>'
+      + (scr ? '<dl class="cx-dl">' + f(T.md_threshold, esc(job.screen_threshold)) + f(T.md_min_years, +job.min_years ? esc(fmt(T.md_years, { n: job.min_years })) : esc(T.md_none)) + f(T.md_min_edu, job.min_education ? esc(T.edu[job.min_education]) : esc(T.md_none)) + f(T.md_auto_decline, +job.auto_decline_days ? esc(fmt(T.md_days, { n: job.auto_decline_days })) : esc(T.md_never)) + '</dl>'
+        + '<p class="cx-kwh">' + esc(T.md_must) + '</p><div class="cx-kws">' + (kwChips(job.must_have) || (prev.derived && prev.derived.length ? prev.derived.map(function (k) { return '<span class="cx-kw mute">' + esc(k) + '</span>'; }).join('') : '<span class="cx-muted">' + esc(T.md_none) + '</span>')) + '</div>'
+        + (!job.must_have && prev.derived && prev.derived.length ? '<p class="cx-hint">' + esc(T.md_derived) + '</p>' : '')
+        + (job.nice_have ? '<p class="cx-kwh">' + esc(T.md_nice_kw) + '</p><div class="cx-kws">' + kwChips(job.nice_have) + '</div>' : '') : '')
+      + '</section></aside></div></article>';
+  }
+  function openImport() {
+    var d = $('#cx-md-dlg'), text = '';
+    function frame(step, body, foot) {
+      var steps = [T.md_step1, T.md_step2, T.md_step3].map(function (x, i) { return '<li' + (i + 1 === step ? ' class="on" aria-current="step"' : (i + 1 < step ? ' class="done"' : '')) + '><b>' + (i + 1) + '</b>' + esc(x) + '</li>'; }).join('');
+      d.innerHTML = '<header class="cx-dlg-h"><div><h2 id="cx-md-title">' + esc(T.md_title) + '</h2><ol class="cx-steps3">' + steps + '</ol></div><button type="button" class="cx-icon" data-dlgclose aria-label="' + esc(T.close) + '">' + I.x + '</button></header>'
+        + '<div class="cx-dlg-b">' + body + '</div>' + (foot ? '<footer class="cx-dlg-f">' + foot + '</footer>' : '');
+      $$('[data-dlgclose]', d).forEach(function (b) { b.addEventListener('click', function () { d.close(); }); });
+    }
+    function choose(msg) {
+      frame(1, '<p class="cx-sub cx-md-intro">' + esc(T.md_intro) + '</p>'
+        + (msg ? '<p class="cx-banner" role="alert">' + esc(msg) + '</p>' : '')
+        + '<label class="cx-md-drop" id="cx-md-drop"><input type="file" id="cx-md-file" accept=".md,.markdown,.txt,text/markdown,text/plain"><span class="cx-md-ic">' + I.md.replace('width="16" height="16"', 'width="30" height="30"') + '</span><strong>' + esc(T.md_drop) + '</strong><span>' + esc(T.md_or) + ' <u>' + esc(T.md_browse) + '</u></span></label>'
+        + '<p class="cx-md-tpl">' + I.dl + ' ' + esc(T.md_tpl) + ': <a href="/promoter/careers/template.php?lang=en">' + esc(T.md_tpl_en) + '</a> · <a href="/promoter/careers/template.php?lang=fr">' + esc(T.md_tpl_fr) + '</a></p>'
+        + '<details class="cx-md-paste"><summary>' + esc(T.md_paste) + '</summary><textarea class="cx-in" id="cx-md-text" rows="9" placeholder="' + esc(T.md_paste_ph) + '" spellcheck="false"></textarea><div class="cx-note-a"><button type="button" class="cx-btn cx-btn-ghost cx-btn-sm" id="cx-md-paste-go">' + esc(T.md_paste_go) + '</button></div></details>');
+      var drop = $('#cx-md-drop', d), inp = $('#cx-md-file', d);
+      var readFile = function (f) {
+        if (!f) return;
+        if (f.size > 204800) return choose(T.md_file_big);
+        var r = new FileReader(); r.onload = function () { run(String(r.result || '')); }; r.readAsText(f, 'UTF-8');
+      };
+      inp.addEventListener('change', function () { readFile(inp.files && inp.files[0]); });
+      ['dragenter', 'dragover'].forEach(function (ev) { drop.addEventListener(ev, function (e) { e.preventDefault(); drop.classList.add('drag'); }); });
+      ['dragleave', 'drop'].forEach(function (ev) { drop.addEventListener(ev, function () { drop.classList.remove('drag'); }); });
+      drop.addEventListener('drop', function (e) { e.preventDefault(); readFile(e.dataTransfer && e.dataTransfer.files && e.dataTransfer.files[0]); });
+      $('#cx-md-paste-go', d).addEventListener('click', function () { var v = $('#cx-md-text', d).value; if (v.trim()) { if (v.length > 204800) return choose(T.md_file_big); run(v); } });
+    }
+    function run(md) {
+      text = md;
+      frame(1, '<div class="cx-d-load"><span class="cx-spin"></span> ' + esc(T.md_reading) + '</div>');
+      api('md_preview', { md: md }).then(function (r) { if (!r.success) return choose(r.message || T.err); review(r); });
+    }
+    function review(r) {
+      var errs = r.errors || [], warns = r.warnings || [], ok = !!r.valid;
+      var banner = ok ? '<div class="cx-md-banner ok"><b>' + esc(T.md_ready) + '</b><span>' + esc(T.md_ready_p) + (warns.length ? ' · ' + esc(fmt(T.md_warn_n, { n: warns.length })) : '') + '</span></div>'
+                      : '<div class="cx-md-banner bad"><b>' + esc(fmt(T.md_blocked, { n: errs.length })) + '</b><span>' + esc(T.md_blocked_p) + '</span></div>';
+      var body = banner + (errs.length ? '<h4 class="cx-md-h">' + esc(T.md_errors) + '</h4>' + mdList(errs, 'err') : '') + (warns.length ? '<h4 class="cx-md-h">' + esc(T.md_warnings) + '</h4>' + mdList(warns, 'warn') : '') + mdPreviewHtml(r.job, r.preview || {});
+      frame(ok ? 3 : 2, body, '<button type="button" class="cx-btn cx-btn-ghost" id="cx-md-back">' + esc(T.md_back) + '</button><button type="button" class="cx-btn cx-btn-ghost" id="cx-md-draft"' + (ok ? '' : ' disabled') + '>' + esc(T.md_draft) + '</button><button type="button" class="cx-btn cx-btn-primary" id="cx-md-go"' + (ok ? '' : ' disabled') + '>' + esc(T.md_publish) + '</button>');
+      $('#cx-md-back', d).addEventListener('click', function () { choose(); });
+      var send = function (status, btn) {
+        $$('footer button', d).forEach(function (b) { b.disabled = true; });
+        api('md_import', { md: text, status: status }).then(function (x) {
+          if (x.success) {
+            d.close(); toast(status === 'open' ? T.md_done_open : T.md_done_draft);
+            return reload().then(function () { S.jobFilter = 'all'; go('jobs'); });
+          }
+          if (x.errors) return review({ valid: false, errors: x.errors, warnings: [], job: r.job, preview: r.preview });
+          toast(x.message || T.err, 'err'); $$('footer button', d).forEach(function (b) { b.disabled = false; });
+        });
+      };
+      $('#cx-md-draft', d).addEventListener('click', function () { send('draft'); });
+      $('#cx-md-go', d).addEventListener('click', function () { send('open'); });
+    }
+    choose();
+    if (!d.open) d.showModal();
   }
 
   /* ---------- interview scheduler dialog ---------- */
@@ -683,9 +776,10 @@
 
   /* ---------- delegated clicks ---------- */
   document.addEventListener('click', function (e) {
-    var t = e.target.closest('[data-open],[data-go],[data-jf],[data-newjob],[data-jedit],[data-jact],[data-jdel],[data-jobapps],[data-sf],[data-starred],[data-clear],[data-view],[data-status],[data-dclose],[data-scr],[data-bk],[data-del],[data-bulk],[data-ivf],[data-ivedit],[data-ivcancel],[data-copytrack]');
+    var t = e.target.closest('[data-open],[data-go],[data-jf],[data-newjob],[data-jedit],[data-jact],[data-jdel],[data-jobapps],[data-sf],[data-starred],[data-clear],[data-view],[data-status],[data-dclose],[data-scr],[data-bk],[data-del],[data-bulk],[data-ivf],[data-ivedit],[data-ivcancel],[data-copytrack],[data-mdimport]');
     if (!t) return;
     if (t.dataset.dclose !== undefined) return closeDrawer();
+    if (t.dataset.mdimport !== undefined) return openImport();
     if (t.dataset.copytrack) {
       var url = location.origin + '/track.php?t=' + t.dataset.copytrack;
       var done = function () { toast(T.track_copied); };

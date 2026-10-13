@@ -1113,6 +1113,19 @@ class Database
         } catch (Throwable $ex) {
             error_log('Migration 2.22 (job codes): ' . $ex->getMessage());
         }
+
+        // Migration 2.23: the team of a posting is chosen from a fixed list (Careers::TEAMS); older free-text values are mapped to the nearest team.
+        try {
+            require_once __DIR__ . '/lib/Careers.php';
+            foreach ($pdo->query("SELECT id, department FROM career_jobs WHERE department <> ''")->fetchAll(PDO::FETCH_ASSOC) as $row) {
+                $key = Careers::teamKey((string)$row['department']);
+                if ($key !== '' && $key !== $row['department']) {
+                    $pdo->prepare('UPDATE career_jobs SET department = :k WHERE id = :i')->execute(['k' => $key, 'i' => $row['id']]);
+                }
+            }
+        } catch (Throwable $ex) {
+            error_log('Migration 2.23 (teams): ' . $ex->getMessage());
+        }
     }
 
     /**

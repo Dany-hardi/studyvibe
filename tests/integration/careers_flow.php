@@ -34,7 +34,7 @@ try {
     // --- postings
     $bad = Careers::saveJob($pdo, $admin, null, ['title' => 'ab']);
     check('a posting needs a title', !$bad['ok'] && isset($bad['fields']['title']));
-    $draft = Careers::saveJob($pdo, $admin, null, ['title' => "QA $tag", 'status' => 'draft']);
+    $draft = Careers::saveJob($pdo, $admin, null, ['department' => 'engineering', 'title' => "QA $tag", 'status' => 'draft']);
     check('a draft can be saved with little', $draft['ok'] && $draft['created']);
     $jobIds[] = $id = (int)$draft['id'];
     $pub = Careers::saveJob($pdo, $admin, $id, ['title' => "QA $tag", 'status' => 'open', 'summary' => 'short']);
@@ -56,10 +56,19 @@ try {
     Careers::setJobStatus($pdo, $id, 'open');
     check('reopening keeps the first publication date', Careers::job($pdo, $id)['published_at'] === $job['published_at']);
 
+    // --- teams
+    check('a posting cannot be created without a team', Careers::saveJob($pdo, $admin, null, ['title' => "No team $tag"])['fields']['department'] === 'required');
+    check('a team that is not in the list is refused', Careers::saveJob($pdo, $admin, null, ['title' => "Bad team $tag", 'department' => 'wizards'])['fields']['department'] === 'invalid');
+    check('the team is stored as its key, whatever label or alias was given (FR, EN, alias)', Careers::job($pdo, $id)['department'] === 'engineering' && Careers::teamKey('Ventes et partenariats') === 'sales' && Careers::teamKey('Customer Success') === 'success' && Careers::teamKey('dev') === 'engineering');
+    check('an update that does not send the team keeps it', Careers::saveJob($pdo, $admin, $id, ['title' => "QA $tag", 'status' => 'draft'])['ok'] && Careers::job($pdo, $id)['department'] === 'engineering');
+    Careers::saveJob($pdo, $admin, $id, ['title' => "QA $tag", 'department' => 'Éducation', 'status' => 'open', 'summary' => 'Own the quality of every release of the platform.', 'description' => 'x']);
+    check('the team can be changed to another one of the list', Careers::job($pdo, $id)['department'] === 'education');
+    check('labels come in both languages and an unknown value is shown as it is', Careers::teamLabel('sales', 'en') === 'Sales & Partnerships' && Careers::teamLabel('sales', 'fr') === 'Ventes et partenariats' && Careers::teamLabel('legacy text', 'en') === 'legacy text');
+
     // --- posting code and application reference
     check('a posting gets a 4-character code of its own on creation', preg_match('/^[A-Z0-9]{4}$/', (string)$job['code']) === 1);
     check('the suggested code is readable (initials, or the first letters of each word)', Careers::suggestCode('Senior Full-Stack Developer') === 'SFSD' && Careers::suggestCode('Product Designer') === 'PRDE' && Careers::suggestCode('Intern') === 'INTE' && strlen(Careers::suggestCode('QA')) === 4);
-    $twin = Careers::saveJob($pdo, $admin, null, ['title' => "QA $tag", 'status' => 'draft']); $jobIds[] = (int)$twin['id'];
+    $twin = Careers::saveJob($pdo, $admin, null, ['department' => 'engineering', 'title' => "QA $tag", 'status' => 'draft']); $jobIds[] = (int)$twin['id'];
     check('two postings with the same title never share a code', Careers::job($pdo, (int)$twin['id'])['code'] !== $job['code']);
     $own = Careers::saveJob($pdo, $admin, $id, ['title' => "QA $tag", 'status' => 'open', 'summary' => 'Own the quality of every release of the platform.', 'description' => 'x', 'code' => 'zq7k']);
     check('an administrator can choose the code (capitalised) and it is kept', $own['ok'] && Careers::job($pdo, $id)['code'] === 'ZQ7K');

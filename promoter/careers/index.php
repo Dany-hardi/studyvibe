@@ -29,7 +29,7 @@ try {
 $user = getCurrentUser();
 $cfg = [
     'lang' => $lang, 't' => $t, 'boot' => $boot, 'spontaneous' => Careers::SPONTANEOUS,
-    'types' => Careers::TYPES, 'modes' => Careers::MODES, 'jobStatuses' => Careers::JOB_STATUSES, 'appStatuses' => Careers::APP_STATUSES,
+    'teams' => Careers::teamsFor($lang), 'types' => Careers::TYPES, 'modes' => Careers::MODES, 'jobStatuses' => Careers::JOB_STATUSES, 'appStatuses' => Careers::APP_STATUSES,
 ];
 $tabs = [['overview', $t['tab_overview']], ['jobs', $t['tab_jobs']], ['apps', $t['tab_apps']], ['screening', $t['tab_screening']], ['interviews', $t['tab_interviews']]];
 ?>
@@ -85,6 +85,8 @@ $tabs = [['overview', $t['tab_overview']], ['jobs', $t['tab_jobs']], ['apps', $t
 <div class="cx-scrim" id="cx-scrim" hidden></div>
 <aside class="cx-drawer" id="cx-drawer" role="dialog" aria-modal="true" aria-labelledby="cx-drawer-title" hidden tabindex="-1"></aside>
 
+<!-- Markdown import -->
+<dialog class="cx-dialog cx-dialog-wide" id="cx-md-dlg" aria-labelledby="cx-md-title"></dialog>
 <!-- Interview scheduler -->
 <dialog class="cx-dialog" id="cx-iv-dlg" aria-labelledby="cx-iv-title"></dialog>
 <!-- Job editor -->

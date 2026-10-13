@@ -41,13 +41,13 @@ $depts = [];
 $remote = 0;
 foreach ($jobs as $j) {
     if ($j['department'] !== '') {
-        $depts[$j['department']] = true;
+        $depts[$j['department']] = Careers::teamLabel((string)$j['department'], $lang);
     }
     if ($j['work_mode'] === 'remote' || $j['work_mode'] === 'hybrid') {
         $remote++;
     }
 }
-ksort($depts);
+asort($depts);
 $types = array_values(array_unique(array_column($jobs, 'employment_type')));
 $modes = array_values(array_unique(array_column($jobs, 'work_mode')));
 $isNew = static fn(array $j): bool => !empty($j['published_at']) && strtotime((string)$j['published_at']) >= strtotime('-7 days');
@@ -126,7 +126,7 @@ $ico = [
           <label for="ca-dept"><?= $h($L['f_dept']) ?></label>
           <select class="input ca-sel" id="ca-dept">
             <option value=""><?= $h($L['f_all_dept']) ?></option>
-            <?php foreach (array_keys($depts) as $d): ?><option value="<?= $h($d) ?>"><?= $h($d) ?></option><?php endforeach; ?>
+            <?php foreach ($depts as $dk => $dl): ?><option value="<?= $h($dk) ?>"><?= $h($dl) ?></option><?php endforeach; ?>
           </select>
         </div>
         <div class="field">
@@ -152,7 +152,7 @@ $ico = [
 
       <ul class="ca-jobs" id="ca-jobs">
         <?php foreach ($jobs as $j):
-            $hay = mb_strtolower($j['title'] . ' ' . $j['department'] . ' ' . $j['location'] . ' ' . $j['summary'] . ' ' . ($L['types'][$j['employment_type']] ?? '') . ' ' . ($L['modes'][$j['work_mode']] ?? '')); ?>
+            $hay = mb_strtolower($j['title'] . ' ' . Careers::teamLabel((string)$j['department'], $lang) . ' ' . $j['location'] . ' ' . $j['summary'] . ' ' . ($L['types'][$j['employment_type']] ?? '') . ' ' . ($L['modes'][$j['work_mode']] ?? '')); ?>
           <li class="ca-job" data-dept="<?= $h($j['department']) ?>" data-type="<?= $h($j['employment_type']) ?>" data-mode="<?= $h($j['work_mode']) ?>" data-hay="<?= $h($hay) ?>">
             <a href="/career.php?slug=<?= $h($j['slug']) ?>">
               <div>
@@ -162,7 +162,7 @@ $ico = [
                 </div>
                 <?php if ($j['summary'] !== ''): ?><p><?= $h($j['summary']) ?></p><?php endif; ?>
                 <ul class="ca-tags">
-                  <?php if ($j['department'] !== ''): ?><li class="ca-tag ca-tag-dept"><?= $h($j['department']) ?></li><?php endif; ?>
+                  <?php if ($j['department'] !== ''): ?><li class="ca-tag ca-tag-dept"><?= $h(Careers::teamLabel((string)$j['department'], $lang)) ?></li><?php endif; ?>
                   <?php if ($j['location'] !== ''): ?><li class="ca-tag"><?= $ico['pin'] ?><?= $h($j['location']) ?></li><?php endif; ?>
                   <li class="ca-tag"><?= $ico['home'] ?><?= $h($L['modes'][$j['work_mode']] ?? '') ?></li>
                   <li class="ca-tag"><?= $ico['clock'] ?><?= $h($L['types'][$j['employment_type']] ?? '') ?></li>

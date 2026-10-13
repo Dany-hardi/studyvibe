@@ -40,7 +40,7 @@ function mkApp(PDO $pdo, ?int $jobId, string $name, string $text, array $o = [])
 function app(PDO $pdo, int $id): array { $s = $pdo->prepare('SELECT * FROM career_applications WHERE id = ?'); $s->execute([$id]); return $s->fetch(PDO::FETCH_ASSOC); }
 
 try {
-    $j = Careers::saveJob($pdo, $admin, null, ['title' => "Backend Dev $tag", 'status' => 'open', 'summary' => 'Build and run the platform APIs for thousands of students.', 'description' => 'x', 'location' => 'Douala, Cameroon', 'work_mode' => 'hybrid',
+    $j = Careers::saveJob($pdo, $admin, null, ['department' => 'engineering', 'title' => "Backend Dev $tag", 'status' => 'open', 'summary' => 'Build and run the platform APIs for thousands of students.', 'description' => 'x', 'location' => 'Douala, Cameroon', 'work_mode' => 'hybrid',
         'must_have' => "php\nmysql", 'nice_have' => 'docker', 'min_years' => 3, 'min_education' => 'bachelor', 'screen_threshold' => 35, 'auto_decline_days' => 2]);
     $jobId = (int)$j['id']; $jobs[] = $jobId;
     $good = "Backend developer with 6 years of experience in PHP and MySQL, REST APIs and Docker. Bachelor degree in computer science. " . str_repeat('Built reliable web platforms. ', 8);
@@ -158,7 +158,7 @@ try {
     CareersWorker::run($pdo, 5);
     check('an application an administrator already worked on is not declined automatically', app($pdo, $a7)['status'] === 'new' && app($pdo, $a7)['bucket'] === 'screened_out');
 
-    $jx = Careers::saveJob($pdo, $admin, null, ['title' => "Closing $tag", 'status' => 'open', 'summary' => 'Closes soon so the worker must warn the administrators.', 'description' => 'x', 'closes_at' => date('Y-m-d', strtotime('+2 day'))]);
+    $jx = Careers::saveJob($pdo, $admin, null, ['department' => 'engineering', 'title' => "Closing $tag", 'status' => 'open', 'summary' => 'Closes soon so the worker must warn the administrators.', 'description' => 'x', 'closes_at' => date('Y-m-d', strtotime('+2 day'))]);
     $jobs[] = (int)$jx['id']; $resetState(); $mail = [];
     $out = CareersWorker::run($pdo, 5);
     check('a posting closing within 3 days is announced to the administrators once', $out['alerts'] >= 1 && count(array_filter($mail, fn($m) => str_contains($m[1], 'Offre bientôt terminée'))) >= 1);
