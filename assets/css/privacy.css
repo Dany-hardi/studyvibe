@@ -157,3 +157,11 @@ html.dark .pv-blob { background: #E9DDC6; }
   .pv-layout { display: block; } .pv-sec { break-inside: avoid; border: 0; padding: 0 0 16px; }
   .js .pv-sec.rv, .js .pv-card.rv { opacity: 1; transform: none; }
 }
+
+@media (max-width: 380px) {
+  .pv-top-in { padding: 0 10px; }
+  .pv-tools { gap: .35rem; }
+  .pv-back { padding: .4rem .6rem .4rem .5rem; }
+  .seg a { padding: .25rem .5rem; }
+  .chip { padding: .4rem .6rem; }
+}

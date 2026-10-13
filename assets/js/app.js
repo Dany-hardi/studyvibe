@@ -912,6 +912,16 @@ document.addEventListener('DOMContentLoaded', () => {
     #privacy-notice button:hover{background:var(--clay-press,#96391E)}
     #privacy-notice.out{opacity:0;transform:translateY(8px);transition:opacity .25s,transform .25s}
     @keyframes pnIn{from{opacity:0;transform:translateY(10px)}to{opacity:1;transform:none}}
+    @media (max-width:640px){
+      #privacy-notice{left:8px;right:8px;bottom:calc(8px + env(safe-area-inset-bottom,0px));width:auto;max-width:none;padding:12px 14px;border-radius:12px}
+      #privacy-notice h2{font-size:1rem;margin-bottom:3px}
+      #privacy-notice p{font-size:.78rem;line-height:1.45}
+      #privacy-notice .pn-row{margin-top:10px;gap:10px}
+      #privacy-notice a{font-size:.78rem}
+      #privacy-notice button{min-height:44px;padding:.5rem 1rem}
+    }
+    @media (max-height:520px){#privacy-notice p{display:none}}
+    body:has(dialog[open]) #privacy-notice{display:none}
     @media (prefers-reduced-motion:reduce){#privacy-notice{animation:none}}
     @media print{#privacy-notice{display:none}}`;
   document.head.appendChild(css);

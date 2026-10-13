@@ -229,3 +229,13 @@ html.dark .pi-tag { color: var(--clay); }
 /* Control center entry (owners only) */
 .pm-ops a { display: flex; align-items: center; justify-content: space-between; gap: .6rem; }
 .pm-ops svg { flex: none; color: var(--clay); opacity: .85; }
+
+/* ---------- Section rail on narrow screens: one swipeable row instead of three stacked groups ---------- */
+@media (max-width: 900px) {
+  .pm-rail { display: flex; align-items: center; gap: .25rem; padding: .5rem 16px; scrollbar-width: none; overscroll-behavior-x: contain; -webkit-overflow-scrolling: touch; }
+  .pm-rail::-webkit-scrollbar { display: none; }
+  .pm-rail ul { display: contents; }
+  .pm-rail li { flex: none; }
+  .pm-rail-g { display: none; }
+  .pm-rail a { padding: 0 .9rem; }
+}

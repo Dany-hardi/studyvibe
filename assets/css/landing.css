@@ -218,3 +218,19 @@ dialog.auth[open] { animation: pop .28s var(--ease); }
   .closing-grid { grid-template-columns: 1fr; gap: 40px; }
   .closing-art { max-width: 300px; }
 }
+
+/* Very narrow phones (320–380px): keep the sticky bar on one line */
+@media (max-width: 380px) {
+  .nav-in { gap: .5rem; }
+  .nav-in > .brand { min-width: 0; flex: 0 1 auto; }
+  .nav-tools { gap: .3rem; min-width: 0; }
+  .nav-tools .seg a { padding: .25rem .5rem; }
+  .nav-tools .btn-primary { padding: .6rem .75rem; font-size: .82rem; }
+  .wrap { padding-left: 16px; padding-right: 16px; }
+}
+
+/* The failed-login card stays inside the visible part of a scrolled or short dialog */
+.login-fail { align-items: flex-start; }
+.login-fail-card { position: sticky; top: 16px; margin-top: clamp(0px, 10dvh, 80px); width: 100%; }
+dialog.auth { max-height: calc(100dvh - 24px); overscroll-behavior: contain; }
+@media (max-height: 520px) { .auth h2 { font-size: 1.6rem; margin-top: .4rem; } .auth-in { padding-top: 22px; padding-bottom: 18px; } }

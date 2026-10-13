@@ -44,7 +44,7 @@ html.dark .tour-btn.primary { color: #1A0F09; }
 .tour-btn[hidden] { display: none; }
 .tour-btn:focus-visible, .tour-skip:focus-visible { outline: 2px solid var(--clay, #B5482A); outline-offset: 2px; }
 
-.tour-fab { position: fixed; right: 18px; bottom: 18px; z-index: 9990; width: 52px; height: 52px; padding: 0; border-radius: 50%; border: 2px solid var(--card, #FBF8F2);
+.tour-fab { position: fixed; right: 18px; bottom: 18px; z-index: 45; width: 52px; height: 52px; padding: 0; border-radius: 50%; border: 2px solid var(--card, #FBF8F2);
   background: #F1E4CF; box-shadow: 0 8px 24px -6px rgba(18, 14, 9, .45); cursor: pointer; overflow: hidden; transition: transform .25s var(--ease, ease), opacity .25s; }
 .tour-fab img { width: 100%; height: 100%; object-fit: cover; object-position: 50% 12%; transform: scale(1.15); transform-origin: 50% 20%; display: block; }
 .tour-fab:hover { transform: translateY(-3px) scale(1.05); }

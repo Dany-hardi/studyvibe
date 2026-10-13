@@ -82,7 +82,7 @@ html.dark .btn-danger { color: #1A0F09; }
 .q-n { font-family: var(--font-display); font-size: 2.2rem; line-height: 1; font-weight: 450; color: var(--clay); font-variant-numeric: tabular-nums; }
 .q-title h2 { font-size: 1.2rem; font-family: var(--font-body); font-weight: 650; letter-spacing: 0; }
 .pm .q-sub { color: var(--ink-3); font-size: .9rem; margin: .1rem 0 .6rem 0; max-width: 62ch; }
-.q-rows { display: grid; }
+.q-rows { display: grid; grid-template-columns: minmax(0, 1fr); }
 .q-row { display: flex; align-items: center; gap: 1rem; justify-content: space-between; padding: .7rem 0; border-top: 1px solid var(--line); }
 .q-row:first-child { border-top: 0; }
 .q-who { min-width: 0; }
@@ -277,3 +277,29 @@ html.dark .toast.err { color: #1A0F09; }
 }
 .pm .chip { white-space: nowrap; }
 .q-group > header .link { white-space: nowrap; }
+
+/* ---------- Top bar overflow menu (phones) ---------- */
+.pm-more { display: none; position: relative; }
+.pm-more > summary { list-style: none; cursor: pointer; }
+.pm-more > summary::-webkit-details-marker { display: none; }
+.pm-more-menu { position: absolute; right: 0; top: calc(100% + 8px); z-index: 60; min-width: 180px; display: grid; padding: .35rem; background: var(--card); border: 1px solid var(--line-2); border-radius: var(--r-md); box-shadow: var(--shadow-2); }
+.pm-more-menu a { display: flex; align-items: center; min-height: 44px; padding: 0 .85rem; border-radius: var(--r-sm); text-decoration: none; font-size: .95rem; font-weight: 500; color: var(--ink); }
+.pm-more-menu a:hover, .pm-more-menu a:focus-visible { background: var(--paper-2); outline: none; }
+@media (max-width: 640px) {
+  .pm .pm-desk { display: none; }
+  .pm-more { display: block; }
+}
+@media (max-width: 640px) {
+  .pm-bell { position: static; }
+  .pm-notif { position: fixed; left: 12px; right: 12px; top: 68px; width: auto; max-height: calc(100dvh - 88px); }
+}
+
+/* Dialogs on small screens: never taller than the visible viewport, tighter padding, full-width actions */
+dialog.dlg { max-height: calc(100dvh - 24px); overflow-y: auto; overscroll-behavior: contain; }
+@media (max-width: 560px) {
+  dialog.dlg { width: calc(100vw - 24px); }
+  .dlg form, .dlg .dlg-in { padding: 1.25rem 1.1rem; }
+  .dlg h2 { font-size: 1.3rem; }
+  .dlg .dlg-actions { flex-direction: column-reverse; }
+  .dlg .dlg-actions .btn { width: 100%; justify-content: center; min-height: 44px; }
+}

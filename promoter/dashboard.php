@@ -715,9 +715,17 @@ function pm_chips(array $u, callable $t): string {
         <a href="#" data-lang="en" <?= $lang === 'en' ? 'aria-current="true"' : '' ?>>EN</a>
       </div>
       <button class="chip" type="button" data-dark-toggle aria-label="<?= $t('theme') ?>"><svg width="14" height="14" viewBox="0 0 16 16" aria-hidden="true"><circle cx="8" cy="8" r="6" fill="none" stroke="currentColor" stroke-width="1.6"/><path d="M8 2a6 6 0 0 1 0 12z" fill="currentColor"/></svg></button>
-      <a class="chip" href="/account/security.php"><?= TranslationService::getLang() === 'en' ? 'Security' : 'Sécurité' ?></a>
-      <a class="chip" href="#" data-sv-pwa><?= $lang === 'en' ? 'App' : 'Application' ?></a>
-      <a class="chip" href="/logout.php"><?= $t('logout') ?></a>
+      <a class="chip pm-desk" href="/account/security.php"><?= TranslationService::getLang() === 'en' ? 'Security' : 'Sécurité' ?></a>
+      <a class="chip pm-desk" href="#" data-sv-pwa><?= $lang === 'en' ? 'App' : 'Application' ?></a>
+      <a class="chip pm-desk" href="/logout.php"><?= $t('logout') ?></a>
+      <details class="pm-more">
+        <summary class="chip" aria-label="<?= $lang === 'en' ? 'More' : 'Plus' ?>"><svg width="16" height="16" viewBox="0 0 16 16" aria-hidden="true"><circle cx="3" cy="8" r="1.4" fill="currentColor"/><circle cx="8" cy="8" r="1.4" fill="currentColor"/><circle cx="13" cy="8" r="1.4" fill="currentColor"/></svg></summary>
+        <div class="pm-more-menu">
+          <a href="/account/security.php"><?= TranslationService::getLang() === 'en' ? 'Security' : 'Sécurité' ?></a>
+          <a href="#" data-sv-pwa><?= $lang === 'en' ? 'App' : 'Application' ?></a>
+          <a href="/logout.php"><?= $t('logout') ?></a>
+        </div>
+      </details>
     </div>
   </div>
 </header>

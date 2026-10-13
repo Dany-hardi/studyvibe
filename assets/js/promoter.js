@@ -559,6 +559,8 @@
   nb.addEventListener('click', function (e) { e.stopPropagation(); np.hidden = !np.hidden; nb.setAttribute('aria-expanded', String(!np.hidden)); });
   document.addEventListener('click', function (e) { if (!np.hidden && !e.target.closest('#notif-wrap')) { np.hidden = true; nb.setAttribute('aria-expanded', 'false'); } });
   document.addEventListener('keydown', function (e) { if (e.key === 'Escape' && !np.hidden) { np.hidden = true; nb.setAttribute('aria-expanded', 'false'); nb.focus(); } });
+  document.addEventListener('click', function (e) { var m = document.querySelector('.pm-more[open]'); if (m && !m.contains(e.target)) m.removeAttribute('open'); });
+  document.addEventListener('keydown', function (e) { var m = document.querySelector('.pm-more[open]'); if (e.key === 'Escape' && m) { m.removeAttribute('open'); m.querySelector('summary').focus(); } });
   loadNotifs();
 
   /* ---------- Boot ---------- */

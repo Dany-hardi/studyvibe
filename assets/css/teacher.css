@@ -239,7 +239,7 @@ html.dark .t-export a:hover, html.dark .t-export button:hover { color: var(--cla
 
 /* ── Course editor: outline + content ─────────────────────────────── */
 .t-editor { display: grid; grid-template-columns: 17rem minmax(0, 1fr); gap: clamp(1.25rem, 3vw, 2.5rem); align-items: start; }
-@media (max-width: 1060px) { .t-editor { grid-template-columns: 1fr; } .t-outline { position: static !important; max-height: none !important; } }
+@media (max-width: 1060px) { .t-editor { grid-template-columns: minmax(0, 1fr); } .t-outline { position: static !important; max-height: none !important; } }
 .t-outline { position: sticky; top: 4.5rem; max-height: calc(100vh - 6rem); overflow-y: auto; padding-right: .5rem; }
 .t-outline h4 { font: 600 .9375rem var(--font-body); color: var(--ink-2); margin-bottom: .6rem; display: flex; justify-content: space-between; align-items: center; }
 .t-outline ol { list-style: none; margin: 0; padding: 0; }
@@ -376,3 +376,11 @@ html.dark .t-export a:hover, html.dark .t-export button:hover { color: var(--cla
 .tv2 .t-section-title { font: 600 .9375rem var(--font-body); letter-spacing: 0; color: var(--ink-2); }
 .tab-content { scroll-margin-top: 4rem; }
 @media (max-width: 1060px) { .t-outline { display: none; } }
+
+/* ── Responsive hardening (phones) ── */
+.t-editor > *, .t-main > *, .tab-content { min-width: 0; }
+.sv-chapter-card { min-width: 0; max-width: 100%; }
+.sv-chapter-card > div:first-child { flex-wrap: wrap; gap: .5rem; }
+.sv-chapter-card h4 { overflow-wrap: anywhere; min-width: 0; }
+.t-head .t-actions, .t-export { max-width: 100%; }
+@media (max-width: 640px) { .t-export { flex-wrap: wrap; } .t-export > span { flex: 1 0 100%; min-height: 2rem; border-right: 0; border-bottom: 1px solid var(--line-2); } }

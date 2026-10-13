@@ -137,3 +137,8 @@ html.dark .sdoc .btn-primary { color: #1A0F09; }
   body.sdoc-cert .cert-page { transform: none !important; box-shadow: none; -webkit-print-color-adjust: exact; print-color-adjust: exact; page-break-inside: avoid; }
 }
 @media print and (min-width: 0) { body.sdoc-cert { margin: 0; } }
+
+/* Transcript tables: scroll inside their own box instead of widening the page on small screens */
+@media (max-width: 640px) {
+  .tr-table { display: block; overflow-x: auto; -webkit-overflow-scrolling: touch; max-width: 100%; }
+}
