@@ -82,60 +82,12 @@ SVG
 </g>
 
 <!-- floating UI -->
-<g transform="translate(150 22) scale(.82)"><g class="a-float a-f1"><rect class="a-card" width="132" height="94" rx="14" filter="url(#hh-sh2)"/><rect class="a-clay" x="14" y="14" width="46" height="8" rx="4"/><rect class="a-line-f" x="14" y="30" width="102" height="5" rx="2.500"/><rect class="a-line-f" x="14" y="42" width="84" height="5" rx="2.500"/><circle class="a-ochre" cx="100" cy="68" r="14"/><path class="a-ribbon" d="M93 77l-4 14 11-6 11 6-4-14z"/><path class="a-check-w" d="M94 67l5 5 8-9"/><rect class="a-line-f" x="14" y="66" width="52" height="5" rx="2.500"/><rect class="a-line-f" x="14" y="76" width="38" height="5" rx="2.500"/></g></g>
-<g transform="translate(544 24)"><g class="a-float a-f3"><path class="a-bubble" filter="url(#hh-sh2)" d="M12 0h96a12 12 0 0 1 12 12v38a12 12 0 0 1-12 12H48l-18 15V62H12A12 12 0 0 1 0 50V12A12 12 0 0 1 12 0Z"/><circle class="a-clay" cx="38" cy="31" r="5.500"/><circle class="a-clay" cx="60" cy="31" r="5.500"/><circle class="a-clay" cx="82" cy="31" r="5.500"/></g></g>
-<g transform="translate(6 232) scale(.9)"><g class="a-float a-f2"><rect class="a-card" width="132" height="92" rx="14" filter="url(#hh-sh2)"/><rect fill="#2F5740" x="14" y="14" width="15" height="15" rx="4.500"/><path class="a-check-w" d="M17.500 21.500l3.500 3.500 6-7"/><rect class="a-line-f" x="37" y="18" width="78" height="6" rx="3"/><rect fill="#2F5740" x="14" y="40" width="15" height="15" rx="4.500"/><path class="a-check-w" d="M17.500 47.500l3.500 3.500 6-7"/><rect class="a-line-f" x="37" y="44" width="62" height="6" rx="3"/><rect class="a-box" x="14" y="66" width="15" height="15" rx="4.500"/><rect class="a-line-f" x="37" y="70" width="70" height="6" rx="3"/></g></g>
+<g transform="translate(150 22) scale(.82)"><g><rect class="a-card" width="132" height="94" rx="14" filter="url(#hh-sh2)"/><rect class="a-clay" x="14" y="14" width="46" height="8" rx="4"/><rect class="a-line-f" x="14" y="30" width="102" height="5" rx="2.500"/><rect class="a-line-f" x="14" y="42" width="84" height="5" rx="2.500"/><circle class="a-ochre" cx="100" cy="68" r="14"/><path class="a-ribbon" d="M93 77l-4 14 11-6 11 6-4-14z"/><path class="a-check-w" d="M94 67l5 5 8-9"/><rect class="a-line-f" x="14" y="66" width="52" height="5" rx="2.500"/><rect class="a-line-f" x="14" y="76" width="38" height="5" rx="2.500"/></g></g>
+<g transform="translate(544 24)"><g><path class="a-bubble" filter="url(#hh-sh2)" d="M12 0h96a12 12 0 0 1 12 12v38a12 12 0 0 1-12 12H48l-18 15V62H12A12 12 0 0 1 0 50V12A12 12 0 0 1 12 0Z"/><circle class="a-clay" cx="38" cy="31" r="5.500"/><circle class="a-clay" cx="60" cy="31" r="5.500"/><circle class="a-clay" cx="82" cy="31" r="5.500"/></g></g>
+<g transform="translate(6 232) scale(.9)"><g><rect class="a-card" width="132" height="92" rx="14" filter="url(#hh-sh2)"/><rect fill="#2F5740" x="14" y="14" width="15" height="15" rx="4.500"/><path class="a-check-w" d="M17.500 21.500l3.500 3.500 6-7"/><rect class="a-line-f" x="37" y="18" width="78" height="6" rx="3"/><rect fill="#2F5740" x="14" y="40" width="15" height="15" rx="4.500"/><path class="a-check-w" d="M17.500 47.500l3.500 3.500 6-7"/><rect class="a-line-f" x="37" y="44" width="62" height="6" rx="3"/><rect class="a-box" x="14" y="66" width="15" height="15" rx="4.500"/><rect class="a-line-f" x="37" y="70" width="70" height="6" rx="3"/></g></g>
 <path class="a-spark" d="M296 40l4 10 10 4-10 4-4 10-4-10-10-4 10-4z"/><path class="a-spark a-spark-s" d="M640 214l3 7 7 3-7 3-3 7-3-7-7-3 7-3z"/><path class="a-spark a-spark-s" d="M36 330l3 7 7 3-7 3-3 7-3-7-7-3 7-3z"/>
 </svg>
 SVG;
-    }
-
-    /** A badge for each of the four values: learn | craft | care | own. Two-tone glyph on a tinted gradient tile. */
-    public static function value(string $name): string
-    {
-        $g = [
-            // open book under a graduation cap
-            'learn' => '<path d="M10 40Q22 35 32 40Q42 35 54 40V54Q42 49 32 54Q22 49 10 54Z" fill="#fff" opacity=".95"/><path d="M32 40V54" stroke="#C9BFA9" stroke-width="1.600"/><path d="M14 44Q22 41 28 44M14 49Q22 46 28 49M36 44Q42 41 50 44M36 49Q42 46 50 49" fill="none" stroke="#DDD5C3" stroke-width="1.500" stroke-linecap="round"/><path d="M32 12L54 22L32 32L10 22Z" fill="var(--v-a)"/><path d="M20 27V35Q32 41 44 35V27L32 32Z" fill="var(--v-b)"/><path d="M52 23V34" stroke="#E5B24F" stroke-width="2" stroke-linecap="round"/><circle cx="52" cy="36" r="2.800" fill="#E5B24F"/>',
-            // pencil and ruler
-            'craft' => '<rect x="12" y="38" width="42" height="12" rx="3" transform="rotate(-24 33 44)" fill="#fff" opacity=".95"/><g transform="rotate(-24 33 44)" stroke="#C9BFA9" stroke-width="1.600" stroke-linecap="round"><path d="M19 38V43M25 38V45M31 38V43M37 38V45M43 38V43M49 38V45"/></g><g transform="rotate(42 34 28)"><rect x="26" y="8" width="16" height="36" rx="3" fill="var(--v-a)"/><rect x="26" y="8" width="7" height="36" rx="3" fill="var(--v-b)" opacity=".55"/><path d="M26 44H42L34 56Z" fill="#F3D9B6"/><path d="M31 52H37L34 56Z" fill="#2B2620"/><rect x="26" y="8" width="16" height="7" rx="3" fill="#E5B24F"/></g>',
-            // heart with a small spark
-            'care' => '<path d="M32 54S10 41 10 25A12 12 0 0 1 32 19A12 12 0 0 1 54 25C54 41 32 54 32 54Z" fill="var(--v-a)"/><path d="M32 19A12 12 0 0 0 10 25C10 33 15 40 21 45C16 38 15 30 20 25C23 22 28 22 32 26Z" fill="#fff" opacity=".22"/><path d="M36 28Q44 28 46 35" fill="none" stroke="#fff" stroke-width="3" stroke-linecap="round" opacity=".8"/><path d="M50 10l2 5 5 2-5 2-2 5-2-5-5-2 5-2z" fill="#E5B24F"/>',
-            // flag planted on a peak
-            'own' => '<path d="M4 54L24 24L36 40L44 30L60 54Z" fill="var(--v-b)"/><path d="M24 24L36 40L28 54H4Z" fill="var(--v-a)"/><path d="M24 24L19 32L25 31L28 36Z" fill="#fff" opacity=".7"/><path d="M44 30L38 38L43 37L46 41Z" fill="#fff" opacity=".6"/><path d="M24 24V6" stroke="#2B2620" stroke-width="2.600" stroke-linecap="round"/><path d="M24 7H42L37 13L42 19H24Z" fill="#E5B24F"/>',
-        ];
-        return '<svg class="ca-ic ca-vi ca-vi-' . $name . '" viewBox="0 0 64 64" aria-hidden="true" focusable="false">' . ($g[$name] ?? $g['learn']) . '</svg>';
-    }
-
-    /** Spot illustration of one hiring step (1..4): apply, careful read, conversation, decision. People, props and a soft backdrop. */
-    public static function step(int $n): string
-    {
-        require_once __DIR__ . '/CareersPeople.php';
-        $open = '<svg class="ca-art ca-step-art" viewBox="0 0 200 160" aria-hidden="true" focusable="false" xmlns="http://www.w3.org/2000/svg"><defs>' . CareersPeople::defs()
-              . '<filter id="sp-sh" x="-20%" y="-20%" width="140%" height="150%"><feDropShadow dx="0" dy="4" stdDeviation="3.500" flood-color="#1E1B16" flood-opacity=".2"/></filter></defs>';
-        switch ($n) {
-            case 1:
-                return $open . '<circle cx="104" cy="86" r="66" class="a-soft"/><circle cx="26" cy="38" r="3" class="a-dots"/><circle cx="40" cy="38" r="3" class="a-dots"/>'
-                    . '<g transform="translate(110 104) scale(.92)">' . CareersPeople::bust('nora', 'doc', -3) . '</g>'
-                    . '<g transform="translate(14 26) rotate(-8)"><g filter="url(#sp-sh)"><rect class="a-card" width="62" height="48" rx="9"/><rect class="a-line-f" x="9" y="12" width="30" height="4.500" rx="2.200"/><rect class="a-field" x="9" y="22" width="44" height="7" rx="3.500"/><rect class="a-field" x="9" y="33" width="44" height="7" rx="3.500"/></g></g>'
-                    . '<path class="a-spark" d="M168 28l3 7 7 3-7 3-3 7-3-7-7-3 7-3z"/></svg>';
-            case 2:
-                return $open . '<circle cx="96" cy="84" r="66" class="a-soft"/>'
-                    . '<g transform="translate(70 106) scale(.88)">' . CareersPeople::bust('idris', 'none', 6) . '</g>'
-                    . '<g transform="translate(112 34) rotate(8)"><g filter="url(#sp-sh)"><rect class="a-card" width="66" height="84" rx="8"/><rect class="a-clay" x="10" y="12" width="26" height="5" rx="2.500"/><rect class="a-line-f" x="10" y="25" width="46" height="4" rx="2"/><rect class="a-hl" x="8" y="33" width="50" height="9" rx="3"/><rect class="a-line-f" x="10" y="35.500" width="40" height="4" rx="2"/><rect class="a-line-f" x="10" y="48" width="46" height="4" rx="2"/><rect class="a-line-f" x="10" y="58" width="34" height="4" rx="2"/><rect class="a-line-f" x="10" y="68" width="42" height="4" rx="2"/></g>'
-                    . '<g transform="translate(40 40)"><circle r="19" fill="#fff" fill-opacity=".35" class="a-lens"/><circle r="19" fill="none" stroke="#2A2620" stroke-width="5"/><path d="M14 14L30 30" stroke="#2A2620" stroke-width="8" stroke-linecap="round"/><path d="M-10-10Q-4-15 4-14" fill="none" stroke="#fff" stroke-width="3" stroke-linecap="round" opacity=".8"/></g></g></svg>';
-            case 3:
-                return $open . '<ellipse cx="100" cy="92" rx="90" ry="62" class="a-soft"/>'
-                    . '<g transform="translate(56 118) scale(.74)">' . CareersPeople::bust('lea', 'none', 7) . '</g>'
-                    . '<g transform="translate(146 118) scale(.74)">' . CareersPeople::bust('marc', 'none', -7) . '</g>'
-                    . '<g transform="translate(26 14)"><g filter="url(#sp-sh)"><path class="a-bubble" d="M8 0H60A8 8 0 0 1 68 8V26A8 8 0 0 1 60 34H30L18 44V34H8A8 8 0 0 1 0 26V8A8 8 0 0 1 8 0Z"/></g><rect class="a-line-f" x="12" y="10" width="42" height="5" rx="2.500"/><rect class="a-line-f" x="12" y="19" width="28" height="5" rx="2.500"/></g>'
-                    . '<g transform="translate(106 8)"><g filter="url(#sp-sh)"><path class="a-bubble-c" d="M8 0H60A8 8 0 0 1 68 8V26A8 8 0 0 1 60 34H56L50 44V34H8A8 8 0 0 1 0 26V8A8 8 0 0 1 8 0Z"/></g><circle cx="22" cy="17" r="4.500" fill="#fff"/><circle cx="36" cy="17" r="4.500" fill="#fff"/><circle cx="50" cy="17" r="4.500" fill="#fff"/></g></svg>';
-            default:
-                return $open . '<circle cx="100" cy="86" r="66" class="a-soft"/>'
-                    . '<g transform="translate(104 108) scale(.92)">' . CareersPeople::bust('amara', 'up', 2) . '</g>'
-                    . '<g transform="translate(40 96)"><g filter="url(#sp-sh)"><circle r="26" fill="#2F7D4A"/><circle r="26" fill="url(#sp-gl)"/><circle r="20" fill="none" stroke="#fff" stroke-opacity=".5" stroke-width="2"/><path d="M-10 1L-3 8L11-8" fill="none" stroke="#fff" stroke-width="5.500" stroke-linecap="round" stroke-linejoin="round"/><path d="M-12 22L-18 44L-8 38L-4 46L2 24Z" class="a-ribbon"/><path d="M12 22L18 44L8 38L4 46L-2 24Z" class="a-ribbon-2"/></g></g>'
-                    . '<path class="a-conf" d="M30 30l6 3-3 6-6-3z"/><path class="a-conf-2" d="M164 30l5 5-5 5-5-5z"/><circle class="a-conf-3" cx="22" cy="92" r="4"/><path class="a-conf-3" d="M176 58l7 2-2 7-7-2z"/><path class="a-spark" d="M60 22l3 7 7 3-7 3-3 7-3-7-7-3 7-3z"/>'
-                    . '<defs><linearGradient id="sp-gl" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#fff" stop-opacity=".28"/><stop offset=".5" stop-color="#fff" stop-opacity="0"/></linearGradient></defs></svg>';
-        }
     }
 
     /** No open position: a person at a telescope on a hill, looking at the horizon. */
@@ -185,7 +137,7 @@ SVG;
 <ellipse cx="190" cy="150" rx="176" ry="132" class="a-soft"/>
 <path class="a-orbit" d="M214 120C250 96 286 76 318 56"/>
 <path class="a-conf" d="M52 60l8 4-4 8-8-4z"/><path class="a-conf-2" d="M110 30l6 6-6 6-6-6z"/><circle class="a-conf-3" cx="36" cy="150" r="5"/><path class="a-conf-3" d="M300 150l9 3-3 9-9-3z"/><path class="a-conf" d="M326 200l8 4-4 8-8-4z"/><circle class="a-conf-2" cx="270" cy="30" r="4"/><path class="a-conf-2" d="M72 214l7 3-3 7-7-3z"/>
-<g class="a-plane2" filter="url(#se-sh)"><g transform="translate(246 36) rotate(-14)"><path d="M0 34L102 0L74 70L50 50Z" class="a-paper"/><path d="M50 50L102 0L34 44Z" class="a-paper-d"/><path d="M50 50L48 70L62 56Z" class="a-paper-s"/></g></g>
+<g filter="url(#se-sh)"><g transform="translate(246 36) rotate(-14)"><path d="M0 34L102 0L74 70L50 50Z" class="a-paper"/><path d="M50 50L102 0L34 44Z" class="a-paper-d"/><path d="M50 50L48 70L62 56Z" class="a-paper-s"/></g></g>
 <g transform="translate(166 280) scale(.66)">
 SVG
             . $amara . <<<'SVG'

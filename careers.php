@@ -100,7 +100,6 @@ $ico = [
     <div class="ca-values">
       <?php foreach ($L['values'] as $i => [$icon, $title, $desc]): ?>
         <article class="ca-value ca-rv" style="--d:<?= $i * .08 ?>s">
-          <span class="ca-ic-wrap ca-ic-<?= $h($icon) ?>"><?= CareersArt::value($icon) ?></span>
           <h3><?= $h($title) ?></h3>
           <p><?= $h($desc) ?></p>
         </article>
@@ -180,8 +179,7 @@ $ico = [
         <?php endforeach; ?>
       </ul>
 
-      <div class="ca-empty" id="ca-nomatch" hidden>
-        <?= CareersArt::empty($L['empty_art']) ?>
+      <div class="ca-empty ca-empty-plain" id="ca-nomatch" hidden>
         <div>
           <h3><?= $h($L['no_match_h']) ?></h3>
           <p><?= $h($L['no_match_p']) ?></p>
@@ -189,7 +187,7 @@ $ico = [
         </div>
       </div>
     <?php else: ?>
-      <div class="ca-empty ca-rv">
+      <div class="ca-empty">
         <?= CareersArt::empty($L['empty_art']) ?>
         <div>
           <h3><?= $h($L['empty_h']) ?></h3>
@@ -211,11 +209,9 @@ $ico = [
     <ol class="ca-steps">
       <?php foreach ($L['steps'] as $i => [$title, $desc]): ?>
         <li class="ca-step ca-rv" style="--d:<?= $i * .08 ?>s">
-          <div class="ca-step-card"><span class="ca-step-n num"><?= $i + 1 ?></span><?= CareersArt::step($i + 1) ?></div>
-          <div class="ca-step-t">
-            <h3><?= $h($title) ?></h3>
-            <p><?= $h($desc) ?></p>
-          </div>
+          <span class="ca-step-n num"><?= $i + 1 ?></span>
+          <h3><?= $h($title) ?></h3>
+          <p><?= $h($desc) ?></p>
         </li>
       <?php endforeach; ?>
     </ol>
@@ -225,7 +221,7 @@ $ico = [
 <?php if ($jobs): ?>
 <section class="ca-sec" aria-labelledby="ca-open-h">
   <div class="ca-wrap">
-    <div class="ca-band ca-rv">
+    <div class="ca-band">
       <div>
         <h2 id="ca-open-h"><?= $h($L['open_h']) ?></h2>
         <p><?= $h($L['open_p']) ?></p>

@@ -82,3 +82,4 @@ html.dark .tk-done .tk-dot { color: #1A0F09; }
   .tk-iv-head { flex-direction: column; align-items: flex-start; } .tk-dl > div { grid-template-columns: 1fr; gap: .1rem; }
   .tk-iv-act .btn, .tk-form-a .btn { flex: 1 1 100%; } .tk-form .btn { width: 100%; }
 }
+.tk-lookup-plain { grid-template-columns: minmax(0, 1fr); max-width: 760px; }

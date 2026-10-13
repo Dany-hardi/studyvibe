@@ -13,15 +13,12 @@
 .v2 .dc-meta { margin-top: 1rem; font-size: .85rem; color: var(--ink-3); }
 .dc-art { width: 100%; max-width: 420px; margin-left: auto; height: auto; overflow: visible;
   --d-soft: #F1DDD2; --d-page: #FBF8F2; --d-page2: #ECE5D6; --d-line: #DDD5C3; --d-clay: #B5482A; --d-ochre: #D9A23B; --d-code: #24402F; --d-glass: #FBF8F2; --d-stroke: #1E1B16; }
-html.dark .dc-art { --d-soft: #3A2418; --d-page: #2B271E; --d-page2: #221F18; --d-line: #4A4336; --d-code: #1F2C22; --d-glass: #221F18; --d-stroke: #F1EBDD; }
 .d-soft { fill: var(--d-soft); } .d-page { fill: var(--d-page); stroke: var(--d-line); stroke-width: 2; } .d-page2 { fill: var(--d-page2); stroke: var(--d-line); stroke-width: 2; }
 .d-clay { fill: var(--d-clay); } .d-ochre { fill: var(--d-ochre); } .d-line { fill: var(--d-line); } .d-code { fill: var(--d-code); }
 .d-glass { fill: var(--d-glass); stroke: var(--d-stroke); stroke-width: 7; } .d-glass-in { fill: var(--d-soft); opacity: .6; }
 .d-handle { stroke: var(--d-stroke); stroke-width: 11; stroke-linecap: round; fill: none; }
 .d-check { fill: none; stroke: var(--d-clay); stroke-width: 7; stroke-linecap: round; stroke-linejoin: round; }
 .d-spark { fill: var(--d-ochre); } .d-s { opacity: .65; }
-@media (prefers-reduced-motion: no-preference) { .d-spark { animation: dc-tw 3.4s ease-in-out infinite; transform-box: fill-box; transform-origin: center; } }
-@keyframes dc-tw { 50% { transform: scale(.6); opacity: .5; } }
 
 /* Layout: side menu + content */
 .dc-layout { display: grid; grid-template-columns: 260px minmax(0, 1fr); gap: 56px; align-items: start; padding-bottom: 96px; }
@@ -117,3 +114,4 @@ mark.dc-mark { background: color-mix(in srgb, var(--ochre) 45%, transparent); co
   .dc-table th, .dc-table td { padding: .7rem .8rem; }
   .dc-table tbody th { white-space: normal; }
 }
+.dc-hero-plain { grid-template-columns: minmax(0, 1fr); }

@@ -95,8 +95,7 @@ function caOptions(array $map): string
 <?php if (!$spont && !$job): ?>
   <section class="ca-sec">
     <div class="ca-wrap">
-      <div class="ca-empty">
-        <?= CareersArt::empty($L['not_found_h']) ?>
+      <div class="ca-empty ca-empty-plain">
         <div>
           <h1 style="font-size:1.9rem;font-weight:450"><?= $h($L['not_found_h']) ?></h1>
           <p><?= $h($L['not_found_p']) ?></p>
@@ -182,8 +181,7 @@ function caOptions(array $map): string
 
   <?php if (!$open): ?>
     <div class="ca-wrap">
-      <div class="ca-closed">
-        <?= CareersArt::empty('') ?>
+      <div class="ca-closed ca-closed-plain">
         <div>
           <h2><?= $h($L['closed_h']) ?></h2>
           <p><?= $h($L['closed_p']) ?></p>

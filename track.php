@@ -85,7 +85,7 @@ $pageTitle = $L['title'];
 <main id="main">
 <?php if (!$app): ?>
   <section class="tk-lookup">
-    <div class="ca-wrap tk-lookup-in">
+    <div class="ca-wrap tk-lookup-in tk-lookup-plain">
       <div>
         <p class="kicker"><?= $h($L['kicker']) ?></p>
         <h1><?= $L['h1'] ?></h1>
@@ -99,7 +99,6 @@ $pageTitle = $L['title'];
         </form>
         <div class="tk-sent" id="tk-sent" hidden><h2><?= $h($L['sent_h']) ?></h2><p><?= $h($L['sent_p']) ?></p></div>
       </div>
-      <div class="tk-art"><?= CareersArt::sent('') ?></div>
     </div>
   </section>
 <?php else:

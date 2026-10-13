@@ -79,7 +79,7 @@ $mail = SiteChrome::contactEmail();
 
 <main id="main">
 <section class="dc-hero">
-  <div class="sc-wrap dc-hero-in">
+  <div class="sc-wrap dc-hero-in dc-hero-plain">
     <div>
       <p class="kicker"><?= $h($D['kicker']) ?></p>
       <h1><?= $D['h1'] ?></h1>
@@ -91,19 +91,6 @@ $mail = SiteChrome::contactEmail();
       </form>
       <p class="dc-meta"><?= $h($D['updated']) ?></p>
     </div>
-    <svg class="dc-art" viewBox="0 0 360 280" role="img" aria-label="<?= $h($D['art_alt']) ?>" xmlns="http://www.w3.org/2000/svg">
-      <ellipse class="d-soft" cx="180" cy="150" rx="150" ry="112"/>
-      <rect class="d-page2" x="62" y="76" width="120" height="150" rx="10" transform="rotate(-5 122 150)"/>
-      <rect class="d-page" x="92" y="64" width="124" height="156" rx="10"/>
-      <rect class="d-clay" x="108" y="82" width="52" height="8" rx="4"/>
-      <rect class="d-line" x="108" y="104" width="92" height="6" rx="3"/><rect class="d-line" x="108" y="118" width="80" height="6" rx="3"/><rect class="d-line" x="108" y="132" width="88" height="6" rx="3"/>
-      <rect class="d-code" x="108" y="152" width="92" height="40" rx="6"/>
-      <rect class="d-clay" x="116" y="162" width="30" height="5" rx="2.500"/><rect class="d-ochre" x="116" y="174" width="52" height="5" rx="2.500"/>
-      <circle class="d-glass" cx="238" cy="150" r="42"/><circle class="d-glass-in" cx="238" cy="150" r="33"/>
-      <path class="d-handle" d="m268 182 36 36"/>
-      <path class="d-check" d="M222 150l11 11 20-22"/>
-      <path class="d-spark" d="M294 70l4 10 10 4-10 4-4 10-4-10-10-4 10-4z"/><path class="d-spark d-s" d="M50 90l3 7 7 3-7 3-3 7-3-7-7-3 7-3z"/>
-    </svg>
   </div>
 </section>
 
