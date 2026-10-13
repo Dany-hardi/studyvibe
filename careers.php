@@ -100,7 +100,7 @@ $ico = [
     <div class="ca-values">
       <?php foreach ($L['values'] as $i => [$icon, $title, $desc]): ?>
         <article class="ca-value ca-rv" style="--d:<?= $i * .08 ?>s">
-          <span class="ca-ic-wrap"><?= CareersArt::value($icon) ?></span>
+          <span class="ca-ic-wrap ca-ic-<?= $h($icon) ?>"><?= CareersArt::value($icon) ?></span>
           <h3><?= $h($title) ?></h3>
           <p><?= $h($desc) ?></p>
         </article>
@@ -211,8 +211,8 @@ $ico = [
     <ol class="ca-steps">
       <?php foreach ($L['steps'] as $i => [$title, $desc]): ?>
         <li class="ca-step ca-rv" style="--d:<?= $i * .08 ?>s">
-          <span class="ca-step-ic"><?= CareersArt::step($i + 1) ?><span class="ca-step-n num"><?= $i + 1 ?></span></span>
-          <div>
+          <div class="ca-step-card"><span class="ca-step-n num"><?= $i + 1 ?></span><?= CareersArt::step($i + 1) ?></div>
+          <div class="ca-step-t">
             <h3><?= $h($title) ?></h3>
             <p><?= $h($desc) ?></p>
           </div>
