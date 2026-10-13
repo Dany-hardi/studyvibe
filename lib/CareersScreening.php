@@ -195,6 +195,9 @@ final class CareersScreening
 
         // ---- completeness (always applies)
         $cl = mb_strlen((string)($app['cover_letter'] ?? ''));
+        if (!empty($app['has_cover_file']) && $cl < 80) {
+            $cl = 80;                               // a letter was sent even if its text could not be read
+        }
         $pts = 0;
         $pts += $readable ? (mb_strlen($resumeText) >= 600 ? 4 : 2) : 0;
         $pts += $cl >= 80 ? 2 : ($cl >= 20 ? 1 : 0);
@@ -401,25 +404,39 @@ final class CareersScreening
                 $job = $js->fetch(PDO::FETCH_ASSOC) ?: null;
             }
 
-            $tx = $pdo->prepare('SELECT resume_text, chars, via FROM career_application_texts WHERE application_id = :i');
+            $tx = $pdo->prepare('SELECT resume_text, cover_text, chars, via FROM career_application_texts WHERE application_id = :i');
             $tx->execute(['i' => $appId]);
             $row = $tx->fetch(PDO::FETCH_ASSOC);
+            $readFile = static function (string $file) use ($pdo): array {
+                $path = MediaStore::path('career_resume', $file);
+                if (!is_file($path)) {
+                    MediaStore::restore($pdo, 'career_resume/' . $file, $path);
+                }
+                return ResumeText::extract($path, strtolower(pathinfo($file, PATHINFO_EXTENSION)));
+            };
             if (!$row) {
-                $text = ''; $readable = false; $via = '';
+                $text = ''; $readable = false; $via = ''; $coverText = '';
                 if (!empty($app['resume_file'])) {
-                    $path = MediaStore::path('career_resume', (string)$app['resume_file']);
-                    if (!is_file($path)) {
-                        MediaStore::restore($pdo, 'career_resume/' . $app['resume_file'], $path);
-                    }
-                    $r = ResumeText::extract($path, strtolower(pathinfo((string)$app['resume_file'], PATHINFO_EXTENSION)));
+                    $r = $readFile((string)$app['resume_file']);
                     $text = $r['text']; $readable = $r['readable']; $via = $r['via'];
                 }
-                $pdo->prepare('REPLACE INTO career_application_texts (application_id, resume_text, chars, via) VALUES (:i, :t, :c, :v)')
-                    ->execute(['i' => $appId, 't' => $text, 'c' => mb_strlen($text), 'v' => $via]);
+                if (!empty($app['cover_file'])) {
+                    $coverText = $readFile((string)$app['cover_file'])['text'];
+                }
+                $pdo->prepare('REPLACE INTO career_application_texts (application_id, resume_text, cover_text, chars, via) VALUES (:i, :t, :ct, :c, :v)')
+                    ->execute(['i' => $appId, 't' => $text, 'ct' => $coverText, 'c' => mb_strlen($text), 'v' => $via]);
             } else {
                 $text = (string)$row['resume_text'];
                 $readable = ResumeText::looksLikeText($text);
+                $coverText = (string)($row['cover_text'] ?? '');
+                if ($coverText === '' && !empty($app['cover_file'])) {          // a letter attached after the first read
+                    $coverText = $readFile((string)$app['cover_file'])['text'];
+                    $pdo->prepare('UPDATE career_application_texts SET cover_text = :ct WHERE application_id = :i')->execute(['ct' => $coverText, 'i' => $appId]);
+                }
             }
+            // The letter, typed (applications from before the upload) or read from the file, counts as one text
+            $app['cover_letter'] = trim((string)($app['cover_letter'] ?? '') . "\n" . $coverText);
+            $app['has_cover_file'] = !empty($app['cover_file']);
 
             $res = self::evaluate($job, $app, $text, $readable);
 

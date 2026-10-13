@@ -656,6 +656,10 @@
       + (cur.candidate_note ? '<p class="cx-ivnote">“' + esc(cur.candidate_note) + '”</p>' : '') + '</div></div>'
       + '<div class="cx-ivc-a"><button type="button" class="cx-btn cx-btn-sm cx-btn-ghost" data-ivedit="' + a.id + '" data-iv="' + cur.id + '">' + esc(T.iv_move) + '</button><button type="button" class="cx-btn cx-btn-sm cx-btn-quiet" data-ivcancel="' + cur.id + '">' + esc(T.iv_cancel) + '</button></div>';
   }
+  function fileCard(name, bytes, url) {
+    var ext = (String(name).split('.').pop() || 'file').toUpperCase().slice(0, 4), size = bytes ? (bytes < 1048576 ? Math.max(1, Math.round(bytes / 1024)) + ' KB' : (bytes / 1048576).toFixed(1) + ' MB') : '';
+    return '<div class="cx-resume"><span class="cx-resume-ic">' + esc(ext) + '</span><span class="cx-resume-t"><strong>' + esc(name) + '</strong><small>' + esc(size) + '</small></span><a class="cx-btn cx-btn-ghost cx-btn-sm" href="' + esc(url) + '">' + I.dl + ' ' + esc(T.download) + '</a></div>';
+  }
   function renderDrawer(a) {
     var link = function (label, url) { return url ? '<div><dt>' + esc(label) + '</dt><dd><a href="' + esc(url) + '" target="_blank" rel="noopener noreferrer">' + esc(url.replace(/^https?:\/\/(www\.)?/, '').slice(0, 42)) + ' ' + I.ext + '</a></dd></div>' : ''; };
     var row = function (label, val) { return val !== '' && val != null ? '<div><dt>' + esc(label) + '</dt><dd>' + esc(val) + '</dd></div>' : ''; };
@@ -687,7 +691,8 @@
       + (a.phone ? '<div><dt>' + esc(T.l_phone) + '</dt><dd><a href="tel:' + esc(a.phone.replace(/[^+\d]/g, '')) + '">' + esc(a.phone) + '</a></dd></div>' : '') + row(T.l_location, a.location)
       + link(T.l_linkedin, a.linkedin_url) + link(T.l_portfolio, a.portfolio_url) + '</dl></section>'
       + '<section class="cx-d-sec"><h3>' + esc(T.d_details) + '</h3><dl class="cx-dl">' + row(T.l_avail, a.availability) + row(T.l_salary_exp, a.salary_expectation) + row(T.l_heard, T.heard[a.heard_from] || '') + row(T.l_source, a.source) + row(T.l_lang, (a.lang || '').toUpperCase()) + row(T.l_pool, +a.talent_consent ? T.yes : T.no) + '</dl></section>'
-      + '<section class="cx-d-sec"><h3>' + esc(T.d_cover) + '</h3>' + (a.cover_letter ? '<div class="cx-cover">' + esc(a.cover_letter).replace(/\n/g, '<br>') + '</div>' : '<p class="cx-muted">' + esc(T.d_no_cover) + '</p>') + '</section>'
+      + '<section class="cx-d-sec"><h3>' + esc(T.d_cover) + '</h3>' + (a.cover_file ? fileCard(a.cover_name || a.cover_file, a.cover_size, '/promoter/careers/resume.php?id=' + a.id + '&type=cover') : '')
+      + (a.cover_letter ? '<div class="cx-cover">' + esc(a.cover_letter).replace(/\n/g, '<br>') + '</div>' : (a.cover_file ? '' : '<p class="cx-muted">' + esc(T.d_no_cover) + '</p>')) + '</section>'
       + '<section class="cx-d-sec"><h3>' + esc(T.d_notes) + '</h3><form id="cx-noteform"><textarea class="cx-in" id="cx-note" rows="3" maxlength="3000" placeholder="' + esc(T.note_ph) + '"></textarea><div class="cx-note-a"><button type="submit" class="cx-btn cx-btn-ghost cx-btn-sm" id="cx-note-go" disabled>' + esc(T.add_note) + '</button></div></form>'
       + '<ol class="cx-tl" id="cx-tl">' + timeline(a) + '</ol></section>'
       + (a.others && a.others.length ? '<section class="cx-d-sec"><h3>' + esc(T.others) + '</h3><ul class="cx-others">' + a.others.map(function (o) { return '<li><button type="button" data-open="' + o.id + '"><span>' + esc(o.job_title || T.spont) + '</span>' + pill(o.status) + '</button></li>'; }).join('') + '</ul></section>' : '')

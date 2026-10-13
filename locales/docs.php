@@ -134,7 +134,7 @@ return [
             ['h' => 'Postuler'],
             ['ol' => [
                 'Ouvrez la page <a href="/careers.php">Carrières</a> et choisissez une offre, ou envoyez une candidature spontanée.',
-                'Remplissez le formulaire : coordonnées, parcours, compétences, CV (PDF, DOC ou DOCX, 5 Mo au maximum) et, si vous le souhaitez, une lettre de motivation. Vous recevez un e-mail de confirmation avec une <strong>référence</strong> (le code du poste, l’année et cinq caractères, par exemple <code>SFSD26K7M2X</code>).',
+                'Remplissez le formulaire : coordonnées, parcours, compétences, CV (PDF, DOC ou DOCX, 5 Mo au maximum) et, si vous le souhaitez, une lettre de motivation jointe en fichier. Vous recevez un e-mail de confirmation avec une <strong>référence</strong> (le code du poste, l’année et cinq caractères, par exemple <code>SFSD26K7M2X</code>).',
                 'Une première lecture automatique compare votre dossier aux critères du poste. Elle ne rejette personne seule : une personne examine chaque dossier qu’elle met de côté.',
             ]],
             ['h' => 'Suivre ma candidature'],
@@ -308,7 +308,7 @@ return [
             ['h' => 'Apply'],
             ['ol' => [
                 'Open the <a href="/careers.php">Careers</a> page and pick a position, or send an open application.',
-                'Fill in the form: contact details, background, skills, résumé (PDF, DOC or DOCX, 5 MB at most) and, if you like, a cover letter. You receive a confirmation e-mail with a <strong>reference</strong> (the position code, the year and five characters, for example <code>SFSD26K7M2X</code>).',
+                'Fill in the form: contact details, background, skills, résumé (PDF, DOC or DOCX, 5 MB at most) and, if you like, a cover letter attached as a file. You receive a confirmation e-mail with a <strong>reference</strong> (the position code, the year and five characters, for example <code>SFSD26K7M2X</code>).',
                 'A first automatic read compares your file with the position’s criteria. It never rejects anyone alone: a person reviews every file it sets aside.',
             ]],
             ['h' => 'Follow my application'],

@@ -84,8 +84,8 @@ try {
     check('both reference shapes are recognised (new and the earlier CA-XXXXXX), others are not', Careers::isReference('ZQ7K26ABCDE') && Careers::isReference('CA-ABC123') && !Careers::isReference('ZQ7K-26-ABCDE') && !Careers::isReference('zq7k26abcde') && !Careers::isReference('x'));
 
     // --- applications: validation
-    $e = Careers::validateApplication(['full_name' => 'A', 'email' => 'nope', 'phone' => 'abc', 'linkedin_url' => 'not a link', 'cover_letter' => 'short']);
-    check('validation flags name, e-mail, phone, link, short letter and missing consent', count(array_intersect(['full_name', 'email', 'phone', 'linkedin_url', 'cover_letter', 'consent'], array_keys($e))) === 6);
+    $e = Careers::validateApplication(['full_name' => 'A', 'email' => 'nope', 'phone' => 'abc', 'linkedin_url' => 'not a link', 'years_experience' => '999']);
+    check('validation flags name, e-mail, phone, link, years and missing consent', count(array_intersect(['full_name', 'email', 'phone', 'linkedin_url', 'years_experience', 'consent'], array_keys($e))) === 6);
     check('validation accepts a clean form', Careers::validateApplication(['full_name' => 'Ada Lovelace', 'email' => 'ada@x.org', 'consent' => 1]) === []);
     $nofile = Careers::submit($pdo, $job = Careers::job($pdo, $id), ['full_name' => 'Ada Lovelace', 'email' => "ada.$tag@studyvibe-test.local", 'consent' => 1], [], 'en', '203.0.113.9');
     check('an application without a résumé is refused', !$nofile['ok'] && ($nofile['fields']['resume'] ?? '') === 'required');

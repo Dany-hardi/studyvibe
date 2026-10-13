@@ -438,10 +438,6 @@ final class Careers
                 $e[$f] = 'invalid';
             }
         }
-        $cover = self::block($in['cover_letter'] ?? '', 5000);
-        if (mb_strlen($cover) > 0 && mb_strlen($cover) < 20) {
-            $e['cover_letter'] = 'too_short';
-        }
         $y = trim((string)($in['years_experience'] ?? ''));
         if ($y !== '' && (!ctype_digit($y) || (int)$y > 60)) {
             $e['years_experience'] = 'invalid';
@@ -660,7 +656,7 @@ final class Careers
      * @param array      $file an entry of $_FILES for the résumé
      * @return array{ok:bool,error?:string,fields?:array,message?:string,id?:int,reference?:string}
      */
-    public static function submit(PDO $pdo, ?array $job, array $in, array $file, string $lang, string $ip): array
+    public static function submit(PDO $pdo, ?array $job, array $in, array $file, string $lang, string $ip, array $coverFile = []): array
     {
         if ($job !== null && !self::isOpen($job)) {
             return ['ok' => false, 'error' => 'closed', 'message' => 'closed'];
@@ -681,6 +677,23 @@ final class Careers
                 $fields['resume'] = 'bad_type';
             } elseif (($bad = self::resumeKind((string)($file['tmp_name'] ?? ''), $ext)) !== null) {
                 $fields['resume'] = $bad;
+            }
+        }
+        // The cover letter is an optional file with the same rules as the résumé
+        $cerr = (int)($coverFile['error'] ?? UPLOAD_ERR_NO_FILE);
+        $hasCover = $cerr !== UPLOAD_ERR_NO_FILE;
+        if ($hasCover) {
+            if ($cerr === UPLOAD_ERR_INI_SIZE || $cerr === UPLOAD_ERR_FORM_SIZE || (int)($coverFile['size'] ?? 0) > self::RESUME_MAX) {
+                $fields['cover_letter'] = 'too_big';
+            } elseif ($cerr !== UPLOAD_ERR_OK) {
+                $fields['cover_letter'] = 'upload';
+            } else {
+                $cext = strtolower(pathinfo((string)($coverFile['name'] ?? ''), PATHINFO_EXTENSION));
+                if (!in_array($cext, self::RESUME_EXT, true)) {
+                    $fields['cover_letter'] = 'bad_type';
+                } elseif (($cbad = self::resumeKind((string)($coverFile['tmp_name'] ?? ''), $cext)) !== null) {
+                    $fields['cover_letter'] = $cbad;
+                }
             }
         }
         if ($fields) {
@@ -707,6 +720,14 @@ final class Careers
             return ['ok' => false, 'error' => 'validation', 'fields' => ['resume' => (string)($saved['error'] ?? 'upload')], 'message' => 'validation'];
         }
 
+        $coverSaved = null;
+        if ($hasCover) {
+            $coverSaved = MediaStore::saveDocument($pdo, $coverFile, 'career_resume', self::RESUME_EXT, self::RESUME_MAX, 'cl_');
+            if (!$coverSaved['ok']) {
+                MediaStore::delete($pdo, 'career_resume', (string)$saved['file']);
+                return ['ok' => false, 'error' => 'validation', 'fields' => ['cover_letter' => (string)($coverSaved['error'] ?? 'upload')], 'message' => 'validation'];
+            }
+        }
         $ref = self::reference($pdo, $job);
         $token = bin2hex(random_bytes(20));
         $secret = defined('APP_SECRET') ? (string)APP_SECRET : 'studyvibe';
@@ -714,10 +735,10 @@ final class Careers
             $pdo->prepare("
                 INSERT INTO career_applications
                     (reference, job_id, job_title, full_name, email, phone, location, linkedin_url, portfolio_url, cover_letter, resume_file, resume_name,
-                     resume_size, availability, salary_expectation, source, lang, consent_at, ip_hash,
+                     resume_size, cover_file, cover_name, cover_size, availability, salary_expectation, source, lang, consent_at, ip_hash,
                      years_experience, current_title, current_company, education_level, skills, languages, work_pref, relocate, heard_from, talent_consent,
                      track_token, bucket, bucket_changed_at, screen_state)
-                VALUES (:ref, :job, :jt, :name, :email, :phone, :loc, :li, :pf, :cover, :rf, :rn, :rs, :av, :sal, :src, :lang, NOW(), :ip,
+                VALUES (:ref, :job, :jt, :name, :email, :phone, :loc, :li, :pf, NULL, :rf, :rn, :rs, :cf, :cn, :cs, :av, :sal, :src, :lang, NOW(), :ip,
                      :yrs, :ctitle, :ccomp, :edu, :skills, :langs, :wpref, :reloc, :heard, :talent,
                      :tok, 'inbox', NOW(), 'pending')
             ")->execute([
@@ -733,15 +754,18 @@ final class Careers
                 'name' => self::line($in['full_name'] ?? '', 120), 'email' => $email,
                 'phone' => self::line($in['phone'] ?? '', 40), 'loc' => self::line($in['location'] ?? '', 120),
                 'li' => self::url($in['linkedin_url'] ?? ''), 'pf' => self::url($in['portfolio_url'] ?? ''),
-                'cover' => self::block($in['cover_letter'] ?? '', 5000) ?: null,
                 'rf' => $saved['file'], 'rn' => self::line(pathinfo((string)($file['name'] ?? 'resume'), PATHINFO_BASENAME), 160) ?: 'resume',
                 'rs' => (int)($saved['size'] ?? 0),
+                'cf' => $coverSaved['file'] ?? null, 'cn' => $hasCover ? (self::line(pathinfo((string)($coverFile['name'] ?? 'cover'), PATHINFO_BASENAME), 160) ?: 'cover') : null, 'cs' => (int)($coverSaved['size'] ?? 0),
                 'av' => self::line($in['availability'] ?? '', 80), 'sal' => self::line($in['salary_expectation'] ?? '', 80),
                 'src' => preg_replace('/[^a-z0-9_.-]/', '', strtolower(self::line($in['source'] ?? '', 60))) ?? '',
                 'lang' => $lang === 'en' ? 'en' : 'fr', 'ip' => hash_hmac('sha256', $ip, $secret),
             ]);
         } catch (PDOException $ex) {
             MediaStore::delete($pdo, 'career_resume', (string)$saved['file']);
+            if ($coverSaved) {
+                MediaStore::delete($pdo, 'career_resume', (string)$coverSaved['file']);
+            }
             if ($ex->getCode() === '23000') {      // two clicks at once
                 return ['ok' => false, 'error' => 'duplicate', 'message' => 'duplicate'];
             }
@@ -819,7 +843,7 @@ final class Careers
             $args += ['q1' => $like, 'q2' => $like, 'q3' => $like, 'q4' => $like];
         }
         $sql = "SELECT a.id, a.reference, a.job_id, a.job_title, a.full_name, a.email, a.phone, a.location, a.status, a.rating, a.is_starred,
-                       a.created_at, a.status_changed_at, (a.cover_letter IS NOT NULL AND a.cover_letter <> '') AS has_cover, j.slug AS job_slug,
+                       a.created_at, a.status_changed_at, (a.cover_file IS NOT NULL OR (a.cover_letter IS NOT NULL AND a.cover_letter <> '')) AS has_cover, j.slug AS job_slug,
                        a.bucket, a.bucket_changed_at, a.screen_score, a.screen_verdict, a.screen_state, a.years_experience, a.current_title, a.talent_consent,
                        (SELECT MIN(i.scheduled_at) FROM career_interviews i WHERE i.application_id = a.id AND i.status IN ('scheduled','confirmed','reschedule_requested') AND i.scheduled_at >= NOW()) AS next_interview,
                        IF(a.screen_report IS NULL, NULL, JSON_EXTRACT(a.screen_report, '$.missing')) AS rep_missing, IF(a.screen_report IS NULL, NULL, JSON_EXTRACT(a.screen_report, '$.knockouts')) AS rep_ko,
@@ -1055,15 +1079,17 @@ final class Careers
     /** Removes an application and its résumé for good (a candidate's right to erasure). */
     public static function deleteApplication(PDO $pdo, int $id): array
     {
-        $a = $pdo->prepare('SELECT resume_file FROM career_applications WHERE id = :i');
+        $a = $pdo->prepare('SELECT resume_file, cover_file FROM career_applications WHERE id = :i');
         $a->execute(['i' => $id]);
         $row = $a->fetch(PDO::FETCH_ASSOC);
         if (!$row) {
             return ['ok' => false, 'error' => 'not_found', 'message' => 'Candidature introuvable.'];
         }
         $pdo->prepare('DELETE FROM career_applications WHERE id = :i')->execute(['i' => $id]);
-        if (!empty($row['resume_file'])) {
-            MediaStore::delete($pdo, 'career_resume', (string)$row['resume_file']);
+        foreach (['resume_file', 'cover_file'] as $col) {
+            if (!empty($row[$col])) {
+                MediaStore::delete($pdo, 'career_resume', (string)$row[$col]);
+            }
         }
         return ['ok' => true];
     }

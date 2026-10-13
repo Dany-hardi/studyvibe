@@ -1126,6 +1126,14 @@ class Database
         } catch (Throwable $ex) {
             error_log('Migration 2.23 (teams): ' . $ex->getMessage());
         }
+
+        // Migration 2.24: the cover letter is an uploaded file (stored privately like the résumé), its text is read for the screening.
+        foreach ([
+            "ALTER TABLE `career_applications` ADD COLUMN `cover_file` VARCHAR(80) DEFAULT NULL, ADD COLUMN `cover_name` VARCHAR(160) DEFAULT NULL, ADD COLUMN `cover_size` INT UNSIGNED NOT NULL DEFAULT 0",
+            "ALTER TABLE `career_application_texts` ADD COLUMN `cover_text` MEDIUMTEXT DEFAULT NULL",
+        ] as $ddl) {
+            try { $pdo->exec($ddl); } catch (PDOException $ex) { /* already applied */ }
+        }
     }
 
     /**

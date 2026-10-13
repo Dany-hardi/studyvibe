@@ -4,8 +4,8 @@ declare(strict_types=1);
 /**
  * Receives an application (POST multipart from career.php).
  *
- *   slug, full_name, email, phone, location, linkedin_url, portfolio_url, availability, salary_expectation, cover_letter, consent,
- *   resume (file), _t (signed time the form was drawn), website_url (honeypot, must stay empty), source
+ *   slug, full_name, email, phone, location, linkedin_url, portfolio_url, availability, salary_expectation, consent,
+ *   resume (file), cover_letter (optional file), _t (signed time the form was drawn), website_url (honeypot, must stay empty), source
  *
  * Answers JSON {success, reference, name, email} or {success:false, error, fields:{name:code}, message}. Without JavaScript the
  * browser is sent back to the posting page with ?sent=REFERENCE.
@@ -83,7 +83,7 @@ try {
 
     $in = $_POST;
     $in['consent'] = !empty($_POST['consent']);
-    $res = Careers::submit($pdo, $job, $in, $_FILES['resume'] ?? [], $lang, $ip);
+    $res = Careers::submit($pdo, $job, $in, $_FILES['resume'] ?? [], $lang, $ip, $_FILES['cover_letter'] ?? []);
     if (!$res['ok']) {
         $code = match ($res['error']) { 'duplicate' => 409, 'closed' => 410, default => 422 };
         $reply($res + ['success' => false, 'slug' => $slug], $code);

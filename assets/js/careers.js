@@ -45,14 +45,14 @@
   /* ---- Application form ---- */
   var form = $('#ca-form');
   if (!form) return;
-  var err = L.err || {}, drop = $('#ca-drop'), input = $('#f-resume'), fileBox = $('#ca-file'), banner = $('#ca-banner'), send = $('#ca-send');
-  var cover = $('#f-cover'), cc = $('#ca-cc');
+  var err = L.err || {}, banner = $('#ca-banner'), send = $('#ca-send');
   var kb = function (n) { return n < 1048576 ? Math.max(1, Math.round(n / 1024)) + ' KB' : (n / 1048576).toFixed(1) + ' MB'; };
 
+  var zones = {};   // the file fields (résumé, cover letter), each with its own drop zone
   function setErr(name, code) {
     var p = $('[data-err="' + name + '"]', form), f = form.elements[name];
     if (p) { p.textContent = code ? (err[code] || err.invalid) : ''; p.classList.toggle('show', !!code); }
-    if (name === 'resume') drop.classList.toggle('is-invalid', !!code);
+    if (zones[name]) zones[name].drop.classList.toggle('is-invalid', !!code);
     else if (f && f.classList) f.classList.toggle('is-invalid', !!code);
     if (f && f.setAttribute) { if (code) f.setAttribute('aria-invalid', 'true'); else f.removeAttribute('aria-invalid'); }
   }
@@ -60,7 +60,7 @@
 
   function url(v) { v = v.trim(); if (!v) return true; if (!/^https?:\/\//i.test(v)) v = 'https://' + v; try { var u = new URL(v); return /\./.test(u.hostname); } catch (e) { return false; } }
   function checkFile(f) {
-    if (!f) return 'required';
+    if (!f) return '';
     var ext = (f.name.split('.').pop() || '').toLowerCase();
     if ((L.ext || ['pdf', 'doc', 'docx']).indexOf(ext) < 0) return 'bad_type';
     if (f.size > (L.maxBytes || 5242880)) return 'too_big';
@@ -73,42 +73,44 @@
     if (v('phone') && !/^[0-9 +().\-]{6,40}$/.test(v('phone'))) e.phone = 'invalid';
     if (!url(v('linkedin_url'))) e.linkedin_url = 'invalid';
     if (!url(v('portfolio_url'))) e.portfolio_url = 'invalid';
-    if (v('cover_letter') && v('cover_letter').length < 20) e.cover_letter = 'too_short';
     if (v('years_experience') && !/^\d{1,2}$/.test(v('years_experience'))) e.years_experience = 'invalid';
-    var fe = checkFile(input.files && input.files[0]); if (fe) e.resume = fe;
+    Object.keys(zones).forEach(function (k) { var z = zones[k], f = z.input.files && z.input.files[0], c = !f ? (z.required ? 'required' : '') : checkFile(f); if (c) e[k] = c; });
     if (!form.elements.consent.checked) e.consent = 'consent';
     return e;
   }
   function show(errors) {
     clearAll();
     var first = null;
-    Object.keys(errors).forEach(function (k) { setErr(k, errors[k]); if (!first) first = k === 'resume' ? input : form.elements[k]; });
+    Object.keys(errors).forEach(function (k) { setErr(k, errors[k]); if (!first) first = zones[k] ? zones[k].input : form.elements[k]; });
     if (first) { banner.textContent = err.fix; banner.classList.add('show'); try { first.focus({ preventScroll: true }); } catch (x) {} var t = (first.closest('.field') || first).getBoundingClientRect().top + scrollY - 110; scrollTo({ top: t, behavior: 'smooth' }); }
   }
 
-  /* Résumé picker + drag and drop */
-  function showFile() {
-    var f = input.files && input.files[0];
-    if (!f) { fileBox.classList.remove('show'); drop.hidden = false; return; }
-    $('#ca-file-n').textContent = f.name; $('#ca-file-s').textContent = kb(f.size);
-    $('#ca-file-ext').textContent = ((f.name.split('.').pop() || '').slice(0, 4) || 'FILE').toUpperCase();
-    fileBox.classList.add('show'); drop.hidden = true;
-    setErr('resume', checkFile(f));
-  }
-  input.addEventListener('change', showFile);
-  $('#ca-file-x').addEventListener('click', function () { input.value = ''; showFile(); setErr('resume', ''); input.focus(); });
-  ['dragenter', 'dragover'].forEach(function (ev) { drop.addEventListener(ev, function (e) { e.preventDefault(); drop.classList.add('drag'); }); });
-  ['dragleave', 'drop'].forEach(function (ev) { drop.addEventListener(ev, function () { drop.classList.remove('drag'); }); });
-  drop.addEventListener('drop', function (e) {
-    e.preventDefault();
-    if (e.dataTransfer && e.dataTransfer.files && e.dataTransfer.files.length) {
-      try { var dt = new DataTransfer(); dt.items.add(e.dataTransfer.files[0]); input.files = dt.files; } catch (x) { return; }
-      showFile();
+  /* File fields: a picker with drag and drop, one per .ca-dz block */
+  $$('.ca-dz', form).forEach(function (z) {
+    var name = z.dataset.name, input = $('input[type=file]', z), drop = $('.ca-drop', z), box = $('.ca-file', z);
+    zones[name] = { input: input, drop: drop, required: z.dataset.required === '1' };
+    function showFile() {
+      var f = input.files && input.files[0];
+      if (!f) { box.classList.remove('show'); drop.hidden = false; return; }
+      $('.ca-file-n', z).textContent = f.name; $('.ca-file-s', z).textContent = kb(f.size);
+      $('.ca-file-ic', z).textContent = ((f.name.split('.').pop() || '').slice(0, 4) || 'FILE').toUpperCase();
+      box.classList.add('show'); drop.hidden = true;
+      setErr(name, checkFile(f));
     }
+    input.addEventListener('change', showFile);
+    $('.ca-file-x', z).addEventListener('click', function () { input.value = ''; showFile(); setErr(name, ''); input.focus(); });
+    ['dragenter', 'dragover'].forEach(function (ev) { drop.addEventListener(ev, function (e) { e.preventDefault(); drop.classList.add('drag'); }); });
+    ['dragleave', 'drop'].forEach(function (ev) { drop.addEventListener(ev, function () { drop.classList.remove('drag'); }); });
+    drop.addEventListener('drop', function (e) {
+      e.preventDefault();
+      if (e.dataTransfer && e.dataTransfer.files && e.dataTransfer.files.length) {
+        try { var dt = new DataTransfer(); dt.items.add(e.dataTransfer.files[0]); input.files = dt.files; } catch (x) { return; }
+        showFile();
+      }
+    });
   });
 
-  cover.addEventListener('input', function () { cc.textContent = cover.value.length; });
-  form.addEventListener('input', function (e) { var n = e.target.name; if (n) setErr(n === 'resume' ? 'resume' : n, ''); });
+  form.addEventListener('input', function (e) { var n = e.target.name; if (n) setErr(n, ''); });
   form.elements.consent.addEventListener('change', function () { setErr('consent', ''); });
 
   form.addEventListener('submit', function (e) {

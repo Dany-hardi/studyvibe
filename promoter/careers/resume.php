@@ -14,31 +14,34 @@ $id = (int)($_GET['id'] ?? 0);
 
 try {
     $pdo = Database::getInstance();
-    $st = $pdo->prepare('SELECT reference, full_name, resume_file, resume_name FROM career_applications WHERE id = :i');
+    $cover = ($_GET['type'] ?? '') === 'cover';      // the cover letter instead of the résumé
+    $st = $pdo->prepare('SELECT reference, full_name, resume_file, resume_name, cover_file, cover_name FROM career_applications WHERE id = :i');
     $st->execute(['i' => $id]);
     $a = $st->fetch(PDO::FETCH_ASSOC);
-    if (!$a || empty($a['resume_file']) || !preg_match('/^[a-zA-Z0-9._-]+$/', (string)$a['resume_file'])) {
+    $fileCol = $cover ? 'cover_file' : 'resume_file';
+    $nameCol = $cover ? 'cover_name' : 'resume_name';
+    if (!$a || empty($a[$fileCol]) || !preg_match('/^[a-zA-Z0-9._-]+$/', (string)$a[$fileCol])) {
         http_response_code(404);
         exit('Fichier introuvable.');
     }
-    $path = MediaStore::path('career_resume', (string)$a['resume_file']);
+    $path = MediaStore::path('career_resume', (string)$a[$fileCol]);
     if (!is_file($path)) {
-        MediaStore::restore($pdo, 'career_resume/' . $a['resume_file'], $path);
+        MediaStore::restore($pdo, 'career_resume/' . $a[$fileCol], $path);
     }
     if (!is_file($path)) {
         http_response_code(404);
         exit('Fichier introuvable.');
     }
-    auditLog('career_resume_download', 'Application #' . $id . ' ' . $a['reference']);
+    auditLog($cover ? 'career_cover_download' : 'career_resume_download', 'Application #' . $id . ' ' . $a['reference']);
 
-    $ext = strtolower(pathinfo((string)$a['resume_file'], PATHINFO_EXTENSION));
+    $ext = strtolower(pathinfo((string)$a[$fileCol], PATHINFO_EXTENSION));
     $mime = match ($ext) {
         'pdf' => 'application/pdf',
         'docx' => 'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
         'doc' => 'application/msword',
         default => 'application/octet-stream',
     };
-    $name = preg_replace('/[^A-Za-z0-9._-]+/', '_', (string)($a['resume_name'] ?: ('CV_' . $a['reference'] . '.' . $ext))) ?: ('CV.' . $ext);
+    $name = preg_replace('/[^A-Za-z0-9._-]+/', '_', (string)($a[$nameCol] ?: (($cover ? 'LM_' : 'CV_') . $a['reference'] . '.' . $ext))) ?: ('CV.' . $ext);
     header('Content-Type: ' . $mime);
     header('Content-Length: ' . (string)filesize($path));
     header('Content-Disposition: attachment; filename="' . $name . '"');

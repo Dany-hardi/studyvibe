@@ -62,6 +62,18 @@ $ico = [
 $jsL = ['err' => $L['err'], 'submit' => $L['submit'], 'submitting' => $L['submitting'], 'copied' => $L['copied'], 'okP' => $L['ok_p'],
         'maxBytes' => Careers::RESUME_MAX, 'ext' => Careers::RESUME_EXT, 'drop_change' => $L['drop_change']];
 
+/** A file field with a drop zone: $name is the form field, $required marks it with an asterisk. */
+function caDrop(string $name, string $label, string $hint, string $title, array $L, bool $required): string
+{
+    $h = static fn($s): string => htmlspecialchars((string)$s, ENT_QUOTES, 'UTF-8');
+    return '<div class="field full ca-dz" data-name="' . $h($name) . '" data-required="' . ($required ? '1' : '0') . '">'
+        . '<label for="f-' . $h($name) . '"><span>' . $h($label) . ($required ? ' <span class="ca-req" aria-hidden="true">*</span>' : '') . '</span><span class="ca-hint">' . $h($hint) . '</span></label>'
+        . '<div class="ca-drop"><input id="f-' . $h($name) . '" name="' . $h($name) . '" type="file" accept=".pdf,.doc,.docx,application/pdf,application/msword,application/vnd.openxmlformats-officedocument.wordprocessingml.document" aria-describedby="err-' . $h($name) . '">'
+        . '<span class="ca-drop-ic"><svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 16V4"/><path d="m7 9 5-5 5 5"/><path d="M5 20h14"/></svg></span>'
+        . '<strong>' . $h($title) . '</strong><span>' . $h($L['drop_or']) . ' <span class="ca-pick">' . $h($L['drop_browse']) . '</span></span></div>'
+        . '<div class="ca-file"><span class="ca-file-ic">PDF</span><span class="ca-file-t"><div class="ca-file-n"></div><div class="ca-file-s"></div></span><button type="button" class="ca-file-x">' . $h($L['drop_remove']) . '</button></div>'
+        . '<p class="ca-err" id="err-' . $h($name) . '" data-err="' . $h($name) . '"></p></div>';
+}
 /** One labelled field of the application form. $id = the control's id (for the label), $extra = classes, $hint = small text. */
 function caField(string $name, string $label, string $control, bool $required = false, string $id = '', string $hint = '', string $extra = ''): string
 {
@@ -239,32 +251,13 @@ function caOptions(array $map): string
             <fieldset class="ca-fs">
               <legend><?= $h($L['s_extra']) ?></legend>
               <div class="ca-grid">
-                <div class="field full">
-                  <label for="f-resume"><span><?= $h($L['l_resume']) ?> <span class="ca-req" aria-hidden="true">*</span></span><span class="ca-hint"><?= $h($L['h_resume']) ?></span></label>
-                  <div class="ca-drop" id="ca-drop">
-                    <input id="f-resume" name="resume" type="file" accept=".pdf,.doc,.docx,application/pdf,application/msword,application/vnd.openxmlformats-officedocument.wordprocessingml.document" aria-describedby="err-resume">
-                    <span class="ca-drop-ic"><svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 16V4"/><path d="m7 9 5-5 5 5"/><path d="M5 20h14"/></svg></span>
-                    <strong><?= $h($L['drop_t']) ?></strong>
-                    <span><?= $h($L['drop_or']) ?> <span class="ca-pick"><?= $h($L['drop_browse']) ?></span></span>
-                  </div>
-                  <div class="ca-file" id="ca-file">
-                    <span class="ca-file-ic" id="ca-file-ext">PDF</span>
-                    <span class="ca-file-t"><div class="ca-file-n" id="ca-file-n"></div><div class="ca-file-s" id="ca-file-s"></div></span>
-                    <button type="button" id="ca-file-x"><?= $h($L['drop_remove']) ?></button>
-                  </div>
-                  <p class="ca-err" id="err-resume" data-err="resume"></p>
-                </div>
+                <?= caDrop('resume', $L['l_resume'], $L['h_resume'], $L['drop_t'], $L, true) ?>
                 <?= caField('availability', $L['l_availability'], '<input class="input" id="f-av" name="availability" type="text" maxlength="80" placeholder="' . $h($L['ph_availability']) . '">', false, 'f-av') ?>
                 <?= caField('salary_expectation', $L['l_salary'], '<input class="input" id="f-sal" name="salary_expectation" type="text" maxlength="80" placeholder="' . $h($L['ph_salary']) . '">', false, 'f-sal') ?>
                 <?= caField('work_pref', $L['l_wpref'], '<select class="input ca-sel" id="f-wp" name="work_pref">' . caOptions($L['wpref']) . '</select>', false, 'f-wp') ?>
                 <?= caField('heard_from', $L['l_heard'], '<select class="input ca-sel" id="f-hd" name="heard_from">' . caOptions($L['heard']) . '</select>', false, 'f-hd') ?>
                 <label class="ca-check full"><input type="checkbox" name="relocate" value="1"><span><?= $h($L['l_relocate']) ?></span></label>
-                <div class="field full">
-                  <label for="f-cover"><span><?= $h($L['l_cover']) ?></span><span class="ca-hint"><?= $h($L['h_cover']) ?></span></label>
-                  <textarea class="input" id="f-cover" name="cover_letter" maxlength="5000" placeholder="<?= $h($L['ph_cover']) ?>"></textarea>
-                  <div class="ca-counter"><span id="ca-cc">0</span> / 5000</div>
-                  <p class="ca-err" data-err="cover_letter"></p>
-                </div>
+                <?= caDrop('cover_letter', $L['l_cover'], $L['h_cover'], $L['drop_t_cover'], $L, false) ?>
               </div>
             </fieldset>
 
