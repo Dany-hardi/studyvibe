@@ -223,7 +223,7 @@
           + '<button type="button" class="cx-job-apps" data-jobapps="' + j.id + '" aria-label="' + esc(T.view_apps + ': ' + plural(n, 'n_apps')) + '"><b class="num">' + n + '</b><span>' + esc(plural(n, 'n_apps').replace(/^\d+\s*/, '')) + '</span>' + (+j.new_applicants ? '<em class="num">' + esc(fmt(T.n_new, { n: j.new_applicants })) + '</em>' : '') + '</button>'
           + '<div class="cx-job-act">' + jobActions(j).map(function (a) { return '<button type="button" class="cx-btn cx-btn-sm ' + (a[2] === 'primary' ? 'cx-btn-primary' : 'cx-btn-ghost') + '" data-jact="' + a[0] + '" data-id="' + j.id + '">' + esc(a[1]) + '</button>'; }).join('')
           + '<button type="button" class="cx-btn cx-btn-sm cx-btn-ghost" data-jedit="' + j.id + '">' + esc(T.edit) + '</button>'
-          + '<a class="cx-btn cx-btn-sm cx-btn-ghost" href="/career.php?slug=' + encodeURIComponent(j.slug) + '" target="_blank" rel="noopener">' + esc(j.status === 'open' ? T.view : T.preview) + ' ' + I.ext + '</a>'
+          + '<a class="cx-btn cx-btn-sm cx-btn-ghost" href="/jobs/' + encodeURIComponent(j.public_id) + '" target="_blank" rel="noopener">' + esc(j.status === 'open' ? T.view : T.preview) + ' ' + I.ext + '</a>'
           + (n === 0 ? '<button type="button" class="cx-btn cx-btn-sm cx-btn-quiet" data-jdel="' + j.id + '">' + esc(T.delete) + '</button>' : '') + '</div></li>';
       }).join('') + '</ul>';
     }

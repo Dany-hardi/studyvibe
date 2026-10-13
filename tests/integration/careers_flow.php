@@ -44,6 +44,9 @@ try {
     $ok = Careers::saveJob($pdo, $admin, $id, ['title' => "QA $tag", 'status' => 'open', 'summary' => 'Own the quality of every release of the platform.', 'description' => "Para one.\n\nPara two.", 'responsibilities' => "- Write tests\n- Break things", 'closes_at' => date('Y-m-d', strtotime('+30 day')), 'work_mode' => 'remote', 'employment_type' => 'contract']);
     check('a complete posting is published', $ok['ok'] && !$ok['created']);
     $job = Careers::job($pdo, $id);
+    check('public id: 10 digits, no slug in the address', preg_match('/^[1-9][0-9]{9}$/', (string)$job['public_id']) === 1 && Careers::jobUrl($job) === '/jobs/' . $job['public_id']);
+    check('public id: the posting is found by it, and only by digits', Careers::jobByPublicId($pdo, (string)$job['public_id'])['id'] == $job['id'] && Careers::jobByPublicId($pdo, 'abc') === null && Careers::jobByPublicId($pdo, '1') === null);
+    check('public id: the open application has its own address', Careers::jobUrl() === '/jobs/open');
     check('publishing stamps published_at and keeps the slug', $job['status'] === 'open' && $job['published_at'] !== null && $job['slug'] === $draft['slug']);
     check('it shows on the public list', in_array($id, array_column(Careers::publicJobs($pdo), 'id'), true));
     $past = Careers::saveJob($pdo, $admin, $id, ['title' => "QA $tag", 'status' => 'open', 'summary' => 'Own the quality of every release of the platform.', 'description' => 'x', 'closes_at' => date('Y-m-d', strtotime('-1 day'))]);

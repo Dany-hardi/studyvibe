@@ -76,7 +76,7 @@ $ico = [
       <div class="ca-cta">
         <a class="btn btn-primary btn-lg" href="#roles"><?= $h($L['cta_roles']) ?>
           <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 5v14"/><path d="m6 13 6 6 6-6"/></svg></a>
-        <a class="btn btn-ghost btn-lg" href="/career.php?slug=<?= Careers::SPONTANEOUS ?>"><?= $h($L['cta_open']) ?></a>
+        <a class="btn btn-ghost btn-lg" href="<?= Careers::jobUrl() ?>"><?= $h($L['cta_open']) ?></a>
       </div>
       <?php if ($jobs): ?>
         <ul class="ca-stats">
@@ -154,7 +154,7 @@ $ico = [
         <?php foreach ($jobs as $j):
             $hay = mb_strtolower($j['title'] . ' ' . Careers::teamLabel((string)$j['department'], $lang) . ' ' . $j['location'] . ' ' . $j['summary'] . ' ' . ($L['types'][$j['employment_type']] ?? '') . ' ' . ($L['modes'][$j['work_mode']] ?? '')); ?>
           <li class="ca-job" data-dept="<?= $h($j['department']) ?>" data-type="<?= $h($j['employment_type']) ?>" data-mode="<?= $h($j['work_mode']) ?>" data-hay="<?= $h($hay) ?>">
-            <a href="/career.php?slug=<?= $h($j['slug']) ?>">
+            <a href="<?= $h(Careers::jobUrl($j)) ?>">
               <div>
                 <div class="ca-job-top">
                   <h3><?= $h($j['title']) ?></h3>
@@ -183,7 +183,7 @@ $ico = [
         <div>
           <h3><?= $h($L['no_match_h']) ?></h3>
           <p><?= $h($L['no_match_p']) ?></p>
-          <a class="btn btn-ghost" href="/career.php?slug=<?= Careers::SPONTANEOUS ?>"><?= $h($L['cta_open']) ?></a>
+          <a class="btn btn-ghost" href="<?= Careers::jobUrl() ?>"><?= $h($L['cta_open']) ?></a>
         </div>
       </div>
     <?php else: ?>
@@ -192,7 +192,7 @@ $ico = [
         <div>
           <h3><?= $h($L['empty_h']) ?></h3>
           <p><?= $h($L['empty_p']) ?></p>
-          <a class="btn btn-primary" href="/career.php?slug=<?= Careers::SPONTANEOUS ?>"><?= $h($L['cta_open']) ?></a>
+          <a class="btn btn-primary" href="<?= Careers::jobUrl() ?>"><?= $h($L['cta_open']) ?></a>
         </div>
       </div>
     <?php endif; ?>
@@ -225,7 +225,7 @@ $ico = [
       <div>
         <h2 id="ca-open-h"><?= $h($L['open_h']) ?></h2>
         <p><?= $h($L['open_p']) ?></p>
-        <a class="btn btn-lg" href="/career.php?slug=<?= Careers::SPONTANEOUS ?>"><?= $h($L['open_cta']) ?></a>
+        <a class="btn btn-lg" href="<?= Careers::jobUrl() ?>"><?= $h($L['open_cta']) ?></a>
       </div>
       <div class="ca-band-art"><?= CareersArt::envelope($L['open_art']) ?></div>
     </div>

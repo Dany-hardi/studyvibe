@@ -33,3 +33,9 @@ LimitRequestBody 671088640
         Deny from all
     </IfModule>
 </FilesMatch>
+
+# Public job addresses: /jobs/5150787007 (a posting) and /jobs/open (open application)
+<IfModule mod_rewrite.c>
+    RewriteEngine On
+    RewriteRule ^jobs/([0-9]{1,12}|open)/?$ /career.php?job=$1 [L,QSA]
+</IfModule>

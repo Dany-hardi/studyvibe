@@ -1134,6 +1134,19 @@ class Database
         ] as $ddl) {
             try { $pdo->exec($ddl); } catch (PDOException $ex) { /* already applied */ }
         }
+
+        // Migration 2.25: public numeric id of a posting (the address is /jobs/<id>, not a slug).
+        try { $pdo->exec("ALTER TABLE `career_jobs` ADD COLUMN `public_id` BIGINT UNSIGNED DEFAULT NULL"); } catch (PDOException $ex) { /* already applied */ }
+        try {
+            $missing = $pdo->query("SELECT id FROM career_jobs WHERE public_id IS NULL")->fetchAll(PDO::FETCH_COLUMN);
+            $set = $pdo->prepare("UPDATE career_jobs SET public_id = :p WHERE id = :i AND public_id IS NULL");
+            foreach ($missing as $jid) {
+                for ($try = 0; $try < 20; $try++) {
+                    try { $set->execute(['p' => random_int(1000000000, 9999999999), 'i' => $jid]); break; } catch (PDOException $dup) { /* collision: draw again */ }
+                }
+            }
+        } catch (PDOException $ex) { /* table absent on a very old schema */ }
+        try { $pdo->exec("ALTER TABLE `career_jobs` ADD UNIQUE KEY `uq_career_public_id` (`public_id`)"); } catch (PDOException $ex) { /* already applied */ }
     }
 
     /**

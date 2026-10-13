@@ -189,6 +189,36 @@ final class Careers
         return $st->fetchAll(PDO::FETCH_ASSOC) ?: [];
     }
 
+    /** Public address of a posting: a long numeric id, no words (like /jobs/5150787007). Without a posting: the open application. */
+    public static function jobUrl(?array $job = null): string
+    {
+        return $job && !empty($job['public_id']) ? '/jobs/' . $job['public_id'] : '/jobs/open';
+    }
+
+    /** A fresh 10-digit public id, not guessable in sequence and unique. */
+    public static function newPublicId(PDO $pdo): int
+    {
+        $st = $pdo->prepare('SELECT 1 FROM career_jobs WHERE public_id = :p LIMIT 1');
+        for ($i = 0; $i < 20; $i++) {
+            $id = random_int(1000000000, 9999999999);
+            $st->execute(['p' => $id]);
+            if (!$st->fetchColumn()) {
+                return $id;
+            }
+        }
+        throw new RuntimeException('no free public id');
+    }
+
+    public static function jobByPublicId(PDO $pdo, string $id): ?array
+    {
+        if (!preg_match('/^[0-9]{1,12}$/', $id)) {
+            return null;
+        }
+        $st = $pdo->prepare('SELECT * FROM career_jobs WHERE public_id = :p LIMIT 1');
+        $st->execute(['p' => $id]);
+        return $st->fetch(PDO::FETCH_ASSOC) ?: null;
+    }
+
     public static function jobBySlug(PDO $pdo, string $slug): ?array
     {
         if (!preg_match('/^[a-z0-9-]{1,120}$/', $slug)) {
@@ -344,21 +374,22 @@ final class Careers
                     auto_decline_days=:autoDecline, screen_version=screen_version + :bump
                 WHERE id=:id
             ")->execute($data + ['pub' => $publishedAt, 'cl' => $closedAt, 'id' => $id, 'bump' => self::criteriaChanged($existing, $data) ? 1 : 0]);
-            return ['ok' => true, 'id' => $id, 'slug' => $existing['slug'], 'created' => false];
+            return ['ok' => true, 'id' => $id, 'slug' => $existing['slug'], 'public_id' => (int)$existing['public_id'], 'created' => false];
         }
 
         $slug = self::uniqueSlug($pdo, $title);
+        $publicId = self::newPublicId($pdo);
         $pdo->prepare("
-            INSERT INTO career_jobs (slug, title, department, location, work_mode, employment_type, level, summary, description, responsibilities,
+            INSERT INTO career_jobs (public_id, slug, title, department, location, work_mode, employment_type, level, summary, description, responsibilities,
                 requirements, nice_to_have, benefits, salary_note, openings, status, closes_at, published_at, closed_at, created_by,
                 code, must_have, nice_have, min_years, min_education, screen_enabled, screen_threshold, auto_decline_days)
-            VALUES (:slug, :title, :department, :location, :mode, :type, :level, :summary, :description, :resp, :req, :nice, :ben,
+            VALUES (:pid, :slug, :title, :department, :location, :mode, :type, :level, :summary, :description, :resp, :req, :nice, :ben,
                 :salary, :openings, :status, :closes, :pub, :cl, :by, :code, :must, :niceKw, :minYears, :minEdu, :screenOn, :threshold, :autoDecline)
         ")->execute($data + [
-            'slug' => $slug, 'pub' => $status === 'open' ? date('Y-m-d H:i:s') : null,
+            'pid' => $publicId, 'slug' => $slug, 'pub' => $status === 'open' ? date('Y-m-d H:i:s') : null,
             'cl' => $status === 'closed' ? date('Y-m-d H:i:s') : null, 'by' => $adminId,
         ]);
-        return ['ok' => true, 'id' => (int)$pdo->lastInsertId(), 'slug' => $slug, 'created' => true];
+        return ['ok' => true, 'id' => (int)$pdo->lastInsertId(), 'slug' => $slug, 'public_id' => $publicId, 'created' => true];
     }
 
     /** True when what the screening reads changed: the applications of this posting are then read again by the worker. */

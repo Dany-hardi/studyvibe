@@ -51,7 +51,7 @@ foreach ($files as $f) {
     }
     $r = CareersMarkdown::import($pdo, $admin, $md, $draft ? 'draft' : null);
     if ($r['ok']) {
-        echo 'created #' . $r['id'] . ' ' . $r['job']['code'] . ' /career.php?slug=' . $r['slug'] . ' (' . $r['job']['status'] . ")\n";
+        echo 'created #' . $r['id'] . ' ' . $r['job']['code'] . ' /jobs/' . $r['job']['public_id'] . ' (' . $r['job']['status'] . ")\n";
     } else {
         echo "refused\n";
         foreach ($r['errors'] as $m) {

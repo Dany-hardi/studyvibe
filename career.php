@@ -2,7 +2,7 @@
 declare(strict_types=1);
 
 /**
- * One position (?slug=...) with its application form, or the open application (?slug=spontaneous).
+ * One position (/jobs/<id>, served as ?job=<id>) with its application form, or the open application (/jobs/open).
  * The form posts to career-apply.php. A signed-in administrator can preview a posting that is not public yet.
  */
 
@@ -25,13 +25,33 @@ $date = static function (?string $d) use ($months): string {
     return $t ? (int)date('j', $t) . ' ' . $months[(int)date('n', $t) - 1] . ' ' . date('Y', $t) : '';
 };
 
-$slug = strtolower(trim((string)($_GET['slug'] ?? '')));
-$spont = $slug === Careers::SPONTANEOUS;
+// Address: /jobs/<numeric id> (rewritten to ?job=<id>) or /jobs/open. The old ?slug= links still work and are redirected.
+$ref = strtolower(trim((string)($_GET['job'] ?? '')));
+$oldSlug = strtolower(trim((string)($_GET['slug'] ?? '')));
+if ($ref === '' && $oldSlug !== '') {
+    $target = null;
+    if ($oldSlug === Careers::SPONTANEOUS) {
+        $target = Careers::jobUrl();
+    } else {
+        try {
+            $old = Careers::jobBySlug(Database::getInstance(), $oldSlug);
+            $target = $old ? Careers::jobUrl($old) : null;
+        } catch (Throwable $e) {
+            logServerError($e, 'career.redirect');
+        }
+    }
+    if ($target) {
+        $keep = array_intersect_key($_GET, ['sent' => 1, 'error' => 1]);
+        header('Location: ' . $target . ($keep ? '?' . http_build_query($keep) : ''), true, 301);
+        exit;
+    }
+}
+$spont = $ref === 'open';
 $job = null;
 $isAdmin = isLoggedIn() && ($_SESSION['user_role'] ?? '') === 'promoter';
 if (!$spont) {
     try {
-        $job = Careers::jobBySlug(Database::getInstance(), $slug);
+        $job = Careers::jobByPublicId(Database::getInstance(), $ref);
     } catch (Throwable $e) {
         logServerError($e, 'career.page');
     }
@@ -213,7 +233,7 @@ function caOptions(array $map): string
           </header>
 
           <form id="ca-form" action="/career-apply.php" method="post" enctype="multipart/form-data" novalidate>
-            <input type="hidden" name="slug" value="<?= $h($spont ? Careers::SPONTANEOUS : $job['slug']) ?>">
+            <input type="hidden" name="job" value="<?= $h($spont ? 'open' : $job['public_id']) ?>">
             <input type="hidden" name="_t" value="<?= $h($formTs) ?>">
             <input type="hidden" name="source" value="<?= $h(preg_replace('/[^a-z0-9_.-]/', '', strtolower((string)($_GET['src'] ?? ''))) ?: '') ?>">
             <div class="ca-hp" aria-hidden="true"><label>Website <input type="text" name="website_url" tabindex="-1" autocomplete="off"></label></div>
