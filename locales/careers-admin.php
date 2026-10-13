@@ -83,6 +83,7 @@ return [
     'iv_notify' => 'Envoyer l’invitation au candidat par e-mail', 'iv_notify_move' => 'Prévenir le candidat du nouvel horaire', 'iv_auto' => 'Des rappels partent automatiquement la veille et 2 heures avant, et une relance si le candidat ne répond pas sous 48 h.', 'iv_send' => 'Programmer et inviter', 'iv_move_go' => 'Déplacer et prévenir',
     'iv_saved' => 'Entretien programmé', 'iv_moved' => 'Entretien déplacé', 'iv_saved_nomail' => 'Entretien enregistré, mais l’e-mail n’a pas pu être envoyé', 'iv_conflict' => 'Attention : cette personne a déjà un entretien à ce moment ({name}).',
     'iv_err_invalid' => 'Valeur invalide.', 'iv_err_past' => 'Choisissez un moment à venir.', 'iv_err_required' => 'Obligatoire pour un entretien sur site.',
+    'l_code' => 'Code du poste', 'ph_code' => 'Automatique', 'h_code' => '4 caractères (lettres et chiffres), unique. Il ouvre la référence de chaque candidature : par exemple SFSD26K7M2X. Laissez vide pour un code automatique ; changer le code ne modifie pas les références déjà données.', 'err_code_invalid' => 'Le code doit faire exactement 4 lettres ou chiffres.', 'err_code_taken' => 'Ce code est déjà pris par une autre offre.',
     'months' => ['janv.', 'févr.', 'mars', 'avr.', 'mai', 'juin', 'juil.', 'août', 'sept.', 'oct.', 'nov.', 'déc.'],
 ],
 'en' => [
@@ -165,6 +166,7 @@ return [
     'iv_notify' => 'Send the invitation to the candidate by e-mail', 'iv_notify_move' => 'Tell the candidate about the new time', 'iv_auto' => 'Reminders go out automatically the day before and 2 hours before, and a nudge if the candidate has not answered within 48 h.', 'iv_send' => 'Schedule and invite', 'iv_move_go' => 'Move and notify',
     'iv_saved' => 'Interview scheduled', 'iv_moved' => 'Interview moved', 'iv_saved_nomail' => 'Interview saved, but the e-mail could not be sent', 'iv_conflict' => 'Heads up: this person already has an interview at that time ({name}).',
     'iv_err_invalid' => 'Invalid value.', 'iv_err_past' => 'Pick a time in the future.', 'iv_err_required' => 'Required for an on-site interview.',
+    'l_code' => 'Position code', 'ph_code' => 'Automatic', 'h_code' => '4 characters (letters and digits), unique. It starts the reference of every application: for example SFSD26K7M2X. Leave empty for an automatic code; changing it does not alter references already given.', 'err_code_invalid' => 'The code must be exactly 4 letters or digits.', 'err_code_taken' => 'This code is already used by another position.',
     'months' => ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'],
 ],
 ];

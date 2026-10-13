@@ -56,6 +56,24 @@ try {
     Careers::setJobStatus($pdo, $id, 'open');
     check('reopening keeps the first publication date', Careers::job($pdo, $id)['published_at'] === $job['published_at']);
 
+    // --- posting code and application reference
+    check('a posting gets a 4-character code of its own on creation', preg_match('/^[A-Z0-9]{4}$/', (string)$job['code']) === 1);
+    check('the suggested code is readable (initials, or the first letters of each word)', Careers::suggestCode('Senior Full-Stack Developer') === 'SFSD' && Careers::suggestCode('Product Designer') === 'PRDE' && Careers::suggestCode('Intern') === 'INTE' && strlen(Careers::suggestCode('QA')) === 4);
+    $twin = Careers::saveJob($pdo, $admin, null, ['title' => "QA $tag", 'status' => 'draft']); $jobIds[] = (int)$twin['id'];
+    check('two postings with the same title never share a code', Careers::job($pdo, (int)$twin['id'])['code'] !== $job['code']);
+    $own = Careers::saveJob($pdo, $admin, $id, ['title' => "QA $tag", 'status' => 'open', 'summary' => 'Own the quality of every release of the platform.', 'description' => 'x', 'code' => 'zq7k']);
+    check('an administrator can choose the code (capitalised) and it is kept', $own['ok'] && Careers::job($pdo, $id)['code'] === 'ZQ7K');
+    $dup = Careers::saveJob($pdo, $admin, (int)$twin['id'], ['title' => "QA $tag", 'code' => 'ZQ7K']);
+    check('a code already used by another posting is refused', !$dup['ok'] && $dup['fields']['code'] === 'taken');
+    check('a malformed code and the reserved OPEN code are refused', Careers::saveJob($pdo, $admin, $id, ['title' => "QA $tag", 'code' => 'AB'])['fields']['code'] === 'invalid' && Careers::saveJob($pdo, $admin, $id, ['title' => "QA $tag", 'code' => 'OPEN'])['fields']['code'] === 'taken');
+    check('saving without a code keeps the current one', Careers::saveJob($pdo, $admin, $id, ['title' => "QA $tag", 'status' => 'open', 'summary' => 'Own the quality of every release of the platform.', 'description' => 'x'])['ok'] && Careers::job($pdo, $id)['code'] === 'ZQ7K');
+    $ref = Careers::newReference($pdo, Careers::job($pdo, $id));
+    check('a reference is CODE + year + 5 characters, no separator, from the unambiguous alphabet', preg_match('/^ZQ7K' . date('y') . '[A-HJKMNP-Z2-9]{5}$/', $ref) === 1 && strlen($ref) === 11);
+    check('an open application uses the OPEN code', str_starts_with(Careers::newReference($pdo, null), 'OPEN' . date('y')));
+    $seen = []; for ($i = 0; $i < 300; $i++) { $seen[Careers::newReference($pdo, Careers::job($pdo, $id))] = 1; }
+    check('references do not repeat', count($seen) === 300);
+    check('both reference shapes are recognised (new and the earlier CA-XXXXXX), others are not', Careers::isReference('ZQ7K26ABCDE') && Careers::isReference('CA-ABC123') && !Careers::isReference('ZQ7K-26-ABCDE') && !Careers::isReference('zq7k26abcde') && !Careers::isReference('x'));
+
     // --- applications: validation
     $e = Careers::validateApplication(['full_name' => 'A', 'email' => 'nope', 'phone' => 'abc', 'linkedin_url' => 'not a link', 'cover_letter' => 'short']);
     check('validation flags name, e-mail, phone, link, short letter and missing consent', count(array_intersect(['full_name', 'email', 'phone', 'linkedin_url', 'cover_letter', 'consent'], array_keys($e))) === 6);

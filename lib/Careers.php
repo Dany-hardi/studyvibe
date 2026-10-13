@@ -23,6 +23,10 @@ final class Careers
     public const WORK_PREFS    = ['any', 'onsite', 'hybrid', 'remote'];
     public const HEARD         = ['website', 'linkedin', 'referral', 'social', 'school', 'event', 'other'];
     /** Months an application is kept after its last move when the person did not ask to stay in the talent pool (hired people excepted). */
+    /** Code shared by every open (spontaneous) application, so its reference has the same shape as the others. */
+    public const OPEN_CODE = 'OPEN';
+    private const REF_ALPHABET = 'ABCDEFGHJKMNPQRSTUVWXYZ23456789';     // no 0/O, 1/I/L: a reference is read aloud and typed
+    private const CODE_STOP = ['AND', 'ET', 'DE', 'DU', 'LA', 'LE', 'LES', 'THE', 'OF', 'FOR', 'POUR', 'AU', 'AUX', 'DES', 'UN', 'UNE', 'A', 'H', 'F', 'M'];
     public const RETENTION_MONTHS = 12;
     public const RETENTION_POOL_MONTHS = 24;
     public const TYPES         = ['full_time', 'part_time', 'internship', 'contract', 'volunteer'];
@@ -217,6 +221,11 @@ final class Careers
         $autoDecline = max(0, min(90, (int)($in['auto_decline_days'] ?? 0)));
         $closes = trim((string)($in['closes_at'] ?? ''));
         $fields = [];
+        $codeRaw = trim((string)($in['code'] ?? ''));
+        $code = self::normalizeCode($codeRaw);
+        if ($codeRaw !== '' && $code === '') {
+            $fields['code'] = 'invalid';
+        }
 
         if (mb_strlen($title) < 3) {
             $fields['title'] = 'required';
@@ -258,6 +267,12 @@ final class Careers
         if ($id && !$existing) {
             return ['ok' => false, 'error' => 'not_found', 'message' => 'Offre introuvable.'];
         }
+        if ($code !== '' && self::codeTaken($pdo, $code, $id ?: null)) {
+            return ['ok' => false, 'error' => 'validation', 'fields' => ['code' => 'taken'], 'message' => 'Ce code est déjà utilisé.'];
+        }
+        if ($code === '') {
+            $code = $existing ? (string)$existing['code'] : self::uniqueCode($pdo, $title);
+        }
 
         $data = [
             'title' => $title, 'department' => self::line($in['department'] ?? '', 80), 'location' => self::line($in['location'] ?? '', 120),
@@ -265,7 +280,7 @@ final class Careers
             'description' => $description, 'resp' => $resp, 'req' => $req, 'nice' => $nice, 'ben' => $ben,
             'salary' => self::line($in['salary_note'] ?? '', 160), 'openings' => $openings, 'status' => $status,
             'closes' => $closes !== '' ? $closes : null,
-            'must' => $must, 'niceKw' => $niceKw, 'minYears' => $minYears, 'minEdu' => $minEdu, 'screenOn' => $screenOn, 'threshold' => $threshold, 'autoDecline' => $autoDecline,
+            'code' => $code, 'must' => $must, 'niceKw' => $niceKw, 'minYears' => $minYears, 'minEdu' => $minEdu, 'screenOn' => $screenOn, 'threshold' => $threshold, 'autoDecline' => $autoDecline,
         ];
 
         if ($existing) {
@@ -283,7 +298,7 @@ final class Careers
                 UPDATE career_jobs SET title=:title, department=:department, location=:location, work_mode=:mode, employment_type=:type, level=:level,
                     summary=:summary, description=:description, responsibilities=:resp, requirements=:req, nice_to_have=:nice, benefits=:ben,
                     salary_note=:salary, openings=:openings, status=:status, closes_at=:closes, published_at=:pub, closed_at=:cl,
-                    must_have=:must, nice_have=:niceKw, min_years=:minYears, min_education=:minEdu, screen_enabled=:screenOn, screen_threshold=:threshold,
+                    code=:code, must_have=:must, nice_have=:niceKw, min_years=:minYears, min_education=:minEdu, screen_enabled=:screenOn, screen_threshold=:threshold,
                     auto_decline_days=:autoDecline, screen_version=screen_version + :bump
                 WHERE id=:id
             ")->execute($data + ['pub' => $publishedAt, 'cl' => $closedAt, 'id' => $id, 'bump' => self::criteriaChanged($existing, $data) ? 1 : 0]);
@@ -294,9 +309,9 @@ final class Careers
         $pdo->prepare("
             INSERT INTO career_jobs (slug, title, department, location, work_mode, employment_type, level, summary, description, responsibilities,
                 requirements, nice_to_have, benefits, salary_note, openings, status, closes_at, published_at, closed_at, created_by,
-                must_have, nice_have, min_years, min_education, screen_enabled, screen_threshold, auto_decline_days)
+                code, must_have, nice_have, min_years, min_education, screen_enabled, screen_threshold, auto_decline_days)
             VALUES (:slug, :title, :department, :location, :mode, :type, :level, :summary, :description, :resp, :req, :nice, :ben,
-                :salary, :openings, :status, :closes, :pub, :cl, :by, :must, :niceKw, :minYears, :minEdu, :screenOn, :threshold, :autoDecline)
+                :salary, :openings, :status, :closes, :pub, :cl, :by, :code, :must, :niceKw, :minYears, :minEdu, :screenOn, :threshold, :autoDecline)
         ")->execute($data + [
             'slug' => $slug, 'pub' => $status === 'open' ? date('Y-m-d H:i:s') : null,
             'cl' => $status === 'closed' ? date('Y-m-d H:i:s') : null, 'by' => $adminId,
@@ -422,21 +437,127 @@ final class Careers
         return $ok ? null : 'bad_type';
     }
 
-    private static function reference(PDO $pdo): string
+    // ---------------------------------------------------------------------------------------------------------------
+    // Posting code and application reference
+    // ---------------------------------------------------------------------------------------------------------------
+
+    /** 4 capital letters or digits, or '' when the text is not one. */
+    public static function normalizeCode(mixed $v): string
     {
-        $alphabet = 'ABCDEFGHJKMNPQRSTUVWXYZ23456789';
-        for ($try = 0; $try < 20; $try++) {
-            $ref = 'CA-';
-            for ($i = 0; $i < 6; $i++) {
-                $ref .= $alphabet[random_int(0, strlen($alphabet) - 1)];
+        $v = strtoupper(trim((string)$v));
+        return preg_match('/^[A-Z0-9]{4}$/', $v) ? $v : '';
+    }
+
+    /**
+     * A readable code from a title: initials when there are four words or more, otherwise the first letters of each word
+     * ("Senior Full-Stack Developer" gives SFSD, "Product Designer" gives PRDE, "Intern" gives INTE).
+     */
+    public static function suggestCode(string $title): string
+    {
+        $ascii = strtoupper(str_replace('-', ' ', self::slugify($title)));
+        $words = array_values(array_filter(explode(' ', preg_replace('/[^A-Z ]/', ' ', $ascii) ?? ''), static fn($w) => $w !== '' && !in_array($w, self::CODE_STOP, true)));
+        if (!$words) {
+            return 'JOB' . random_int(1, 9);
+        }
+        $n = count($words);
+        $code = match (true) {
+            $n === 1 => substr($words[0], 0, 4),
+            $n === 2 => substr($words[0], 0, 2) . substr($words[1], 0, 2),
+            $n === 3 => substr($words[0], 0, 2) . $words[1][0] . $words[2][0],
+            default  => $words[0][0] . $words[1][0] . $words[2][0] . $words[3][0],
+        };
+        $i = strlen($code);
+        $pool = implode('', $words);
+        while (strlen($code) < 4) {                       // a short word: borrow the next letters of the title
+            $code .= $pool[$i] ?? 'X';
+            $i++;
+        }
+        return substr($code, 0, 4);
+    }
+
+    public static function codeTaken(PDO $pdo, string $code, ?int $ignoreId = null): bool
+    {
+        if ($code === self::OPEN_CODE) {
+            return true;
+        }
+        $st = $pdo->prepare('SELECT 1 FROM career_jobs WHERE code = :c' . ($ignoreId ? ' AND id <> :i' : '') . ' LIMIT 1');
+        $args = ['c' => $code];
+        if ($ignoreId) {
+            $args['i'] = $ignoreId;
+        }
+        $st->execute($args);
+        return (bool)$st->fetchColumn();
+    }
+
+    /** A free code: the suggestion, then the same with another last character, then a random one. */
+    public static function uniqueCode(PDO $pdo, string $title, ?int $ignoreId = null): string
+    {
+        $base = self::suggestCode($title);
+        if (!self::codeTaken($pdo, $base, $ignoreId)) {
+            return $base;
+        }
+        foreach (str_split(self::REF_ALPHABET) as $c) {
+            $try = substr($base, 0, 3) . $c;
+            if (!self::codeTaken($pdo, $try, $ignoreId)) {
+                return $try;
             }
+        }
+        for ($i = 0; $i < 50; $i++) {
+            $try = '';
+            for ($k = 0; $k < 4; $k++) {
+                $try .= self::REF_ALPHABET[random_int(0, strlen(self::REF_ALPHABET) - 1)];
+            }
+            if (!self::codeTaken($pdo, $try, $ignoreId)) {
+                return $try;
+            }
+        }
+        return strtoupper(substr(bin2hex(random_bytes(3)), 0, 4));
+    }
+
+    /** Postings that existed before codes were introduced get theirs. Safe to run again. */
+    public static function backfillCodes(PDO $pdo): int
+    {
+        $n = 0;
+        foreach ($pdo->query("SELECT id, title FROM career_jobs WHERE code = '' ORDER BY id")->fetchAll(PDO::FETCH_ASSOC) as $j) {
+            $pdo->prepare('UPDATE career_jobs SET code = :c WHERE id = :i')->execute(['c' => self::uniqueCode($pdo, (string)$j['title'], (int)$j['id']), 'i' => $j['id']]);
+            $n++;
+        }
+        return $n;
+    }
+
+    /** A reference as handed out today (CODE + 2-digit year + 5 characters, e.g. FSDV26K7M2X) or as before codes existed (CA-XXXXXX). */
+    public static function isReference(string $s): bool
+    {
+        return (bool)preg_match('/^(?:[A-Z0-9]{4}\d{2}[A-Z0-9]{5}|CA-[A-Z0-9]{4,8})$/', $s);
+    }
+
+    /**
+     * The reference of a new application: the posting's 4-character code, the year's last two digits and 5 random characters,
+     * written together without any separator (FSDV26K7M2X). Open applications use the code OPEN. Always unique.
+     */
+    public static function newReference(PDO $pdo, ?array $job): string
+    {
+        $code = $job ? self::normalizeCode($job['code'] ?? '') : self::OPEN_CODE;
+        $code = $code !== '' ? $code : 'JOB0';
+        $yy = date('y');
+        for ($try = 0; $try < 30; $try++) {
+            $tail = '';
+            for ($i = 0; $i < 5; $i++) {
+                $tail .= self::REF_ALPHABET[random_int(0, strlen(self::REF_ALPHABET) - 1)];
+            }
+            $ref = $code . $yy . $tail;
             $st = $pdo->prepare('SELECT 1 FROM career_applications WHERE reference = :r');
             $st->execute(['r' => $ref]);
             if (!$st->fetchColumn()) {
                 return $ref;
             }
         }
-        return 'CA-' . strtoupper(bin2hex(random_bytes(4)));
+        return $code . $yy . strtoupper(substr(bin2hex(random_bytes(4)), 0, 5));
+    }
+
+    private static function reference(PDO $pdo, ?array $job = null): string
+    {
+        return self::newReference($pdo, $job);
     }
 
     /**
@@ -494,7 +615,7 @@ final class Careers
             return ['ok' => false, 'error' => 'validation', 'fields' => ['resume' => (string)($saved['error'] ?? 'upload')], 'message' => 'validation'];
         }
 
-        $ref = self::reference($pdo);
+        $ref = self::reference($pdo, $job);
         $token = bin2hex(random_bytes(20));
         $secret = defined('APP_SECRET') ? (string)APP_SECRET : 'studyvibe';
         try {

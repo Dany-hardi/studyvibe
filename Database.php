@@ -1103,6 +1103,16 @@ class Database
         } catch (PDOException $ex) {
             error_log('Migration 2.21 (ATS): ' . $ex->getMessage());
         }
+
+        // Migration 2.22: every posting carries a 4-character code; application references are built from it (see Careers::newReference).
+        try {
+            try { $pdo->exec("ALTER TABLE `career_jobs` ADD COLUMN `code` CHAR(4) NOT NULL DEFAULT ''"); } catch (PDOException $ex) { /* already applied */ }
+            require_once __DIR__ . '/lib/Careers.php';
+            Careers::backfillCodes($pdo);
+            try { $pdo->exec("ALTER TABLE `career_jobs` ADD UNIQUE KEY `uq_career_code` (`code`)"); } catch (PDOException $ex) { /* already there */ }
+        } catch (Throwable $ex) {
+            error_log('Migration 2.22 (job codes): ' . $ex->getMessage());
+        }
     }
 
     /**

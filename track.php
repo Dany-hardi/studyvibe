@@ -92,7 +92,7 @@ $pageTitle = $L['title'];
         <p class="ca-lede"><?= $h($L['lede']) ?></p>
         <?php if ($token !== ''): ?><p class="tk-warn" role="alert"><?= $h($L['bad_link']) ?></p><?php endif; ?>
         <form class="tk-form" id="tk-lookup" novalidate>
-          <div class="field"><label for="tk-ref"><?= $h($L['l_ref']) ?></label><input class="input" id="tk-ref" name="reference" autocomplete="off" autocapitalize="characters" maxlength="16" placeholder="<?= $h($L['ph_ref']) ?>" required></div>
+          <div class="field"><label for="tk-ref"><?= $h($L['l_ref']) ?></label><input class="input" id="tk-ref" name="reference" autocomplete="off" autocapitalize="characters" maxlength="16" spellcheck="false" placeholder="<?= $h($L['ph_ref']) ?>" required></div>
           <div class="field"><label for="tk-email"><?= $h($L['l_email']) ?></label><input class="input" id="tk-email" name="email" type="email" autocomplete="email" maxlength="190" required></div>
           <p class="ca-err" id="tk-err" role="alert"></p>
           <button class="btn btn-primary btn-lg" type="submit" id="tk-go"><?= $h($L['send']) ?></button>

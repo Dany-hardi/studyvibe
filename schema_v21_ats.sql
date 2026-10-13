@@ -7,3 +7,4 @@
 -- career_application_events: kind gains screen|interview|candidate|bucket; visible (shown on the candidate's tracking page)
 -- New tables: career_application_texts (extracted résumé text), career_interviews, career_state (worker bookkeeping).
 -- See Database.php for the exact statements.
+-- v22: career_jobs.code CHAR(4) UNIQUE (migration 2.22); application references are CODE + 2-digit year + 5 characters (e.g. SFSD26K7M2X).

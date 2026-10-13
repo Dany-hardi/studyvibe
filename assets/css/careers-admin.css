@@ -314,3 +314,7 @@ html.dark .cx-iv-scheduled { --sc: #E5B24F; } html.dark .cx-iv-confirmed { --sc:
   .cx-gr { grid-template-columns: minmax(0, 110px) minmax(0, 1fr) 42px; } .cx-bulk { top: 96px; }
   .cx-hold-m { grid-template-columns: 38px minmax(0, 1fr) auto; }
 }
+
+/* posting code */
+.cx-code { display: inline-block; padding: .12rem .5rem; border-radius: 6px; border: 1px solid var(--line-2); background: var(--paper); font: 700 .78rem ui-monospace, SFMono-Regular, Menlo, monospace; letter-spacing: .12em; color: var(--ink-2); }
+.cx-code-in { max-width: 9rem; font-family: ui-monospace, SFMono-Regular, Menlo, monospace; letter-spacing: .25em; text-transform: uppercase; font-weight: 700; }

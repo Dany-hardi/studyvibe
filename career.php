@@ -53,7 +53,7 @@ $title = $spont ? $L['spont_title'] : ($job['title'] ?? $L['not_found_h']);
 $now = time();
 $formTs = $now . '.' . hash_hmac('sha256', 'career-form|' . $now, defined('APP_SECRET') ? (string)APP_SECRET : 'studyvibe');
 // Without JavaScript the endpoint redirects back here with the reference
-$sentRef = preg_match('/^CA-[A-Z0-9]{4,8}$/', (string)($_GET['sent'] ?? '')) ? (string)$_GET['sent'] : '';
+$sentRef = Careers::isReference((string)($_GET['sent'] ?? '')) ? (string)$_GET['sent'] : '';
 $ico = [
     'pin'   => '<svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 21s-7-6.2-7-11.5a7 7 0 0 1 14 0C19 14.8 12 21 12 21z"/><circle cx="12" cy="9.5" r="2.5"/></svg>',
     'clock' => '<svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="12" r="9"/><path d="M12 7v5l3 2"/></svg>',
@@ -168,7 +168,7 @@ function caOptions(array $map): string
                 [$L['fact_team'], $job['department']], [$L['fact_place'], $job['location']], [$L['fact_mode'], $L['modes'][$job['work_mode']] ?? ''],
                 [$L['fact_type'], $L['types'][$job['employment_type']] ?? ''], [$L['fact_level'], $job['level']],
                 [$L['fact_openings'], (int)$job['openings'] > 1 ? (string)(int)$job['openings'] : ''], [$L['fact_salary'], $job['salary_note']],
-                [$L['fact_deadline'], $date($job['closes_at'])], [$L['fact_posted'], $date($job['published_at'])],
+                [$L['fact_deadline'], $date($job['closes_at'])], [$L['fact_posted'], $date($job['published_at'])], [$L['fact_code'], (string)$job['code']],
             ];
             foreach ($facts as [$k, $v]) { if ($v === '' || $v === null) { continue; } ?>
               <div><dt><?= $h($k) ?></dt><dd><?= $h($v) ?></dd></div>

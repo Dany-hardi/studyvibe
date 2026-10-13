@@ -35,7 +35,7 @@ try {
     if ($action === 'lookup') {
         $ref = strtoupper(trim((string)($in['reference'] ?? '')));
         $email = strtolower(trim((string)($in['email'] ?? '')));
-        if (!preg_match('/^CA-[A-Z0-9]{4,8}$/', $ref) || !filter_var($email, FILTER_VALIDATE_EMAIL)) {
+        if (!Careers::isReference($ref) || !filter_var($email, FILTER_VALIDATE_EMAIL)) {
             $say(['success' => false, 'error' => 'invalid'], 422);
         }
         if (!RateLimit::allow($pdo, 'track:lookup:ip:' . hash('sha256', $ip), 8, 3600) || !RateLimit::allow($pdo, 'track:lookup:mail:' . hash('sha256', $email), 4, 86400)) {

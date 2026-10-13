@@ -216,7 +216,7 @@
     } else {
       html += '<ul class="cx-jobs">' + list.map(function (j) {
         var n = +j.applicants, meta = [j.department, j.location, T.modes[j.work_mode], T.types[j.employment_type]].filter(Boolean).map(esc).join(' · ');
-        return '<li class="cx-job" data-job="' + j.id + '"><div class="cx-job-main"><div class="cx-job-top"><h3>' + esc(j.title) + '</h3>' + jobPill(j.status) + (+j.screen_enabled ? '<span class="cx-tag" title="' + esc(T.ats_on) + '">ATS</span>' : '') + '</div>'
+        return '<li class="cx-job" data-job="' + j.id + '"><div class="cx-job-main"><div class="cx-job-top"><h3>' + esc(j.title) + '</h3>' + jobPill(j.status) + '<span class="cx-code" title="' + esc(T.l_code) + '">' + esc(j.code) + '</span>' + (+j.screen_enabled ? '<span class="cx-tag" title="' + esc(T.ats_on) + '">ATS</span>' : '') + '</div>'
           + '<p class="cx-job-meta">' + meta + '</p>'
           + '<p class="cx-job-sub">' + (j.closes_at ? esc(fmt(T.closes, { date: date(j.closes_at) })) + ' · ' : '') + esc(fmt(T.updated, { date: date(j.updated_at) })) + (+j.held_applicants ? ' · ' + esc(fmt(T.n_held, { n: j.held_applicants })) : '') + '</p></div>'
           + '<button type="button" class="cx-job-apps" data-jobapps="' + j.id + '" aria-label="' + esc(T.view_apps + ': ' + plural(n, 'n_apps')) + '"><b class="num">' + n + '</b><span>' + esc(plural(n, 'n_apps').replace(/^\d+\s*/, '')) + '</span>' + (+j.new_applicants ? '<em class="num">' + esc(fmt(T.n_new, { n: j.new_applicants })) + '</em>' : '') + '</button>'
@@ -242,6 +242,7 @@
       + '<div class="cx-dlg-b">'
       + '<fieldset><legend>' + esc(T.s_basics) + '</legend><div class="cx-fg">'
       + field('title', T.l_title, '<input class="cx-in" id="jf-title" name="title" maxlength="160" required value="' + v('title') + '" placeholder="' + esc(T.ph_title) + '">', '', 'full')
+      + field('code', T.l_code, '<input class="cx-in cx-code-in" id="jf-code" name="code" maxlength="4" value="' + v('code') + '" placeholder="' + esc(T.ph_code) + '" autocomplete="off" spellcheck="false" autocapitalize="characters">', T.h_code, 'full')
       + field('department', T.l_dept, '<input class="cx-in" id="jf-department" name="department" maxlength="80" value="' + v('department') + '" placeholder="' + esc(T.ph_dept) + '">')
       + field('location', T.l_loc, '<input class="cx-in" id="jf-location" name="location" maxlength="120" value="' + v('location') + '" placeholder="' + esc(T.ph_loc) + '">')
       + field('work_mode', T.l_mode, '<select class="cx-in" id="jf-work_mode" name="work_mode">' + opts(T.modes, j.work_mode) + '</select>')
@@ -278,7 +279,8 @@
       + '<footer class="cx-dlg-f"><button type="button" class="cx-btn cx-btn-ghost" data-dlgclose>' + esc(T.cancel) + '</button>'
       + '<button type="submit" class="cx-btn cx-btn-ghost" data-keep="1">' + esc(T.save) + '</button>'
       + '<button type="submit" class="cx-btn cx-btn-primary" data-publish="1" id="jf-pub"' + (j.status === 'open' ? ' hidden' : '') + '>' + esc(T.save_publish) + '</button></footer></form>';
-    var f = $('#cx-job-form', d), sel = $('#jf-status', d), tog = $('#jf-screen_enabled', d), thr = $('#jf-screen_threshold', d);
+    var f = $('#cx-job-form', d), sel = $('#jf-status', d), tog = $('#jf-screen_enabled', d), thr = $('#jf-screen_threshold', d), code = $('#jf-code', d);
+    code.addEventListener('input', function () { code.value = code.value.toUpperCase().replace(/[^A-Z0-9]/g, '').slice(0, 4); });
     sel.addEventListener('change', function () { $('#jf-status-help', d).textContent = T.status_help[sel.value]; $('#jf-pub', d).hidden = sel.value === 'open'; });
     var dim = function () { $('#jf-ats-fields', d).classList.toggle('cx-dim', !tog.checked); };
     tog.addEventListener('change', dim); dim();
@@ -299,7 +301,7 @@
         if (r.fields) {
           var first = null;
           Object.keys(r.fields).forEach(function (k) {
-            var p = $('[data-err="' + k + '"]', f), i = f.elements[k], msg = T['err_' + k] || T.err_generic;
+            var p = $('[data-err="' + k + '"]', f), i = f.elements[k], msg = T['err_' + k + '_' + r.fields[k]] || T['err_' + k] || T.err_generic;
             if (p) { p.textContent = msg; p.classList.add('show'); } if (i) { i.classList.add('bad'); if (!first) first = i; }
           });
           if (first) first.focus();

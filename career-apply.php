@@ -64,7 +64,7 @@ try {
     }
     if ($bot) {
         usleep(random_int(300000, 900000));
-        $reply(['success' => true, 'reference' => 'CA-' . strtoupper(substr(bin2hex(random_bytes(4)), 0, 6)), 'name' => '', 'email' => '', 'slug' => $slug]);
+        $reply(['success' => true, 'reference' => Careers::OPEN_CODE . date('y') . strtoupper(substr(bin2hex(random_bytes(4)), 0, 5)), 'name' => '', 'email' => '', 'slug' => $slug]);
     }
 
     $email = strtolower(trim((string)($_POST['email'] ?? '')));

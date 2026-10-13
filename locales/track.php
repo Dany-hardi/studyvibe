@@ -6,7 +6,7 @@ return [
 'fr' => [
     'title' => 'Suivre ma candidature — StudyVibe', 'desc' => 'Suivez chaque étape de votre candidature chez StudyVibe.',
     'kicker' => 'Suivi de candidature', 'h1' => 'Où en est <em>votre candidature ?</em>', 'lede' => 'Saisissez la référence reçue par e-mail et l’adresse utilisée pour postuler. Nous vous envoyons votre lien personnel.',
-    'l_ref' => 'Référence', 'l_email' => 'Adresse e-mail', 'ph_ref' => 'CA-XXXXXX', 'send' => 'Recevoir mon lien',
+    'l_ref' => 'Référence', 'l_email' => 'Adresse e-mail', 'ph_ref' => 'SFSD26K7M2X', 'send' => 'Recevoir mon lien',
     'sent_h' => 'Vérifiez votre boîte mail', 'sent_p' => 'Si ces informations correspondent à une candidature, un e-mail avec votre lien personnel vient de vous être envoyé. Pensez à regarder dans les courriers indésirables.',
     'bad_link' => 'Ce lien n’est pas valide ou la candidature a été supprimée. Demandez un nouveau lien ci-dessous.',
     'rate' => 'Trop de demandes. Réessayez dans un moment.', 'err' => 'Une erreur est survenue. Réessayez.', 'invalid' => 'Vérifiez la référence et l’adresse e-mail.',
@@ -43,7 +43,7 @@ return [
 'en' => [
     'title' => 'Track my application — StudyVibe', 'desc' => 'Follow every step of your application at StudyVibe.',
     'kicker' => 'Application tracking', 'h1' => 'Where does <em>your application stand?</em>', 'lede' => 'Enter the reference you received by e-mail and the address you applied with. We send you your personal link.',
-    'l_ref' => 'Reference', 'l_email' => 'E-mail address', 'ph_ref' => 'CA-XXXXXX', 'send' => 'Send me my link',
+    'l_ref' => 'Reference', 'l_email' => 'E-mail address', 'ph_ref' => 'SFSD26K7M2X', 'send' => 'Send me my link',
     'sent_h' => 'Check your inbox', 'sent_p' => 'If these details match an application, an e-mail with your personal link has just been sent. Remember to look in your junk folder.',
     'bad_link' => 'This link is not valid, or the application was deleted. Ask for a new link below.',
     'rate' => 'Too many requests. Try again in a moment.', 'err' => 'Something went wrong. Try again.', 'invalid' => 'Check the reference and the e-mail address.',

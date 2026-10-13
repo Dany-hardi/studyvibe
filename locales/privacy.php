@@ -243,7 +243,7 @@ return [
                     '<strong>Combien de temps :</strong> 12 mois après la dernière étape si vous n’êtes pas recruté(e) ; 24 mois si vous avez coché « garder mon profil pour de futures offres ». Passé ce délai, le dossier et le CV sont effacés automatiquement. Les candidatures recrutées suivent les règles du personnel.',
                     '<strong>Votre base légale :</strong> votre consentement, donné en cochant la case du formulaire et que vous pouvez retirer à tout moment.',
                 ]],
-                ['p' => 'Depuis votre page de suivi, vous pouvez retirer votre candidature ou <strong>effacer immédiatement vos données</strong> (dossier, CV, historique). Vous pouvez aussi nous écrire avec votre référence (elle commence par CA-) pour consulter ou corriger votre dossier.'],
+                ['p' => 'Depuis votre page de suivi, vous pouvez retirer votre candidature ou <strong>effacer immédiatement vos données</strong> (dossier, CV, historique). Vous pouvez aussi nous écrire avec votre référence (code du poste, année et cinq caractères, comme SFSD26K7M2X) pour consulter ou corriger votre dossier.'],
             ],
         ],
         [
@@ -509,7 +509,7 @@ return [
                     '<strong>How long:</strong> 12 months after the last step if you are not hired; 24 months if you ticked “keep my profile for future positions”. After that, the file and the résumé are erased automatically. Hired candidates follow staff rules.',
                     '<strong>Legal basis:</strong> your consent, given by ticking the box on the form, which you can withdraw at any time.',
                 ]],
-                ['p' => 'From your tracking page you can withdraw your application or <strong>erase your data immediately</strong> (file, résumé, history). You can also write to us with your reference (it starts with CA-) to see or correct your file.'],
+                ['p' => 'From your tracking page you can withdraw your application or <strong>erase your data immediately</strong> (file, résumé, history). You can also write to us with your reference (position code, year and five characters, like SFSD26K7M2X) to see or correct your file.'],
             ],
         ],
         [
