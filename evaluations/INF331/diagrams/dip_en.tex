@@ -1,0 +1,34 @@
+\documentclass[border=8pt]{standalone}
+\usepackage[T1]{fontenc}\usepackage[utf8]{inputenc}
+\usepackage{helvet}\renewcommand{\familydefault}{\sfdefault}
+\usepackage{tikz,xcolor}
+\usetikzlibrary{arrows.meta,positioning,shapes.geometric,shapes.multipart,calc,fit,backgrounds,decorations.markings}
+\definecolor{ink}{HTML}{1E1B16}\definecolor{paper}{HTML}{FBF8F2}\definecolor{clay}{HTML}{B5482A}\definecolor{soft}{HTML}{F1E9DA}\definecolor{pine}{HTML}{24402F}
+\tikzset{
+  every node/.style={font=\small,text=ink},
+  >=Stealth, line/.style={draw=ink,line width=0.8pt},
+  cls/.style={rectangle split,rectangle split parts=3,draw=ink,line width=0.8pt,fill=soft,align=left,inner xsep=6pt,inner ysep=4pt,
+              rectangle split part align={center,left,left},minimum width=3.0cm},
+  cls2/.style={rectangle split,rectangle split parts=2,draw=ink,line width=0.8pt,fill=soft,align=left,inner xsep=6pt,inner ysep=4pt,
+              rectangle split part align={center,left},minimum width=3.0cm},
+  box/.style={rectangle,draw=ink,line width=0.8pt,fill=soft,align=center,inner sep=5pt,minimum height=0.8cm},
+  state/.style={rectangle,rounded corners=8pt,draw=ink,line width=0.8pt,fill=soft,align=center,inner sep=6pt,minimum width=2.2cm,minimum height=0.9cm},
+  act/.style={rectangle,rounded corners=10pt,draw=ink,line width=0.8pt,fill=soft,align=center,inner sep=5pt,minimum width=2.4cm,minimum height=0.8cm},
+  dec/.style={diamond,draw=ink,line width=0.8pt,fill=soft,inner sep=1pt,minimum width=0.9cm,minimum height=0.9cm},
+  uc/.style={ellipse,draw=ink,line width=0.8pt,fill=soft,align=center,inner sep=3pt,minimum width=3.2cm,minimum height=1.0cm},
+  note/.style={rectangle,draw=ink,line width=0.6pt,fill=yellow!12,align=left,inner sep=4pt,font=\footnotesize},
+  lab/.style={font=\footnotesize,fill=paper,inner sep=1.5pt},
+  err/.style={},
+}
+\newcommand{\actor}[3]{% x,y,label
+  \draw[line width=0.8pt] (#1,#2+0.55) circle (0.17);
+  \draw[line width=0.8pt] (#1,#2+0.38)--(#1,#2-0.15) (#1-0.3,#2+0.22)--(#1+0.3,#2+0.22) (#1,#2-0.15)--(#1-0.25,#2-0.6) (#1,#2-0.15)--(#1+0.25,#2-0.6);
+  \node[font=\small] at (#1,#2-0.9) {#3};}
+\begin{document}
+\begin{tikzpicture}[background rectangle/.style={fill=paper},show background rectangle]
+\node[cls2,minimum width=5.0cm] (o) at (0,0) {\textbf{OrderService}\nodepart{two}+ placeOrder(o : Order) : void};
+\node[cls2,minimum width=5.4cm] (m) at (8.2,0) {\textbf{MySqlOrderRepository}\nodepart{two}+ save(o : Order) : void\\+ find(id : int) : Order};
+\draw[line,-{Straight Barb[length=8pt,width=8pt]}] (o.east)--(m.west);
+\node[note,anchor=north west] at (-2.4,-1.5) {placeOrder(o) \{\\ \hspace*{1em}repo = \textbf{new MySqlOrderRepository()};\\ \hspace*{1em}repo.save(o);\\ \}};
+\end{tikzpicture}
+\end{document}

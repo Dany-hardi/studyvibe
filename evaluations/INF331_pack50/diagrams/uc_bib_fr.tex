@@ -1,0 +1,50 @@
+\documentclass[border=8pt]{standalone}
+\usepackage[T1]{fontenc}\usepackage[utf8]{inputenc}
+\usepackage{helvet}\renewcommand{\familydefault}{\sfdefault}
+\usepackage{tikz,xcolor}
+\usetikzlibrary{arrows.meta,positioning,shapes.geometric,shapes.multipart,calc,fit,backgrounds,decorations.markings}
+\definecolor{ink}{HTML}{1E1B16}\definecolor{paper}{HTML}{FBF8F2}\definecolor{clay}{HTML}{B5482A}\definecolor{soft}{HTML}{F1E9DA}\definecolor{pine}{HTML}{24402F}
+\tikzset{
+  every node/.style={font=\small,text=ink},
+  >=Stealth, line/.style={draw=ink,line width=0.8pt},
+  cls/.style={rectangle split,rectangle split parts=3,draw=ink,line width=0.8pt,fill=soft,align=left,inner xsep=6pt,inner ysep=4pt,
+              rectangle split part align={center,left,left},minimum width=3.0cm},
+  cls2/.style={rectangle split,rectangle split parts=2,draw=ink,line width=0.8pt,fill=soft,align=left,inner xsep=6pt,inner ysep=4pt,
+              rectangle split part align={center,left},minimum width=3.0cm},
+  box/.style={rectangle,draw=ink,line width=0.8pt,fill=soft,align=center,inner sep=5pt,minimum height=0.8cm},
+  state/.style={rectangle,rounded corners=8pt,draw=ink,line width=0.8pt,fill=soft,align=center,inner sep=6pt,minimum width=2.2cm,minimum height=0.9cm},
+  act/.style={rectangle,rounded corners=10pt,draw=ink,line width=0.8pt,fill=soft,align=center,inner sep=5pt,minimum width=2.4cm,minimum height=0.8cm},
+  dec/.style={diamond,draw=ink,line width=0.8pt,fill=soft,inner sep=1pt,minimum width=0.9cm,minimum height=0.9cm},
+  uc/.style={ellipse,draw=ink,line width=0.8pt,fill=soft,align=center,inner sep=3pt,minimum width=3.2cm,minimum height=1.0cm},
+  note/.style={rectangle,draw=ink,line width=0.6pt,fill=yellow!12,align=left,inner sep=4pt,font=\footnotesize},
+  lab/.style={font=\footnotesize,fill=paper,inner sep=1.5pt},
+  err/.style={},
+}
+\newcommand{\actor}[3]{% x,y,label
+  \draw[line width=0.8pt] (#1,#2+0.55) circle (0.17);
+  \draw[line width=0.8pt] (#1,#2+0.38)--(#1,#2-0.15) (#1-0.3,#2+0.22)--(#1+0.3,#2+0.22) (#1,#2-0.15)--(#1-0.25,#2-0.6) (#1,#2-0.15)--(#1+0.25,#2-0.6);
+  \node[font=\small] at (#1,#2-0.9) {#3};}
+\begin{document}
+\begin{tikzpicture}[background rectangle/.style={fill=paper},show background rectangle]
+\draw[line] (3.2,-8.6) rectangle (16.2,5.4);
+\node[font=\bfseries] at (9.7,5.0) {Bibliothèque universitaire};
+\actor{0.6}{2.2}{Membre}
+\actor{0.6}{-4.2}{Bibliothécaire}
+\node[uc] (ca) at (7.4,4.0) {Catalogue des livres};
+\node[uc] (em) at (7.4,1.2) {Emprunter un livre};
+\node[uc] (ve) at (13.2,3.8) {Vérifier l'adhésion};
+\node[uc] (au) at (13.2,0.2) {S'authentifier};
+\node[uc] (re) at (7.4,-2.4) {Rendre un livre};
+\node[uc] (mj) at (7.4,-6.0) {Mettre à jour la table EXEMPLAIRE};
+\node[uc,minimum width=3.4cm] (am) at (20.6,-3.6) {Payer l'amende};
+\draw[line] (0.9,2.4)--(em.west);
+\draw[line] (0.9,2.6)--(ca.west);
+\draw[line] (0.9,-4.0)--(mj.west);
+\draw[line] (0.9,-3.9)--(re.west);
+\draw[line] (0.6,1.1)--(0.6,-3.2) node[midway,right,lab]{valide};
+\draw[dashed,line width=0.8pt,-{Straight Barb[length=8pt,width=8pt]}] (ve.west)--(em.north east) node[midway,above,sloped,lab]{«include»};
+\draw[dashed,line width=0.8pt,-{Straight Barb[length=8pt,width=8pt]}] (em.south east)--(au.west) node[midway,below,sloped,lab]{«extend»};
+\draw[line] (em.south)--(re.north);
+\draw[line] (am.west)--(re.east);
+\end{tikzpicture}
+\end{document}

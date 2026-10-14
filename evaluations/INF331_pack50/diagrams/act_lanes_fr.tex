@@ -1,0 +1,61 @@
+\documentclass[border=8pt]{standalone}
+\usepackage[T1]{fontenc}\usepackage[utf8]{inputenc}
+\usepackage{helvet}\renewcommand{\familydefault}{\sfdefault}
+\usepackage{tikz,xcolor}
+\usetikzlibrary{arrows.meta,positioning,shapes.geometric,shapes.multipart,calc,fit,backgrounds,decorations.markings}
+\definecolor{ink}{HTML}{1E1B16}\definecolor{paper}{HTML}{FBF8F2}\definecolor{clay}{HTML}{B5482A}\definecolor{soft}{HTML}{F1E9DA}\definecolor{pine}{HTML}{24402F}
+\tikzset{
+  every node/.style={font=\small,text=ink},
+  >=Stealth, line/.style={draw=ink,line width=0.8pt},
+  cls/.style={rectangle split,rectangle split parts=3,draw=ink,line width=0.8pt,fill=soft,align=left,inner xsep=6pt,inner ysep=4pt,
+              rectangle split part align={center,left,left},minimum width=3.0cm},
+  cls2/.style={rectangle split,rectangle split parts=2,draw=ink,line width=0.8pt,fill=soft,align=left,inner xsep=6pt,inner ysep=4pt,
+              rectangle split part align={center,left},minimum width=3.0cm},
+  box/.style={rectangle,draw=ink,line width=0.8pt,fill=soft,align=center,inner sep=5pt,minimum height=0.8cm},
+  state/.style={rectangle,rounded corners=8pt,draw=ink,line width=0.8pt,fill=soft,align=center,inner sep=6pt,minimum width=2.2cm,minimum height=0.9cm},
+  act/.style={rectangle,rounded corners=10pt,draw=ink,line width=0.8pt,fill=soft,align=center,inner sep=5pt,minimum width=2.4cm,minimum height=0.8cm},
+  dec/.style={diamond,draw=ink,line width=0.8pt,fill=soft,inner sep=1pt,minimum width=0.9cm,minimum height=0.9cm},
+  uc/.style={ellipse,draw=ink,line width=0.8pt,fill=soft,align=center,inner sep=3pt,minimum width=3.2cm,minimum height=1.0cm},
+  note/.style={rectangle,draw=ink,line width=0.6pt,fill=yellow!12,align=left,inner sep=4pt,font=\footnotesize},
+  lab/.style={font=\footnotesize,fill=paper,inner sep=1.5pt},
+  err/.style={},
+}
+\newcommand{\actor}[3]{% x,y,label
+  \draw[line width=0.8pt] (#1,#2+0.55) circle (0.17);
+  \draw[line width=0.8pt] (#1,#2+0.38)--(#1,#2-0.15) (#1-0.3,#2+0.22)--(#1+0.3,#2+0.22) (#1,#2-0.15)--(#1-0.25,#2-0.6) (#1,#2-0.15)--(#1+0.25,#2-0.6);
+  \node[font=\small] at (#1,#2-0.9) {#3};}
+\begin{document}
+\begin{tikzpicture}[background rectangle/.style={fill=paper},show background rectangle]
+\draw[line] (0,1.0) rectangle (5.8,-14.6);
+\node[font=\bfseries] at (2.9,0.55) {Étudiant};
+\draw[line] (5.8,1.0) rectangle (11.6,-14.6);
+\node[font=\bfseries] at (8.7,0.55) {Scolarité};
+\draw[line] (11.6,1.0) rectangle (17.4,-14.6);
+\node[font=\bfseries] at (14.5,0.55) {Comptabilité};
+\fill[ink] (2.9,-0.4) circle (0.15);
+\node[act,minimum width=3.0cm] (a1) at (2.9,-1.8) {Remplir la demande};
+\draw[line,-{Stealth[length=8pt,width=7pt]}] (2.9,-0.55)--(a1.north);
+\node[act,minimum width=3.0cm] (a2) at (8.7,-1.8) {Vérifier le dossier};
+\draw[line,-{Stealth[length=8pt,width=7pt]}] (a1.east)--(a2.west);
+\node[dec] (d1) at (8.7,-4.0) {};
+\draw[line,-{Stealth[length=8pt,width=7pt]}] (a2.south)--(d1.north);
+\node[act,minimum width=3.0cm] (a3) at (2.9,-4.0) {Compléter le dossier};
+\draw[line,-{Stealth[length=8pt,width=7pt]}] (d1.west)--(a3.east) node[midway,above,lab]{[incomplet]};
+\draw[line,-{Stealth[length=8pt,width=7pt]}] (a3.north)--(a1.south);
+\fill[ink] (7.2,-5.9) rectangle (15.4,-5.75);
+\draw[line,-{Stealth[length=8pt,width=7pt]}] (d1.south)--(8.7,-5.75) node[midway,right,lab]{[complet]};
+\node[act,minimum width=3.0cm] (a4) at (8.7,-7.6) {Passer le dossier à l'état « Validé »};
+\node[act,minimum width=3.0cm] (a5) at (14.5,-7.6) {Calculer le montant dû};
+\draw[line,-{Stealth[length=8pt,width=7pt]}] (8.7,-5.9)--(a4.north);
+\draw[line,-{Stealth[length=8pt,width=7pt]}] (14.5,-5.9)--(a5.north);
+\node[box,minimum width=2.6cm,minimum height=0.8cm,font=\small] (ob) at (11.6,-9.7) {\underline{dossier : Dossier}};
+\draw[line,-{Stealth[length=8pt,width=7pt]}] (a4.south)--(8.7,-9.7)--(ob.west);
+\draw[line,-{Stealth[length=8pt,width=7pt]}] (a5.south)--(14.5,-9.7)--(ob.east);
+\fill[ink] (6.0,-11.2) rectangle (16.0,-11.05);
+\draw[line,-{Stealth[length=8pt,width=7pt]}] (ob.south)--(11.6,-11.05);
+\node[act,minimum width=3.0cm] (a6) at (14.5,-12.6) {Ordonner le virement};
+\draw[line,-{Stealth[length=8pt,width=7pt]}] (11.6,-11.2)--(11.6,-12.6)--(a6.west);
+\node[circle,draw=ink,line width=0.8pt,minimum size=0.55cm] (fi) at (14.5,-13.9) {};\fill[ink] (fi) circle (0.17);
+\draw[line,-{Stealth[length=8pt,width=7pt]}] (a6.south)--(fi.north);
+\end{tikzpicture}
+\end{document}

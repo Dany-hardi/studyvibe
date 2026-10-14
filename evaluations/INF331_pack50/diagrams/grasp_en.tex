@@ -1,0 +1,43 @@
+\documentclass[border=8pt]{standalone}
+\usepackage[T1]{fontenc}\usepackage[utf8]{inputenc}
+\usepackage{helvet}\renewcommand{\familydefault}{\sfdefault}
+\usepackage{tikz,xcolor}
+\usetikzlibrary{arrows.meta,positioning,shapes.geometric,shapes.multipart,calc,fit,backgrounds,decorations.markings}
+\definecolor{ink}{HTML}{1E1B16}\definecolor{paper}{HTML}{FBF8F2}\definecolor{clay}{HTML}{B5482A}\definecolor{soft}{HTML}{F1E9DA}\definecolor{pine}{HTML}{24402F}
+\tikzset{
+  every node/.style={font=\small,text=ink},
+  >=Stealth, line/.style={draw=ink,line width=0.8pt},
+  cls/.style={rectangle split,rectangle split parts=3,draw=ink,line width=0.8pt,fill=soft,align=left,inner xsep=6pt,inner ysep=4pt,
+              rectangle split part align={center,left,left},minimum width=3.0cm},
+  cls2/.style={rectangle split,rectangle split parts=2,draw=ink,line width=0.8pt,fill=soft,align=left,inner xsep=6pt,inner ysep=4pt,
+              rectangle split part align={center,left},minimum width=3.0cm},
+  box/.style={rectangle,draw=ink,line width=0.8pt,fill=soft,align=center,inner sep=5pt,minimum height=0.8cm},
+  state/.style={rectangle,rounded corners=8pt,draw=ink,line width=0.8pt,fill=soft,align=center,inner sep=6pt,minimum width=2.2cm,minimum height=0.9cm},
+  act/.style={rectangle,rounded corners=10pt,draw=ink,line width=0.8pt,fill=soft,align=center,inner sep=5pt,minimum width=2.4cm,minimum height=0.8cm},
+  dec/.style={diamond,draw=ink,line width=0.8pt,fill=soft,inner sep=1pt,minimum width=0.9cm,minimum height=0.9cm},
+  uc/.style={ellipse,draw=ink,line width=0.8pt,fill=soft,align=center,inner sep=3pt,minimum width=3.2cm,minimum height=1.0cm},
+  note/.style={rectangle,draw=ink,line width=0.6pt,fill=yellow!12,align=left,inner sep=4pt,font=\footnotesize},
+  lab/.style={font=\footnotesize,fill=paper,inner sep=1.5pt},
+  err/.style={},
+}
+\newcommand{\actor}[3]{% x,y,label
+  \draw[line width=0.8pt] (#1,#2+0.55) circle (0.17);
+  \draw[line width=0.8pt] (#1,#2+0.38)--(#1,#2-0.15) (#1-0.3,#2+0.22)--(#1+0.3,#2+0.22) (#1,#2-0.15)--(#1-0.25,#2-0.6) (#1,#2-0.15)--(#1+0.25,#2-0.6);
+  \node[font=\small] at (#1,#2-0.9) {#3};}
+\begin{document}
+\begin{tikzpicture}[background rectangle/.style={fill=paper},show background rectangle]
+\node[cls,minimum width=3.6cm] (O) at (0,3.2) {\textbf{Order}\nodepart{two}- id : int\\- date : Date\nodepart{three}\strut};
+\node[cls,minimum width=3.6cm] (Ol) at (7.0,3.2) {\textbf{OrderLine}\nodepart{two}- quantity : int\nodepart{three}\strut};
+\node[cls,minimum width=3.8cm] (P) at (14.0,3.2) {\textbf{Product}\nodepart{two}- code : String\\- unitPrice : double\\- stock : int\nodepart{three}\strut};
+\node[cls2,minimum width=3.8cm] (Ca) at (14.0,-2.6) {\textbf{Catalog}\nodepart{two}\strut};
+\node[cls,minimum width=3.6cm] (Pr) at (0,-2.6) {\textbf{Promotion}\nodepart{two}- rate : double\\- label : String\nodepart{three}\strut};
+\node[cls,minimum width=3.8cm] (Cu) at (7.0,-2.6) {\textbf{CustomerAccount}\nodepart{two}- loyaltyPoints : int\nodepart{three}\strut};
+\draw[line,{Diamond[length=12pt,width=8pt]}-] (O.east)--(Ol.west) node[midway,above,lab]{1};
+\node[lab,anchor=south east] at ([xshift=-0.1cm,yshift=0.04cm]Ol.west) {1..*};
+\draw[line,-{Straight Barb[length=8pt,width=8pt]}] (Ol.east)--(P.west);
+\node[lab,anchor=south east] at ([xshift=-0.1cm,yshift=0.04cm]P.west) {1};
+\draw[line,{Diamond[open,length=12pt,width=8pt]}-] (Ca.north)--(P.south);
+\draw[line,] (Pr.north)--(O.south) node[midway,right,lab]{applies to};
+\draw[line,] (Cu.north)--(O.south east) node[midway,right,lab]{places};
+\end{tikzpicture}
+\end{document}
