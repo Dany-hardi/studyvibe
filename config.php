@@ -66,9 +66,8 @@ $envKeys = [
     'APP_SECRET', 'APP_URL', 'HTTPS_ONLY',
     'LOGIN_MAX_ATTEMPTS', 'LOGIN_LOCKOUT_MINUTES',
     'SMTP_HOST', 'SMTP_PORT', 'SMTP_USER', 'SMTP_PASS', 'SMTP_FROM', 'SMTP_FROM_NAME',
-    'GEMINI_API_KEY', 'VAPID_PRIVATE_PEM_B64', 'VAPID_SUBJECT',
-    'AI_PROVIDER', 'GEMINI_MARKING_MODEL', 'GEMINI_THINKING_BUDGET', 'GEMINI_API_KEYS', 'GEMINI_RPM_PER_MODEL',   // which model marks (gemini | anthropic)
-    'ANTHROPIC_API_KEY', 'ANTHROPIC_MODEL', 'ANTHROPIC_DAILY_CALLS',   // marking of code questions (lib/LiveCodeReview.php)
+    'VAPID_PRIVATE_PEM_B64', 'VAPID_SUBJECT',
+    'ANTHROPIC_API_KEY', 'ANTHROPIC_API_KEYS', 'ANTHROPIC_MODEL', 'ANTHROPIC_MODEL_CHAT', 'ANTHROPIC_RPM', 'ANTHROPIC_DAILY_CALLS', 'ANTHROPIC_DAILY_CHAT',   // marking of code questions (lib/LiveCodeReview.php)
     'CONTACT_EMAIL',   // public contact address shown in the footer and on the privacy page
     'CONTROL_OWNER_EMAIL', 'REQUIRE_2FA_ROLES'   // the control center allow-list and the roles that must use an authenticator app
 ];
@@ -110,15 +109,13 @@ defined('SMTP_FROM')             || define('SMTP_FROM', 'noreply@studyvibe.edu')
 defined('SMTP_FROM_NAME')        || define('SMTP_FROM_NAME', 'StudyVibe');
 defined('VAPID_PRIVATE_PEM_B64') || define('VAPID_PRIVATE_PEM_B64', '');   // web push; php scripts/generate-vapid.php
 defined('VAPID_SUBJECT')         || define('VAPID_SUBJECT', 'mailto:admin@studyvibe.edu');
-defined('GEMINI_API_KEY')        || define('GEMINI_API_KEY', 'votre_cle_api_gemini_ici');
 // Marking of code questions. Empty key = the marking waits (answers stay "pending review"), nothing is marked wrong by accident.
-defined('AI_PROVIDER')           || define('AI_PROVIDER', '');                      // '' = Gemini when its key is set, else Anthropic
-defined('GEMINI_MARKING_MODEL')  || define('GEMINI_MARKING_MODEL', 'gemini-2.5-flash,gemini-3-flash-preview,gemini-3.5-flash');   // tried in this order: each model has its own quota
-defined('GEMINI_API_KEYS')       || define('GEMINI_API_KEYS', '');                  // extra keys for the marking, comma separated (the load balancer spreads the calls over them)
-defined('GEMINI_RPM_PER_MODEL')  || define('GEMINI_RPM_PER_MODEL', '5');           // calls per minute and per key and model: 5 on the free plan, 0 = no limit (paid plan)
-defined('GEMINI_THINKING_BUDGET') || define('GEMINI_THINKING_BUDGET', '1024');   // tokens the model may think before answering: lower = faster
 defined('ANTHROPIC_API_KEY')     || define('ANTHROPIC_API_KEY', '');
-defined('ANTHROPIC_MODEL')       || define('ANTHROPIC_MODEL', 'claude-sonnet-5-5');
+defined('ANTHROPIC_API_KEYS')    || define('ANTHROPIC_API_KEYS', '');                // optional extra keys, comma separated (the balancer spreads the calls)
+defined('ANTHROPIC_MODEL')       || define('ANTHROPIC_MODEL', 'claude-sonnet-5-5');  // marking of code and written answers
+defined('ANTHROPIC_MODEL_CHAT')  || define('ANTHROPIC_MODEL_CHAT', 'claude-haiku-5-5');  // the assistants (cheaper and quick)
+defined('ANTHROPIC_RPM')         || define('ANTHROPIC_RPM', '40');                   // calls per minute and per key and model: stay under your plan's limit, 0 = no limit
+defined('ANTHROPIC_DAILY_CHAT')  || define('ANTHROPIC_DAILY_CHAT', '3000');          // ceiling of assistant calls per day
 defined('ANTHROPIC_DAILY_CALLS') || define('ANTHROPIC_DAILY_CALLS', '2000');   // ceiling of marking calls per day, whatever happens
 // Master switch for everything that needs text messages: phone number at sign-up, the verification window, codes by SMS,
 // announcements of live evaluations. Off until an SMS provider works (see DEPLOYMENT.md).

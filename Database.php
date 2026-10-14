@@ -1201,6 +1201,13 @@ class Database
                         WHERE r.score IS NOT NULL AND r.question_count IS NULL");
         } catch (PDOException $ex) { /* columns not there yet on a very old schema */ }
 
+        // Migration 2.32: token usage of every marking call (input, output, read from and written to the prompt cache), to watch what the marking costs.
+        foreach ([
+            "ALTER TABLE `live_eval_code_reviews` ADD COLUMN `tokens_in` INT NOT NULL DEFAULT 0, ADD COLUMN `tokens_out` INT NOT NULL DEFAULT 0, ADD COLUMN `tokens_cache_read` INT NOT NULL DEFAULT 0, ADD COLUMN `tokens_cache_write` INT NOT NULL DEFAULT 0",
+        ] as $ddl) {
+            try { $pdo->exec($ddl); } catch (PDOException $ex) { /* already applied */ }
+        }
+
         // Migration 2.30: load balancer of the marking keys (one lane per key and model: when it may be used again, how many calls this minute).
         try {
             $pdo->exec("

@@ -512,19 +512,20 @@ php scripts/import-job.php docs/careers/postings/*.md             # publie (ajou
 
 Trois offres prêtes à publier sont dans `docs/careers/postings/` (ingénierie, ventes, éducation), lecture automatique activée. Relisez-les avant publication : l'organisation, les avantages et la rémunération y sont des propositions à adapter.
 
-## Marking of code questions (Gemini by default, Anthropic optional)
+## AI: marking of code questions and assistants (Anthropic)
 
-Code questions in live evaluations are read and marked by a model (it never runs the code). The provider is **Gemini** as soon as `GEMINI_API_KEY` is set (the same key as the AI assistant); set `AI_PROVIDER=anthropic` to use Anthropic instead.
+Code and written answers in live evaluations are read and marked by a model (it never runs the code), and the student, teacher and promoter assistants answer with a smaller one. Anthropic is the only provider; no other AI key is read by the code.
 
 | Variable | Meaning |
 |---|---|
-| `GEMINI_API_KEY` | Google AI key. Set it in the host's environment (Render: Environment), never in the repository or in chat. |
-| `GEMINI_API_KEYS` | Optional extra keys, comma separated. The marking is spread over every key and every model (round robin, a key or model that is full or busy rests, the others work). Google counts the quota per project, so keys from the same project do not add up. The state is in the table `ai_key_state` and shown on the teacher's corrections page. |
-| `GEMINI_RPM_PER_MODEL` | Calls per minute per key and model, default 5 (free plan). `0` = no limit, for a paid plan. |
-| `GEMINI_MARKING_MODEL` | Optional, default `gemini-2.5-flash`. |
-| `AI_PROVIDER` | Optional: `gemini` or `anthropic`. Empty = Gemini when its key is set, else Anthropic. |
-| `ANTHROPIC_API_KEY` | Key of a dedicated Anthropic project with a monthly spend limit. Set it in the host's environment (Render: Environment), never in the repository or in chat. Empty = the answers wait, nothing is marked wrong. |
-| `ANTHROPIC_MODEL` | Optional, default `claude-sonnet-5-5`. |
-| `ANTHROPIC_DAILY_CALLS` | Optional ceiling of marking calls per day, default 2000. |
+| `ANTHROPIC_API_KEY` | Key of a dedicated Anthropic project with a monthly spend limit. Set it in the host's environment (Render: Environment), never in the repository or in chat. Empty = the answers wait, nothing is marked wrong, the assistants answer in demonstration mode. |
+| `ANTHROPIC_API_KEYS` | Optional extra keys, comma separated. Calls are spread over every key (round robin); a key that is full, busy or refused rests while the others work. Keys of the same organisation share its limits. The state is in the table `ai_key_state`, shown on the teacher's corrections page. |
+| `ANTHROPIC_MODEL` | Marking, default `claude-sonnet-5-5`. |
+| `ANTHROPIC_MODEL_CHAT` | Assistants, default `claude-haiku-5-5`. |
+| `ANTHROPIC_RPM` | Calls per minute and per key and model, default 40: set it under the limit of your Anthropic plan (see the Limits page of the console). `0` = no limit. |
+| `ANTHROPIC_DAILY_CALLS` | Ceiling of marking calls per day, default 2000. |
+| `ANTHROPIC_DAILY_CHAT` | Ceiling of assistant calls per day, default 3000. Each person is also limited per hour and per day. |
+
+How tokens are spent: the question (figure, statement, reference, notes) and the instructions form a cached prefix shared by every student, only the student's answer is new; the verdict is short (output limit, 90-word feedback, no corrected code when the answer is right); identical code is marked once; an answer of fewer than 10 characters is never sent; assistants send at most 12 000 characters of prompt. The tokens of every marking call (input, cache reads, output) are stored and shown on the corrections page. The rate-limit headers and Retry-After of every answer put a lane to rest exactly as long as needed.
 
 Limits already in place: per student, per address and per session on submissions, a size limit on the code, one marking per identical code, a daily ceiling, back-off when the API is busy, and a hand-over to the teacher after four failed attempts. The cron worker (`lib/email-worker.php`) also marks whatever is waiting.

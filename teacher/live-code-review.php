@@ -123,9 +123,16 @@ header('Cache-Control: no-store');
   <h1><?= $h($T['title']) ?> — <?= $h($session['title']) ?></h1>
   <p class="sub"><?= $h($session['course_title']) ?></p>
   <?php if (!AnthropicClient::isConfigured()): ?><p class="notice"><?= $h($T['unconf']) ?></p><?php endif; ?>
-  <?php if (AnthropicClient::provider() === 'gemini' && AnthropicClient::isConfigured()): $pool = AiKeyPool::status($pdo); ?>
-    <p class="sub" style="margin:.3rem 0 1rem"><?= $h($en ? 'AI keys' : 'Clés IA') ?> : <b><?= (int)$pool['keys'] ?></b> · <?= $h($en ? 'lanes ready' : 'voies prêtes') ?> <b><?= (int)$pool['ready'] ?>/<?= (int)$pool['lanes'] ?></b>
+  <?php if (AnthropicClient::isConfigured()): $pool = AiKeyPool::status($pdo, AnthropicClient::models('mark'));
+        $tk = $pdo->prepare("SELECT COALESCE(SUM(c.tokens_in),0) ti, COALESCE(SUM(c.tokens_out),0) tout, COALESCE(SUM(c.tokens_cache_read),0) tr, COALESCE(SUM(c.tokens_cache_write),0) tw, COUNT(*) n, SUM(c.model LIKE 'local%') nl
+                             FROM live_eval_code_reviews c JOIN live_eval_registrations r ON r.id = c.registration_id WHERE r.session_id = :s AND c.status = 'done'");
+        $tk->execute(['s' => $sessionId]); $tok = $tk->fetch(PDO::FETCH_ASSOC); ?>
+    <p class="sub" style="margin:.3rem 0 .4rem"><?= $h($en ? 'AI keys' : 'Clés IA') ?> : <b><?= (int)$pool['keys'] ?></b> · <?= $h($en ? 'lanes ready' : 'voies prêtes') ?> <b><?= (int)$pool['ready'] ?>/<?= (int)$pool['lanes'] ?></b>
       <?php foreach ($pool['resting'] as $r): ?> · <span title="<?= $h((string)$r['error']) ?>"><?= $h($r['key'] . ' ' . $r['model']) ?> <?= $h($en ? 'resting' : 'en pause') ?> <?= (int)$r['seconds'] ?> s</span><?php endforeach; ?></p>
+    <?php if ((int)$tok['n'] > 0): $cachedShare = ($tok['ti'] + $tok['tr'] + $tok['tw']) > 0 ? round(100 * $tok['tr'] / ($tok['ti'] + $tok['tr'] + $tok['tw'])) : 0; ?>
+    <p class="sub" style="margin:0 0 1rem; font-size:.9rem"><?= $h($en ? 'Tokens used by this session' : 'Jetons utilisés par cette séance') ?> : <b><?= number_format((int)$tok['ti'] + (int)$tok['tw']) ?></b> <?= $h($en ? 'in' : 'en entrée') ?>,
+      <b><?= number_format((int)$tok['tr']) ?></b> <?= $h($en ? 'read from the cache' : 'lus dans le cache') ?> (<?= $cachedShare ?> %), <b><?= number_format((int)$tok['tout']) ?></b> <?= $h($en ? 'out' : 'en sortie') ?> · <?= (int)$tok['n'] ?> <?= $h($en ? 'answers' : 'réponses') ?><?= (int)$tok['nl'] > 0 ? ' (' . (int)$tok['nl'] . ' ' . $h($en ? 'too short, no call' : 'trop courtes, sans appel') . ')' : '' ?></p>
+    <?php endif; ?>
   <?php endif; ?>
 
   <div class="stats">

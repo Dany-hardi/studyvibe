@@ -23,6 +23,6 @@ jobs:
         run: php tests/unit/run.php
       - name: No secrets in .env.example
         run: |
-          if grep -E '^(SMTP_PASS|DB_PASS|GEMINI_API_KEY)=.{12,}' .env.example | grep -vi 'votre\|your\|changeme'; then
+          if grep -E '^(SMTP_PASS|DB_PASS|ANTHROPIC_API_KEY)=.{12,}' .env.example | grep -vi 'votre\|your\|changeme'; then
             echo "A real secret seems to be in .env.example"; exit 1
           fi

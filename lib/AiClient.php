@@ -1,33 +1,53 @@
 <?php
 declare(strict_types=1);
 
-/**
- * Client d'API Gemini de Google.
- * Permet d'appeler l'API Gemini avec des instructions système, des prompts et le support du format JSON.
- */
-class GeminiClient
-{
-    private string $apiKey;
-    private string $model;
+require_once __DIR__ . '/AnthropicClient.php';
+require_once __DIR__ . '/RateLimit.php';
 
-    public function __construct(string $apiKey, string $model = 'gemini-2.5-flash')
+/**
+ * The AI assistants (student mentor, teacher assistant, promoter reports) on the Anthropic API, through the same balancer and rate limiter as the
+ * marking (see AnthropicClient). The small model answers (ANTHROPIC_MODEL_CHAT), the system prompt is cached, and the answer length is capped.
+ * Without a key, a demonstration answer is returned so the pages keep working.
+ */
+class AiClient
+{
+    /** Longest answer (in tokens) of a plain reply and of a structured (JSON) one. */
+    private const MAX_TOKENS_TEXT = 1200;
+    private const MAX_TOKENS_JSON = 2800;
+
+    /** Per person: calls per hour and per day. */
+    private const LIMITS = ['student' => [20, 60], 'teacher' => [30, 120], 'promoter' => [12, 40]];
+    /** Characters sent at most: a lesson is cut here rather than paying for a book (about 3 characters per token). */
+    private const MAX_SYSTEM_CHARS = 30000;
+    private const MAX_PROMPT_CHARS = 12000;
+
+    /**
+     * Rate limiting of the assistants: per person (hour and day) and for the whole platform (day, ANTHROPIC_DAILY_CHAT).
+     * @return string|null null when the call may go ahead, otherwise the message to show
+     */
+    public static function guard(PDO $pdo, int $userId, string $role): ?string
     {
-        $this->apiKey = $apiKey;
-        $this->model = $model;
+        [$perHour, $perDay] = self::LIMITS[$role] ?? [20, 60];
+        $globalCap = defined('ANTHROPIC_DAILY_CHAT') ? max(1, (int)ANTHROPIC_DAILY_CHAT) : 3000;
+        if (!RateLimit::allow($pdo, "ai:chat:$role:$userId:h", $perHour, 3600) || !RateLimit::allow($pdo, "ai:chat:$role:$userId:d", $perDay, 86400)) {
+            return "Vous avez atteint la limite d'utilisation de l'assistant pour le moment. Réessayez un peu plus tard.";
+        }
+        if (!RateLimit::allow($pdo, 'ai:chat:day', $globalCap, 86400)) {
+            return "L'assistant a atteint sa limite quotidienne d'utilisation. Réessayez demain.";
+        }
+        return null;
     }
 
     /**
-     * Génère du contenu à partir d'un prompt et d'instructions système.
-     *
-     * @param string $prompt Le prompt de l'utilisateur.
-     * @param string $systemInstruction Les règles de comportement et contexte de l'assistant (prompt système).
-     * @param bool $jsonMode Si true, force la sortie au format JSON structuré.
-     * @return string
-     * @throws Exception
+     * @param string $prompt the user's prompt
+     * @param string $systemInstruction the rules and context of the assistant
+     * @param bool $jsonMode the answer must be one JSON document
+     * @param bool $useSearch kept for the callers: there is no web search on this provider, the model answers from the context it is given
+     * @throws Exception when the service cannot answer
      */
     public function generate(string $prompt, string $systemInstruction = '', bool $jsonMode = false, bool $useSearch = false): string
     {
-        if (empty($this->apiKey) || $this->apiKey === 'votre_cle_api_gemini_ici') {
+        if (!AnthropicClient::isConfigured()) {
             // Mode demonstration / simulation intelligent
             if ($jsonMode) {
                 return json_encode([
@@ -94,87 +114,28 @@ class GeminiClient
                      . "3. Valoriser les certifications pour motiver la finalisation des modules.";
             }
 
-            return "Bonjour. Je reponds en mode demonstration car aucune cle API Gemini n'a ete renseignee dans votre fichier .env. Posez-moi vos questions sur le cours, je ferai de mon mieux pour vous guider de maniere factuelle et structuree.";
+            return "Bonjour. Je reponds en mode demonstration car aucune cle API Anthropic n'a ete renseignee dans votre fichier .env. Posez-moi vos questions sur le cours, je ferai de mon mieux pour vous guider de maniere factuelle et structuree.";
         }
 
-        $url = "https://generativelanguage.googleapis.com/v1beta/models/" . urlencode($this->model) . ":generateContent?key=" . urlencode($this->apiKey);
-
-        $payload = [
-            'contents' => [
-                [
-                    'parts' => [
-                        ['text' => $prompt]
-                    ]
-                ]
-            ]
-        ];
-
-        if (!empty($systemInstruction)) {
-            $payload['systemInstruction'] = [
-                'parts' => [
-                    ['text' => $systemInstruction]
-                ]
-            ];
+        $systemInstruction = mb_substr($systemInstruction, 0, self::MAX_SYSTEM_CHARS);
+        $prompt = mb_substr($prompt, 0, self::MAX_PROMPT_CHARS);
+        if ($jsonMode) {
+            $systemInstruction = rtrim($systemInstruction) . "\n\nRéponds uniquement avec un document JSON valide, sans texte avant ni après et sans balises Markdown.";
         }
-
-        // Gemini API ne permet pas d'associer tools (Google Search) et responseMimeType application/json (HTTP 400).
-        if ($jsonMode && !$useSearch) {
-            $payload['generationConfig'] = [
-                'responseMimeType' => 'application/json'
-            ];
+        $r = AnthropicClient::text($systemInstruction !== '' ? $systemInstruction : 'Tu es un assistant pédagogique précis et concis.', $prompt, $jsonMode ? self::MAX_TOKENS_JSON : self::MAX_TOKENS_TEXT, 'chat');
+        if (!$r['ok']) {
+            $why = match ($r['error'] ?? '') {
+                'rate_limited', 'overloaded', 'timeout', 'server' => "Le service d'IA est très sollicité en ce moment : réessayez dans un instant.",
+                'billing' => "Le service d'IA est momentanément indisponible.",
+                'auth' => "Le service d'IA n'est pas configuré correctement.",
+                default => "Le service d'IA n'a pas pu répondre.",
+            };
+            throw new \Exception($why);
         }
-
-        if ($useSearch) {
-            $payload['tools'] = [
-                ['google_search' => (object)[]]
-            ];
+        $text = (string)$r['text'];
+        if ($jsonMode) {
+            $text = trim((string)preg_replace('/^```(?:json)?\s*|\s*```$/i', '', trim($text)));
         }
-
-        $jsonData = json_encode($payload);
-
-        $ch = curl_init($url);
-        if ($ch === false) {
-            throw new \Exception("Impossible d'initialiser cURL.");
-        }
-
-        curl_setopt($ch, CURLOPT_RETURNTRANSFER, true);
-        curl_setopt($ch, CURLOPT_POST, true);
-        curl_setopt($ch, CURLOPT_POSTFIELDS, $jsonData);
-        curl_setopt($ch, CURLOPT_HTTPHEADER, [
-            'Content-Type: application/json'
-        ]);
-        curl_setopt($ch, CURLOPT_CONNECTTIMEOUT, 15);
-        curl_setopt($ch, CURLOPT_TIMEOUT, 120);
-        // Desactiver temporairement la verification SSL locale si necessaire (optionnel, mais conseille de laisser actif pour la securite)
-        curl_setopt($ch, CURLOPT_SSL_VERIFYPEER, true);
-
-        $response = curl_exec($ch);
-        $httpCode = curl_getinfo($ch, CURLINFO_HTTP_CODE);
-        $error = curl_error($ch);
-        curl_close($ch);
-
-        if ($response === false) {
-            throw new \Exception("Erreur de connexion reseau vers Gemini : " . $error);
-        }
-
-        if ($httpCode !== 200) {
-            $errDetail = json_decode($response, true);
-            $errMsg = $errDetail['error']['message'] ?? $response;
-            throw new \Exception("L'API Gemini a retourne une erreur (Code HTTP {$httpCode}) : " . $errMsg);
-        }
-
-        $data = json_decode($response, true);
-        $textParts = [];
-        $parts = $data['candidates'][0]['content']['parts'] ?? [];
-        foreach ($parts as $part) {
-            if (isset($part['text'])) {
-                $textParts[] = $part['text'];
-            }
-        }
-        if (empty($textParts)) {
-            throw new \Exception("Format de reponse inattendu de la part de Gemini.");
-        }
-
-        return implode("\n", $textParts);
+        return $text;
     }
 }

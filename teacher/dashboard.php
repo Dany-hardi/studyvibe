@@ -3833,7 +3833,7 @@ $tdHasCourse = (bool)$selectedCourse;
     </div>
 </div>
 
-<!-- ── Modal : Génération de Quiz IA (Gemini) ───────────────────────── -->
+<!-- ── Modal : Génération de Quiz IA ───────────────────────── -->
 <div id="ai-quiz-modal" class="hidden fixed inset-0 bg-black/40  z-50 flex items-center justify-center p-6">
     <div class="bg-[var(--card)] p-8 max-w-2xl w-full border border-[var(--line)] flex flex-col max-h-[85vh] modal-inner">
         <div class="flex justify-between items-center mb-4 flex-shrink-0">
@@ -5299,7 +5299,7 @@ function addResourceRow() {
     document.getElementById('resource-rows').appendChild(row);
 }
 
-// ── Génération de Quiz IA (Gemini) ──────────────────────
+// ── Génération de Quiz IA ──────────────────────
 let aiQuizLessonId = null;
 let aiGeneratedQuestions = [];
 

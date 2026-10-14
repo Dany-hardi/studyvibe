@@ -2,37 +2,38 @@
 declare(strict_types=1);
 
 /**
- * The pool of Gemini keys used to mark code answers, with a load balancer in front of it.
+ * The pool of Anthropic keys with the load balancer and the rate limiter in front of it.
  *
- * Every (key, model) pair has its own quota, so the balancer treats each pair as a lane:
- *  - the next call goes to the least recently used key of the best model that still has room (round robin over the keys);
- *  - a lane that answered "quota full" rests for the time the API gave (or one minute), one that answered "busy" rests for 20 s, a retired model
- *    or a refused key rests for an hour;
- *  - a per-minute budget per lane (GEMINI_RPM_PER_MODEL, 5 on the free plan, 0 = no limit) keeps us from wasting calls on a lane that is full.
- * The state lives in the database (table ai_key_state), shared by the web requests and the background workers. A key is only ever stored as
- * a short hash. Quotas are counted per Google project: the keys must come from different projects to add up.
+ * A lane is a (key, model) pair. The next call goes to the least recently used key of the first model that still has room (round robin over the
+ * keys). Every lane has a per-minute budget (ANTHROPIC_RPM, 0 = no limit) so a request is never sent to a lane that would refuse it, and a rest time:
+ * the Retry-After of a 429, the reset time announced by the rate-limit headers when a quota is nearly used up, 20 s for a busy API, 30 minutes for an
+ * account without credit, an hour for a refused key or a retired model. The state lives in the database (table ai_key_state), shared by the web
+ * requests and the background workers. A key is stored only as a short hash.
  */
 final class AiKeyPool
 {
     public const REST_BUSY = 20;
+    public const REST_BILLING = 1800;
     public const REST_RETIRED = 3600;
 
     /** Tests: the per-minute budget (null = the configuration) */
     public static ?int $rpmOverride = null;
     /** Tests: the keys (null = the configuration) */
     public static ?array $keysOverride = null;
+    /** Tests: keep the state of the lanes even when a fake network is in use */
+    public static bool $trackWithTransport = false;
 
-    /** @return string[] the usable keys: GEMINI_API_KEYS (comma separated) then GEMINI_API_KEY, without duplicates */
+    /** @return string[] ANTHROPIC_API_KEYS (comma separated) then ANTHROPIC_API_KEY, without duplicates */
     public static function keys(): array
     {
         if (self::$keysOverride !== null) {
             return self::$keysOverride;
         }
         $list = [];
-        foreach ([defined('GEMINI_API_KEYS') ? (string)GEMINI_API_KEYS : '', defined('GEMINI_API_KEY') ? (string)GEMINI_API_KEY : ''] as $raw) {
+        foreach ([defined('ANTHROPIC_API_KEY') ? (string)ANTHROPIC_API_KEY : '', defined('ANTHROPIC_API_KEYS') ? (string)ANTHROPIC_API_KEYS : ''] as $raw) {
             foreach (explode(',', $raw) as $k) {
                 $k = trim($k);
-                if ($k !== '' && $k !== 'votre_cle_api_gemini_ici' && preg_match('/^[A-Za-z0-9._-]{20,200}$/', $k)) {
+                if ($k !== '' && preg_match('/^sk-ant-[A-Za-z0-9._-]{16,300}$/', $k)) {
                     $list[$k] = $k;
                 }
             }
@@ -50,16 +51,16 @@ final class AiKeyPool
         if (self::$rpmOverride !== null) {
             return max(0, self::$rpmOverride);
         }
-        return defined('GEMINI_RPM_PER_MODEL') ? max(0, (int)GEMINI_RPM_PER_MODEL) : 5;
+        return defined('ANTHROPIC_RPM') ? max(0, (int)ANTHROPIC_RPM) : 40;
     }
 
     /**
-     * Takes the next lane. @return array{key:string,model:string,id:int}|array{wait:int} (seconds until a lane is free again)
+     * Takes the next lane. @param string[] $models the models to use, best first
+     * @return array{key:string,model:string,id:int}|array{wait:int} (seconds until a lane is free again)
      */
-    public static function acquire(PDO $pdo): array
+    public static function acquire(PDO $pdo, array $models): array
     {
         $keys = self::keys();
-        $models = AnthropicClient::geminiModels();
         $rpm = self::rpm();
         foreach ($keys as $k) {
             foreach ($models as $m) {
@@ -67,10 +68,14 @@ final class AiKeyPool
             }
         }
         $byHash = []; foreach ($keys as $k) { $byHash[self::hash($k)] = $k; }
+        if (!$byHash) {
+            return ['wait' => 60];
+        }
+        $in = implode(',', array_map(fn($h) => $pdo->quote($h), array_keys($byHash)));
         $free = "(cooldown_until IS NULL OR cooldown_until <= NOW()) AND (:rpm1 = 0 OR window_start IS NULL OR window_start < NOW() - INTERVAL 60 SECOND OR window_calls < :rpm2)";
         foreach ($models as $m) {                     // the best model first, every key of it before the next model
-            for ($attempt = 0; $attempt < max(1, count($keys)); $attempt++) {
-                $st = $pdo->prepare("SELECT id, key_hash FROM ai_key_state WHERE model = :m AND key_hash IN (" . implode(',', array_map(fn($h) => $pdo->quote($h), array_keys($byHash))) . ") AND $free ORDER BY last_used IS NOT NULL, last_used, id LIMIT 1");
+            for ($attempt = 0; $attempt < count($keys); $attempt++) {
+                $st = $pdo->prepare("SELECT id, key_hash FROM ai_key_state WHERE model = :m AND key_hash IN ($in) AND $free ORDER BY last_used IS NOT NULL, last_used, id LIMIT 1");
                 $st->execute(['m' => $m, 'rpm1' => $rpm, 'rpm2' => $rpm]);
                 $row = $st->fetch(PDO::FETCH_ASSOC);
                 if (!$row) {
@@ -90,8 +95,9 @@ final class AiKeyPool
         }
         // nothing is free: how long until the first lane is
         $wait = 60;
-        $st = $pdo->query("SELECT GREATEST(IFNULL(TIMESTAMPDIFF(SECOND, NOW(), cooldown_until), 0), 0) AS cd, window_calls, IFNULL(TIMESTAMPDIFF(SECOND, window_start, NOW()), 999) AS age FROM ai_key_state WHERE key_hash IN ("
-            . implode(',', array_map(fn($h) => $pdo->quote($h), array_keys($byHash))) . ")");
+        $mq = implode(',', array_map(fn($x) => $pdo->quote($x), $models));
+        $st = $pdo->query("SELECT GREATEST(IFNULL(TIMESTAMPDIFF(SECOND, NOW(), cooldown_until), 0), 0) AS cd, window_calls, IFNULL(TIMESTAMPDIFF(SECOND, window_start, NOW()), 999) AS age
+                           FROM ai_key_state WHERE key_hash IN ($in) AND model IN ($mq)");
         foreach ($st->fetchAll(PDO::FETCH_ASSOC) as $r) {
             $w = max((int)$r['cd'], ($rpm > 0 && (int)$r['window_calls'] >= $rpm && (int)$r['age'] < 60) ? 60 - (int)$r['age'] : 0);
             $wait = min($wait, max(1, $w));
@@ -99,28 +105,33 @@ final class AiKeyPool
         return ['wait' => $wait];
     }
 
-    /** What happened on a lane. $outcome: ok | rate | busy | retired | auth */
+    /** What happened on a lane. $outcome: ok | ok_rest (answered, but the quota is nearly used up) | rate | busy | retired | auth | billing */
     public static function report(PDO $pdo, int $id, string $outcome, ?int $seconds = null): void
     {
-        $rest = match ($outcome) {
-            'rate' => max(5, min(21600, $seconds ?? 60)),
-            'busy' => self::REST_BUSY,
-            'retired', 'auth' => self::REST_RETIRED,
-            default => 0,
-        };
         if ($outcome === 'ok') {
             $pdo->prepare("UPDATE ai_key_state SET ok_count = ok_count + 1, last_error = NULL, cooldown_until = NULL WHERE id = :i")->execute(['i' => $id]);
             return;
         }
+        if ($outcome === 'ok_rest') {
+            $pdo->prepare("UPDATE ai_key_state SET ok_count = ok_count + 1, last_error = NULL, cooldown_until = NOW() + INTERVAL :s SECOND WHERE id = :i")
+                ->execute(['s' => max(1, min(300, $seconds ?? 5)), 'i' => $id]);
+            return;
+        }
+        $rest = match ($outcome) {
+            'rate' => max(1, min(900, $seconds ?? 60)),
+            'busy' => self::REST_BUSY,
+            'billing' => self::REST_BILLING,
+            'retired', 'auth' => self::REST_RETIRED,
+            default => 0,
+        };
         $pdo->prepare("UPDATE ai_key_state SET fail_count = fail_count + 1, last_error = :e, cooldown_until = NOW() + INTERVAL :s SECOND WHERE id = :i")
             ->execute(['e' => $outcome, 's' => $rest, 'i' => $id]);
     }
 
     /** @return array{keys:int,lanes:int,ready:int,resting:array<int,array{key:string,model:string,error:?string,seconds:int}>} for the teacher's page */
-    public static function status(PDO $pdo): array
+    public static function status(PDO $pdo, array $models): array
     {
         $keys = self::keys();
-        $models = AnthropicClient::geminiModels();
         $rpm = self::rpm();
         $hashes = []; foreach ($keys as $i => $k) { $hashes[self::hash($k)] = $i + 1; }
         $resting = []; $ready = 0;
