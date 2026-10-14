@@ -368,7 +368,16 @@ if (!$error) {
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Téléévaluation StudyVibe LIVE</title>
-    <?php require_once __DIR__ . '/lib/SocialMeta.php'; echo SocialMeta::tags($session ? (string)$session['title'] . ' — StudyVibe' : 'Évaluation en direct — StudyVibe', 'Rejoignez cette évaluation sur StudyVibe : connectez-vous avec votre e-mail et commencez.', '/live-session.php' . ($code !== '' ? '?code=' . urlencode($code) : ''), 'og-evaluation.png'); ?>
+    <?php
+    require_once __DIR__ . '/lib/SocialMeta.php';
+    // The card and the sentence follow the kind of evaluation (live or free assignment); nothing private goes in them
+    $ogAsync = $session && (int)($session['is_async'] ?? 0) === 1;
+    $ogCourse = $session ? trim((string)($session['course_title'] ?? '')) : '';
+    $ogDesc = $ogAsync
+        ? 'Devoir libre' . ($ogCourse !== '' ? ' · ' . $ogCourse : '') . ' : passez cette évaluation à votre rythme' . (!empty($session['async_deadline']) ? ', avant le ' . date('d/m/Y', strtotime((string)$session['async_deadline'])) : '') . '. Connectez-vous avec votre e-mail sur StudyVibe.'
+        : 'Évaluation en direct' . ($ogCourse !== '' ? ' · ' . $ogCourse : '') . ' : connectez-vous avec votre e-mail sur StudyVibe pour rejoindre la séance.';
+    echo SocialMeta::tags($session ? (string)$session['title'] . ' — StudyVibe' : 'Évaluation — StudyVibe', $ogDesc, '/live-session.php' . ($code !== '' ? '?code=' . urlencode($code) : ''), $ogAsync ? 'og-evaluation-async.png' : 'og-evaluation.png');
+    ?>
     <?= Brand::headLinks() ?>
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
