@@ -211,6 +211,30 @@ final class LivePaced
         return ['ok' => true, 'answered' => trim($clean) !== ''] + $t;
     }
 
+    /**
+     * The student closes the editor of a code (or written) question: the answer is registered and its marking starts at once, without waiting
+     * for the final submission. An empty answer is withdrawn and never sent to the model; a question left alone is never marked.
+     * @return array{ok:bool,error?:string,queued?:bool}
+     */
+    public static function register(PDO $pdo, array $session, int $regId, int $qid, string $answer): array
+    {
+        $q = self::questionOf($pdo, (int)$session['id'], $qid);
+        if (!$q || !LiveCodeReview::handles($q['question_type'] ?? null)) {
+            return ['ok' => false, 'error' => 'question'];
+        }
+        $saved = self::save($pdo, $session, $regId, $qid, $answer);
+        if (empty($saved['ok'])) {
+            return $saved;
+        }
+        $clean = self::cleanAnswer($q, $answer);
+        if ($clean === null || trim($clean) === '') {
+            LiveCodeReview::withdraw($pdo, $regId, $qid);
+            return ['ok' => true, 'queued' => false];
+        }
+        $res = LiveCodeReview::submit($pdo, $regId, $qid, $clean);
+        return ['ok' => !empty($res['ok']), 'queued' => !empty($res['ok']) && empty($res['same'])] + (empty($res['ok']) ? ['error' => (string)($res['error'] ?? 'invalid')] : []);
+    }
+
     /** Heartbeat: charges the open question and tells the browser the truth about the clocks. */
     public static function ping(PDO $pdo, array $session, int $regId): array
     {

@@ -171,6 +171,29 @@ check('php -l finds a syntax error with its line', $bad['checked'] === false || 
 $good = LivePaced::lintPhp("function f(\$a) { return \$a; }");
 check('valid PHP passes', $good['checked'] === false || $good['errors'] === []);
 
+// ---- the marking starts when the answer is registered, not at the final submission
+$sidR = $mkSession('ZZ paced register', 'NOW() - INTERVAL 5 MINUTE', 'NOW() + INTERVAL 2 HOUR');
+$qR1 = $addQ($sidR, 'code', 'Write add', 1); $qR2 = $addQ($sidR, 'code', 'Write sub', 2); $qR3 = $addQ($sidR, 'code', 'Write mul', 3); $qRm = $addQ($sidR, 'mcq', 'Pick b', 4, 60);
+$rr = $reg($sidR, 'Reg'); $sessR = LivePaced::session($pdo, $sidR);
+$rowsOf = fn() => (int)$pdo->query("SELECT COUNT(*) FROM live_eval_code_reviews WHERE registration_id = $rr")->fetchColumn();
+$res = LivePaced::register($pdo, $sessR, $rr, $qR1, "function add(\$a, \$b) { return \$a + \$b; }");
+check('registering a code answer queues its marking at once', $res['ok'] === true && $res['queued'] === true && LiveCodeReview::pendingCount($pdo, $rr) === 1);
+check('and it is not yet a submission', (int)$pdo->query("SELECT submitted_at IS NULL FROM live_eval_registrations WHERE id = $rr")->fetchColumn() === 1);
+$res = LivePaced::register($pdo, $sessR, $rr, $qR1, "function add(\$a, \$b) { return \$a + \$b; }\n\n");
+check('the same code again sends nothing new to the model', $res['ok'] === true && $res['queued'] === false && $rowsOf() === 1);
+$res = LivePaced::register($pdo, $sessR, $rr, $qR2, "   \n");
+check('an empty answer is never queued', $res['ok'] === true && $res['queued'] === false && $rowsOf() === 1);
+LivePaced::register($pdo, $sessR, $rr, $qR3, 'return 1;');
+LivePaced::register($pdo, $sessR, $rr, $qR3, '');
+check('emptying a registered answer withdraws it', $rowsOf() === 1 && (int)$pdo->query("SELECT COUNT(*) FROM live_eval_answers WHERE registration_id = $rr AND question_id = $qR3")->fetchColumn() === 0);
+check('a QCM cannot be registered as code', LivePaced::register($pdo, $sessR, $rr, $qRm, 'B')['ok'] === false);
+LivePaced::save($pdo, $sessR, $rr, $qR2, 'return $a - $b;');   // typed and autosaved, editor never closed
+$fin = LivePaced::submit($pdo, $sessR, $rr, true);
+check('at the final submission only the code not registered yet is added', $rowsOf() === 2 && $fin['pending_ai'] === 2);
+check('a skipped question is never marked', (int)$pdo->query("SELECT COUNT(*) FROM live_eval_code_reviews WHERE registration_id = $rr AND question_id = $qR3")->fetchColumn() === 0);
+$rr2 = $reg($sidR, 'Empty'); $fin2 = LivePaced::submit($pdo, $sessR, $rr2, true);
+check('handing in with no code sends nothing to the model', $fin2['pending_ai'] === 0 && (int)$pdo->query("SELECT COUNT(*) FROM live_eval_code_reviews WHERE registration_id = $rr2")->fetchColumn() === 0);
+
 echo "live paced: $passed passed, " . count($failed) . " failed\n";
 foreach ($failed as $f) { echo "  FAIL: $f\n"; }
 exit($failed ? 1 : 0);

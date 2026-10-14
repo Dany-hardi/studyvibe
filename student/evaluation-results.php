@@ -283,5 +283,21 @@ function renderMath() {
     }
 }
 </script>
+<?php
+$waitingAny = false;
+foreach ($answers as $qa) {
+    $r = LiveCodeReview::handles($qa['question_type'] ?? 'mcq') ? ($codeReviews[(int)$qa['question_id']] ?? null) : null;
+    if ($r && $r['final'] === null) { $waitingAny = true; break; }
+}
+if ($waitingAny): ?>
+<script>
+// the marking is still running: the page reloads by itself until the corrections are in (it stops after about 10 minutes)
+(function () {
+    var n = 0; try { n = parseInt(sessionStorage.getItem('res_wait_<?= $regId ?>') || '0', 10); } catch (e) {}
+    if (n >= 60) return;
+    setTimeout(function () { try { sessionStorage.setItem('res_wait_<?= $regId ?>', String(n + 1)); } catch (e) {} location.reload(); }, 10000);
+})();
+</script>
+<?php endif; ?>
 </body>
 </html>

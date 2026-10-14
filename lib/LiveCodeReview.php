@@ -119,6 +119,11 @@ final class LiveCodeReview
             return ['ok' => false, 'error' => 'too_long'];
         }
         $hash = hash('sha256', rtrim($clean));   // trailing blank lines do not make a different answer
+        $known = $pdo->prepare("SELECT code_hash FROM live_eval_code_reviews WHERE registration_id = :r AND question_id = :q");
+        $known->execute(['r' => $registrationId, 'q' => $questionId]);
+        if ($known->fetchColumn() === $hash) {
+            return ['ok' => true, 'same' => true];   // already registered and marked (or being marked): nothing new to send to the model
+        }
         $pdo->beginTransaction();
         try {
             $pdo->prepare("
@@ -138,6 +143,14 @@ final class LiveCodeReview
             throw $e;
         }
         return ['ok' => true];
+    }
+
+    /** The student emptied an answer that was registered earlier: it is no longer an answer, so nothing is marked and nothing counts. */
+    public static function withdraw(PDO $pdo, int $registrationId, int $questionId): void
+    {
+        $pdo->prepare("DELETE FROM live_eval_code_reviews WHERE registration_id = :r AND question_id = :q")->execute(['r' => $registrationId, 'q' => $questionId]);
+        $pdo->prepare("DELETE FROM live_eval_answers WHERE registration_id = :r AND question_id = :q AND selected_option IN (:p, :o, :k)")
+            ->execute(['r' => $registrationId, 'q' => $questionId, 'p' => self::MARK_PENDING, 'o' => self::MARK_OK, 'k' => self::MARK_KO]);
     }
 
     /** How many code answers of a registration are still waiting for the model. */

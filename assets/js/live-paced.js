@@ -419,8 +419,15 @@
   function closeCode() {
     if (!C.q) return;
     var q = C.q; q.answer = input.value; flushSave(q); doSave(q);
+    registerCode(q);
     $('pr-code').hidden = true; document.body.style.overflow = ''; C.q = null;
     refreshCodeBox(q); renderNav(); var b = $('pr-code-open'); if (b) b.focus();
+  }
+  // closing the editor registers the answer: the marking starts at once; an empty answer is withdrawn and a question left alone is never marked
+  function registerCode(q) {
+    var sent = q.answer;
+    if (q.registered === sent) return;
+    api('register', { question_id: q.id, answer: sent }).then(function (r) { if (r && r.ok) q.registered = sent; else if (r && r.error === 'network') setTimeout(function () { registerCode(q); }, 4000); });
   }
   $('pr-code-done').addEventListener('click', closeCode);
   $('pr-code-ref-zoom').addEventListener('click', function () { if (C.q && C.q.image) zoom(C.q.image); });

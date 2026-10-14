@@ -50,6 +50,24 @@ try {
     LiveEvalModes::advance($pdo);
 
     $ipKey = hash('sha256', Security::clientIp());
+    // answers the browser first, then marks the registration's pending code answers in the same process (no model call when nothing is pending)
+    $finish = function (array $res, int $regId, bool $work = true) use ($pdo) {
+        if (session_status() === PHP_SESSION_ACTIVE) { session_write_close(); }   // the long marking must not hold the student's session lock
+        ignore_user_abort(true);
+        ob_start();
+        echo json_encode($res, JSON_UNESCAPED_UNICODE);
+        header('Content-Type: application/json; charset=utf-8');
+        header('Connection: close');
+        header('Content-Length: ' . ob_get_length());
+        ob_end_flush();
+        flush();
+        if (function_exists('fastcgi_finish_request')) { fastcgi_finish_request(); }
+        if ($work) {
+            @set_time_limit(240);
+            try { LiveCodeReview::processFor($pdo, 200, $regId); } catch (Throwable $e) { error_log('paced marking: ' . $e->getMessage()); }
+        }
+        exit;
+    };
     switch ($action) {
         case 'state':
             if (!RateLimit::allow($pdo, 'paced:state:' . $regId, 600, 600)) { $out(['ok' => false, 'error' => 'rate'], 429); }
@@ -69,22 +87,20 @@ try {
             if (!RateLimit::allow($pdo, 'paced:ping:' . $regId, 1200, 600)) { $out(['ok' => false, 'error' => 'rate'], 429); }
             $out(LivePaced::ping($pdo, $session, $regId));
 
+        case 'register':
+            if (!RateLimit::allow($pdo, 'paced:register:' . $regId, 120, 600)) { $out(['ok' => false, 'error' => 'rate'], 429); }
+            $res = LivePaced::register($pdo, $session, $regId, (int)($_POST['question_id'] ?? 0), (string)($_POST['answer'] ?? ''));
+            if (!empty($res['queued'])) {
+                $finish($res, $regId);   // marking starts now, behind the answer
+            }
+            $out($res);
+
         case 'submit':
             if (!RateLimit::allow($pdo, 'paced:submit:' . $regId, 12, 600)) { $out(['ok' => false, 'error' => 'rate'], 429); }
             $res = LivePaced::submit($pdo, $session, $regId, (string)($_POST['confirm'] ?? '') === '1');
             if (!empty($res['ok']) && empty($res['already'])) {
-                // the student gets the answer at once, the marking of code and written answers carries on behind
-                ignore_user_abort(true);
-                ob_start();
-                echo json_encode($res, JSON_UNESCAPED_UNICODE);
-                header('Connection: close');
-                header('Content-Length: ' . ob_get_length());
-                ob_end_flush();
-                flush();
-                if (function_exists('fastcgi_finish_request')) { fastcgi_finish_request(); }
-                @set_time_limit(240);
-                try { LiveCodeReview::processFor($pdo, 200, $regId); } catch (Throwable $e) { error_log('paced marking: ' . $e->getMessage()); }
-                exit;
+                // the student gets the answer at once; what was not marked yet (code handed in only now) carries on behind
+                $finish($res, $regId, (int)($res['pending_ai'] ?? 0) > 0);
             }
             $out($res);
 
