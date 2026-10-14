@@ -50,3 +50,7 @@ sync_prod.sh
 # 9. Fichiers de Test Temporaires
 test_*.txt
 test_*.php
+# Local-only files: never tracked (packs, zips, reports, screenshots, brand images)
+local-only/
+*.class
+__pycache__/
