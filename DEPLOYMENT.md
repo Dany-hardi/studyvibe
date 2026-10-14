@@ -519,6 +519,8 @@ Code questions in live evaluations are read and marked by a model (it never runs
 | Variable | Meaning |
 |---|---|
 | `GEMINI_API_KEY` | Google AI key. Set it in the host's environment (Render: Environment), never in the repository or in chat. |
+| `GEMINI_API_KEYS` | Optional extra keys, comma separated. The marking is spread over every key and every model (round robin, a key or model that is full or busy rests, the others work). Google counts the quota per project, so keys from the same project do not add up. The state is in the table `ai_key_state` and shown on the teacher's corrections page. |
+| `GEMINI_RPM_PER_MODEL` | Calls per minute per key and model, default 5 (free plan). `0` = no limit, for a paid plan. |
 | `GEMINI_MARKING_MODEL` | Optional, default `gemini-2.5-flash`. |
 | `AI_PROVIDER` | Optional: `gemini` or `anthropic`. Empty = Gemini when its key is set, else Anthropic. |
 | `ANTHROPIC_API_KEY` | Key of a dedicated Anthropic project with a monthly spend limit. Set it in the host's environment (Render: Environment), never in the repository or in chat. Empty = the answers wait, nothing is marked wrong. |

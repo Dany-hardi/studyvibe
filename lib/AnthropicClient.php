@@ -42,8 +42,8 @@ final class AnthropicClient
 
     private static function geminiKey(): string
     {
-        $k = defined('GEMINI_API_KEY') ? trim((string)GEMINI_API_KEY) : '';
-        return ($k === '' || $k === 'votre_cle_api_gemini_ici') ? '' : $k;
+        require_once __DIR__ . '/AiKeyPool.php';
+        return AiKeyPool::keys()[0] ?? '';
     }
 
     public static function isConfigured(): bool
@@ -143,18 +143,47 @@ final class AnthropicClient
                 'responseJsonSchema' => $schema,
             ],
         ];
-        $status = 0; $body = ''; $used = self::model();
-        foreach (self::geminiModels() as $i => $m) {
-            $used = $m;
+        require_once __DIR__ . '/AiKeyPool.php';
+        $pdo = null;
+        try { $pdo = Database::getInstance(); } catch (Throwable $e) { /* no database (a script): the first key and model are used */ }
+        $status = 0; $body = ''; $used = self::model(); $lastRetry = null;
+        $lanes = max(1, count(AiKeyPool::keys()) * count(self::geminiModels()));
+        for ($i = 0; $i < $lanes; $i++) {
+            // the balancer hands out the next lane (key and model) that has room
+            if ($pdo) {
+                $lane = AiKeyPool::acquire($pdo);
+                if (isset($lane['wait'])) {
+                    return ['ok' => false, 'error' => 'rate_limited', 'retryable' => true, 'retry_after' => $lane['wait']];
+                }
+            } else {
+                $lane = ['key' => AiKeyPool::keys()[0] ?? '', 'model' => self::model(), 'id' => 0];
+            }
+            $used = $lane['model'];
             $p = $payload;
-            if (str_starts_with($m, 'gemini-2.5-flash')) {
+            if (str_starts_with($used, 'gemini-2.5-flash')) {
                 $p['generationConfig']['thinkingConfig'] = ['thinkingBudget' => defined('GEMINI_THINKING_BUDGET') ? max(0, (int)GEMINI_THINKING_BUDGET) : 1024];   // enough to trace the code, without 15 seconds of thinking
             }
-            [$status, $body] = self::$transport !== null ? (self::$transport)($p) : self::postGemini($p, $timeout, $m);
-            // quota full, model busy or retired: the next model of the list takes the call
-            if (!in_array($status, [429, 503, 529, 404, 0], true)) {
+            [$status, $body] = self::$transport !== null ? (self::$transport)($p, AiKeyPool::hash($lane['key']), $used) : self::postGemini($p, $timeout, $used, $lane['key']);
+            $outcome = match (true) {
+                $status === 200 => 'ok',
+                $status === 429 => 'rate',
+                $status === 503 || $status === 529 || $status === 0 || $status >= 500 => 'busy',
+                $status === 404 => 'retired',
+                $status === 401 || $status === 403 || ($status === 400 && stripos($body, 'API key') !== false) => 'auth',
+                default => 'ok',      // a request our side got wrong says nothing about the lane
+            };
+            $retry = null;
+            if ($status === 429 && preg_match('/"retryDelay"\s*:\s*"(\d+(?:\.\d+)?)s"/', $body, $mm)) {
+                $retry = (int)ceil((float)$mm[1]);      // the API says when the quota is back
+                $lastRetry = $retry;
+            }
+            if ($pdo && $lane['id'] > 0) {
+                try { AiKeyPool::report($pdo, $lane['id'], $outcome, $retry); } catch (Throwable $e) { error_log('ai key pool: ' . $e->getMessage()); }
+            }
+            if ($outcome === 'ok') {
                 break;
             }
+            // quota full, model busy or retired, key refused: the next lane takes the call
         }
         if ($status === 0) {
             return ['ok' => false, 'error' => 'timeout', 'retryable' => true];
@@ -168,8 +197,8 @@ final class AnthropicClient
                 default => 'bad_request',
             };
             $res = ['ok' => false, 'error' => $err, 'retryable' => in_array($err, ['rate_limited', 'overloaded', 'server'], true)];
-            if ($status === 429 && preg_match('/"retryDelay"\s*:\s*"(\d+(?:\.\d+)?)s"/', $body, $mm)) {
-                $res['retry_after'] = (int)ceil((float)$mm[1]);      // the API says when the quota is back
+            if ($lastRetry !== null) {
+                $res['retry_after'] = $lastRetry;
             }
             return $res;
         }
@@ -188,7 +217,7 @@ final class AnthropicClient
     }
 
     /** @return array{0:int,1:string} */
-    private static function postGemini(array $payload, int $timeout, string $model): array
+    private static function postGemini(array $payload, int $timeout, string $model, string $key): array
     {
         $ch = curl_init(self::GEMINI_ENDPOINT . rawurlencode($model) . ':generateContent');
         curl_setopt_array($ch, [
@@ -202,7 +231,7 @@ final class AnthropicClient
             CURLOPT_SSL_VERIFYPEER => true,
             CURLOPT_SSL_VERIFYHOST => 2,
             // the key goes in a header, never in the URL (URLs end up in logs)
-            CURLOPT_HTTPHEADER => ['content-type: application/json', 'x-goog-api-key: ' . self::geminiKey()],
+            CURLOPT_HTTPHEADER => ['content-type: application/json', 'x-goog-api-key: ' . $key],
         ]);
         $body = curl_exec($ch);
         $status = (int)curl_getinfo($ch, CURLINFO_RESPONSE_CODE);

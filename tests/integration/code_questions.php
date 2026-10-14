@@ -12,6 +12,7 @@ require_once __DIR__ . '/../../Database.php';
 require_once __DIR__ . '/../../lib/LiveCodeReview.php';
 require_once __DIR__ . '/../../lib/LiveCodeExport.php';
 require_once __DIR__ . '/../../lib/LiveMailQueue.php';
+require_once __DIR__ . '/../../lib/AiKeyPool.php';
 
 $pdo = Database::getInstance();
 $passed = 0; $failed = [];
@@ -257,32 +258,65 @@ if ($imgFile) { MediaStore::delete($pdo, 'live_question', $imgFile); }
 @unlink($png);
 
 // ---- Gemini as the provider (fake network, Gemini's own format)
-AnthropicClient::$provider = 'gemini';
+AnthropicClient::$provider = 'gemini'; AiKeyPool::$rpmOverride = 0;
+$fresh = fn() => $pdo->exec('DELETE FROM ai_key_state');
 $seen = null; $gstatus = 200; $gbody = '';
 AnthropicClient::$transport = function (array $p) use (&$seen, &$gstatus, &$gbody): array { $seen = $p; return [$gstatus, $gbody]; };
 $verdict = ['requirements' => [['requirement' => 'r', 'met' => true]], 'logic_analysis' => 'ok', 'issues' => [], 'verdict' => true, 'needs_human' => false, 'feedback' => 'Bien.', 'corrected_code' => 'x'];
 $gbody = json_encode(['modelVersion' => 'gemini-test', 'candidates' => [['content' => ['parts' => [['text' => 'thinking', 'thought' => true], ['text' => json_encode($verdict)]]]]]]);
-$r = AnthropicClient::structured('SYS', [['type' => 'image', 'source' => ['type' => 'base64', 'media_type' => 'image/png', 'data' => 'QUJD']], ['type' => 'text', 'text' => 'USER']], 'submit_review', 'd', LiveCodeReview::schema('code'));
+$fresh(); $r = AnthropicClient::structured('SYS', [['type' => 'image', 'source' => ['type' => 'base64', 'media_type' => 'image/png', 'data' => 'QUJD']], ['type' => 'text', 'text' => 'USER']], 'submit_review', 'd', LiveCodeReview::schema('code'));
 check('Gemini: the structured verdict comes back', $r['ok'] === true && $r['data']['verdict'] === true && $r['model'] === 'gemini-test');
 check('Gemini: the system text, the figure and the question are sent in its format',
     ($seen['systemInstruction']['parts'][0]['text'] ?? '') === 'SYS' && ($seen['contents'][0]['parts'][0]['inlineData']['data'] ?? '') === 'QUJD' && ($seen['contents'][0]['parts'][1]['text'] ?? '') === 'USER'
     && ($seen['generationConfig']['responseMimeType'] ?? '') === 'application/json' && isset($seen['generationConfig']['responseJsonSchema']['properties']['verdict']));
 check('Gemini: the key is never in the payload', !str_contains(json_encode($seen), 'AIza') && !str_contains(json_encode($seen), 'key'));
 foreach ([[429, '{}', 'rate_limited', true], [503, '{}', 'overloaded', true], [500, '{}', 'server', true], [403, '{}', 'auth', false], [400, '{"error":{"message":"API key not valid"}}', 'auth', false], [400, '{}', 'bad_request', false]] as [$st, $bd, $code, $retry]) {
-    $gstatus = $st; $gbody = $bd;
+    $gstatus = $st; $gbody = $bd; $fresh();
     $e = AnthropicClient::structured('S', 'U', 'submit_review', 'd', ['type' => 'object']);
     check("Gemini: HTTP $st is '$code'", $e['ok'] === false && $e['error'] === $code && $e['retryable'] === $retry);
 }
-$gstatus = 200; $gbody = json_encode(['candidates' => [['content' => ['parts' => [['text' => 'not json']]]]]]);
+$gstatus = 200; $gbody = json_encode(['candidates' => [['content' => ['parts' => [['text' => 'not json']]]]]]); $fresh();
 check('Gemini: an answer that is not the JSON verdict is retried', AnthropicClient::structured('S', 'U', 'submit_review', 'd', ['type' => 'object'])['error'] === 'bad_answer');
 // a full quota or a busy model hands the call to the next model of the list; the API's retry delay is passed on
 $seq = [[429, '{"error":{"details":[{"@type":"type.googleapis.com/google.rpc.RetryInfo","retryDelay":"26s"}]}}'], [503, '{}'], [200, json_encode(['modelVersion' => 'gemini-third', 'candidates' => [['content' => ['parts' => [['text' => json_encode($verdict)]]]]]])]];
-$n = 0; AnthropicClient::$transport = function (array $p) use (&$seq, &$n): array { return $seq[min($n++, count($seq) - 1)]; };
+$fresh(); $n = 0; AnthropicClient::$transport = function (array $p) use (&$seq, &$n): array { return $seq[min($n++, count($seq) - 1)]; };
 $r = AnthropicClient::structured('S', 'U', 'submit_review', 'd', LiveCodeReview::schema('code'));
 check('Gemini: a full quota and a busy model pass the call to the next models', count(AnthropicClient::geminiModels()) >= 3 ? ($r['ok'] === true && $n === 3 && $r['model'] === 'gemini-third') : true);
-$seq = [[429, '{"error":{"details":[{"retryDelay":"26s"}]}}']]; $n = 0;
+$fresh(); $seq = [[429, '{"error":{"details":[{"retryDelay":"26s"}]}}']]; $n = 0;
 $e = AnthropicClient::structured('S', 'U', 'submit_review', 'd', ['type' => 'object']);
 check('Gemini: when every model is full the error carries the API retry delay', $e['error'] === 'rate_limited' && ($e['retry_after'] ?? 0) === 26);
+
+// ---- the load balancer: lanes (key x model), round robin over the keys, rests and per-minute budgets
+$A = str_repeat('a', 24); $B = str_repeat('b', 24); $C = str_repeat('c', 24);
+AiKeyPool::$keysOverride = [$A, $B]; AiKeyPool::$rpmOverride = 2; $models = AnthropicClient::geminiModels(); $m1 = $models[0];
+$fresh();
+$lane = fn() => AiKeyPool::acquire($pdo);
+$got = []; for ($i = 0; $i < 4; $i++) { $l = $lane(); $got[] = isset($l['key']) ? $l['model'] . ':' . $l['key'][0] : 'wait'; usleep(5000); }
+check('balancer: the calls go round robin over the keys of the best model', $got === ["$m1:a", "$m1:b", "$m1:a", "$m1:b"]);
+$l = $lane();
+check('balancer: when the best model is full on every key the next model takes over', isset($l['model']) && count($models) > 1 ? $l['model'] === $models[1] : true);
+$fresh(); $total = 0; while (isset($lane()['key']) && $total < 100) { $total++; }
+check('balancer: the capacity of a minute is keys x models x budget', $total === 2 * count($models) * 2);
+$w = $lane();
+check('balancer: when every lane is full it says how long to wait', isset($w['wait']) && $w['wait'] >= 1 && $w['wait'] <= 60);
+$fresh(); AiKeyPool::$rpmOverride = 0; $l = $lane(); AiKeyPool::report($pdo, $l['id'], 'rate', 120);
+$next = $lane(); check('balancer: a lane that said "quota full" rests while the other key works', $next['key'][0] !== $l['key'][0] || $next['model'] !== $l['model']);
+$fresh(); AiKeyPool::$keysOverride = [$A]; $ids = [];
+foreach ($models as $_) { $l = $lane(); AiKeyPool::report($pdo, $l['id'], 'auth'); }
+$w = $lane(); check('balancer: a refused key rests on every model and the wait is reported', isset($w['wait']) && $w['wait'] >= 1);
+$fresh(); AiKeyPool::$keysOverride = [$A, $B, $C]; AiKeyPool::$rpmOverride = 0;
+$seenKeys = []; for ($i = 0; $i < 6; $i++) { $l = $lane(); $seenKeys[$l['key'][0]] = ($seenKeys[$l['key'][0]] ?? 0) + 1; usleep(5000); }
+check('balancer: three keys share the load evenly', $seenKeys === ['a' => 2, 'b' => 2, 'c' => 2]);
+check('balancer: a key is stored only as a short hash', (int)$pdo->query("SELECT COUNT(*) FROM ai_key_state WHERE key_hash IN ('" . AiKeyPool::hash($A) . "')")->fetchColumn() > 0 && !str_contains(json_encode($pdo->query('SELECT * FROM ai_key_state')->fetchAll(PDO::FETCH_ASSOC)), $A));
+// through the client: the first lane answers "quota full", the second key serves the call
+$fresh(); AiKeyPool::$keysOverride = [$A, $B]; AiKeyPool::$rpmOverride = 0; $hits = [];
+AnthropicClient::$transport = function (array $p, string $kh = '', string $model = '') use (&$hits, $A, $verdict): array {
+    $hits[] = $kh; return $kh === AiKeyPool::hash($A) ? [429, '{}'] : [200, json_encode(['candidates' => [['content' => ['parts' => [['text' => json_encode($verdict)]]]]]])];
+};
+$r1 = AnthropicClient::structured('S', 'U', 'submit_review', 'd', LiveCodeReview::schema('code'));
+$r2 = AnthropicClient::structured('S', 'U', 'submit_review', 'd', LiveCodeReview::schema('code'));
+check('balancer: a key whose quota is full is skipped, the other key serves, and it is not hit again while resting', $r1['ok'] && $r2['ok'] && count($hits) === 3 && $hits[1] === AiKeyPool::hash($B) && $hits[2] === AiKeyPool::hash($B));
+AiKeyPool::$keysOverride = null; AiKeyPool::$rpmOverride = null; $fresh();
 AnthropicClient::$provider = null; AnthropicClient::$transport = null;
 
 echo "code questions: $passed passed, " . count($failed) . " failed\n";

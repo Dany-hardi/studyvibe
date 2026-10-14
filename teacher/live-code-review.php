@@ -11,6 +11,7 @@ require_once __DIR__ . '/../auth.php';
 require_once __DIR__ . '/../Database.php';
 require_once __DIR__ . '/../lib/Brand.php';
 require_once __DIR__ . '/../lib/LiveCodeReview.php';
+require_once __DIR__ . '/../lib/AiKeyPool.php';
 
 if (!isLoggedIn() || ($_SESSION['user_role'] ?? '') !== 'teacher') {
     http_response_code(403);
@@ -122,6 +123,10 @@ header('Cache-Control: no-store');
   <h1><?= $h($T['title']) ?> — <?= $h($session['title']) ?></h1>
   <p class="sub"><?= $h($session['course_title']) ?></p>
   <?php if (!AnthropicClient::isConfigured()): ?><p class="notice"><?= $h($T['unconf']) ?></p><?php endif; ?>
+  <?php if (AnthropicClient::provider() === 'gemini' && AnthropicClient::isConfigured()): $pool = AiKeyPool::status($pdo); ?>
+    <p class="sub" style="margin:.3rem 0 1rem"><?= $h($en ? 'AI keys' : 'Clés IA') ?> : <b><?= (int)$pool['keys'] ?></b> · <?= $h($en ? 'lanes ready' : 'voies prêtes') ?> <b><?= (int)$pool['ready'] ?>/<?= (int)$pool['lanes'] ?></b>
+      <?php foreach ($pool['resting'] as $r): ?> · <span title="<?= $h((string)$r['error']) ?>"><?= $h($r['key'] . ' ' . $r['model']) ?> <?= $h($en ? 'resting' : 'en pause') ?> <?= (int)$r['seconds'] ?> s</span><?php endforeach; ?></p>
+  <?php endif; ?>
 
   <div class="stats">
     <div class="stat"><b><?= count($rows) ?></b><span><?= $h($T['answers']) ?></span></div>

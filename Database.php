@@ -1148,6 +1148,25 @@ class Database
         } catch (PDOException $ex) { /* table absent on a very old schema */ }
         try { $pdo->exec("ALTER TABLE `career_jobs` ADD UNIQUE KEY `uq_career_public_id` (`public_id`)"); } catch (PDOException $ex) { /* already applied */ }
 
+        // Migration 2.30: load balancer of the marking keys (one lane per key and model: when it may be used again, how many calls this minute).
+        try {
+            $pdo->exec("
+                CREATE TABLE IF NOT EXISTS `ai_key_state` (
+                    `id`             INT AUTO_INCREMENT PRIMARY KEY,
+                    `key_hash`       CHAR(16) NOT NULL,
+                    `model`          VARCHAR(60) NOT NULL,
+                    `cooldown_until` DATETIME DEFAULT NULL,
+                    `window_start`   DATETIME DEFAULT NULL,
+                    `window_calls`   INT NOT NULL DEFAULT 0,
+                    `last_used`      DATETIME(3) DEFAULT NULL,
+                    `ok_count`       INT NOT NULL DEFAULT 0,
+                    `fail_count`     INT NOT NULL DEFAULT 0,
+                    `last_error`     VARCHAR(20) DEFAULT NULL,
+                    UNIQUE KEY `uq_ai_lane` (`key_hash`, `model`)
+                ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4
+            ");
+        } catch (PDOException $ex) {}
+
         // Migration 2.29: a teacher can re-mark a handed-in evaluation; the next results email then goes out again, as an update.
         try { $pdo->exec("ALTER TABLE `live_eval_registrations` ADD COLUMN `resend_results` TINYINT(1) NOT NULL DEFAULT 0"); } catch (PDOException $ex) { /* already applied */ }
 
