@@ -2,7 +2,11 @@
 declare(strict_types=1);
 
 /**
- * Minimal client for the Anthropic Messages API, used to mark code written in live evaluations.
+ * Structured-answer client used to mark code written in live evaluations. The provider is Gemini when GEMINI_API_KEY is set (the default),
+ * Anthropic otherwise or when AI_PROVIDER=anthropic. Both return the same thing: a verdict as structured data.
+ * (The class keeps its first name; everything that marks goes through ::structured().)
+ *
+ * Anthropic Messages API details:
  *
  * - The key comes from the server environment only (ANTHROPIC_API_KEY). It is never put in a page, a log, an error message or the database.
  * - Only HTTPS to api.anthropic.com; short connect and total timeouts; one call = one request, no automatic retry here (the caller
@@ -19,13 +23,43 @@ final class AnthropicClient
     /** Tests replace the network: fn(array $payload): array{0:int,1:string} (HTTP status, body). */
     public static ?\Closure $transport = null;
 
+    private const GEMINI_ENDPOINT = 'https://generativelanguage.googleapis.com/v1beta/models/';
+
+    /** Tests force a provider; otherwise it follows the configuration. */
+    public static ?string $provider = null;
+
+    public static function provider(): string
+    {
+        if (self::$provider !== null) {
+            return self::$provider;
+        }
+        $p = defined('AI_PROVIDER') ? strtolower(trim((string)AI_PROVIDER)) : '';
+        if ($p === 'gemini' || $p === 'anthropic') {
+            return $p;
+        }
+        return self::geminiKey() !== '' ? 'gemini' : 'anthropic';
+    }
+
+    private static function geminiKey(): string
+    {
+        $k = defined('GEMINI_API_KEY') ? trim((string)GEMINI_API_KEY) : '';
+        return ($k === '' || $k === 'votre_cle_api_gemini_ici') ? '' : $k;
+    }
+
     public static function isConfigured(): bool
     {
-        return self::$transport !== null || (defined('ANTHROPIC_API_KEY') && trim((string)ANTHROPIC_API_KEY) !== '');
+        if (self::$transport !== null) {
+            return true;
+        }
+        return self::provider() === 'gemini' ? self::geminiKey() !== '' : (defined('ANTHROPIC_API_KEY') && trim((string)ANTHROPIC_API_KEY) !== '');
     }
 
     public static function model(): string
     {
+        if (self::provider() === 'gemini') {
+            $g = defined('GEMINI_MARKING_MODEL') ? trim((string)GEMINI_MARKING_MODEL) : '';
+            return preg_match('/^[a-z0-9._-]{3,60}$/i', $g) ? $g : 'gemini-2.5-flash';
+        }
         $m = defined('ANTHROPIC_MODEL') ? trim((string)ANTHROPIC_MODEL) : '';
         return preg_match('/^[a-z0-9._-]{3,60}$/i', $m) ? $m : 'claude-sonnet-5-5';
     }
@@ -39,6 +73,9 @@ final class AnthropicClient
      */
     public static function structured(string $system, string|array $user, string $toolName, string $toolDescription, array $schema, int $maxTokens = 3000, int $timeout = 75): array
     {
+        if (self::provider() === 'gemini') {
+            return self::structuredGemini($system, $user, $schema, $maxTokens, $timeout);
+        }
         $payload = [
             'model' => self::model(),
             'max_tokens' => $maxTokens,
@@ -70,6 +107,81 @@ final class AnthropicClient
             }
         }
         return ['ok' => false, 'error' => 'bad_answer', 'retryable' => true];
+    }
+
+    /** Same contract as the Anthropic path: the verdict comes back as JSON that follows the schema, errors are short codes. */
+    private static function structuredGemini(string $system, string|array $user, array $schema, int $maxTokens, int $timeout): array
+    {
+        $parts = [];
+        foreach (is_string($user) ? [['type' => 'text', 'text' => $user]] : $user as $b) {
+            if (($b['type'] ?? '') === 'text') {
+                $parts[] = ['text' => (string)$b['text']];
+            } elseif (($b['type'] ?? '') === 'image' && isset($b['source']['data'])) {
+                $parts[] = ['inlineData' => ['mimeType' => (string)$b['source']['media_type'], 'data' => (string)$b['source']['data']]];
+            }
+        }
+        $payload = [
+            'systemInstruction' => ['parts' => [['text' => $system]]],
+            'contents' => [['role' => 'user', 'parts' => $parts]],
+            'generationConfig' => [
+                'temperature' => 0.1,
+                'maxOutputTokens' => max($maxTokens, 8192),     // the thinking of the model is counted in it
+                'responseMimeType' => 'application/json',
+                'responseJsonSchema' => $schema,
+            ],
+        ];
+        if (str_starts_with(self::model(), 'gemini-2.5-flash')) {
+            $payload['generationConfig']['thinkingConfig'] = ['thinkingBudget' => 1024];   // enough to trace the code, without 15 seconds of thinking
+        }
+        [$status, $body] = self::$transport !== null ? (self::$transport)($payload) : self::postGemini($payload, $timeout);
+        if ($status === 0) {
+            return ['ok' => false, 'error' => 'timeout', 'retryable' => true];
+        }
+        if ($status !== 200) {
+            $err = match (true) {
+                $status === 429 => 'rate_limited',
+                $status === 503 || $status === 529 => 'overloaded',
+                $status === 401 || $status === 403 || ($status === 400 && stripos($body, 'API key') !== false) => 'auth',
+                $status >= 500 => 'server',
+                default => 'bad_request',
+            };
+            return ['ok' => false, 'error' => $err, 'retryable' => in_array($err, ['rate_limited', 'overloaded', 'server'], true)];
+        }
+        $json = json_decode($body, true);
+        $text = '';
+        foreach ((array)($json['candidates'][0]['content']['parts'] ?? []) as $p) {
+            if (isset($p['text']) && empty($p['thought'])) {
+                $text .= (string)$p['text'];
+            }
+        }
+        $data = json_decode(trim($text), true);
+        if (!is_array($data)) {
+            return ['ok' => false, 'error' => 'bad_answer', 'retryable' => true];
+        }
+        return ['ok' => true, 'data' => $data, 'model' => (string)($json['modelVersion'] ?? self::model())];
+    }
+
+    /** @return array{0:int,1:string} */
+    private static function postGemini(array $payload, int $timeout): array
+    {
+        $ch = curl_init(self::GEMINI_ENDPOINT . rawurlencode(self::model()) . ':generateContent');
+        curl_setopt_array($ch, [
+            CURLOPT_POST => true,
+            CURLOPT_POSTFIELDS => json_encode($payload, JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES),
+            CURLOPT_RETURNTRANSFER => true,
+            CURLOPT_CONNECTTIMEOUT => 8,
+            CURLOPT_TIMEOUT => $timeout,
+            CURLOPT_FOLLOWLOCATION => false,
+            CURLOPT_PROTOCOLS => CURLPROTO_HTTPS,
+            CURLOPT_SSL_VERIFYPEER => true,
+            CURLOPT_SSL_VERIFYHOST => 2,
+            // the key goes in a header, never in the URL (URLs end up in logs)
+            CURLOPT_HTTPHEADER => ['content-type: application/json', 'x-goog-api-key: ' . self::geminiKey()],
+        ]);
+        $body = curl_exec($ch);
+        $status = (int)curl_getinfo($ch, CURLINFO_RESPONSE_CODE);
+        unset($ch);
+        return [$body === false ? 0 : $status, $body === false ? '' : (string)$body];
     }
 
     /** @return array{0:int,1:string} */

@@ -29,6 +29,7 @@ register_shutdown_function($cleanup);
 
 // A fake model: records what it was sent and answers by a rule on the code
 $calls = []; $mode = 'ok';
+AnthropicClient::$provider = 'anthropic';   // the scenarios below speak the Anthropic format; Gemini has its own checks at the end
 AnthropicClient::$transport = function (array $p) use (&$calls, &$mode): array {
     $calls[] = $p;
     if ($mode === 'down') { return [529, '{"error":{"type":"overloaded_error"}}']; }
@@ -254,6 +255,27 @@ if (!empty($z2['path'])) { $zz = new ZipArchive(); $zz->open($z2['path']); for (
 check('the ZIP of correction scripts holds code answers only, not written answers', $z2['ok'] && !array_filter($names2, fn($n) => str_contains($n, 'Olga')));
 if ($imgFile) { MediaStore::delete($pdo, 'live_question', $imgFile); }
 @unlink($png);
+
+// ---- Gemini as the provider (fake network, Gemini's own format)
+AnthropicClient::$provider = 'gemini';
+$seen = null; $gstatus = 200; $gbody = '';
+AnthropicClient::$transport = function (array $p) use (&$seen, &$gstatus, &$gbody): array { $seen = $p; return [$gstatus, $gbody]; };
+$verdict = ['requirements' => [['requirement' => 'r', 'met' => true]], 'logic_analysis' => 'ok', 'issues' => [], 'verdict' => true, 'needs_human' => false, 'feedback' => 'Bien.', 'corrected_code' => 'x'];
+$gbody = json_encode(['modelVersion' => 'gemini-test', 'candidates' => [['content' => ['parts' => [['text' => 'thinking', 'thought' => true], ['text' => json_encode($verdict)]]]]]]);
+$r = AnthropicClient::structured('SYS', [['type' => 'image', 'source' => ['type' => 'base64', 'media_type' => 'image/png', 'data' => 'QUJD']], ['type' => 'text', 'text' => 'USER']], 'submit_review', 'd', LiveCodeReview::schema('code'));
+check('Gemini: the structured verdict comes back', $r['ok'] === true && $r['data']['verdict'] === true && $r['model'] === 'gemini-test');
+check('Gemini: the system text, the figure and the question are sent in its format',
+    ($seen['systemInstruction']['parts'][0]['text'] ?? '') === 'SYS' && ($seen['contents'][0]['parts'][0]['inlineData']['data'] ?? '') === 'QUJD' && ($seen['contents'][0]['parts'][1]['text'] ?? '') === 'USER'
+    && ($seen['generationConfig']['responseMimeType'] ?? '') === 'application/json' && isset($seen['generationConfig']['responseJsonSchema']['properties']['verdict']));
+check('Gemini: the key is never in the payload', !str_contains(json_encode($seen), 'AIza') && !str_contains(json_encode($seen), 'key'));
+foreach ([[429, '{}', 'rate_limited', true], [503, '{}', 'overloaded', true], [500, '{}', 'server', true], [403, '{}', 'auth', false], [400, '{"error":{"message":"API key not valid"}}', 'auth', false], [400, '{}', 'bad_request', false]] as [$st, $bd, $code, $retry]) {
+    $gstatus = $st; $gbody = $bd;
+    $e = AnthropicClient::structured('S', 'U', 'submit_review', 'd', ['type' => 'object']);
+    check("Gemini: HTTP $st is '$code'", $e['ok'] === false && $e['error'] === $code && $e['retryable'] === $retry);
+}
+$gstatus = 200; $gbody = json_encode(['candidates' => [['content' => ['parts' => [['text' => 'not json']]]]]]);
+check('Gemini: an answer that is not the JSON verdict is retried', AnthropicClient::structured('S', 'U', 'submit_review', 'd', ['type' => 'object'])['error'] === 'bad_answer');
+AnthropicClient::$provider = null; AnthropicClient::$transport = null;
 
 echo "code questions: $passed passed, " . count($failed) . " failed\n";
 foreach ($failed as $f) { echo "  FAIL: $f\n"; }
