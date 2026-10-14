@@ -33,10 +33,11 @@ final class AnthropicClient
     /**
      * Asks the model to answer by calling one tool.
      *
+     * @param string|array $user the message, or a list of content blocks (text and images)
      * @param array $schema JSON schema of the tool input (the structure of the answer)
      * @return array{ok:bool,data?:array,error?:string,model?:string,retryable?:bool}
      */
-    public static function structured(string $system, string $user, string $toolName, string $toolDescription, array $schema, int $maxTokens = 3000, int $timeout = 75): array
+    public static function structured(string $system, string|array $user, string $toolName, string $toolDescription, array $schema, int $maxTokens = 3000, int $timeout = 75): array
     {
         $payload = [
             'model' => self::model(),

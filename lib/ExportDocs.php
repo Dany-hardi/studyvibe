@@ -266,20 +266,22 @@ final class ExportDocs
                     $body .= "  \\item[{$mark}~\\textbf{{$letter}.}] " . ($isRight ? "\\textbf{{$t}}" : $t) . $note . "\n";
                 }
                 $body .= "\\end{itemize}\n";
-            } elseif ($type === 'code') {
+            } elseif ($type === 'code' || $type === 'open') {
+                $isOpen = $type === 'open';
+                $show = static fn(string $t) => $isOpen ? "\\begin{quote}\\small " . ExportTheme::tex($t, true) . "\\end{quote}\n" : $verb($t);
                 $rv = $reviews[(int)($qa['question_id'] ?? $qa['id'] ?? 0)] ?? null;
                 if (!$rv) {
                     $body .= "\\begin{quote}\\small " . ExportTheme::esc($L('none')) . "\\end{quote}\n";
                 } else {
-                    $body .= "\\par\\smallskip\\textit{" . ExportTheme::esc($en ? 'Your code.' : 'Votre code.') . "}\n" . $verb((string)$rv['code']);
+                    $body .= "\\par\\smallskip\\textit{" . ExportTheme::esc($isOpen ? ($en ? 'Your answer.' : 'Votre réponse.') : ($en ? 'Your code.' : 'Votre code.')) . "}\n" . $show((string)$rv['code']);
                     if ($rv['final'] === null) {
-                        $body .= "\\begin{quote}\\small " . ExportTheme::esc($en ? 'This code was still being marked when this report was issued.' : 'Ce code était encore en cours de correction à l’édition de ce rapport.') . "\\end{quote}\n";
+                        $body .= "\\begin{quote}\\small " . ExportTheme::esc($en ? 'This answer was still being marked when this report was issued.' : 'Cette réponse était encore en cours de correction à l’édition de ce rapport.') . "\\end{quote}\n";
                     } else {
                         if (trim((string)$rv['feedback']) !== '') {
                             $body .= "\\begin{quote}\\small\\textit{" . ExportTheme::esc($en ? 'Feedback.' : 'Commentaire.') . '} ' . ExportTheme::tex((string)$rv['feedback'], true) . "\\end{quote}\n";
                         }
                         if (!empty($rv['corrected_code'])) {
-                            $body .= "\\par\\smallskip\\textit{" . ExportTheme::esc($en ? 'Corrected script.' : 'Script corrigé.') . "}\n" . $verb((string)$rv['corrected_code']);
+                            $body .= "\\par\\smallskip\\textit{" . ExportTheme::esc($isOpen ? ($en ? 'Corrected answer.' : 'Réponse corrigée.') : ($en ? 'Corrected script.' : 'Script corrigé.')) . "}\n" . $show((string)$rv['corrected_code']);
                         }
                     }
                 }

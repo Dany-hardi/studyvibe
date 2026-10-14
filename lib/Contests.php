@@ -190,7 +190,7 @@ final class Contests
         foreach ($st->fetchAll(PDO::FETCH_ASSOC) as $i => $row) {
             $row['selected_option'] = (string)($row['selected_option'] ?? '');
             $seen = LiveScoring::asSeen($row, $row['selected_option'], (int)$reg['id'], !empty($reg['shuffle_options']));
-            $isCode = $row['question_type'] === 'code';
+            $isCode = in_array($row['question_type'], ['code', 'open'], true);
             $written = $row['question_type'] === 'written' || $isCode;     // a code answer is shown like a written one: the code itself
             $options = [];
             if (!$written) {

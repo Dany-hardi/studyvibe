@@ -168,7 +168,7 @@ $hasPassed = $scorePercent >= 50;
     <script defer src="https://cdn.jsdelivr.net/npm/katex@0.16.8/dist/katex.min.js"></script>
     <script defer src="https://cdn.jsdelivr.net/npm/katex@0.16.8/dist/contrib/auto-render.min.js" onload="renderMath()"></script>
     <?= sdThemeBoot() ?>
-<style>.res-code pre{margin:.4rem 0 1rem;padding:.8rem 1rem;background:#f4f0e8;border:1px solid #e6dfd1;border-radius:8px;overflow:auto;font:13px/1.5 ui-monospace,SFMono-Regular,Menlo,Consolas,monospace;white-space:pre;tab-size:4}.res-code{display:grid;gap:.4rem}.res-issues{margin:.2rem 0 .6rem 1.1rem;padding:0}@media print{.res-code pre{white-space:pre-wrap;word-break:break-word}}</style>
+<style>.res-code pre{margin:.4rem 0 1rem;padding:.8rem 1rem;background:#f4f0e8;border:1px solid #e6dfd1;border-radius:8px;overflow:auto;font:13px/1.5 ui-monospace,SFMono-Regular,Menlo,Consolas,monospace;white-space:pre;tab-size:4}.res-code{display:grid;gap:.4rem}.res-prose{margin:.4rem 0 1rem;padding:.8rem 1rem;background:#fbf8f2;border:1px solid #e6dfd1;border-radius:8px;line-height:1.6}.res-issues{margin:.2rem 0 .6rem 1.1rem;padding:0}@media print{.res-code pre{white-space:pre-wrap;word-break:break-word}}</style>
 </head>
 <body class="v2 sdoc">
 <div class="doc-bar no-print">
@@ -205,7 +205,8 @@ $hasPassed = $scorePercent >= 50;
     <?php foreach ($answers as $index => $qa):
         $num = $index + 1;
         $isWritten = ($qa['question_type'] ?? 'mcq') === 'written';
-        $isCode = ($qa['question_type'] ?? 'mcq') === 'code';
+        $isCode = LiveCodeReview::handles($qa['question_type'] ?? 'mcq');
+        $isOpenQ = ($qa['question_type'] ?? 'mcq') === 'open';
         $isCorrect = LiveScoring::isCorrect($isCode ? 'code' : ($isWritten ? 'written' : 'mcq'), (string)$qa['selected_option'], (string)$qa['correct_option']);
         $cr = $isCode ? ($codeReviews[(int)$qa['question_id']] ?? null) : null;
         $crWaiting = $isCode && $cr && $cr['final'] === null;
@@ -223,14 +224,14 @@ $hasPassed = $scorePercent >= 50;
         <?php if ($isCode): $en = sdLang() === 'en'; ?>
             <div class="res-code no-math">
                 <?php if ($cr): ?>
-                    <b><?= sdH($en ? 'Your code' : 'Votre code') ?></b>
-                    <pre><?= sdH($cr['code']) ?></pre>
+                    <b><?= sdH($isOpenQ ? ($en ? 'Your answer' : 'Votre réponse') : ($en ? 'Your code' : 'Votre code')) ?></b>
+                    <<?= $isOpenQ ? 'div class="res-prose"' : 'pre' ?>><?= $isOpenQ ? nl2br(sdH($cr['code'])) : sdH($cr['code']) ?></<?= $isOpenQ ? 'div' : 'pre' ?>>
                     <?php if ($crWaiting): ?>
-                        <p class="res-why"><span><?= sdH($en ? 'Your code is being marked. This page shows the correction once it is done: come back in a moment.' : 'Votre code est en cours de correction. Cette page affichera la correction dès qu’elle sera prête : revenez dans un instant.') ?></span></p>
+                        <p class="res-why"><span><?= sdH($en ? 'Your answer is being marked. This page shows the correction once it is done: come back in a moment.' : 'Votre réponse est en cours de correction. Cette page affichera la correction dès qu’elle sera prête : revenez dans un instant.') ?></span></p>
                     <?php else: ?>
                         <?php if (trim((string)$cr['feedback']) !== ''): ?><div class="res-box <?= $isCorrect ? 'is-right' : 'is-wrong' ?>"><b><?= sdH($en ? 'Feedback' : 'Commentaire') ?></b><span><?= nl2br(sdH($cr['feedback'])) ?></span></div><?php endif; ?>
                         <?php if ($cr['issues_list']): ?><ul class="res-issues"><?php foreach ($cr['issues_list'] as $iss): ?><li><?= $iss['where'] !== '' ? '<code>' . sdH($iss['where']) . '</code> ' : '' ?><?= sdH($iss['description']) ?></li><?php endforeach; ?></ul><?php endif; ?>
-                        <?php if (!empty($cr['corrected_code'])): ?><b><?= sdH($en ? 'Corrected script' : 'Script corrigé') ?></b><pre><?= sdH($cr['corrected_code']) ?></pre><?php endif; ?>
+                        <?php if (!empty($cr['corrected_code'])): ?><b><?= sdH($isOpenQ ? ($en ? 'Corrected answer' : 'Réponse corrigée') : ($en ? 'Corrected script' : 'Script corrigé')) ?></b><<?= $isOpenQ ? 'div class="res-prose"' : 'pre' ?>><?= $isOpenQ ? nl2br(sdH($cr['corrected_code'])) : sdH($cr['corrected_code']) ?></<?= $isOpenQ ? 'div' : 'pre' ?>><?php endif; ?>
                         <?php if ($cr['override_verdict'] !== null): ?><p class="res-note"><?= sdH($en ? 'This result was set by your teacher.' : 'Ce résultat a été fixé par votre enseignant.') ?></p><?php endif; ?>
                     <?php endif; ?>
                 <?php else: ?>

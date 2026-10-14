@@ -28,17 +28,17 @@ if (!$session) {
 $en = TranslationService::getLang() === 'en';
 $h = static fn($s): string => htmlspecialchars((string)$s, ENT_QUOTES, 'UTF-8');
 $T = $en ? [
-    'title' => 'Code corrections', 'back' => 'Back to the dashboard', 'zip' => 'Download all corrections (ZIP)', 'run' => 'Mark what is waiting', 'answers' => 'Answers', 'correct' => 'Correct',
-    'wrong' => 'Incorrect', 'waiting' => 'Waiting', 'review' => 'To decide', 'check' => 'Worth a look', 'none' => 'No student has submitted code yet.', 'student' => 'Student',
-    'submitted' => 'Submitted code', 'feedback' => 'Feedback to the student', 'logic' => 'Logic analysis', 'issues' => 'Problems found', 'corrected' => 'Corrected script', 'ai' => 'AI',
+    'title' => 'Corrections', 'back' => 'Back to the dashboard', 'zip' => 'Download all corrections (ZIP)', 'run' => 'Mark what is waiting', 'answers' => 'Answers', 'correct' => 'Correct',
+    'wrong' => 'Incorrect', 'waiting' => 'Waiting', 'review' => 'To decide', 'check' => 'Worth a look', 'none' => 'No student has submitted an answer yet.', 'student' => 'Student',
+    'submitted' => 'Submitted answer', 'feedback' => 'Feedback to the student', 'logic' => 'Logic analysis', 'issues' => 'Problems found', 'corrected' => 'Corrected version', 'ai' => 'AI',
     'teacher' => 'Teacher', 'mk_ok' => 'Mark correct', 'mk_ko' => 'Mark incorrect', 'again' => 'Send back to the AI', 'note' => 'Note (optional)', 'q' => 'Question',
     'st_pending' => 'Waiting for the marking', 'st_working' => 'Being marked', 'st_review' => 'The AI could not mark it: please decide', 'st_done' => 'Marked', 'unconf' => 'The AI marking is not set up on this server (ANTHROPIC_API_KEY): answers wait until it is.',
     'human' => 'The AI is not sure: please check', 'ref' => 'Reference (hidden from students)', 'blocking' => 'blocking', 'minor' => 'minor', 'saved' => 'Saved', 'err' => 'Something went wrong',
     'copy' => 'Copy', 'all' => 'All', 'only' => 'Only the ones to check', 'by' => 'decided by',
 ] : [
-    'title' => 'Corrections de code', 'back' => 'Retour au tableau de bord', 'zip' => 'Télécharger toutes les corrections (ZIP)', 'run' => 'Corriger ce qui attend', 'answers' => 'Réponses', 'correct' => 'Correctes',
-    'wrong' => 'Incorrectes', 'waiting' => 'En attente', 'review' => 'À trancher', 'check' => 'À vérifier', 'none' => 'Aucun étudiant n’a encore soumis de code.', 'student' => 'Étudiant',
-    'submitted' => 'Code soumis', 'feedback' => 'Commentaire pour l’étudiant', 'logic' => 'Analyse de la logique', 'issues' => 'Problèmes relevés', 'corrected' => 'Script corrigé', 'ai' => 'IA',
+    'title' => 'Corrections', 'back' => 'Retour au tableau de bord', 'zip' => 'Télécharger toutes les corrections (ZIP)', 'run' => 'Corriger ce qui attend', 'answers' => 'Réponses', 'correct' => 'Correctes',
+    'wrong' => 'Incorrectes', 'waiting' => 'En attente', 'review' => 'À trancher', 'check' => 'À vérifier', 'none' => 'Aucun étudiant n’a encore soumis de réponse.', 'student' => 'Étudiant',
+    'submitted' => 'Réponse soumise', 'feedback' => 'Commentaire pour l’étudiant', 'logic' => 'Analyse de la logique', 'issues' => 'Problèmes relevés', 'corrected' => 'Version corrigée', 'ai' => 'IA',
     'teacher' => 'Enseignant', 'mk_ok' => 'Marquer correct', 'mk_ko' => 'Marquer incorrect', 'again' => 'Renvoyer à l’IA', 'note' => 'Note (facultatif)', 'q' => 'Question',
     'st_pending' => 'En attente de correction', 'st_working' => 'Correction en cours', 'st_review' => 'L’IA n’a pas pu corriger : à vous de trancher', 'st_done' => 'Corrigé', 'unconf' => 'La correction par l’IA n’est pas configurée sur ce serveur (ANTHROPIC_API_KEY) : les réponses attendent.',
     'human' => 'L’IA hésite : à vérifier', 'ref' => 'Référence (cachée aux étudiants)', 'blocking' => 'bloquant', 'minor' => 'mineur', 'saved' => 'Enregistré', 'err' => 'Une erreur est survenue',
@@ -50,10 +50,10 @@ $qs->execute(['i' => $sessionId]);
 $allQ = $qs->fetchAll(PDO::FETCH_ASSOC);
 $numbers = [];
 foreach ($allQ as $i => $q) { $numbers[(int)$q['id']] = $i + 1; }
-$codeQ = array_values(array_filter($allQ, fn($q) => $q['question_type'] === 'code'));
+$codeQ = array_values(array_filter($allQ, fn($q) => LiveCodeReview::handles($q['question_type'])));
 if (!$codeQ) {
     http_response_code(404);
-    exit($en ? 'This session has no code question.' : 'Cette séance n’a pas de question de code.');
+    exit($en ? 'This session has no code or written-answer question.' : 'Cette séance n’a pas de question de code ni de question rédigée.');
 }
 $rv = $pdo->prepare("
     SELECT cr.*, r.name AS student_name, r.email AS student_email
@@ -107,6 +107,7 @@ header('Cache-Control: no-store');
   .ok { background: #E8F2EA; color: #24402F; } .ko { background: #FCE9E6; color: #9C2B1F; } .wt { background: #FFF3D6; color: #7A5200; } .hm { background: #E7EEF9; color: #234; }
   .body { padding: 0 1rem 1rem; display: grid; gap: .9rem; }
   .cols { display: grid; grid-template-columns: repeat(auto-fit, minmax(20rem, 1fr)); gap: .9rem; }
+  .prose { padding: .8rem; background: var(--paper-2, #f4f0e8); border: 1px solid var(--line); border-radius: 8px; max-height: 24rem; overflow: auto; white-space: pre-wrap; line-height: 1.55; }
   pre { margin: 0; padding: .8rem; background: var(--paper-2, #f4f0e8); border: 1px solid var(--line); border-radius: 8px; overflow: auto; max-height: 24rem; font: 13px/1.5 ui-monospace, SFMono-Regular, Menlo, Consolas, monospace; tab-size: 4; }
   h4 { margin: 0 0 .3rem; font-size: .8rem; letter-spacing: .05em; text-transform: uppercase; color: var(--ink-2); }
   .issue { margin: .15rem 0; } .muted { color: var(--ink-2); }
@@ -138,7 +139,7 @@ header('Cache-Control: no-store');
 
   <?php if (!$rows): ?><p class="muted"><?= $h($T['none']) ?></p><?php endif; ?>
   <?php foreach ($codeQ as $q): $list = $byQ[(int)$q['id']] ?? []; if (!$list) { continue; } ?>
-    <h2><?= $h($T['q']) ?> <?= (int)$numbers[(int)$q['id']] ?> · <?= $h(LiveCodeReview::LANGS[LiveCodeReview::langOf($q['code_lang'] ?? null)][0]) ?></h2>
+    <h2><?= $h($T['q']) ?> <?= (int)$numbers[(int)$q['id']] ?> · <?= $h($q['question_type'] === 'open' ? ($en ? 'Written answer' : 'Réponse rédigée') : LiveCodeReview::LANGS[LiveCodeReview::langOf($q['code_lang'] ?? null)][0]) ?></h2>
     <p class="muted" style="white-space:pre-wrap"><?= $h($q['question_text']) ?></p>
     <?php foreach ($list as $r):
         $final = $r['final'];
@@ -156,8 +157,8 @@ header('Cache-Control: no-store');
       <div class="body">
         <?php if ($final === null): ?><p class="muted"><?= $h($T['st_' . ($r['status'] === 'review' ? 'review' : ($r['status'] === 'working' ? 'working' : 'pending'))]) ?><?= $r['last_error'] ? ' (' . $h($r['last_error']) . ')' : '' ?></p><?php endif; ?>
         <div class="cols">
-          <div><h4><?= $h($T['submitted']) ?></h4><pre><?= $h($r['code']) ?></pre></div>
-          <?php if ($r['corrected_code'] !== null && $r['corrected_code'] !== ''): ?><div><h4><?= $h($T['corrected']) ?></h4><pre><?= $h($r['corrected_code']) ?></pre></div><?php endif; ?>
+          <div><h4><?= $h($T['submitted']) ?></h4><?= $q['question_type'] === 'open' ? '<div class="prose">' . $h($r['code']) . '</div>' : '<pre>' . $h($r['code']) . '</pre>' ?></div>
+          <?php if ($r['corrected_code'] !== null && $r['corrected_code'] !== ''): ?><div><h4><?= $h($T['corrected']) ?></h4><?= $q['question_type'] === 'open' ? '<div class="prose">' . $h($r['corrected_code']) . '</div>' : '<pre>' . $h($r['corrected_code']) . '</pre>' ?></div><?php endif; ?>
         </div>
         <?php if (trim((string)$r['feedback']) !== ''): ?><div><h4><?= $h($T['feedback']) ?></h4><div style="white-space:pre-wrap"><?= $h($r['feedback']) ?></div></div><?php endif; ?>
         <?php if (trim((string)$r['logic_analysis']) !== ''): ?><div><h4><?= $h($T['logic']) ?></h4><div class="muted" style="white-space:pre-wrap"><?= $h($r['logic_analysis']) ?></div></div><?php endif; ?>

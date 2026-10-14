@@ -301,10 +301,12 @@ final class BulkPackage
         $zip = new ZipArchive();
         $zip->open($path, ZipArchive::OVERWRITE);
 
-        $csv = "question,type,option_a,option_b,option_c,option_d,correct,explanation,image,time_limit\n"
-             . "\"Que renvoie ce code ? (voir l'image)\",mcq,2,3,4,5,B,\"Explication de la réponse.\",exemple.png,45\n"
-             . "\"Question sans image\",mcq,Vrai,Faux,,,A,\"Seules A et B sont remplies : c'est une question vrai ou faux.\",,\n"
-             . "\"Donnez le résultat de 2+3\",written,,,,,5,\"Réponse écrite : plusieurs réponses possibles avec |  (par exemple 5|cinq).\",,30\n";
+        $csv = "question,type,option_a,option_b,option_c,option_d,correct,explanation,image,time_limit,code_lang,reference,marking_notes\n"
+             . "\"Que renvoie ce code ? (voir l'image)\",mcq,2,3,4,5,B,\"Explication de la réponse.\",exemple.png,45,,,\n"
+             . "\"Question sans image\",mcq,Vrai,Faux,,,A,\"Seules A et B sont remplies : c'est une question vrai ou faux.\",,,,,\n"
+             . "\"Donnez le résultat de 2+3\",written,,,,,5,\"Réponse écrite : plusieurs réponses possibles avec |  (par exemple 5|cinq).\",,30,,,\n"
+             . "\"Écrivez une fonction qui retourne la somme de deux nombres.\",code,,,,,,\"Ce que l'étudiant verra dans sa correction.\",,300,python,\"def somme(a, b): return a + b\",\"ESSENTIEL : retourne la somme, sans afficher\"\n"
+             . "\"Expliquez la différence entre vérification et validation.\",open,,,,,,\"Ce que l'étudiant verra dans sa correction.\",,240,,\"Vérifier : conformité aux spécifications. Valider : adéquation au besoin.\",\"ESSENTIEL : définition de chacun\"\n";
         $zip->addFromString('questions.csv', "\xEF\xBB\xBF" . $csv);
 
         if (function_exists('imagecreatetruecolor')) {

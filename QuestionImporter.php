@@ -1,6 +1,8 @@
 <?php
 declare(strict_types=1);
 
+require_once __DIR__ . '/lib/LiveCodeReview.php';
+
 /**
  * StudyVibe LMS - Massive Question Importer Service
  * 
@@ -179,8 +181,9 @@ class QuestionImporter
     public static function importLiveQuestions(PDO $pdo, int $sessionId, array $questions): int
     {
         $stmt = $pdo->prepare("
-            INSERT INTO live_eval_questions (session_id, question_text, option_a, option_b, option_c, option_d, correct_option, explanation, question_type, time_limit, image_path)
-            VALUES (:sid, :qt, :a, :b, :c, :d, :co, :exp, :type, :tl, :img)
+            INSERT INTO live_eval_questions (session_id, question_text, option_a, option_b, option_c, option_d, correct_option, explanation, question_type, time_limit, image_path,
+                                             code_lang, code_reference, code_notes)
+            VALUES (:sid, :qt, :a, :b, :c, :d, :co, :exp, :type, :tl, :img, :cl, :cr, :cn)
         ");
         $count = 0;
         foreach ($questions as $q) {
@@ -196,6 +199,9 @@ class QuestionImporter
                 'type' => $q['question_type'] ?? 'mcq',
                 'tl'   => $q['time_limit'] ?? null,
                 'img'  => $q['image_path'] ?? null,
+                'cl'   => $q['code_lang'] ?? null,
+                'cr'   => $q['code_reference'] ?? null,
+                'cn'   => $q['code_notes'] ?? null,
             ]);
             $count++;
         }
@@ -310,6 +316,16 @@ class QuestionImporter
         if (in_array($key, ['time_limit', 'temps', 'temps_s', 'duree', 'duree_s', 'timer', 'seconds', 'secondes'], true)) {
             return 'time_limit';
         }
+        // Code and written-answer questions (live evaluations only): the language, the reference solution or answer, the marking notes
+        if (in_array($key, ['code_lang', 'langage', 'language', 'langage_code', 'lang_code', 'programming_language'], true)) {
+            return 'code_lang';
+        }
+        if (in_array($key, ['reference', 'reference_solution', 'reference_solutions', 'reference_answer', 'solution_reference', 'reponse_reference', 'model_answer', 'reponse_modele', 'modele'], true)) {
+            return 'code_reference';
+        }
+        if (in_array($key, ['marking_notes', 'notes', 'consignes', 'points_essentiels', 'essential_points', 'rubric', 'grille', 'marking_rubric'], true)) {
+            return 'code_notes';
+        }
         $tokens = explode('_', $key);
         $numberish = array_intersect($tokens, ['id', 'n', 'no', 'num', 'numero', 'nb', 'index', 'ordre', 'order', 'rang', 'number']);
         if (in_array($key, ['question', 'question_text', 'libelle', 'enonce', 'intitule', 'texte', 'text'], true)) {
@@ -341,6 +357,9 @@ class QuestionImporter
             'question_type'  => '',
             'image'          => '',
             'time_limit'     => '',
+            'code_lang'      => '',
+            'code_reference' => '',
+            'code_notes'     => '',
         ];
         $loose = [];
         foreach ($header as $i => $field) {
@@ -416,6 +435,37 @@ class QuestionImporter
 
             // Ignore empty rows
             if ($q === '' && $a === '' && $b === '') {
+                continue;
+            }
+
+            // Code and written-answer questions are marked by the AI: they need a reference solution or marking notes, and a live evaluation
+            $typeKey = strtolower($type);
+            $marked = in_array($typeKey, ['code'], true) ? 'code' : (in_array($typeKey, ['open', 'structured', 'structure', 'structuree', 'essay', 'redigee', 'redaction', 'long'], true) ? 'open' : '');
+            if ($marked !== '') {
+                $ref = trim((string)($row['code_reference'] ?? ''));
+                $notes = trim((string)($row['code_notes'] ?? ''));
+                if (!$allowTrueFalse) {
+                    $errors[] = "Ligne {$line} : les questions de code et les questions rédigées ne sont possibles que dans une évaluation en direct.";
+                    continue;
+                }
+                if ($q === '') {
+                    $errors[] = "Ligne {$line} : énoncé vide.";
+                    continue;
+                }
+                if ($ref === '' && $notes === '') {
+                    $errors[] = "Ligne {$line} : une question de type « {$marked} » a besoin d’une solution de référence ou de consignes de correction.";
+                    continue;
+                }
+                $timeOk = ($timeRaw !== '' && ctype_digit($timeRaw) && (int)$timeRaw >= 5 && (int)$timeRaw <= 3600);
+                if ($timeRaw !== '' && !$timeOk) {
+                    $errors[] = "Ligne {$line} : temps invalide « {$timeRaw} » (un nombre entier de secondes entre 5 et 3600, ou laissez la case vide).";
+                }
+                $questions[] = [
+                    'question_text' => $q, 'option_a' => '', 'option_b' => '', 'option_c' => '', 'option_d' => '', 'correct_option' => 'CODE_OK',
+                    'explanation' => $exp, 'question_type' => $marked, 'image' => $image, 'time_limit' => $timeOk ? (int)$timeRaw : null, 'line' => $line,
+                    'code_lang' => $marked === 'code' ? LiveCodeReview::langOf(strtolower(trim((string)($row['code_lang'] ?? '')))) : null,
+                    'code_reference' => mb_substr($ref, 0, LiveCodeReview::MAX_REFERENCE), 'code_notes' => mb_substr($notes, 0, 3000),
+                ];
                 continue;
             }
 

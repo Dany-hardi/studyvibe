@@ -18,8 +18,8 @@ final class LiveScoring
         if ($type === 'written') {
             return self::isCorrectWritten($selected, $correct);
         }
-        if ($type === 'code') {
-            // A code answer is marked afterwards: its stored "selected option" is the verdict (CODE_OK / CODE_KO / CODE_PENDING)
+        if ($type === 'code' || $type === 'open') {
+            // A code or written-answer answer is marked afterwards: its stored "selected option" is the verdict (CODE_OK / CODE_KO / CODE_PENDING)
             return $selected === 'CODE_OK';
         }
         return $selected !== '' && $selected === $correct;

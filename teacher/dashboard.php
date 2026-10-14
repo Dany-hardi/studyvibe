@@ -880,12 +880,15 @@ try {
             $codeLang = LiveCodeReview::langOf((string)($_POST['code_lang'] ?? ''));
             $codeRef = mb_substr(str_replace(["\r\n", "\r"], "\n", trim((string)($_POST['code_reference'] ?? ''))), 0, LiveCodeReview::MAX_REFERENCE);
             $codeNotes = mb_substr(trim((string)($_POST['code_notes'] ?? '')), 0, 3000);
-            if ($qType === 'code') {
+            if (!in_array($qType, ['mcq', 'written', 'code', 'open'], true)) {
+                $qType = 'mcq';
+            }
+            if (LiveCodeReview::handles($qType)) {
                 $correct = LiveCodeReview::MARK_OK;      // the stored "right answer" of a code question is only a marker: the verdict comes from the marking
             }
             $isValid = false;
             if ($sid > 0 && !empty($questionText) && !empty($correct)) {
-                if ($qType === 'code') {
+                if (LiveCodeReview::handles($qType)) {
                     $isValid = $codeRef !== '' || $codeNotes !== '';
                 } elseif ($qType === 'written') {
                     $isValid = true;
@@ -928,8 +931,8 @@ try {
                     'limit' => $tLimit,
                     'img'   => $imagePath,
                     'cl'    => $qType === 'code' ? $codeLang : null,
-                    'cr'    => $qType === 'code' ? $codeRef : null,
-                    'cn'    => $qType === 'code' ? $codeNotes : null,
+                    'cr'    => LiveCodeReview::handles($qType) ? $codeRef : null,
+                    'cn'    => LiveCodeReview::handles($qType) ? $codeNotes : null,
                 ]);
 
                 $sidForRedirect = (int)($_POST['session_id'] ?? 0);
@@ -2331,8 +2334,10 @@ $tdHasCourse = (bool)$selectedCourse;
                                             <div class="t-menu-list">
                                                 <a href="#" onclick="SVReview.open(<?= $sid ?>); return false;"><?= tde('rv_open') ?></a>
                                                 <a href="/teacher/live-analysis.php?session_id=<?= $sid ?>"><?= tde('live_analysis') ?></a>
-                                                <?php if (array_filter($ls['questions'] ?? [], fn($qq) => ($qq['question_type'] ?? '') === 'code')): ?>
+                                                <?php if (array_filter($ls['questions'] ?? [], fn($qq) => LiveCodeReview::handles($qq['question_type'] ?? ''))): ?>
                                                     <a href="/teacher/live-code-review.php?session_id=<?= $sid ?>"><?= tde('code_corrections_btn') ?></a>
+                                                <?php endif; ?>
+                                                <?php if (array_filter($ls['questions'] ?? [], fn($qq) => ($qq['question_type'] ?? '') === 'code')): ?>
                                                     <a href="/teacher/export-live-corrections.php?session_id=<?= $sid ?>"><?= tde('code_zip') ?></a>
                                                 <?php endif; ?>
                                                 <hr>
@@ -2410,9 +2415,9 @@ $tdHasCourse = (bool)$selectedCourse;
                                                             </div>
                                                         <?php endif; ?>
                                                         <div style="display:flex;flex-wrap:wrap;gap:.25rem 1rem;font-size:.8125rem;color:var(--ink-3);margin-top:.4rem">
-                                                            <span class="t-chip" style="padding:0 .5rem"><?= $qType === 'code' ? tde('q_type_code') : ($qType === 'written' ? tde('q_type_written') : tde('q_type_mcq')) ?></span>
-                                                            <?php if ($qType === 'code'): ?>
-                                                                <span><?= htmlspecialchars(LiveCodeReview::LANGS[LiveCodeReview::langOf($q['code_lang'] ?? null)][0]) ?> · <?= tde('code_ai_marked') ?></span>
+                                                            <span class="t-chip" style="padding:0 .5rem"><?= $qType === 'open' ? tde('q_type_open') : ($qType === 'code' ? tde('q_type_code') : ($qType === 'written' ? tde('q_type_written') : tde('q_type_mcq'))) ?></span>
+                                                            <?php if (LiveCodeReview::handles($qType)): ?>
+                                                                <span><?= $qType === 'code' ? htmlspecialchars(LiveCodeReview::LANGS[LiveCodeReview::langOf($q['code_lang'] ?? null)][0]) . ' · ' : '' ?><?= tde('code_ai_marked') ?></span>
                                                             <?php else: ?>
                                                             <span><?= tde('q_answer') ?> <strong style="color:var(--ink)"><?= htmlspecialchars((string)$q['correct_option']) ?></strong></span>
                                                             <?php endif; ?>
@@ -2445,6 +2450,7 @@ $tdHasCourse = (bool)$selectedCourse;
                                                     <option value="mcq"><?= tde('q_type_mcq_long') ?></option>
                                                     <option value="written"><?= tde('q_type_written_long') ?></option>
                                                     <option value="code"><?= tde('q_type_code_long') ?></option>
+                                                    <option value="open"><?= tde('q_type_open_long') ?></option>
                                                 </select>
                                             </div>
                                             <div class="t-field">
@@ -2463,21 +2469,21 @@ $tdHasCourse = (bool)$selectedCourse;
                                                 </div>
                                             </div>
                                             <div class="code-fields hidden">
-                                                <div class="t-field">
+                                                <div class="t-field only-code">
                                                     <label for="ql-<?= $sid ?>"><?= tde('code_lang') ?></label>
                                                     <select id="ql-<?= $sid ?>" name="code_lang">
                                                         <?php foreach (LiveCodeReview::LANGS as $lk => $lv): ?><option value="<?= $lk ?>"><?= htmlspecialchars($lv[0]) ?></option><?php endforeach; ?>
                                                     </select>
                                                 </div>
                                                 <div class="t-field">
-                                                    <label for="qr-<?= $sid ?>"><?= tde('code_reference') ?></label>
-                                                    <textarea id="qr-<?= $sid ?>" name="code_reference" rows="8" maxlength="12000" spellcheck="false" style="font-family:ui-monospace,SFMono-Regular,Menlo,Consolas,monospace;font-size:.85rem;tab-size:4"></textarea>
-                                                    <span class="t-hint"><?= tde('code_reference_hint') ?></span>
+                                                    <label for="qr-<?= $sid ?>"><span class="only-code"><?= tde('code_reference') ?></span><span class="only-open hidden"><?= tde('open_reference') ?></span></label>
+                                                    <textarea id="qr-<?= $sid ?>" name="code_reference" rows="8" maxlength="12000" spellcheck="false" style="font-size:.9rem;tab-size:4"></textarea>
+                                                    <span class="t-hint"><span class="only-code"><?= tde('code_reference_hint') ?></span><span class="only-open hidden"><?= tde('open_reference_hint') ?></span></span>
                                                 </div>
                                                 <div class="t-field">
-                                                    <label for="qn-<?= $sid ?>"><?= tde('code_notes') ?></label>
+                                                    <label for="qn-<?= $sid ?>"><span class="only-code"><?= tde('code_notes') ?></span><span class="only-open hidden"><?= tde('open_notes') ?></span></label>
                                                     <textarea id="qn-<?= $sid ?>" name="code_notes" rows="3" maxlength="3000"></textarea>
-                                                    <span class="t-hint"><?= tde('code_notes_hint') ?></span>
+                                                    <span class="t-hint"><span class="only-code"><?= tde('code_notes_hint') ?></span><span class="only-open hidden"><?= tde('open_notes_hint') ?></span></span>
                                                 </div>
                                             </div>
                                             <div style="display:grid;grid-template-columns:1fr 1fr;gap:0 .75rem">
@@ -4463,15 +4469,20 @@ function handleQuestionTypeChange(selectElement) {
     const mcqOptionsGroup = form.querySelector('.mcq-options-group');
     const correctOptionContainer = form.querySelector('.correct-option-container');
     const codeFields = form.querySelector('.code-fields');
-    if (codeFields) codeFields.classList.toggle('hidden', type !== 'code');
+    const marked = type === 'code' || type === 'open';
+    if (codeFields) {
+        codeFields.classList.toggle('hidden', !marked);
+        codeFields.querySelectorAll('.only-code').forEach(el => el.classList.toggle('hidden', type !== 'code'));
+        codeFields.querySelectorAll('.only-open').forEach(el => el.classList.toggle('hidden', type !== 'open'));
+    }
 
-    if (type === 'code') {
+    if (marked) {
         if (mcqOptionsGroup) mcqOptionsGroup.classList.add('hidden');
         if (correctOptionContainer) {
             correctOptionContainer.innerHTML = '<input type="hidden" name="correct_option" value="CODE_OK">';
         }
         const lim = form.querySelector('input[name=time_limit]');
-        if (lim && !lim.value) lim.placeholder = '300';
+        if (lim && !lim.value) lim.placeholder = type === 'open' ? '240' : '300';
         return;
     }
     if (type === 'written') {
@@ -5787,6 +5798,12 @@ function resolveCsvColumns(headerRow) {
 }
 
 function processParsedRows(rows) {
+    // Code and written-answer questions carry extra columns and are marked by the AI: they only go through the ZIP pack import
+    const headRow = (rows[0] || []).map(c => String(c).trim().toLowerCase());
+    const typeCol = headRow.indexOf('type');
+    if (typeCol !== -1 && rows.slice(1).some(r => ['code', 'open', 'structured', 'structure', 'essay'].includes(String(r[typeCol] || '').trim().toLowerCase()))) {
+        throw new Error("Ce fichier contient des questions de code ou rédigées : importez-le avec un pack ZIP (le CSV et ses images) ou ajoutez ces questions une par une.");
+    }
     let header = null;
     let startIndex = 0;
     

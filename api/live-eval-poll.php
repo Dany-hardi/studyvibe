@@ -531,7 +531,7 @@ try {
         }
         
         // Code question: the code goes to its own table, the marking happens right after this answer is sent back
-        if (($activeQForSubmission['question_type'] ?? 'mcq') === 'code') {
+        if (LiveCodeReview::handles($activeQForSubmission['question_type'] ?? 'mcq')) {
             if (!$activeQ || (int)$activeQ['id'] !== $questionId) {
                 echo json_encode(['success' => false, 'message' => 'Le temps imparti pour cette question est écoulé.']);
                 exit;
