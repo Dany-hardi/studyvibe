@@ -681,7 +681,7 @@ try {
         // ── M. Ajouter une séance de téléévaluation ───────────────────
         if ($action === 'add_live_session') {
             $title = trim((string)($_POST['live_title'] ?? ''));
-            $limit = (int)($_POST['default_time_limit'] ?? 30);
+            $limit = max(5, min(3600, (int)(($_POST['default_time_limit'] ?? '') !== '' ? $_POST['default_time_limit'] : 30)));   // optional: a question with its own time (CSV or form) ignores it
             $m = LiveEvalModes::fromForm($_POST);
             if ($title === '' || !$m['ok']) {
                 header("Location: /teacher/dashboard.php?course_id={$selectedCourse['id']}&error=live_mode_" . ($m['error'] ?? 'window') . "#tab-live-eval"); exit;
@@ -712,7 +712,7 @@ try {
         if ($action === 'edit_live_session') {
             $sid = (int)($_POST['session_id'] ?? 0);
             $title = trim((string)($_POST['live_title'] ?? ''));
-            $limit = (int)($_POST['default_time_limit'] ?? 30);
+            $limit = max(5, min(3600, (int)(($_POST['default_time_limit'] ?? '') !== '' ? $_POST['default_time_limit'] : 30)));   // optional: a question with its own time (CSV or form) ignores it
             $m = LiveEvalModes::fromForm($_POST);
 
             if ($sid > 0 && $title !== '') {
@@ -3842,8 +3842,9 @@ $tdHasCourse = (bool)$selectedCourse;
             </div>
             
             <div>
-                <label class="block text-xs font-semibold text-[var(--ink-2)]   mb-2">Temps par question (secondes)</label>
-                <input type="number" name="default_time_limit" id="edit-live-limit" required min="5" class="w-full px-3 py-2 border border-[var(--line)] rounded-sm focus:outline-none focus:border-[var(--clay)] text-sm bg-[var(--card)]">
+                <label class="block text-xs font-semibold text-[var(--ink-2)]   mb-2">Temps par question par défaut (secondes, facultatif)</label>
+                <input type="number" name="default_time_limit" id="edit-live-limit" placeholder="30" min="5" max="3600" class="w-full px-3 py-2 border border-[var(--line)] rounded-sm focus:outline-none focus:border-[var(--clay)] text-sm bg-[var(--card)]">
+                <p class="text-xs text-[var(--ink-3)] mt-1">Facultatif. S'applique seulement aux questions qui n'ont pas leur propre temps (colonne time_limit d'un fichier importé, ou champ « durée » d'une question). Vide : 30 s.</p>
             </div>
             
             <fieldset class="space-y-2">
@@ -4150,8 +4151,9 @@ try {
             </div>
             
             <div>
-                <label class="block text-xs font-semibold text-[var(--ink-2)]    mb-2">Temps par question (secondes)</label>
-                <input type="number" name="default_time_limit" required value="30" min="5" class="w-full px-3 py-2 border border-[var(--line)]  rounded-lg focus:outline-none focus:border-[var(--clay)] text-sm bg-[var(--card)]  ">
+                <label class="block text-xs font-semibold text-[var(--ink-2)]    mb-2">Temps par question par défaut (secondes, facultatif)</label>
+                <input type="number" name="default_time_limit" placeholder="30" min="5" max="3600" class="w-full px-3 py-2 border border-[var(--line)]  rounded-lg focus:outline-none focus:border-[var(--clay)] text-sm bg-[var(--card)]  ">
+                <p class="text-xs text-[var(--ink-3)] mt-1">Facultatif. S'applique seulement aux questions qui n'ont pas leur propre temps (colonne time_limit d'un fichier importé, ou champ « durée » d'une question). Vide : 30 s.</p>
             </div>
             
             <fieldset class="space-y-2">
