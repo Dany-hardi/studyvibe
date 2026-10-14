@@ -50,6 +50,3 @@ sync_prod.sh
 # 9. Fichiers de Test Temporaires
 test_*.txt
 test_*.php
-*.class
-__pycache__/
-evaluations/**/out/
