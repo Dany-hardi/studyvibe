@@ -476,6 +476,64 @@
     return toks;
   }
 
-  root.CodeTools = { lint: lint, format: format, setLang: function (l) { LANG = l === 'en' ? 'en' : 'fr'; }, scan: scan, _msg: t };
+  /* ---------------------------------------------------------------------------------------------
+   * Syntax highlighting: HTML for the colour layer under the editor. Only colours change, never the width of a character,
+   * and the text of the result is exactly the code, so the layer always lines up with the textarea.
+   * ------------------------------------------------------------------------------------------- */
+  var KW = {
+    java: 'abstract assert boolean break byte case catch char class const continue default do double else enum extends final finally float for goto if implements import instanceof int interface long native new package private protected public return short static super switch synchronized this throw throws transient try void volatile while var record yield null true false',
+    c: 'auto break case char const continue default do double else enum extern float for goto if inline int long register return short signed sizeof static struct switch typedef union unsigned void volatile while NULL',
+    cpp: 'auto bool break case catch char class const constexpr continue default delete do double else enum explicit extern false float for friend goto if inline int long namespace new nullptr operator private protected public return short signed sizeof static struct switch template this throw true try typedef typename union unsigned using virtual void volatile while override',
+    csharp: 'abstract as async await base bool break byte case catch char class const continue decimal default delegate do double else enum event explicit extern false finally float for foreach if implicit in int interface internal is lock long namespace new null object operator out override params private protected public readonly record ref return sealed short sizeof static string struct switch this throw true try typeof uint ulong using var virtual void volatile while',
+    javascript: 'async await break case catch class const continue default delete do else export extends false finally for from function get if implements import in instanceof let new null of private protected public return set static super switch this throw true try typeof undefined var void while yield',
+    typescript: 'abstract as async await boolean break case catch class const continue declare default delete do else enum export extends false finally for from function get if implements import in instanceof interface keyof let namespace new null number of private protected public readonly return set static string super switch this throw true try type typeof undefined var void while yield',
+    php: 'abstract and array as break callable case catch class clone const continue declare default do echo else elseif empty extends false final finally fn for foreach function global if implements include instanceof interface isset list match namespace new null or parent print private protected public readonly require return self static switch this throw trait true try unset use var while yield',
+    python: 'and as assert async await break class continue def del elif else except False finally for from global if import in is lambda None nonlocal not or pass raise return True try while with yield match case self',
+    go: 'break case chan const continue default defer else fallthrough for func go goto if import interface map package range return select struct switch type var nil true false',
+    rust: 'as async await break const continue crate dyn else enum extern false fn for if impl in let loop match mod move mut pub ref return self Self static struct super trait true type unsafe use where while',
+    bash: 'if then else elif fi for while until do done case esac function in return exit local export echo read set unset shift',
+    sql: 'SELECT FROM WHERE GROUP BY ORDER HAVING LIMIT OFFSET JOIN INNER LEFT RIGHT FULL OUTER CROSS ON AS AND OR NOT IN IS NULL LIKE BETWEEN EXISTS DISTINCT UNION ALL INSERT INTO VALUES UPDATE SET DELETE CREATE TABLE ALTER DROP ADD COLUMN PRIMARY FOREIGN KEY REFERENCES UNIQUE CHECK DEFAULT CONSTRAINT INDEX VIEW CASCADE IF BEGIN COMMIT ROLLBACK CASE WHEN THEN ELSE END ASC DESC USING WITH RETURNING TRUE FALSE TRIGGER FUNCTION RETURNS FOR EACH ROW EXECUTE PROCEDURE'
+  };
+  var SQL_TYPES = ' SERIAL BIGSERIAL INT INTEGER BIGINT SMALLINT VARCHAR CHAR TEXT BOOLEAN DATE TIMESTAMP NUMERIC DECIMAL FLOAT DOUBLE REAL UUID JSON JSONB ';
+  var KWSET = {};
+  function kwSet(lang) {
+    if (KWSET[lang]) return KWSET[lang];
+    var o = {};
+    (KW[lang] || '').split(' ').forEach(function (w) { if (w) o[lang === 'sql' ? w.toUpperCase() : w] = 1; });
+    return (KWSET[lang] = o);
+  }
+  function esc(s) { return s.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;'); }
+
+  function highlight(profile, code) {
+    profile = profile || {};
+    code = String(code == null ? '' : code).replace(/\r\n?/g, '\n');
+    var lang = profile.lang || 'other', sql = lang === 'sql';
+    var kws = kwSet(lang), out = [];
+    scan(code, profile).lines.forEach(function (ln) {
+      var h = '';
+      ln.segs.forEach(function (sg) {
+        if (sg.t === 'com') { h += '<span class="tk-c">' + esc(sg.s) + '</span>'; return; }
+        if (sg.t === 'str') { h += '<span class="tk-s">' + esc(sg.s) + '</span>'; return; }
+        var re = /(@[A-Za-z_]\w*)|(\b\d[\d_]*(?:\.\d+)?(?:[eE][+-]?\d+)?\b)|([A-Za-z_$][\w$]*)|([\s\S])/g, m, src = sg.s;
+        while ((m = re.exec(src)) !== null) {
+          if (m[1]) h += '<span class="tk-a">' + esc(m[1]) + '</span>';
+          else if (m[2]) h += '<span class="tk-n">' + esc(m[2]) + '</span>';
+          else if (m[3]) {
+            var w = m[3], key = sql ? w.toUpperCase() : w, cls = '';
+            if (kws[key]) cls = 'tk-k';
+            else if (sql) { if (SQL_TYPES.indexOf(' ' + key + ' ') !== -1) cls = 'tk-t'; }
+            else if (/^\s*\(/.test(src.substr(re.lastIndex))) cls = 'tk-f';
+            else if (/^[A-Z][A-Za-z0-9_]*[a-z][A-Za-z0-9_]*$/.test(w)) cls = 'tk-t';
+            else if (/^[A-Z][A-Z0-9_]+$/.test(w)) cls = 'tk-n';
+            h += cls ? '<span class="' + cls + '">' + esc(w) + '</span>' : esc(w);
+          } else h += esc(m[4]);
+        }
+      });
+      out.push(h);
+    });
+    return out.join('\n');
+  }
+
+  root.CodeTools = { lint: lint, format: format, highlight: highlight, setLang: function (l) { LANG = l === 'en' ? 'en' : 'fr'; }, scan: scan, _msg: t };
   if (typeof module !== 'undefined' && module.exports) module.exports = root.CodeTools;
 })(typeof window !== 'undefined' ? window : globalThis);

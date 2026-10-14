@@ -413,7 +413,7 @@
     $('pr-code-hint').textContent = L.code_keys;
     input.value = q.answer; input.disabled = false;
     $('pr-code').hidden = false; document.body.style.overflow = 'hidden';
-    syncGutter(); runLint(); updateCount(); setSave('saved');
+    syncGutter(); paint(); runLint(); updateCount(); setSave('saved');
     setTimeout(function () { input.focus(); input.setSelectionRange(input.value.length, input.value.length); }, 30);
   }
   function closeCode() {
@@ -436,11 +436,17 @@
     for (var i = 1; i <= n; i++) { var s = sev[i]; html += '<div' + (s ? ' class="' + (s === 'error' ? 'e' : (s === 'warning' ? 'w' : 'i')) + '"' : '') + '>' + i + '</div>'; }
     g.innerHTML = html; g.scrollTop = input.scrollTop;
   }
-  input.addEventListener('scroll', function () { $('pr-code-gutter').scrollTop = input.scrollTop; });
+  function paint() {
+    var hl = $('pr-code-hl'); if (!hl) return;
+    var html = window.CodeTools && window.CodeTools.highlight ? window.CodeTools.highlight(profile(), input.value) : input.value.replace(/&/g, '&amp;').replace(/</g, '&lt;');
+    hl.innerHTML = html + '\n';
+    hl.scrollTop = input.scrollTop; hl.scrollLeft = input.scrollLeft;
+  }
+  input.addEventListener('scroll', function () { $('pr-code-gutter').scrollTop = input.scrollTop; var hl = $('pr-code-hl'); hl.scrollTop = input.scrollTop; hl.scrollLeft = input.scrollLeft; });
   input.addEventListener('input', function () {
     var q = C.q; if (!q) return;
     q.answer = input.value; markDirty(q); scheduleSave(q, 900);
-    updateCount(); clearTimeout(C.lintTimer); C.lintTimer = setTimeout(runLint, 250); syncGutter();
+    updateCount(); clearTimeout(C.lintTimer); C.lintTimer = setTimeout(runLint, 250); syncGutter(); paint();
     if (q.profile && q.profile.lang === 'php') { clearTimeout(C.phpTimer); C.phpTimer = setTimeout(runPhp, 1400); }
   });
   function runLint() {
@@ -502,13 +508,26 @@
     }
     if (e.key === 'Enter' && !e.shiftKey && !e.ctrlKey && !e.metaKey) {
       var v2 = input.value, pos = input.selectionStart, ls2 = v2.lastIndexOf('\n', pos - 1) + 1, cur = v2.slice(ls2, pos);
-      var ind = (cur.match(/^[ \t]*/) || [''])[0];
-      var extra = (/[{(\[]\s*$/.test(cur) || (profile().family === 'python' && /:\s*$/.test(cur))) ? unit : '';
+      var ind = (cur.match(/^[ \t]*/) || [''])[0], pf = profile(), trimmed = cur.replace(/\s+$/, '');
+      var lc = pf.line_comment ? trimmed.replace(new RegExp('\\s*' + pf.line_comment.replace(/[.*+?^${}()|[\]\\]/g, '\\$&') + '.*$'), '') : trimmed;
+      var more = /[{(\[]$/.test(lc) || (pf.family === 'python' && /:$/.test(lc)) || (pf.family === 'shell' && /(\bthen|\bdo|\{)$/.test(lc)) || (pf.lang === 'php' && /:$/.test(lc) && /^\s*(if|else|elseif|for|foreach|while|switch)\b/.test(lc));
+      var extra = more ? unit : '';
+      // Python: after return / pass / break / continue / raise the next line goes back one level
+      var back = pf.family === 'python' && !more && /^\s*(return|pass|break|continue|raise)\b/.test(lc) && ind.length >= unit.length ? unit.length : 0;
       e.preventDefault();
       var after = v2.slice(pos, pos + 1), closes = extra && /[)}\]]/.test(after);
-      document.execCommand('insertText', false, '\n' + ind + extra + (closes ? '\n' + ind : ''));
+      document.execCommand('insertText', false, '\n' + ind.slice(0, ind.length - back) + extra + (closes ? '\n' + ind : ''));
       if (closes) { var np = input.selectionStart - ind.length - 1; input.setSelectionRange(np, np); }
       return;
+    }
+    // typing a closing bracket on an otherwise empty line pulls it back one level
+    if ((e.key === '}' || e.key === ')' || e.key === ']') && !e.ctrlKey && !e.metaKey && input.selectionStart === input.selectionEnd && profile().family !== 'plain') {
+      var v3 = input.value, p3 = input.selectionStart, l3 = v3.lastIndexOf('\n', p3 - 1) + 1, before = v3.slice(l3, p3);
+      if (/^[ \t]+$/.test(before) && before.length >= unit.length) {
+        e.preventDefault();
+        input.setSelectionRange(p3 - unit.length, p3); document.execCommand('insertText', false, e.key);
+        return;
+      }
     }
     if ((e.key === 'F' || e.key === 'f') && e.altKey && e.shiftKey) { e.preventDefault(); formatNow(); return; }
     if ((e.ctrlKey || e.metaKey) && (e.key === 's' || e.key === 'S')) { e.preventDefault(); if (C.q) { flushSave(C.q); } return; }

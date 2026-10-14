@@ -86,5 +86,22 @@ ok(/'select from'/.test(CT.format(P('sql'), "select 'select from' as x;")), 'sql
 f = CT.format(P('sql'), "SELECT t.date, count(*) FROM t GROUP BY t.date;");
 ok(/t\.date/.test(f) && /COUNT\(\*\)/.test(f), 'sql dotted identifiers and aggregates:\n' + f);
 ok(errs(P('sql'), "CREATE TABLE v (t CHAR(1) CHECK (t IN ('C', 'T')), p TEXT);\n").length === 0, 'sql: values inside strings are not a stray comma');
+// ---- highlight: colours only, the text is unchanged
+const strip = h => h.replace(/<[^>]+>/g, '').replace(/&lt;/g, '<').replace(/&gt;/g, '>').replace(/&amp;/g, '&');
+const samples = {
+  java: 'public class A<T> {\n  // c <b>\n  String s = "x<y>&z";\n  @Override int f(int a) { return a + 42; }\n}',
+  py: 'def f(a):\n    """doc"""\n    return a # c\n',
+  sql: "SELECT a, COUNT(*) FROM t WHERE x = 'it''s' -- c\n;",
+  js: 'const r = /a"b/; let s = `x\ny`;',
+};
+for (const [k, c] of Object.entries(samples)) ok(strip(CT.highlight(P(k), c)) === c, 'highlight keeps the text of ' + k);
+let h = CT.highlight(P('java'), 'public int f() { return 1; } // note "q"');
+ok(/<span class="tk-k">public<\/span>/.test(h) && /<span class="tk-k">return<\/span>/.test(h) && /<span class="tk-n">1<\/span>/.test(h) && /<span class="tk-c">\/\/ note "q"<\/span>/.test(h) && /<span class="tk-f">f<\/span>/.test(h), 'java colours: ' + h);
+h = CT.highlight(P('java'), 'String s = "if (x) { return }";');
+ok(!/tk-k">if/.test(h) && /<span class="tk-s">"if \(x\) \{ return \}"<\/span>/.test(h) && /<span class="tk-t">String<\/span>/.test(h), 'keywords inside a string stay a string: ' + h);
+h = CT.highlight(P('py'), 'def f(a):\n    return None  # fin');
+ok(/tk-k">def/.test(h) && /tk-k">None/.test(h) && /tk-c"># fin/.test(h), 'python keywords: ' + h);
+h = CT.highlight(P('sql'), "select a from t where b = 'x';");
+ok(/tk-k">select/.test(h) && /tk-k">from/.test(h) && /tk-s">'x'/.test(h), 'sql keywords in any case: ' + h);
 console.log(pass + ' passed, ' + fail + ' failed');
 process.exit(fail ? 1 : 0);

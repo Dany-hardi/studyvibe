@@ -144,7 +144,15 @@ html.dark .prc-editor { background: #1b1913; }
 .prc-gutter { padding: 1rem .5rem 1rem .9rem; text-align: right; user-select: none; overflow: hidden; color: var(--ink-3); font: 13.5px/1.6 ui-monospace, SFMono-Regular, Menlo, Consolas, monospace; background: var(--paper-2); border-right: 1px solid var(--line); min-width: 3.2rem; }
 .prc-gutter div { height: 1.6em; white-space: nowrap; }
 .prc-gutter .e { color: #fff; background: var(--danger); border-radius: 4px; padding: 0 .3rem; } .prc-gutter .w { color: #fff; background: var(--ochre); border-radius: 4px; padding: 0 .3rem; } .prc-gutter .i { text-decoration: underline dotted; }
-#pr-code-input { display: block; width: 100%; height: 100%; min-height: 20rem; border: 0; outline: 0; resize: none; padding: 1rem 1.1rem; font: 13.5px/1.6 ui-monospace, SFMono-Regular, Menlo, Consolas, monospace; tab-size: 4; background: transparent; color: var(--ink); white-space: pre; overflow: auto; }
+.prc-code { position: relative; min-width: 0; min-height: 0; overflow: hidden; }
+.prc-hl, #pr-code-input { position: absolute; inset: 0; margin: 0; width: 100%; height: 100%; min-height: 20rem; border: 0; padding: 1rem 1.1rem; font: 13.5px/1.6 ui-monospace, SFMono-Regular, Menlo, Consolas, monospace; letter-spacing: 0; tab-size: 4; white-space: pre; overflow: auto; box-sizing: border-box; word-spacing: 0; }
+.prc-hl { pointer-events: none; color: var(--ink); overflow: hidden; }
+#pr-code-input { display: block; resize: none; outline: 0; background: transparent; color: transparent; caret-color: var(--ink); -webkit-text-fill-color: transparent; }
+#pr-code-input::selection { background: rgba(80, 130, 220, .35); -webkit-text-fill-color: transparent; }
+.prc-hl .tk-k { color: #a626a4; font-weight: 600; } .prc-hl .tk-s { color: #2e7d32; } .prc-hl .tk-c { color: #7d7a72; font-style: italic; }
+.prc-hl .tk-n { color: #b45309; } .prc-hl .tk-t { color: #0b6e99; } .prc-hl .tk-f { color: #1d4ed8; } .prc-hl .tk-a { color: #9a6700; }
+html.dark .prc-hl .tk-k { color: #d7a0ff; } html.dark .prc-hl .tk-s { color: #8fd18f; } html.dark .prc-hl .tk-c { color: #8c8a80; }
+html.dark .prc-hl .tk-n { color: #f0a868; } html.dark .prc-hl .tk-t { color: #6cc4ea; } html.dark .prc-hl .tk-f { color: #8fb4ff; } html.dark .prc-hl .tk-a { color: #e5c06a; }
 .prc-problems { border-top: 1px solid var(--line); max-height: 8.5rem; overflow: auto; padding: .4rem 1rem; font-size: .85rem; background: var(--card); }
 .prc-problems:empty { display: none; }
 .prc-problems button { display: flex; gap: .7rem; width: 100%; text-align: left; background: none; border: 0; padding: .25rem 0; cursor: pointer; font: inherit; color: var(--ink-2); }

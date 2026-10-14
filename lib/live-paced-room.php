@@ -142,7 +142,10 @@ $prCfg = [
       </aside>
       <div class="prc-editor">
         <div class="prc-gutter" id="pr-code-gutter" aria-hidden="true"></div>
-        <textarea id="pr-code-input" spellcheck="false" autocomplete="off" autocapitalize="off" autocorrect="off" wrap="off"></textarea>
+        <div class="prc-code">
+          <pre class="prc-hl" id="pr-code-hl" aria-hidden="true"></pre>
+          <textarea id="pr-code-input" spellcheck="false" autocomplete="off" autocapitalize="off" autocorrect="off" wrap="off"></textarea>
+        </div>
       </div>
     </div>
     <div class="prc-problems" id="pr-code-problems" aria-live="polite"></div>
