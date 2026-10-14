@@ -309,6 +309,6 @@ if (!empty($waitingAny)) {
     @ob_end_flush(); flush();
     if (function_exists('fastcgi_finish_request')) { fastcgi_finish_request(); }
     @set_time_limit(120);
-    try { LiveCodeReview::processFor($pdo, 60, (int)$regId); } catch (Throwable $e) { error_log('results marking: ' . $e->getMessage()); }
+    try { if (!LiveCodeReview::kick($pdo, (int)$regId, 4)) { LiveCodeReview::processFor($pdo, 60, (int)$regId); } } catch (Throwable $e) { error_log('results marking: ' . $e->getMessage()); }
 }
 

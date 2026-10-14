@@ -54,11 +54,24 @@ final class AnthropicClient
         return self::provider() === 'gemini' ? self::geminiKey() !== '' : (defined('ANTHROPIC_API_KEY') && trim((string)ANTHROPIC_API_KEY) !== '');
     }
 
+    /** The Gemini models to try, in order (each has its own quota: when one is full or busy, the next one takes the call). */
+    public static function geminiModels(): array
+    {
+        $raw = defined('GEMINI_MARKING_MODEL') ? (string)GEMINI_MARKING_MODEL : '';
+        $out = [];
+        foreach (explode(',', $raw) as $m) {
+            $m = trim($m);
+            if (preg_match('/^[a-z0-9._-]{3,60}$/i', $m)) {
+                $out[] = $m;
+            }
+        }
+        return $out ?: ['gemini-2.5-flash'];
+    }
+
     public static function model(): string
     {
         if (self::provider() === 'gemini') {
-            $g = defined('GEMINI_MARKING_MODEL') ? trim((string)GEMINI_MARKING_MODEL) : '';
-            return preg_match('/^[a-z0-9._-]{3,60}$/i', $g) ? $g : 'gemini-2.5-flash';
+            return self::geminiModels()[0];
         }
         $m = defined('ANTHROPIC_MODEL') ? trim((string)ANTHROPIC_MODEL) : '';
         return preg_match('/^[a-z0-9._-]{3,60}$/i', $m) ? $m : 'claude-sonnet-5-5';
@@ -130,10 +143,19 @@ final class AnthropicClient
                 'responseJsonSchema' => $schema,
             ],
         ];
-        if (str_starts_with(self::model(), 'gemini-2.5-flash')) {
-            $payload['generationConfig']['thinkingConfig'] = ['thinkingBudget' => 1024];   // enough to trace the code, without 15 seconds of thinking
+        $status = 0; $body = ''; $used = self::model();
+        foreach (self::geminiModels() as $i => $m) {
+            $used = $m;
+            $p = $payload;
+            if (str_starts_with($m, 'gemini-2.5-flash')) {
+                $p['generationConfig']['thinkingConfig'] = ['thinkingBudget' => 1024];   // enough to trace the code, without 15 seconds of thinking
+            }
+            [$status, $body] = self::$transport !== null ? (self::$transport)($p) : self::postGemini($p, $timeout, $m);
+            // quota full, model busy or retired: the next model of the list takes the call
+            if (!in_array($status, [429, 503, 529, 404, 0], true)) {
+                break;
+            }
         }
-        [$status, $body] = self::$transport !== null ? (self::$transport)($payload) : self::postGemini($payload, $timeout);
         if ($status === 0) {
             return ['ok' => false, 'error' => 'timeout', 'retryable' => true];
         }
@@ -145,7 +167,11 @@ final class AnthropicClient
                 $status >= 500 => 'server',
                 default => 'bad_request',
             };
-            return ['ok' => false, 'error' => $err, 'retryable' => in_array($err, ['rate_limited', 'overloaded', 'server'], true)];
+            $res = ['ok' => false, 'error' => $err, 'retryable' => in_array($err, ['rate_limited', 'overloaded', 'server'], true)];
+            if ($status === 429 && preg_match('/"retryDelay"\s*:\s*"(\d+(?:\.\d+)?)s"/', $body, $mm)) {
+                $res['retry_after'] = (int)ceil((float)$mm[1]);      // the API says when the quota is back
+            }
+            return $res;
         }
         $json = json_decode($body, true);
         $text = '';
@@ -158,13 +184,13 @@ final class AnthropicClient
         if (!is_array($data)) {
             return ['ok' => false, 'error' => 'bad_answer', 'retryable' => true];
         }
-        return ['ok' => true, 'data' => $data, 'model' => (string)($json['modelVersion'] ?? self::model())];
+        return ['ok' => true, 'data' => $data, 'model' => (string)($json['modelVersion'] ?? $used)];
     }
 
     /** @return array{0:int,1:string} */
-    private static function postGemini(array $payload, int $timeout): array
+    private static function postGemini(array $payload, int $timeout, string $model): array
     {
-        $ch = curl_init(self::GEMINI_ENDPOINT . rawurlencode(self::model()) . ':generateContent');
+        $ch = curl_init(self::GEMINI_ENDPOINT . rawurlencode($model) . ':generateContent');
         curl_setopt_array($ch, [
             CURLOPT_POST => true,
             CURLOPT_POSTFIELDS => json_encode($payload, JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES),

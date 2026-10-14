@@ -107,10 +107,11 @@ final class LiveScoring
                 'email' => $registration['email'], 'name' => $registration['name'], 'session_title' => $session['title'],
                 'correct' => $correctCount, 'total' => $total, 'qas' => $qasDetails,
             ];
-            if (!empty($registration['resend_results'])) {
-                // the teacher had this copy marked again: a new copy of the email goes out, once
+            // the teacher had this copy marked again: a new copy of the email goes out, once (two workers finishing together: only one wins the flag)
+            $claim = $pdo->prepare("UPDATE live_eval_registrations SET resend_results = 0 WHERE id = :i AND resend_results = 1");
+            $claim->execute(['i' => $regId]);
+            if (!empty($registration['resend_results']) && $claim->rowCount() === 1) {
                 LiveMailQueue::resend($pdo, $regId, $payload);
-                $pdo->prepare("UPDATE live_eval_registrations SET resend_results = 0 WHERE id = :i")->execute(['i' => $regId]);
             } else {
                 LiveMailQueue::enqueue($pdo, $regId, $payload);
             }

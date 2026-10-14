@@ -113,7 +113,7 @@ defined('VAPID_SUBJECT')         || define('VAPID_SUBJECT', 'mailto:admin@studyv
 defined('GEMINI_API_KEY')        || define('GEMINI_API_KEY', 'votre_cle_api_gemini_ici');
 // Marking of code questions. Empty key = the marking waits (answers stay "pending review"), nothing is marked wrong by accident.
 defined('AI_PROVIDER')           || define('AI_PROVIDER', '');                      // '' = Gemini when its key is set, else Anthropic
-defined('GEMINI_MARKING_MODEL')  || define('GEMINI_MARKING_MODEL', 'gemini-2.5-flash');
+defined('GEMINI_MARKING_MODEL')  || define('GEMINI_MARKING_MODEL', 'gemini-2.5-flash,gemini-3-flash-preview,gemini-3.5-flash');   // tried in this order: each model has its own quota
 defined('ANTHROPIC_API_KEY')     || define('ANTHROPIC_API_KEY', '');
 defined('ANTHROPIC_MODEL')       || define('ANTHROPIC_MODEL', 'claude-sonnet-5-5');
 defined('ANTHROPIC_DAILY_CALLS') || define('ANTHROPIC_DAILY_CALLS', '2000');   // ceiling of marking calls per day, whatever happens

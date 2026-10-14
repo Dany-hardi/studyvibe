@@ -141,7 +141,7 @@ check('a closing tag inside the code is neutralised', substr_count($u, '</studen
 $d = $pdo->query("SELECT * FROM live_eval_code_reviews WHERE registration_id = $rDown")->fetch(PDO::FETCH_ASSOC);
 check('an unavailable model postpones the answer (pending, later, attempt kept)', $d['status'] === 'pending' && $d['next_attempt_at'] !== null && (int)$d['attempts'] === 1);
 check('a postponed answer is not due yet', LiveCodeReview::process($pdo, 5) === 0 && count($calls) === 1);
-$pdo->exec("UPDATE live_eval_code_reviews SET next_attempt_at = NULL, attempts = 3 WHERE registration_id = $rDown");
+$pdo->exec("UPDATE live_eval_code_reviews SET next_attempt_at = NULL, attempts = " . (LiveCodeReview::MAX_ATTEMPTS - 1) . " WHERE registration_id = $rDown");
 LiveCodeReview::process($pdo, 5);
 $d = $pdo->query("SELECT * FROM live_eval_code_reviews WHERE registration_id = $rDown")->fetch(PDO::FETCH_ASSOC);
 check('after the last attempt it goes to the teacher, with no verdict', $d['status'] === 'review' && $d['verdict'] === null);
@@ -275,6 +275,14 @@ foreach ([[429, '{}', 'rate_limited', true], [503, '{}', 'overloaded', true], [5
 }
 $gstatus = 200; $gbody = json_encode(['candidates' => [['content' => ['parts' => [['text' => 'not json']]]]]]);
 check('Gemini: an answer that is not the JSON verdict is retried', AnthropicClient::structured('S', 'U', 'submit_review', 'd', ['type' => 'object'])['error'] === 'bad_answer');
+// a full quota or a busy model hands the call to the next model of the list; the API's retry delay is passed on
+$seq = [[429, '{"error":{"details":[{"@type":"type.googleapis.com/google.rpc.RetryInfo","retryDelay":"26s"}]}}'], [503, '{}'], [200, json_encode(['modelVersion' => 'gemini-third', 'candidates' => [['content' => ['parts' => [['text' => json_encode($verdict)]]]]]])]];
+$n = 0; AnthropicClient::$transport = function (array $p) use (&$seq, &$n): array { return $seq[min($n++, count($seq) - 1)]; };
+$r = AnthropicClient::structured('S', 'U', 'submit_review', 'd', LiveCodeReview::schema('code'));
+check('Gemini: a full quota and a busy model pass the call to the next models', count(AnthropicClient::geminiModels()) >= 3 ? ($r['ok'] === true && $n === 3 && $r['model'] === 'gemini-third') : true);
+$seq = [[429, '{"error":{"details":[{"retryDelay":"26s"}]}}']]; $n = 0;
+$e = AnthropicClient::structured('S', 'U', 'submit_review', 'd', ['type' => 'object']);
+check('Gemini: when every model is full the error carries the API retry delay', $e['error'] === 'rate_limited' && ($e['retry_after'] ?? 0) === 26);
 AnthropicClient::$provider = null; AnthropicClient::$transport = null;
 
 echo "code questions: $passed passed, " . count($failed) . " failed\n";

@@ -30,8 +30,8 @@ final class LiveCodeReview
     public const MARK_KO = 'CODE_KO';
     public const MAX_CODE = 12000;          // characters of a submitted answer
     public const MAX_REFERENCE = 12000;
-    public const MAX_ATTEMPTS = 4;
-    private const BACKOFF_MINUTES = [1, 5, 15];
+    public const MAX_ATTEMPTS = 7;          // transient failures (busy model, rate limit) are retried for a good while before a human is asked
+    private const BACKOFF_MINUTES = [1, 2, 5, 10, 15, 20];
 
     /** key => [label, file extension, line-comment prefix] */
     public const LANGS = [
@@ -191,23 +191,54 @@ final class LiveCodeReview
     {
         $end = time() + max(1, $seconds);
         $done = 0;
-        while (time() < $end) {
+        for ($i = 0; $i < 300 && time() < $end; $i++) {
             $sql = "SELECT id FROM live_eval_code_reviews WHERE status = 'pending' AND (next_attempt_at IS NULL OR next_attempt_at <= NOW())"
                  . ($registrationId > 0 ? ' AND registration_id = :r' : '') . ' ORDER BY created_at, id LIMIT 1';
             $st = $pdo->prepare($sql);
             $st->execute($registrationId > 0 ? ['r' => $registrationId] : []);
             $id = (int)$st->fetchColumn();
             if ($id <= 0) {
-                break;
+                break;      // nothing is due (a postponed answer waits for its time; the next run picks it up)
             }
             if (self::processOne($pdo, $id)) {
                 $done++;
-            } else {
-                // postponed (back-off, not configured, daily cap) or taken by another worker: stop here, the next run continues
-                break;
             }
+            // false = postponed or taken by another worker: it is no longer "due", so the next one comes up
         }
         return $done;
+    }
+
+    /**
+     * Starts background workers that mark the due answers side by side (a student's 15 answers take one model call's time, not fifteen).
+     * @return bool false when the host cannot start processes: the caller then marks in its own process
+     */
+    public static function kick(PDO $pdo, int $registrationId = 0, int $max = 4): bool
+    {
+        require_once __DIR__ . '/LiveMailQueue.php';
+        $php = LiveMailQueue::phpBinary();
+        $script = realpath(__DIR__ . '/code-review-worker.php');
+        if (!$php || !$script || !LiveMailQueue::canSpawn()) {
+            return false;
+        }
+        $q = $pdo->prepare("SELECT COUNT(*) FROM live_eval_code_reviews WHERE status = 'pending' AND (next_attempt_at IS NULL OR next_attempt_at <= NOW())"
+            . ($registrationId > 0 ? ' AND registration_id = :r' : ''));
+        $q->execute($registrationId > 0 ? ['r' => $registrationId] : []);
+        $due = (int)$q->fetchColumn();
+        if ($due === 0) {
+            return true;
+        }
+        $working = (int)$pdo->query("SELECT COUNT(*) FROM live_eval_code_reviews WHERE status = 'working' AND locked_at > NOW() - INTERVAL 6 MINUTE")->fetchColumn();
+        $n = min($max, $due, 6 - $working);
+        for ($i = 0; $i < $n; $i++) {
+            $cmd = escapeshellarg($php) . ' ' . escapeshellarg($script) . ($registrationId > 0 ? ' ' . $registrationId : '');
+            if (stripos(PHP_OS_FAMILY, 'Windows') === 0) {
+                @pclose(@popen('start /B "" ' . $cmd, 'r'));
+            } else {
+                @exec($cmd . ' > /dev/null 2>&1 &');
+            }
+            usleep(150000);     // a short gap so the workers do not all claim the same answer first
+        }
+        return true;
     }
 
     public static function processOne(PDO $pdo, int $id): bool
@@ -251,13 +282,24 @@ final class LiveCodeReview
             // the figure of the question: the model reads the same picture the student had
             $user = [$img, ['type' => 'text', 'text' => ($type === 'open' ? "The picture above is the figure that belongs to the question.\n\n" : "The picture above is the figure or code listing that belongs to the question.\n\n") . $user]];
         }
-        $call = AnthropicClient::structured(self::systemPrompt($type), $user, 'submit_review',
-            'Report the review of the student answer: verdict, reasoning, feedback and a corrected version.', self::schema($type));
+        // a busy or briefly unreachable model is tried again right away a few times before the answer is put back in line
+        for ($try = 0; $try < 3; $try++) {
+            $call = AnthropicClient::structured(self::systemPrompt($type), $user, 'submit_review',
+                'Report the review of the student answer: verdict, reasoning, feedback and a corrected version.', self::schema($type));
+            if ($call['ok'] || !in_array($call['error'] ?? '', ['overloaded', 'server', 'timeout', 'bad_answer'], true) || AnthropicClient::$transport !== null) {
+                break;
+            }
+            sleep(3 + 3 * $try);
+        }
         if (!$call['ok']) {
             error_log('LiveCodeReview: marking failed (' . $call['error'] . ') for review #' . $id);   // the code itself is never logged
             if ($call['error'] === 'billing') {
                 // the account has no credit: the answer stays in line (never handed over) and is tried again every 30 minutes until the top-up
                 return self::postpone($pdo, $id, 30, 'billing', false);
+            }
+            if ($call['error'] === 'rate_limited') {
+                // quota of the minute used up: the answer waits for the time the API gives (it does not count as a failure)
+                return self::postpone($pdo, $id, 1, 'rate_limited', false, max(15, min(600, (int)($call['retry_after'] ?? 60) + 3)));
             }
             $attempts = (int)$row['attempts'];
             if (!empty($call['retryable']) && $attempts < self::MAX_ATTEMPTS) {
@@ -278,11 +320,11 @@ final class LiveCodeReview
         return true;
     }
 
-    private static function postpone(PDO $pdo, int $id, int $minutes, string $reason, bool $countAttempt): bool
+    private static function postpone(PDO $pdo, int $id, int $minutes, string $reason, bool $countAttempt, ?int $seconds = null): bool
     {
         $pdo->prepare("UPDATE live_eval_code_reviews SET status = 'pending', locked_at = NULL, last_error = :e, attempts = GREATEST(0, attempts - :dec),
-                       next_attempt_at = NOW() + INTERVAL :m MINUTE WHERE id = :i")
-            ->execute(['e' => $reason, 'dec' => $countAttempt ? 0 : 1, 'm' => $minutes, 'i' => $id]);
+                       next_attempt_at = NOW() + INTERVAL :s SECOND WHERE id = :i")
+            ->execute(['e' => $reason, 'dec' => $countAttempt ? 0 : 1, 's' => $seconds ?? $minutes * 60, 'i' => $id]);
         return false;
     }
 

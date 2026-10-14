@@ -71,13 +71,13 @@ final class LiveMailQueue
         }
     }
 
-    private static function canSpawn(): bool
+    public static function canSpawn(): bool
     {
         $off = array_map('trim', explode(',', (string)ini_get('disable_functions')));
         return function_exists('exec') && !in_array('exec', $off, true);
     }
 
-    private static function phpBinary(): ?string
+    public static function phpBinary(): ?string
     {
         if (defined('PHP_CLI_BIN') && is_file((string)PHP_CLI_BIN)) {
             return (string)PHP_CLI_BIN;
@@ -91,12 +91,12 @@ final class LiveMailQueue
     }
 
     /** Worker loop. Several can run side by side: each takes one row at a time with an atomic claim. */
-    public static function work(PDO $pdo, int $slot): void
+    public static function work(PDO $pdo, int $slot, int $maxSeconds = 1800): void
     {
         require_once __DIR__ . '/../Mailer.php';
         $token = bin2hex(random_bytes(8));
         $idle = 0;
-        $deadline = time() + 1800;   // a worker never lives longer than 30 minutes
+        $deadline = time() + max(5, $maxSeconds);   // a worker never lives longer than 30 minutes (the cron run only takes a few seconds)
 
         // Rows left 'sending' by a crashed worker go back to the queue
         $pdo->exec("UPDATE live_eval_mail_queue SET status='pending', claim=NULL WHERE status='sending' AND created_at < (NOW() - INTERVAL 15 MINUTE)");

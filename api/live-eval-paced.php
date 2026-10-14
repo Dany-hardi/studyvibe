@@ -65,8 +65,12 @@ try {
         flush();
         if (function_exists('fastcgi_finish_request')) { fastcgi_finish_request(); }
         if ($work) {
-            @set_time_limit(240);
-            try { LiveCodeReview::processFor($pdo, 200, $regId); } catch (Throwable $e) { error_log('paced marking: ' . $e->getMessage()); }
+            try {
+                if (!LiveCodeReview::kick($pdo, $regId, 4)) {      // workers side by side when the host allows it
+                    @set_time_limit(240);
+                    LiveCodeReview::processFor($pdo, 200, $regId);
+                }
+            } catch (Throwable $e) { error_log('paced marking: ' . $e->getMessage()); }
         }
         exit;
     };

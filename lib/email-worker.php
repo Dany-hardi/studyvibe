@@ -30,7 +30,13 @@ LiveEvalModes::advance($pdo);
 $r = LiveReminders::dispatch($pdo);
 echo 'reminders: ' . $r['queued'] . ' for ' . $r['sessions'] . " session(s)\n";
 require_once __DIR__ . '/LiveCodeReview.php';
-try { echo 'code reviews: ' . LiveCodeReview::processFor($pdo, 45) . "\n"; } catch (Throwable $e) { error_log('code reviews: ' . $e->getMessage()); }
+try {
+    // side by side when the host lets us start processes, otherwise one after the other for this run
+    if (!LiveCodeReview::kick($pdo, 0, 4)) { echo 'code reviews: ' . LiveCodeReview::processFor($pdo, 45) . "\n"; } else { echo "code reviews: workers started\n"; }
+} catch (Throwable $e) { error_log('code reviews: ' . $e->getMessage()); }
+// results emails of live evaluations (also sent by workers started when they are queued; this is the safety net)
+require_once __DIR__ . '/LiveMailQueue.php';
+try { LiveMailQueue::work($pdo, 0, 40); } catch (Throwable $e) { error_log('live mails: ' . $e->getMessage()); }
 echo 'sent: ' . EmailQueue::work($pdo) . "\n";
 echo 'push: ' . PushQueue::work($pdo) . "\n";
 // Careers: screening, interview reminders, daily digest (own lock, runs only what is due)

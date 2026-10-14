@@ -829,16 +829,17 @@ try {
                 if ($own->fetchColumn() && LiveParticipants::isSubmitted($regRow)) {
                     auditLog('live_recorrect', 'registration ' . $regId . ', session ' . $sid);
                     $queued = LiveCodeReview::recorrect($pdo, $regId);
+                    $spawned = $queued > 0 && LiveCodeReview::kick($pdo, $regId, 5);   // the answers are marked side by side in background workers
                     header("Location: /teacher/dashboard.php?course_id={$selectedCourse['id']}&success=live_recorrect&open_session={$sid}#tab-live-eval");
-                    // the answer goes out first; the marking carries on behind (the cron worker finishes it if this request is cut short)
-                    if ($queued > 0) {
+                    if ($queued > 0 && !$spawned) {
+                        // this host cannot start workers: the answer goes out first, then this request marks (the cron run finishes it if it is cut short)
                         if (session_status() === PHP_SESSION_ACTIVE) { session_write_close(); }
                         ignore_user_abort(true);
                         header('Content-Length: 0'); header('Connection: close');
                         @ob_end_flush(); flush();
                         if (function_exists('fastcgi_finish_request')) { fastcgi_finish_request(); }
-                        @set_time_limit(240);
-                        try { LiveCodeReview::processFor($pdo, 200, $regId); } catch (Throwable $e) { error_log('recorrect marking: ' . $e->getMessage()); }
+                        @set_time_limit(280);
+                        try { LiveCodeReview::processFor($pdo, 270, $regId); } catch (Throwable $e) { error_log('recorrect marking: ' . $e->getMessage()); }
                     }
                     exit;
                 }
