@@ -301,3 +301,14 @@ if ($waitingAny): ?>
 <?php endif; ?>
 </body>
 </html>
+<?php
+// Answers still waiting for the marking are pushed along from here too, after the page is sent, so the result never depends only on the cron worker
+if (!empty($waitingAny)) {
+    if (session_status() === PHP_SESSION_ACTIVE) { session_write_close(); }
+    ignore_user_abort(true);
+    @ob_end_flush(); flush();
+    if (function_exists('fastcgi_finish_request')) { fastcgi_finish_request(); }
+    @set_time_limit(120);
+    try { LiveCodeReview::processFor($pdo, 60, (int)$regId); } catch (Throwable $e) { error_log('results marking: ' . $e->getMessage()); }
+}
+
