@@ -63,7 +63,7 @@ final class LiveScoring
      * marked gets a provisional score and no email yet: LiveCodeReview calls this again when the last one is marked.
      * @return float score in percent
      */
-    public static function finalize(PDO $pdo, array $session, array $registration, array $questions): float
+    public static function finalize(PDO $pdo, array $session, array $registration, array $questions, string $submitMode = 'sync'): float
     {
         $regId = (int)$registration['id'];
         $stmt = $pdo->prepare("SELECT question_id, selected_option FROM live_eval_answers WHERE registration_id = :rid");
@@ -87,7 +87,10 @@ final class LiveScoring
             ];
         }
         $score = $total > 0 ? round(($correctCount / $total) * 100, 2) : 100.00;
-        $pdo->prepare("UPDATE live_eval_registrations SET score = :score WHERE id = :id")->execute(['score' => $score, 'id' => $regId]);
+        // the mark is kept as a count over the number of questions (and as a percentage): the table and the exports read the same numbers
+        $pdo->prepare("UPDATE live_eval_registrations SET score = :score, correct_count = :cc, question_count = :qc,
+                       submitted_at = COALESCE(submitted_at, NOW()), submit_mode = COALESCE(submit_mode, :mode) WHERE id = :id")
+            ->execute(['score' => $score, 'cc' => $correctCount, 'qc' => $total, 'mode' => $submitMode, 'id' => $regId]);
 
         $waiting = 0;
         try {

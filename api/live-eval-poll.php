@@ -249,7 +249,7 @@ try {
     // Track active connection timestamp. The "online" window is 10 s, so one write every 4 s per participant is plenty.
     if (($_SESSION['live_last_seen'][$code] ?? 0) < time() - 4) {
         try {
-            $updateActStmt = $pdo->prepare("UPDATE live_eval_registrations SET last_activity = NOW() WHERE id = :id");
+            $updateActStmt = $pdo->prepare("UPDATE live_eval_registrations SET last_activity = NOW(), first_seen = COALESCE(first_seen, NOW()) WHERE id = :id");
             $updateActStmt->execute(['id' => $regId]);
             $_SESSION['live_last_seen'][$code] = time();
         } catch (PDOException $e) {
@@ -627,5 +627,11 @@ try {
  */
 function calculateAndSaveScore(PDO $pdo, array $session, array $registration, array $questions): float
 {
-    return LiveScoring::finalize($pdo, $session, $registration, $questions);
+    $firstTime = empty($registration['submitted_at']) && ($registration['score'] ?? null) === null;
+    $score = LiveScoring::finalize($pdo, $session, $registration, $questions);
+    if ($firstTime) {
+        require_once __DIR__ . '/../lib/LiveEvents.php';
+        LiveEvents::log($pdo, (int)$session['id'], (int)$registration['id'], 'submitted', 'live room');
+    }
+    return $score;
 }

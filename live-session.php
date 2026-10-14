@@ -267,11 +267,14 @@ if (!$error && $_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['register_l
                 'student_id'  => $studentId ?? null,
                 'student_id2' => $studentId ?? null,
             ]);
+            $isNewRegistration = $stmt->rowCount() === 1;   // 1 = inserted, 2 or 0 = already registered
 
             // Fetch registration identifier
             $stmt = $pdo->prepare("SELECT id FROM live_eval_registrations WHERE session_id = :sid AND email = :email");
             $stmt->execute(['sid' => $session['id'], 'email' => $email]);
             $regId = (int)$stmt->fetchColumn();
+            require_once __DIR__ . '/lib/LiveEvents.php';
+            if (!empty($isNewRegistration)) { LiveEvents::log($pdo, (int)$session['id'], $regId, 'registered', ($studentId ?? null) ? 'account' : 'guest'); }
 
             if ($regId <= 0) {
                 throw new PDOException("Impossible de récupérer l'ID d'inscription.");

@@ -1148,6 +1148,59 @@ class Database
         } catch (PDOException $ex) { /* table absent on a very old schema */ }
         try { $pdo->exec("ALTER TABLE `career_jobs` ADD UNIQUE KEY `uq_career_public_id` (`public_id`)"); } catch (PDOException $ex) { /* already applied */ }
 
+        // Migration 2.31: durable tracking of live evaluations (marks as a count over the number of questions, first and last sight, how the copy was
+        // handed in, a timeline of events) and the archives (snapshots of sessions and of the logs, kept for review and maintenance).
+        foreach ([
+            "ALTER TABLE `live_eval_registrations` ADD COLUMN `correct_count` INT DEFAULT NULL, ADD COLUMN `question_count` INT DEFAULT NULL, ADD COLUMN `first_seen` DATETIME DEFAULT NULL, ADD COLUMN `submit_mode` VARCHAR(12) DEFAULT NULL",
+            "CREATE TABLE IF NOT EXISTS `live_eval_events` (
+                `id` INT AUTO_INCREMENT PRIMARY KEY,
+                `session_id` INT NOT NULL,
+                `registration_id` INT DEFAULT NULL,
+                `event` VARCHAR(24) NOT NULL,
+                `detail` VARCHAR(255) DEFAULT NULL,
+                `created_at` TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+                KEY `idx_lee_session` (`session_id`, `created_at`),
+                KEY `idx_lee_reg` (`registration_id`, `created_at`)
+            ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4",
+            "CREATE TABLE IF NOT EXISTS `archives` (
+                `id` INT AUTO_INCREMENT PRIMARY KEY,
+                `kind` VARCHAR(16) NOT NULL,
+                `ref_id` INT DEFAULT NULL,
+                `session_id` INT DEFAULT NULL,
+                `teacher_id` INT DEFAULT NULL,
+                `title` VARCHAR(200) NOT NULL DEFAULT '',
+                `reason` VARCHAR(32) NOT NULL DEFAULT '',
+                `items` INT NOT NULL DEFAULT 0,
+                `bytes` INT NOT NULL DEFAULT 0,
+                `sha256` CHAR(64) NOT NULL,
+                `payload` LONGBLOB NOT NULL,
+                `created_at` TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+                KEY `idx_arch_session` (`session_id`, `created_at`),
+                KEY `idx_arch_teacher` (`teacher_id`, `created_at`),
+                KEY `idx_arch_kind` (`kind`, `created_at`)
+            ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4",
+            "CREATE TABLE IF NOT EXISTS `server_errors` (
+                `id` INT AUTO_INCREMENT PRIMARY KEY,
+                `context` VARCHAR(60) NOT NULL DEFAULT '',
+                `message` VARCHAR(500) NOT NULL,
+                `where_at` VARCHAR(200) NOT NULL DEFAULT '',
+                `hash` CHAR(16) NOT NULL,
+                `hits` INT NOT NULL DEFAULT 1,
+                `first_at` TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+                `last_at` TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+                UNIQUE KEY `uq_se_hash_day` (`hash`),
+                KEY `idx_se_last` (`last_at`)
+            ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4",
+        ] as $ddl) {
+            try { $pdo->exec($ddl); } catch (PDOException $ex) { /* already applied */ }
+        }
+        try {
+            // marks of the copies handed in before this migration: the count follows from the stored percentage
+            $pdo->exec("UPDATE live_eval_registrations r SET r.question_count = (SELECT COUNT(*) FROM live_eval_questions q WHERE q.session_id = r.session_id),
+                        r.correct_count = ROUND(r.score / 100 * (SELECT COUNT(*) FROM live_eval_questions q WHERE q.session_id = r.session_id))
+                        WHERE r.score IS NOT NULL AND r.question_count IS NULL");
+        } catch (PDOException $ex) { /* columns not there yet on a very old schema */ }
+
         // Migration 2.30: load balancer of the marking keys (one lane per key and model: when it may be used again, how many calls this minute).
         try {
             $pdo->exec("

@@ -246,7 +246,7 @@ final class LivePaced
         if ($window === 'open') {
             self::settle($pdo, $regId);
         } elseif ($window === 'closed') {
-            self::submit($pdo, $session, $regId, true);   // the session is over: what is in the bucket is handed in
+            self::submit($pdo, $session, $regId, true, 'auto');   // the session is over: what is in the bucket is handed in
             return ['ok' => true, 'submitted' => true, 'window' => 'closed'];
         }
         $cur = $reg['current_q_id'] ? self::questionOf($pdo, (int)$session['id'], (int)$reg['current_q_id']) : null;
@@ -257,7 +257,7 @@ final class LivePaced
      * Hands everything in. Without $confirm, a bucket that holds unanswered questions is not submitted: the list comes back instead.
      * @return array{ok:bool,error?:string,unanswered?:int[],answered?:int,total?:int,pending_ai?:int,score?:?float}
      */
-    public static function submit(PDO $pdo, array $session, int $regId, bool $confirm): array
+    public static function submit(PDO $pdo, array $session, int $regId, bool $confirm, string $mode = 'manual'): array
     {
         $reg = self::registration($pdo, $regId);
         if (!$reg) {
@@ -279,11 +279,13 @@ final class LivePaced
             return ['ok' => false, 'error' => 'unanswered', 'unanswered' => $unanswered, 'answered' => count($questions) - count($unanswered), 'total' => count($questions)];
         }
         // claim the submission: two clicks or a click and the end of the session hand in once
-        $claim = $pdo->prepare("UPDATE live_eval_registrations SET submitted_at = NOW(), current_q_id = NULL, current_since = NULL WHERE id = :i AND submitted_at IS NULL");
-        $claim->execute(['i' => $regId]);
+        $claim = $pdo->prepare("UPDATE live_eval_registrations SET submitted_at = NOW(), submit_mode = :m, current_q_id = NULL, current_since = NULL WHERE id = :i AND submitted_at IS NULL");
+        $claim->execute(['i' => $regId, 'm' => $mode]);
         if ($claim->rowCount() !== 1) {
             return ['ok' => true, 'already' => true];
         }
+        require_once __DIR__ . '/LiveEvents.php';
+        LiveEvents::log($pdo, (int)$session['id'], $regId, $mode === 'auto' ? 'auto_submitted' : 'submitted', count($questions) - count($unanswered) . '/' . count($questions) . ' answered');
         foreach ($questions as $q) {
             $qid = (int)$q['id'];
             $a = $drafts[$qid]['answer'] ?? '';
@@ -299,7 +301,7 @@ final class LivePaced
             }
         }
         $fresh = self::registration($pdo, $regId);
-        $score = LiveScoring::finalize($pdo, $session, (array)$fresh, $questions);
+        $score = LiveScoring::finalize($pdo, $session, (array)$fresh, $questions, $mode);
         return ['ok' => true, 'answered' => count($questions) - count($unanswered), 'total' => count($questions), 'pending_ai' => LiveCodeReview::pendingCount($pdo, $regId), 'score' => $score];
     }
 
@@ -333,7 +335,7 @@ final class LivePaced
             foreach ($st->fetchAll(PDO::FETCH_ASSOC) as $r) {
                 $session = self::session($pdo, (int)$r['session_id']);
                 if ($session) {
-                    self::submit($pdo, $session, (int)$r['id'], true);
+                    self::submit($pdo, $session, (int)$r['id'], true, 'auto');
                     $n++;
                 }
             }

@@ -109,7 +109,11 @@ try {
         }
 
         require_once __DIR__ . '/../lib/LiveParticipants.php';
-        $participants = array_map(fn($r) => ['id' => (int)$r['id'], 'status' => $r['status'], 'submitted' => (bool)$r['submitted'], 'score' => $r['score'] !== null ? (float)$r['score'] : null], LiveParticipants::rows($pdo, $sid));
+        $participants = array_map(fn($r) => [
+            'id' => (int)$r['id'], 'status' => $r['status'], 'submitted' => (bool)$r['submitted'], 'idle' => $r['idle_seconds'] !== null ? (int)$r['idle_seconds'] : null,
+            'answered' => (int)$r['n_answered'], 'total' => (int)$r['total'], 'mark' => $r['mark'], 'percent' => $r['percent'],
+            'submitted_at' => $r['submitted_at'] ? date('d/m/Y H:i', strtotime($r['submitted_at'])) : null, 'submit_mode' => $r['submit_mode'] ?: null,
+        ], LiveParticipants::rows($pdo, $sid));
 
         $results[] = [
             'participants'           => $participants,

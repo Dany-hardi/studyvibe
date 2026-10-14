@@ -393,6 +393,14 @@ function logServerError(Throwable $e, string $context = ''): void
     }
     $msg .= ' ' . $e->getMessage() . ' in ' . $e->getFile() . ':' . $e->getLine();
     error_log($msg);
+    // kept in the database too (one row per kind of error, with a counter), so it can be reviewed and archived
+    try {
+        $where = basename($e->getFile()) . ':' . $e->getLine();
+        $hash  = substr(hash('sha256', $context . '|' . get_class($e) . '|' . $e->getMessage() . '|' . $where), 0, 16);
+        Database::getInstance()->prepare("INSERT INTO server_errors (context, message, where_at, hash) VALUES (:c, :m, :w, :h)
+                                          ON DUPLICATE KEY UPDATE hits = hits + 1, last_at = NOW()")
+            ->execute(['c' => mb_substr($context, 0, 60), 'm' => mb_substr($e->getMessage(), 0, 500), 'w' => mb_substr($where, 0, 200), 'h' => $hash]);
+    } catch (Throwable $ignored) { /* the log must never break the request */ }
 }
 
 /**

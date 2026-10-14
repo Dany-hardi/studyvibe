@@ -27,6 +27,8 @@ require_once __DIR__ . '/../lib/MediaStore.php';
 require_once __DIR__ . '/../lib/LiveEvalModes.php';
 require_once __DIR__ . '/../lib/LiveCodeReview.php';
 require_once __DIR__ . '/../lib/LiveParticipants.php';
+require_once __DIR__ . '/../lib/Archive.php';
+require_once __DIR__ . '/../lib/LiveEvents.php';
 require_once __DIR__ . '/../lib/BulkPackage.php';
 require_once __DIR__ . '/../lib/AssignmentRubric.php';
 require_once __DIR__ . '/../lib/AssignmentSimilarity.php';
@@ -794,6 +796,9 @@ try {
         if ($action === 'delete_live_session') {
             $sid = (int)($_POST['session_id'] ?? 0);
             if ($sid > 0) {
+                $own = $pdo->prepare("SELECT 1 FROM live_eval_sessions WHERE id = :id AND teacher_id = :tid");
+                $own->execute(['id' => $sid, 'tid' => $teacherId]);
+                if ($own->fetchColumn()) { try { Archive::snapshotSession($pdo, $sid, 'before_delete', $teacherId); } catch (Throwable $e) { error_log('archive: ' . $e->getMessage()); } }
                 $stmt = $pdo->prepare("DELETE FROM live_eval_sessions WHERE id=:id AND teacher_id=:tid");
                 $stmt->execute(['id' => $sid, 'tid' => $teacherId]);
                 header("Location: /teacher/dashboard.php?course_id={$selectedCourse['id']}&success=live_session_deleted#tab-live-eval"); exit;
@@ -808,6 +813,7 @@ try {
                 $stmt = $pdo->prepare("SELECT id FROM live_eval_sessions WHERE id = :sid AND teacher_id = :tid");
                 $stmt->execute(['sid' => $sid, 'tid' => $teacherId]);
                 if ($stmt->fetch()) {
+                    try { Archive::snapshotRegistration($pdo, $regId, 'excluded'); LiveEvents::log($pdo, $sid, $regId, 'excluded', 'by the teacher'); } catch (Throwable $e) { error_log('archive: ' . $e->getMessage()); }
                     $delStmt = $pdo->prepare("DELETE FROM live_eval_registrations WHERE id = :id AND session_id = :sid");
                     $delStmt->execute(['id' => $regId, 'sid' => $sid]);
                     header("Location: /teacher/dashboard.php?course_id={$selectedCourse['id']}&success=live_participant_deleted&open_session={$sid}#tab-live-eval");
@@ -828,6 +834,7 @@ try {
                 $regRow = (array)$reg->fetch(PDO::FETCH_ASSOC);
                 if ($own->fetchColumn() && LiveParticipants::isSubmitted($regRow)) {
                     auditLog('live_recorrect', 'registration ' . $regId . ', session ' . $sid);
+                    LiveEvents::log($pdo, $sid, $regId, 'recorrected', 'by the teacher');
                     $queued = LiveCodeReview::recorrect($pdo, $regId);
                     $spawned = $queued > 0 && LiveCodeReview::kick($pdo, $regId, 5);   // the answers are marked side by side in background workers
                     header("Location: /teacher/dashboard.php?course_id={$selectedCourse['id']}&success=live_recorrect&open_session={$sid}#tab-live-eval");
@@ -853,6 +860,7 @@ try {
                 $stmt = $pdo->prepare("SELECT id FROM live_eval_sessions WHERE id = :sid AND teacher_id = :tid");
                 $stmt->execute(['sid' => $sid, 'tid' => $teacherId]);
                 if ($stmt->fetch()) {
+                    try { Archive::snapshotSession($pdo, $sid, 'before_reset', $teacherId); LiveEvents::log($pdo, $sid, null, 'session_reset', 'by the teacher'); } catch (Throwable $e) { error_log('archive: ' . $e->getMessage()); }
                     // Supprimer toutes les réponses des participants de cette session
                     $stmtDelAnswers = $pdo->prepare("
                         DELETE FROM live_eval_answers 
@@ -1323,6 +1331,16 @@ function td(string $key, array $r = []): string {
     $s = $tdDict[$tdLang][$key] ?? $tdDict['fr'][$key] ?? $key;
     foreach ($r as $k => $v) { $s = str_replace('{' . $k . '}', (string)$v, $s); }
     return $s;
+}
+/** "5 s", "3 min", "2 h", "4 j" */
+function tdAgo(int $sec): string {
+    global $tdLang;
+    $en = ($tdLang ?? 'fr') === 'en';
+    if ($sec < 0) { $sec = 0; }
+    if ($sec < 90) { return ($en ? '' : 'il y a ') . $sec . ' s'; }
+    if ($sec < 5400) { return ($en ? '' : 'il y a ') . round($sec / 60) . ' min'; }
+    if ($sec < 172800) { return ($en ? '' : 'il y a ') . round($sec / 3600) . ' h'; }
+    return ($en ? '' : 'il y a ') . round($sec / 86400) . ($en ? ' d' : ' j');
 }
 function tde(string $key, array $r = []): string { return htmlspecialchars(td($key, $r), ENT_QUOTES, 'UTF-8'); }
 function tdIcon(string $name): string {
@@ -2401,6 +2419,7 @@ $tdHasCourse = (bool)$selectedCourse;
                                             <div class="t-menu-list">
                                                 <a href="#" onclick="SVReview.open(<?= $sid ?>); return false;"><?= tde('rv_open') ?></a>
                                                 <a href="/teacher/live-analysis.php?session_id=<?= $sid ?>"><?= tde('live_analysis') ?></a>
+                                                <a href="/teacher/archives.php?session_id=<?= $sid ?>"><?= tde('btn_archives') ?></a>
                                                 <?php if (array_filter($ls['questions'] ?? [], fn($qq) => LiveCodeReview::handles($qq['question_type'] ?? ''))): ?>
                                                     <a href="/teacher/live-code-review.php?session_id=<?= $sid ?>"><?= tde('code_corrections_btn') ?></a>
                                                 <?php endif; ?>
@@ -2677,9 +2696,12 @@ $tdHasCourse = (bool)$selectedCourse;
                                                     <tr>
                                                         <th data-sort="text"><?= tde('col_name') ?></th>
                                                         <th data-sort="text"><?= tde('col_email') ?></th>
-                                                        <th data-sort="num" class="text-right"><?= tde('col_score') ?></th>
-                                                        <th data-sort="text"><?= tde('col_status') ?></th>
                                                         <th data-sort="num"><?= tde('col_registered_at') ?></th>
+                                                        <th data-sort="num"><?= tde('col_last_seen') ?></th>
+                                                        <th data-sort="num"><?= tde('col_progress') ?></th>
+                                                        <th data-sort="text"><?= tde('col_status') ?></th>
+                                                        <th data-sort="num"><?= tde('col_submitted_at') ?></th>
+                                                        <th data-sort="num" class="text-right"><?= tde('col_score') ?></th>
                                                         <th><span class="sr-only"><?= tde('col_actions') ?></span></th>
                                                     </tr>
                                                 </thead>
@@ -2700,15 +2722,18 @@ $tdHasCourse = (bool)$selectedCourse;
                                                                 <?php endif; ?>
                                                             </td>
                                                             <td style="color:var(--ink-2)"><?= htmlspecialchars($p['email']) ?></td>
-                                                            <td class="text-right part-score" data-v="<?= $p['score'] !== null ? (float)$p['score'] : -1 ?>">
-                                                                <?php if ($p['score'] !== null): ?>
-                                                                    <strong><?= number_format((float)$p['score'], 2) ?></strong><span style="color:var(--ink-3)"> / 20</span>
-                                                                <?php else: ?><span style="color:var(--ink-3)"><?= tde('score_pending') ?></span><?php endif; ?>
-                                                            </td>
+                                                            <td class="num" data-v="<?= strtotime($p['registered_at']) ?>"><?= date('d/m/Y H:i', strtotime($p['registered_at'])) ?></td>
+                                                            <td class="num part-seen" data-v="<?= $p['idle_seconds'] !== null ? -(int)$p['idle_seconds'] : -999999999 ?>" title="<?= $p['first_seen'] ? tde('first_seen_at') . ' ' . date('d/m/Y H:i:s', strtotime($p['first_seen'])) : '' ?>"><?= $p['idle_seconds'] !== null ? tdAgo((int)$p['idle_seconds']) : '—' ?></td>
+                                                            <td class="num part-progress" data-v="<?= (int)$p['n_answered'] ?>"><?= (int)$p['n_answered'] ?> / <?= (int)$p['total'] ?></td>
                                                             <td data-v="<?= htmlspecialchars($pStatus) ?>" class="part-status">
                                                                 <span class="t-chip <?= in_array($pStatus, ['online', 'marking'], true) ? 'live' : 'off' ?>"><i></i><span><?= tde('status_' . $pStatus) ?></span></span>
                                                             </td>
-                                                            <td class="num" data-v="<?= strtotime($p['registered_at']) ?>"><?= date('d/m/Y H:i', strtotime($p['registered_at'])) ?></td>
+                                                            <td class="num part-submitted" data-v="<?= $p['submitted_at'] ? strtotime($p['submitted_at']) : 0 ?>"><?= $p['submitted_at'] ? date('d/m/Y H:i', strtotime($p['submitted_at'])) . ($p['submit_mode'] ? ' <span style="color:var(--ink-3)">· ' . tde('submit_' . $p['submit_mode']) . '</span>' : '') : '—' ?></td>
+                                                            <td class="text-right part-score" data-v="<?= $p['mark'] !== null ? (int)$p['mark'] : -1 ?>">
+                                                                <?php if ($p['mark'] !== null): ?>
+                                                                    <strong><?= (int)$p['mark'] ?></strong><span style="color:var(--ink-3)"> / <?= (int)$p['total'] ?></span> <span style="color:var(--ink-3); font-size:.85em">(<?= str_replace('.', ',', (string)$p['percent']) ?> %)</span>
+                                                                <?php else: ?><span style="color:var(--ink-3)"><?= tde('score_pending') ?></span><?php endif; ?>
+                                                            </td>
                                                             <td class="text-right">
                                                                 <form method="POST" action="/teacher/dashboard.php?course_id=<?= (int)$selectedCourse['id'] ?>&action=delete_live_participant" style="display:inline">
                                                                     <?= csrfInput(); ?>
@@ -4893,7 +4918,7 @@ function escapeHtml(str) {
 
 window.SV_PART_STATUS = <?= json_encode([
     'registered' => td('status_registered'), 'online' => td('status_online'), 'offline' => td('status_offline'), 'submitted' => td('status_submitted'),
-    'marking' => td('status_marking'), 'needs_review' => td('status_needs_review'), 'cancelled' => td('status_cancelled'), 'score_pending' => td('score_pending'),
+    'marking' => td('status_marking'), 'submit_manual' => td('submit_manual'), 'submit_auto' => td('submit_auto'), 'submit_sync' => td('submit_sync'), 'needs_review' => td('status_needs_review'), 'cancelled' => td('status_cancelled'), 'score_pending' => td('score_pending'),
 ], JSON_UNESCAPED_UNICODE | JSON_HEX_TAG) ?>;
 function pollTeacherLiveStats() {
     const liveTab = document.getElementById('tab-live-eval');
@@ -4924,11 +4949,16 @@ function pollTeacherLiveStats() {
                             chip.className = 't-chip ' + (p.status === 'online' || p.status === 'marking' ? 'live' : 'off');
                             chip.querySelector('span').textContent = (window.SV_PART_STATUS || {})[p.status] || p.status;
                         }
+                        const ago = (n) => { const en = (document.documentElement.lang || 'fr').startsWith('en'), pre = en ? '' : 'il y a '; n = Math.max(0, n); return n < 90 ? pre + n + ' s' : (n < 5400 ? pre + Math.round(n / 60) + ' min' : (n < 172800 ? pre + Math.round(n / 3600) + ' h' : pre + Math.round(n / 86400) + (en ? ' d' : ' j'))); };
+                        const seen = tr.querySelector('.part-seen'); if (seen) { seen.textContent = p.idle === null ? '—' : ago(p.idle); seen.dataset.v = p.idle === null ? -999999999 : -p.idle; }
+                        const prog = tr.querySelector('.part-progress'); if (prog) { prog.textContent = p.answered + ' / ' + p.total; prog.dataset.v = p.answered; }
+                        const sub = tr.querySelector('.part-submitted'); if (sub && p.submitted_at) { sub.innerHTML = p.submitted_at + (p.submit_mode ? ' <span style="color:var(--ink-3)">· ' + (((window.SV_PART_STATUS || {})['submit_' + p.submit_mode]) || p.submit_mode) + '</span>' : ''); }
                         const sc = tr.querySelector('.part-score');
-                        if (sc && sc.dataset.score !== String(p.score)) {
-                            sc.dataset.score = String(p.score);
-                            sc.dataset.v = p.score === null ? -1 : p.score;
-                            sc.innerHTML = p.score === null ? '<span style="color:var(--ink-3)">' + ((window.SV_PART_STATUS || {}).score_pending || '') + '</span>' : '<strong>' + Number(p.score).toFixed(2) + '</strong><span style="color:var(--ink-3)"> / 20</span>';
+                        const key = p.mark === null ? 'none' : p.mark + '/' + p.total;
+                        if (sc && sc.dataset.score !== key) {
+                            sc.dataset.score = key;
+                            sc.dataset.v = p.mark === null ? -1 : p.mark;
+                            sc.innerHTML = p.mark === null ? '<span style="color:var(--ink-3)">' + ((window.SV_PART_STATUS || {}).score_pending || '') + '</span>' : '<strong>' + p.mark + '</strong><span style="color:var(--ink-3)"> / ' + p.total + '</span> <span style="color:var(--ink-3); font-size:.85em">(' + String(p.percent).replace('.', ',') + ' %)</span>';
                         }
                         const form = tr.querySelector('form[action*="recorrect_live_participant"]');
                         if (form) form.style.display = p.submitted ? 'inline' : 'none';

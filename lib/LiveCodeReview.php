@@ -432,7 +432,8 @@ final class LiveCodeReview
         foreach ($rows as $q) {
             $ok += LiveScoring::isCorrect((string)$q['question_type'], (string)($q['selected_option'] ?? ''), (string)$q['correct_option']) ? 1 : 0;
         }
-        $pdo->prepare("UPDATE live_eval_registrations SET score = :s WHERE id = :i AND score IS NOT NULL")->execute(['s' => round($ok / count($rows) * 100, 2), 'i' => $registrationId]);
+        $pdo->prepare("UPDATE live_eval_registrations SET score = :s, correct_count = :c, question_count = :n WHERE id = :i AND score IS NOT NULL")
+            ->execute(['s' => round($ok / count($rows) * 100, 2), 'c' => $ok, 'n' => count($rows), 'i' => $registrationId]);
     }
 
     /** The review of one answer as the pages show it (the teacher's decision wins over the model's). */

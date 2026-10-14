@@ -37,6 +37,8 @@ try {
 // results emails of live evaluations (also sent by workers started when they are queued; this is the safety net)
 require_once __DIR__ . '/LiveMailQueue.php';
 try { LiveMailQueue::work($pdo, 0, 40); } catch (Throwable $e) { error_log('live mails: ' . $e->getMessage()); }
+require_once __DIR__ . '/Archive.php';
+try { echo 'archive: ' . json_encode(Archive::sweep($pdo)) . "\n"; } catch (Throwable $e) { error_log('archive sweep: ' . $e->getMessage()); }
 echo 'sent: ' . EmailQueue::work($pdo) . "\n";
 echo 'push: ' . PushQueue::work($pdo) . "\n";
 // Careers: screening, interview reminders, daily digest (own lock, runs only what is due)
