@@ -148,7 +148,7 @@ final class AnthropicClient
             $used = $m;
             $p = $payload;
             if (str_starts_with($m, 'gemini-2.5-flash')) {
-                $p['generationConfig']['thinkingConfig'] = ['thinkingBudget' => 1024];   // enough to trace the code, without 15 seconds of thinking
+                $p['generationConfig']['thinkingConfig'] = ['thinkingBudget' => defined('GEMINI_THINKING_BUDGET') ? max(0, (int)GEMINI_THINKING_BUDGET) : 1024];   // enough to trace the code, without 15 seconds of thinking
             }
             [$status, $body] = self::$transport !== null ? (self::$transport)($p) : self::postGemini($p, $timeout, $m);
             // quota full, model busy or retired: the next model of the list takes the call

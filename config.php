@@ -67,7 +67,7 @@ $envKeys = [
     'LOGIN_MAX_ATTEMPTS', 'LOGIN_LOCKOUT_MINUTES',
     'SMTP_HOST', 'SMTP_PORT', 'SMTP_USER', 'SMTP_PASS', 'SMTP_FROM', 'SMTP_FROM_NAME',
     'GEMINI_API_KEY', 'VAPID_PRIVATE_PEM_B64', 'VAPID_SUBJECT',
-    'AI_PROVIDER', 'GEMINI_MARKING_MODEL',   // which model marks (gemini | anthropic)
+    'AI_PROVIDER', 'GEMINI_MARKING_MODEL', 'GEMINI_THINKING_BUDGET',   // which model marks (gemini | anthropic)
     'ANTHROPIC_API_KEY', 'ANTHROPIC_MODEL', 'ANTHROPIC_DAILY_CALLS',   // marking of code questions (lib/LiveCodeReview.php)
     'CONTACT_EMAIL',   // public contact address shown in the footer and on the privacy page
     'CONTROL_OWNER_EMAIL', 'REQUIRE_2FA_ROLES'   // the control center allow-list and the roles that must use an authenticator app
@@ -114,6 +114,7 @@ defined('GEMINI_API_KEY')        || define('GEMINI_API_KEY', 'votre_cle_api_gemi
 // Marking of code questions. Empty key = the marking waits (answers stay "pending review"), nothing is marked wrong by accident.
 defined('AI_PROVIDER')           || define('AI_PROVIDER', '');                      // '' = Gemini when its key is set, else Anthropic
 defined('GEMINI_MARKING_MODEL')  || define('GEMINI_MARKING_MODEL', 'gemini-2.5-flash,gemini-3-flash-preview,gemini-3.5-flash');   // tried in this order: each model has its own quota
+defined('GEMINI_THINKING_BUDGET') || define('GEMINI_THINKING_BUDGET', '1024');   // tokens the model may think before answering: lower = faster
 defined('ANTHROPIC_API_KEY')     || define('ANTHROPIC_API_KEY', '');
 defined('ANTHROPIC_MODEL')       || define('ANTHROPIC_MODEL', 'claude-sonnet-5-5');
 defined('ANTHROPIC_DAILY_CALLS') || define('ANTHROPIC_DAILY_CALLS', '2000');   // ceiling of marking calls per day, whatever happens
