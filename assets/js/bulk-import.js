@@ -75,7 +75,7 @@
           setTimeout(function () {
             var u = new URL(window.location.href);
             u.searchParams.set('course_id', box.dataset.course);
-            if (box.dataset.session) u.searchParams.set('open_session', box.dataset.session);
+            if (box.dataset.session) { u.searchParams.set('open_session', box.dataset.session); u.searchParams.set('set_times', '1'); }
             u.hash = box.dataset.session ? '#tab-live-eval' : '#tab-course';
             window.location.href = u.toString();
           }, 900);

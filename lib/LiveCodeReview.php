@@ -65,6 +65,29 @@ final class LiveCodeReview
         return $mime && $data !== false ? ['type' => 'image', 'source' => ['type' => 'base64', 'media_type' => $mime, 'data' => base64_encode($data)]] : null;
     }
 
+    /**
+     * What the editor of the exam room prepares for a language: how to lint and format it. The browser applies it (assets/js/code-tools.js);
+     * the language comes from the question, so the teacher never configures anything.
+     * @return array<string,mixed>
+     */
+    public static function toolProfile(string $lang): array
+    {
+        $lang = self::langOf($lang);
+        $c = ['lang' => $lang, 'label' => self::LANGS[$lang][0], 'line_comment' => self::LANGS[$lang][2], 'indent' => 4, 'max_line' => 120, 'family' => 'brace',
+              'semicolons' => false, 'block_comment' => true, 'strings' => ['"', "'"]];
+        if (in_array($lang, ['java', 'c', 'cpp', 'csharp', 'php'], true)) {
+            $c['semicolons'] = true;
+        }
+        if ($lang === 'php') { $c['family'] = 'brace'; $c['variables'] = '$'; }
+        if (in_array($lang, ['javascript', 'typescript'], true)) { $c['strings'] = ['"', "'", '`']; }
+        if ($lang === 'go') { $c['strings'] = ['"', "'", '`']; }
+        if ($lang === 'python') { $c['family'] = 'python'; $c['block_comment'] = false; $c['triple'] = true; }
+        if ($lang === 'bash') { $c['family'] = 'shell'; $c['block_comment'] = false; }
+        if ($lang === 'sql') { $c['family'] = 'sql'; $c['strings'] = ["'"]; $c['semicolons'] = true; }
+        if ($lang === 'other') { $c['family'] = 'plain'; }
+        return $c;
+    }
+
     public static function langOf(?string $key): string
     {
         return isset(self::LANGS[(string)$key]) ? (string)$key : 'other';
@@ -150,6 +173,30 @@ final class LiveCodeReview
     }
 
     /** @return bool true when the answer was settled (done or sent to the teacher), false when it was postponed or taken by another process */
+    /** Marks the answers that are due for about $seconds seconds (a worker run, or the minutes after a student handed everything in). @return int handled */
+    public static function processFor(PDO $pdo, int $seconds, int $registrationId = 0): int
+    {
+        $end = time() + max(1, $seconds);
+        $done = 0;
+        while (time() < $end) {
+            $sql = "SELECT id FROM live_eval_code_reviews WHERE status = 'pending' AND (next_attempt_at IS NULL OR next_attempt_at <= NOW())"
+                 . ($registrationId > 0 ? ' AND registration_id = :r' : '') . ' ORDER BY created_at, id LIMIT 1';
+            $st = $pdo->prepare($sql);
+            $st->execute($registrationId > 0 ? ['r' => $registrationId] : []);
+            $id = (int)$st->fetchColumn();
+            if ($id <= 0) {
+                break;
+            }
+            if (self::processOne($pdo, $id)) {
+                $done++;
+            } else {
+                // postponed (back-off, not configured, daily cap) or taken by another worker: stop here, the next run continues
+                break;
+            }
+        }
+        return $done;
+    }
+
     public static function processOne(PDO $pdo, int $id): bool
     {
         $claim = $pdo->prepare("UPDATE live_eval_code_reviews SET status = 'working', locked_at = NOW(), attempts = attempts + 1

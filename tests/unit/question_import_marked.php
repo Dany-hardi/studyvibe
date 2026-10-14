@@ -24,6 +24,8 @@ $notLive = QuestionImporter::parseCsv($csv, false);
 $check('outside a live evaluation these types are refused', count($notLive['questions']) === 1 && count($notLive['errors']) === 2);
 $long = QuestionImporter::parseCsv($head . '"x","open","","","","","","","","","","' . str_repeat('a', 20000) . '",""' . "\n", true);
 $check('an over-long reference is cut', mb_strlen($long['questions'][0]['code_reference']) === LiveCodeReview::MAX_REFERENCE);
+$ct = QuestionImporter::parseCsv($head . '"Write f","code","","","","","","","","600","java","ref",""' . "\n" . '"Write g","code","","","","","","","","abc","java","ref",""' . "\n", true);
+$check('a time written on a code question is ignored, without error', count($ct['questions']) === 2 && $ct['questions'][0]['time_limit'] === null && $ct['questions'][1]['time_limit'] === null && !$ct['errors']);
 $old = QuestionImporter::parseCsv("question,option_a,option_b,option_c,option_d,correct,explanation\n\"Q\",\"1\",\"2\",\"3\",\"4\",\"C\",\"e\"\n", true);
 $check('an older file without the new columns still imports', count($old['questions']) === 1 && $old['questions'][0]['question_type'] === 'mcq');
 

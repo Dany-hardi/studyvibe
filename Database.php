@@ -1148,6 +1148,26 @@ class Database
         } catch (PDOException $ex) { /* table absent on a very old schema */ }
         try { $pdo->exec("ALTER TABLE `career_jobs` ADD UNIQUE KEY `uq_career_public_id` (`public_id`)"); } catch (PDOException $ex) { /* already applied */ }
 
+        // Migration 2.28: free-pace evaluations (common start, everybody moves and hands in at their own speed): the answers wait in a bucket
+        // (drafts) until the student submits them all; a timed question counts only the time it has been open.
+        foreach ([
+            "ALTER TABLE `live_eval_sessions` ADD COLUMN `free_pace` TINYINT(1) NOT NULL DEFAULT 0",
+            "ALTER TABLE `live_eval_registrations` ADD COLUMN `submitted_at` DATETIME DEFAULT NULL, ADD COLUMN `current_q_id` INT DEFAULT NULL, ADD COLUMN `current_since` DATETIME DEFAULT NULL",
+            "CREATE TABLE IF NOT EXISTS `live_eval_drafts` (
+                `id` INT AUTO_INCREMENT PRIMARY KEY,
+                `registration_id` INT NOT NULL,
+                `question_id` INT NOT NULL,
+                `answer` MEDIUMTEXT NOT NULL,
+                `seconds_used` INT NOT NULL DEFAULT 0,
+                `updated_at` TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+                UNIQUE KEY `uq_draft` (`registration_id`, `question_id`),
+                CONSTRAINT `fk_draft_reg` FOREIGN KEY (`registration_id`) REFERENCES `live_eval_registrations` (`id`) ON DELETE CASCADE,
+                CONSTRAINT `fk_draft_q` FOREIGN KEY (`question_id`) REFERENCES `live_eval_questions` (`id`) ON DELETE CASCADE
+            ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci",
+        ] as $ddl) {
+            try { $pdo->exec($ddl); } catch (PDOException $ex) { /* already applied */ }
+        }
+
         // Migration 2.27: code questions in live evaluations (the student writes code, an AI reads and marks it, the teacher can overrule).
         foreach ([
             "ALTER TABLE `live_eval_questions` ADD COLUMN `code_lang` VARCHAR(24) DEFAULT NULL, ADD COLUMN `code_reference` MEDIUMTEXT DEFAULT NULL, ADD COLUMN `code_notes` TEXT DEFAULT NULL",

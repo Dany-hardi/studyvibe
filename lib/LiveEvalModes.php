@@ -67,6 +67,8 @@ final class LiveEvalModes
     public static function advance(PDO $pdo): int
     {
         try {
+            require_once __DIR__ . '/LivePaced.php';
+            LivePaced::tick($pdo);      // students of a free-pace live window that just ended are handed in before the session moves on
             return (int)$pdo->exec("UPDATE live_eval_sessions SET is_async = 1, is_paused = 0 WHERE async_after_live = 1 AND is_async = 0 AND end_time < NOW()");
         } catch (Throwable $e) {
             error_log('LiveEvalModes::advance ' . $e->getMessage());

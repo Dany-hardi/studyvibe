@@ -30,7 +30,7 @@ LiveEvalModes::advance($pdo);
 $r = LiveReminders::dispatch($pdo);
 echo 'reminders: ' . $r['queued'] . ' for ' . $r['sessions'] . " session(s)\n";
 require_once __DIR__ . '/LiveCodeReview.php';
-try { echo 'code reviews: ' . LiveCodeReview::process($pdo, 4) . "\n"; } catch (Throwable $e) { error_log('code reviews: ' . $e->getMessage()); }
+try { echo 'code reviews: ' . LiveCodeReview::processFor($pdo, 45) . "\n"; } catch (Throwable $e) { error_log('code reviews: ' . $e->getMessage()); }
 echo 'sent: ' . EmailQueue::work($pdo) . "\n";
 echo 'push: ' . PushQueue::work($pdo) . "\n";
 // Careers: screening, interview reminders, daily digest (own lock, runs only what is due)

@@ -362,6 +362,13 @@ if (!$error) {
         }
     }
 }
+
+// A free-pace evaluation (common start, everybody moves at their own speed) has its own exam room.
+if (!$error && $session && !empty($session['free_pace']) && $registration && !$isReset) {
+    require_once __DIR__ . '/lib/LivePaced.php';
+    require __DIR__ . '/lib/live-paced-room.php';
+    exit;
+}
 ?>
 <!DOCTYPE html>
 <html lang="fr" class="h-full">

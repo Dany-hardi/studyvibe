@@ -215,7 +215,7 @@ try {
     if ($_SERVER['REQUEST_METHOD'] === 'POST' && $selectedCourse) {
         $action = (string)($_POST['action'] ?? $_GET['action'] ?? '');
 
-        if (in_array($action, ['add_live_session', 'edit_live_session', 'toggle_live_session', 'delete_live_session', 'add_live_question', 'delete_live_question', 'delete_all_live_questions', 'delete_live_participant', 'reset_live_session', 'toggle_live_pause'], true)) {
+        if (in_array($action, ['add_live_session', 'edit_live_session', 'toggle_live_session', 'delete_live_session', 'add_live_question', 'delete_live_question', 'delete_all_live_questions', 'delete_live_participant', 'reset_live_session', 'toggle_live_pause', 'set_question_times'], true)) {
             clearLiveSessionCache();
         }
 
@@ -689,8 +689,8 @@ try {
             $code = bin2hex(random_bytes(8));
             $stmt = $pdo->prepare("
                 INSERT INTO live_eval_sessions (course_id, teacher_id, title, session_code, start_time, end_time, default_time_limit, status, shuffle_options, integrity_watch,
-                                                is_async, async_after_live, async_deadline)
-                VALUES (:cid, :tid, :title, :code, :start, :end, :limit, 0, :shuf, :watch, :isa, :after, :deadline)
+                                                is_async, async_after_live, async_deadline, free_pace)
+                VALUES (:cid, :tid, :title, :code, :start, :end, :limit, 0, :shuf, :watch, :isa, :after, :deadline, :free)
             ");
             $stmt->execute([
                 'cid'   => $selectedCourse['id'],
@@ -703,6 +703,7 @@ try {
                 'shuf'  => isset($_POST['shuffle_options']) ? 1 : 0,
                 'watch' => isset($_POST['integrity_watch']) ? 1 : 0,
                 'isa'   => $m['is_async'], 'after' => $m['after'], 'deadline' => $m['deadline'],
+                'free'  => ($_POST['pace'] ?? 'free') === 'sync' ? 0 : 1,
             ]);
             $newSessionId = (int)$pdo->lastInsertId();
             header("Location: /teacher/dashboard.php?course_id={$selectedCourse['id']}&success=live_session_created&open_session={$newSessionId}#tab-live-eval"); exit;
@@ -715,6 +716,15 @@ try {
             $limit = max(5, min(3600, (int)(($_POST['default_time_limit'] ?? '') !== '' ? $_POST['default_time_limit'] : 30)));   // optional: a question with its own time (CSV or form) ignores it
             $m = LiveEvalModes::fromForm($_POST);
 
+            $freePace = ($_POST['pace'] ?? 'free') === 'sync' ? 0 : 1;
+            if ($sid > 0 && $title !== '' && !$freePace) {
+                // a code question has no time limit and so cannot live in a session where everybody moves question by question together
+                $cq = $pdo->prepare("SELECT COUNT(*) FROM live_eval_questions q JOIN live_eval_sessions s ON s.id = q.session_id WHERE s.id = :s AND s.teacher_id = :t AND q.question_type = 'code'");
+                $cq->execute(['s' => $sid, 't' => $teacherId]);
+                if ((int)$cq->fetchColumn() > 0) {
+                    header("Location: /teacher/dashboard.php?course_id={$selectedCourse['id']}&error=live_pace_code&open_session={$sid}#tab-live-eval"); exit;
+                }
+            }
             if ($sid > 0 && $title !== '') {
                 if (!$m['ok']) {
                     header("Location: /teacher/dashboard.php?course_id={$selectedCourse['id']}&error=live_mode_" . ($m['error'] ?? 'window') . "&open_session={$sid}#tab-live-eval"); exit;
@@ -722,7 +732,7 @@ try {
                 $stmt = $pdo->prepare("
                     UPDATE live_eval_sessions 
                     SET title = :title, start_time = :start, end_time = :end, default_time_limit = :limit,
-                        is_async = :is_async, async_after_live = :after, async_deadline = :async_deadline, status = 1,
+                        is_async = :is_async, async_after_live = :after, async_deadline = :async_deadline, status = 1, free_pace = :free,
                         shuffle_options = :shuf, integrity_watch = :watch
                     WHERE id = :id AND teacher_id = :tid
                 ");
@@ -733,6 +743,7 @@ try {
                     'limit' => $limit,
                     'is_async' => $m['is_async'],
                     'after' => $m['after'],
+                    'free' => $freePace,
                     'async_deadline' => $m['deadline'],
                     'shuf'  => isset($_POST['shuffle_options']) ? 1 : 0,
                     'watch' => isset($_POST['integrity_watch']) ? 1 : 0,
@@ -742,6 +753,23 @@ try {
                 // A session that was moved is announced again; an unchanged one is not (see LiveSmsNotifier)
                 $smsParam = notifyStudentsOfSession($pdo, $sid, $teacherId);
                 header("Location: /teacher/dashboard.php?course_id={$selectedCourse['id']}&success=live_session_updated{$smsParam}&open_session={$sid}#tab-live-eval"); exit;
+            }
+        }
+
+        // ── Temps des questions d'une séance (après un import, ou à tout moment) ─────────────
+        if ($action === 'set_question_times') {
+            $sid = (int)($_POST['session_id'] ?? 0);
+            $own = $pdo->prepare("SELECT 1 FROM live_eval_sessions WHERE id = :s AND teacher_id = :t");
+            $own->execute(['s' => $sid, 't' => $teacherId]);
+            if ($sid > 0 && $own->fetchColumn()) {
+                $times = is_array($_POST['times'] ?? null) ? $_POST['times'] : [];
+                $upd = $pdo->prepare("UPDATE live_eval_questions SET time_limit = :t WHERE id = :q AND session_id = :s AND question_type <> 'code'");   // never on a code question
+                foreach ($times as $qid => $v) {
+                    $v = trim((string)$v);
+                    $t = ($v !== '' && ctype_digit($v)) ? max(5, min(3600, (int)$v)) : null;
+                    $upd->execute(['t' => $t, 'q' => (int)$qid, 's' => $sid]);
+                }
+                header("Location: /teacher/dashboard.php?course_id={$selectedCourse['id']}&success=times_saved&open_session={$sid}#tab-live-eval"); exit;
             }
         }
 
@@ -885,6 +913,14 @@ try {
             }
             if (LiveCodeReview::handles($qType)) {
                 $correct = LiveCodeReview::MARK_OK;      // the stored "right answer" of a code question is only a marker: the verdict comes from the marking
+            }
+            if ($qType === 'code' && $sid > 0) {
+                $fp = $pdo->prepare("SELECT free_pace FROM live_eval_sessions WHERE id = :s AND teacher_id = :t");
+                $fp->execute(['s' => $sid, 't' => $teacherId]);
+                if ((int)$fp->fetchColumn() !== 1) {
+                    header("Location: /teacher/dashboard.php?course_id={$selectedCourse['id']}&error=live_code_needs_free&open_session={$sid}#tab-live-eval"); exit;
+                }
+                $timeLimit = '';       // a code question has no time limit
             }
             $isValid = false;
             if ($sid > 0 && !empty($questionText) && !empty($correct)) {
@@ -1538,6 +1574,8 @@ $tdHasCourse = (bool)$selectedCourse;
                 'live_image_server'    => td('err_upload'),
                 'live_image_upload'    => td('err_upload'),
                 'rubric_invalid'       => td('asg_rubric_err'),
+                'live_pace_code'       => td('pace_err_code'),
+                'live_code_needs_free' => td('pace_err_code_q'),
                 'live_mode_window'     => td('mode_err_window'),
                 'live_mode_deadline'   => td('mode_err_deadline'),
             ];
@@ -2242,6 +2280,7 @@ $tdHasCourse = (bool)$selectedCourse;
                             <span><?= $isAsync ? tde('room_deadline') : tde('room_end') ?> <b><?= $endLabel ?></b></span>
                             <span><?= tde('room_per_q') ?> <b><?= (int)$ls['default_time_limit'] ?> s</b></span>
                             <span><?= $isAsync ? tde('room_type_async') : tde('room_type_sync') ?></span>
+                            <span><?= !empty($ls['free_pace']) ? tde('pace_chip_free') : tde('pace_chip_sync') ?></span>
                         </div>
 
                         <div id="room-body-<?= $sid ?>" <?= $collapsed ? 'hidden' : '' ?>>
@@ -2318,6 +2357,7 @@ $tdHasCourse = (bool)$selectedCourse;
                                                     "default_time_limit" => $ls["default_time_limit"],
                                                     "is_async" => $ls["is_async"] ?? 0,
                                                     "async_after_live" => $ls["async_after_live"] ?? 0,
+                                                    "free_pace" => $ls["free_pace"] ?? 0,
                                                     "shuffle_options" => $ls["shuffle_options"] ?? 0,
                                                     "integrity_watch" => $ls["integrity_watch"] ?? 0,
                                                     "async_deadline" => isset($ls["async_deadline"]) && $ls["async_deadline"] ? date("Y-m-d\TH:i", strtotime($ls["async_deadline"])) : ""
@@ -2398,7 +2438,18 @@ $tdHasCourse = (bool)$selectedCourse;
                                 <div id="live-session-questions-<?= $sid ?>" class="t-panel" role="tabpanel" aria-labelledby="rtab-q-<?= $sid ?>">
                                     <?php if (empty($ls['questions'])): ?>
                                         <p class="t-hint" style="margin-bottom:1rem;font-size:1rem"><?= tde('q_empty') ?></p>
-                                    <?php else: ?>
+                                    <?php else:
+                                        $timedQs = array_values(array_filter($ls['questions'], fn($qq) => ($qq['question_type'] ?? '') !== 'code'));
+                                        $missingTimes = count(array_filter($timedQs, fn($qq) => $qq['time_limit'] === null));
+                                        $timesModalId = 'times-modal-' . $sid;
+                                        $autoTimes = ($_GET['set_times'] ?? '') === '1' && (int)($_GET['open_session'] ?? 0) === $sid && $missingTimes > 0;
+                                    ?>
+                                        <?php if ($timedQs): ?>
+                                        <div style="display:flex;align-items:center;gap:.75rem;flex-wrap:wrap;margin:0 0 1rem">
+                                            <button type="button" class="t-btn t-btn-ghost t-btn-sm" onclick="toggleModal('<?= $timesModalId ?>')"><?= tde('times_btn') ?></button>
+                                            <span class="t-hint"><?= $missingTimes > 0 ? td('times_missing', ['n' => $missingTimes, 'd' => (int)$ls['default_time_limit']]) : tde('times_all_set') ?></span>
+                                        </div>
+                                        <?php endif; ?>
                                         <ol class="t-qlist" style="list-style:none;margin:0 0 1.5rem;padding:0;border-top:1px solid var(--line)">
                                             <?php foreach ($ls['questions'] as $qIdx => $q):
                                                 $qType = $q['question_type'] ?? 'mcq';
@@ -2421,7 +2472,7 @@ $tdHasCourse = (bool)$selectedCourse;
                                                             <?php else: ?>
                                                             <span><?= tde('q_answer') ?> <strong style="color:var(--ink)"><?= htmlspecialchars((string)$q['correct_option']) ?></strong></span>
                                                             <?php endif; ?>
-                                                            <?php if ($q['time_limit']): ?><span class="num"><?= (int)$q['time_limit'] ?> s</span><?php endif; ?>
+                                                            <?php if ($qType === 'code'): ?><span><?= tde('q_no_limit') ?></span><?php elseif ($q['time_limit']): ?><span class="num"><?= (int)$q['time_limit'] ?> s</span><?php endif; ?>
                                                             <?php if (!empty($q['explanation'])): ?><span><?= tde('q_explanation') ?> <?= htmlspecialchars($q['explanation']) ?></span><?php endif; ?>
                                                             <?php if ($q['image_path']): ?><a href="<?= htmlspecialchars(mediaUrl('live_question', (string)$q['image_path'])) ?>" target="_blank" rel="noopener" style="color:var(--clay)"><?= tde('q_image') ?></a><?php endif; ?>
                                                         </div>
@@ -2437,6 +2488,40 @@ $tdHasCourse = (bool)$selectedCourse;
                                                 </li>
                                             <?php endforeach; ?>
                                         </ol>
+                                        <?php if ($timedQs): ?>
+                                        <div id="<?= $timesModalId ?>" class="<?= $autoTimes ? '' : 'hidden ' ?>fixed inset-0 bg-black/40 z-[60] flex items-center justify-center p-6">
+                                            <form method="POST" action="/teacher/dashboard.php?course_id=<?= (int)$selectedCourse['id'] ?>&action=set_question_times" class="bg-[var(--card)] border border-[var(--line)] rounded-xl shadow-md w-full" style="max-width:46rem;max-height:90vh;display:flex;flex-direction:column">
+                                                <?= csrfInput(); ?>
+                                                <input type="hidden" name="session_id" value="<?= $sid ?>">
+                                                <div style="padding:1.25rem 1.5rem;border-bottom:1px solid var(--line)">
+                                                    <h3 class="font-serif text-2xl font-light"><?= tde('times_title') ?></h3>
+                                                    <p class="t-hint" style="margin-top:.4rem"><?= tde('times_lede') ?></p>
+                                                </div>
+                                                <div style="padding:1rem 1.5rem;overflow:auto;flex:1">
+                                                    <div style="display:flex;align-items:center;gap:.6rem;flex-wrap:wrap;margin-bottom:1rem">
+                                                        <label for="times-all-<?= $sid ?>" class="text-xs font-semibold"><?= tde('times_same') ?></label>
+                                                        <input type="number" min="5" max="3600" id="times-all-<?= $sid ?>" placeholder="60" style="width:6rem;padding:.35rem .5rem;border:1px solid var(--line);border-radius:8px;background:var(--card)">
+                                                        <button type="button" class="t-btn t-btn-ghost t-btn-sm" onclick="document.querySelectorAll('#<?= $timesModalId ?> input[data-empty-time]').forEach(function(i){ if(i.value==='') i.value=document.getElementById('times-all-<?= $sid ?>').value; })"><?= tde('times_apply') ?></button>
+                                                    </div>
+                                                    <?php foreach ($ls['questions'] as $ti => $tq): $isCodeQ = ($tq['question_type'] ?? '') === 'code'; ?>
+                                                    <div style="display:grid;grid-template-columns:2rem 1fr 7rem;gap:.6rem;align-items:center;padding:.5rem 0;border-bottom:1px solid var(--line)">
+                                                        <span class="num" style="font-weight:600;color:var(--ink-3)"><?= $ti + 1 ?></span>
+                                                        <span style="min-width:0;font-size:.9rem;overflow:hidden;text-overflow:ellipsis;white-space:nowrap" title="<?= htmlspecialchars((string)$tq['question_text']) ?>"><?= htmlspecialchars(mb_strimwidth(preg_replace('/\s+/', ' ', (string)$tq['question_text']), 0, 90, '…')) ?></span>
+                                                        <?php if ($isCodeQ): ?>
+                                                            <span class="t-hint" style="font-size:.75rem"><?= tde('times_code_none') ?></span>
+                                                        <?php else: ?>
+                                                            <input type="number" min="5" max="3600" name="times[<?= (int)$tq['id'] ?>]" value="<?= $tq['time_limit'] !== null ? (int)$tq['time_limit'] : '' ?>" placeholder="<?= (int)$ls['default_time_limit'] ?>" <?= $tq['time_limit'] === null ? 'data-empty-time' : '' ?> aria-label="<?= tde('q_duration') ?> <?= $ti + 1 ?>" style="width:100%;padding:.35rem .5rem;border:1px solid var(--line);border-radius:8px;background:var(--card)">
+                                                        <?php endif; ?>
+                                                    </div>
+                                                    <?php endforeach; ?>
+                                                </div>
+                                                <div style="padding:1rem 1.5rem;border-top:1px solid var(--line);display:flex;justify-content:flex-end;gap:.6rem">
+                                                    <button type="button" class="t-btn t-btn-ghost" onclick="toggleModal('<?= $timesModalId ?>')"><?= tde('times_later') ?></button>
+                                                    <button type="submit" class="t-btn t-btn-primary"><?= tde('times_save') ?></button>
+                                                </div>
+                                            </form>
+                                        </div>
+                                        <?php endif; ?>
                                     <?php endif; ?>
 
                                     <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(18rem,1fr));gap:2rem">
@@ -3863,6 +3948,18 @@ $tdHasCourse = (bool)$selectedCourse;
                 </label>
             </fieldset>
 
+            <fieldset class="space-y-2">
+                <legend class="block text-xs font-semibold text-[var(--ink-2)] mb-2"><?= tde('pace_title') ?></legend>
+                <label class="flex items-start gap-3 p-3 border border-[var(--line)] rounded-lg cursor-pointer bg-[var(--card)]">
+                    <input type="radio" name="pace" value="free" id="edit-pace-free" class="mt-0.5">
+                    <span><span class="block text-sm font-semibold text-[var(--ink)]"><?= tde('pace_free') ?></span><span class="block text-xs text-[var(--ink-3)]"><?= tde('pace_free_d') ?></span></span>
+                </label>
+                <label class="flex items-start gap-3 p-3 border border-[var(--line)] rounded-lg cursor-pointer bg-[var(--card)]">
+                    <input type="radio" name="pace" value="sync" id="edit-pace-sync" class="mt-0.5">
+                    <span><span class="block text-sm font-semibold text-[var(--ink)]"><?= tde('pace_sync') ?></span><span class="block text-xs text-[var(--ink-3)]"><?= tde('pace_sync_d') ?></span></span>
+                </label>
+            </fieldset>
+
             <div id="edit-live-window" class="grid grid-cols-1 md:grid-cols-2 gap-4">
                 <div>
                     <label class="block text-xs font-semibold text-[var(--ink-2)] mb-2" data-mode-label="start"><?= tde('mode_start_live') ?></label>
@@ -4172,6 +4269,18 @@ try {
                 </label>
             </fieldset>
 
+            <fieldset class="space-y-2">
+                <legend class="block text-xs font-semibold text-[var(--ink-2)] mb-2"><?= tde('pace_title') ?></legend>
+                <label class="flex items-start gap-3 p-3 border border-[var(--line)] rounded-lg cursor-pointer bg-[var(--card)]">
+                    <input type="radio" name="pace" value="free" checked class="mt-0.5">
+                    <span><span class="block text-sm font-semibold text-[var(--ink)]"><?= tde('pace_free') ?></span><span class="block text-xs text-[var(--ink-3)]"><?= tde('pace_free_d') ?></span></span>
+                </label>
+                <label class="flex items-start gap-3 p-3 border border-[var(--line)] rounded-lg cursor-pointer bg-[var(--card)]">
+                    <input type="radio" name="pace" value="sync" class="mt-0.5">
+                    <span><span class="block text-sm font-semibold text-[var(--ink)]"><?= tde('pace_sync') ?></span><span class="block text-xs text-[var(--ink-3)]"><?= tde('pace_sync_d') ?></span></span>
+                </label>
+            </fieldset>
+
             <div id="add-live-window" class="grid grid-cols-1 md:grid-cols-2 gap-4">
                 <div>
                     <label class="block text-xs font-semibold text-[var(--ink-2)] mb-2" data-mode-label="start"><?= tde('mode_start_live') ?></label>
@@ -4478,6 +4587,15 @@ function handleQuestionTypeChange(selectElement) {
         codeFields.querySelectorAll('.only-open').forEach(el => el.classList.toggle('hidden', type !== 'open'));
     }
 
+    const durationInput = form.querySelector('input[name=time_limit]');
+    const durationField = durationInput ? durationInput.closest('.t-field') : null;
+    if (durationField) durationField.classList.toggle('hidden', type === 'code');       // no time limit on a code question
+    let noLimit = form.querySelector('.code-nolimit-note');
+    if (type === 'code' && !noLimit && codeFields) {
+        noLimit = document.createElement('p'); noLimit.className = 'code-nolimit-note t-hint'; noLimit.style.marginBottom = '.8rem';
+        noLimit.textContent = <?= json_encode(td('pace_code_nolimit'), JSON_UNESCAPED_UNICODE) ?>; codeFields.appendChild(noLimit);
+    }
+    if (noLimit) noLimit.classList.toggle('hidden', type !== 'code');
     if (marked) {
         if (mcqOptionsGroup) mcqOptionsGroup.classList.add('hidden');
         if (correctOptionContainer) {
@@ -4549,6 +4667,8 @@ function openEditLiveSessionModal(button) {
     if (watch) watch.checked = parseInt(session.integrity_watch) === 1;
 
     const mode = parseInt(session.async_after_live) === 1 ? 'live_async' : (parseInt(session.is_async) === 1 ? 'async' : 'live');
+    const paceRadio = document.getElementById(parseInt(session.free_pace) === 1 ? 'edit-pace-free' : 'edit-pace-sync');
+    if (paceRadio) paceRadio.checked = true;
     const radio = document.getElementById('edit-mode-' + mode);
     if (radio) radio.checked = true;
     const deadlineInput = document.getElementById('edit-live-async-deadline');
@@ -6038,7 +6158,7 @@ document.addEventListener('DOMContentLoaded', () => {
                 
                 setTimeout(() => {
                     if (currentImportSessionId) {
-                        window.location.href = window.location.pathname + '?course_id=' + currentImportCourseId + '&open_session=' + currentImportSessionId + '#tab-live-eval';
+                        window.location.href = window.location.pathname + '?course_id=' + currentImportCourseId + '&open_session=' + currentImportSessionId + '&set_times=1#tab-live-eval';
                     } else if (currentImportLessonId) {
                         window.location.href = window.location.pathname + '?course_id=' + currentImportCourseId + '&open_lesson=' + currentImportLessonId + '#tab-course';
                     } else {

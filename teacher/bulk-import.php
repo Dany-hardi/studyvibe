@@ -105,6 +105,18 @@ try {
 
     $res = BulkPackage::check((string)$file['tmp_name'], (string)$file['name'], $type);
     $tmpDir = $res['tmp'];
+    // A code question has no time limit, so it can only live in a free-pace session (everybody starts together, nobody is on the same question)
+    if ($type === 'live' && $sessionId > 0) {
+        $hasCode = (bool)array_filter($res['questions'], fn($q) => ($q['question_type'] ?? '') === 'code');
+        if ($hasCode) {
+            $fp = $pdo->prepare('SELECT free_pace FROM live_eval_sessions WHERE id = :s AND teacher_id = :t');
+            $fp->execute(['s' => $sessionId, 't' => $teacherId]);
+            if ((int)$fp->fetchColumn() !== 1) {
+                $res['errors'][] = 'Ce pack contient des questions de code, qui n’ont pas de limite de temps : elles exigent une séance au rythme libre. Passez la séance au rythme libre (Modifier la séance) puis réimportez le pack.';
+                $res['ok'] = false;
+            }
+        }
+    }
     register_shutdown_function(static fn() => BulkPackage::cleanup($tmpDir));   // exit() skips finally blocks, shutdown functions still run
     $view = [
         'summary' => $res['summary'], 'rows' => $res['rows'], 'errors' => $res['errors'], 'warnings' => $res['warnings'], 'can_import' => $res['ok'],

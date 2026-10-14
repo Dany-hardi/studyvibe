@@ -456,8 +456,8 @@ class QuestionImporter
                     $errors[] = "Ligne {$line} : une question de type « {$marked} » a besoin d’une solution de référence ou de consignes de correction.";
                     continue;
                 }
-                $timeOk = ($timeRaw !== '' && ctype_digit($timeRaw) && (int)$timeRaw >= 5 && (int)$timeRaw <= 3600);
-                if ($timeRaw !== '' && !$timeOk) {
+                $timeOk = ($timeRaw !== '' && ctype_digit($timeRaw) && (int)$timeRaw >= 5 && (int)$timeRaw <= 3600) && $marked !== 'code';   // a code question has no time limit: its time column is ignored
+                if ($timeRaw !== '' && $marked !== 'code' && !$timeOk) {
                     $errors[] = "Ligne {$line} : temps invalide « {$timeRaw} » (un nombre entier de secondes entre 5 et 3600, ou laissez la case vide).";
                 }
                 $questions[] = [
