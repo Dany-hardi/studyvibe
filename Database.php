@@ -1148,6 +1148,43 @@ class Database
         } catch (PDOException $ex) { /* table absent on a very old schema */ }
         try { $pdo->exec("ALTER TABLE `career_jobs` ADD UNIQUE KEY `uq_career_public_id` (`public_id`)"); } catch (PDOException $ex) { /* already applied */ }
 
+        // Migration 2.27: code questions in live evaluations (the student writes code, an AI reads and marks it, the teacher can overrule).
+        foreach ([
+            "ALTER TABLE `live_eval_questions` ADD COLUMN `code_lang` VARCHAR(24) DEFAULT NULL, ADD COLUMN `code_reference` MEDIUMTEXT DEFAULT NULL, ADD COLUMN `code_notes` TEXT DEFAULT NULL",
+            "CREATE TABLE IF NOT EXISTS `live_eval_code_reviews` (
+                `id` INT AUTO_INCREMENT PRIMARY KEY,
+                `registration_id` INT NOT NULL,
+                `question_id` INT NOT NULL,
+                `code` MEDIUMTEXT NOT NULL,
+                `code_hash` CHAR(64) NOT NULL,
+                `status` VARCHAR(12) NOT NULL DEFAULT 'pending',
+                `verdict` TINYINT(1) DEFAULT NULL,
+                `needs_human` TINYINT(1) NOT NULL DEFAULT 0,
+                `feedback` TEXT DEFAULT NULL,
+                `logic_analysis` TEXT DEFAULT NULL,
+                `issues` MEDIUMTEXT DEFAULT NULL,
+                `corrected_code` MEDIUMTEXT DEFAULT NULL,
+                `model` VARCHAR(48) DEFAULT NULL,
+                `attempts` INT NOT NULL DEFAULT 0,
+                `last_error` VARCHAR(200) DEFAULT NULL,
+                `next_attempt_at` DATETIME DEFAULT NULL,
+                `locked_at` DATETIME DEFAULT NULL,
+                `created_at` DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+                `reviewed_at` DATETIME DEFAULT NULL,
+                `override_verdict` TINYINT(1) DEFAULT NULL,
+                `override_note` TEXT DEFAULT NULL,
+                `override_by` INT DEFAULT NULL,
+                `override_at` DATETIME DEFAULT NULL,
+                UNIQUE KEY `uq_code_review` (`registration_id`, `question_id`),
+                KEY `idx_code_status` (`status`, `next_attempt_at`),
+                KEY `idx_code_hash` (`question_id`, `code_hash`),
+                CONSTRAINT `fk_code_review_reg` FOREIGN KEY (`registration_id`) REFERENCES `live_eval_registrations` (`id`) ON DELETE CASCADE,
+                CONSTRAINT `fk_code_review_q` FOREIGN KEY (`question_id`) REFERENCES `live_eval_questions` (`id`) ON DELETE CASCADE
+            ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci",
+        ] as $ddl) {
+            try { $pdo->exec($ddl); } catch (PDOException $ex) { /* already applied */ }
+        }
+
         // Migration 2.26: an evaluation can start live and go on as a free assignment once the live window is over.
         try { $pdo->exec("ALTER TABLE `live_eval_sessions` ADD COLUMN `async_after_live` TINYINT(1) NOT NULL DEFAULT 0"); } catch (PDOException $ex) { /* already applied */ }
     }

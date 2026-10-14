@@ -121,6 +121,14 @@ try {
     ");
     $stmt->execute(['reg_id' => $regId]);
     $answers = $stmt->fetchAll();
+    // The marking of the code answers of this student (verdict, feedback, corrected script)
+    require_once __DIR__ . '/../lib/LiveCodeReview.php';
+    $codeReviews = [];
+    $cr = $pdo->prepare("SELECT * FROM live_eval_code_reviews WHERE registration_id = :r");
+    $cr->execute(['r' => $regId]);
+    foreach ($cr->fetchAll() as $row) {
+        $codeReviews[(int)$row['question_id']] = LiveCodeReview::effective($row);
+    }
     // Options in the order this student saw them (only when the session shuffled them)
     foreach ($answers as $i => $row) {
         $answers[$i] = LiveScoring::asSeen($row, (string)$row['selected_option'], (int)$regId, !empty($registration['shuffle_options']));
@@ -160,6 +168,7 @@ $hasPassed = $scorePercent >= 50;
     <script defer src="https://cdn.jsdelivr.net/npm/katex@0.16.8/dist/katex.min.js"></script>
     <script defer src="https://cdn.jsdelivr.net/npm/katex@0.16.8/dist/contrib/auto-render.min.js" onload="renderMath()"></script>
     <?= sdThemeBoot() ?>
+<style>.res-code pre{margin:.4rem 0 1rem;padding:.8rem 1rem;background:#f4f0e8;border:1px solid #e6dfd1;border-radius:8px;overflow:auto;font:13px/1.5 ui-monospace,SFMono-Regular,Menlo,Consolas,monospace;white-space:pre;tab-size:4}.res-code{display:grid;gap:.4rem}.res-issues{margin:.2rem 0 .6rem 1.1rem;padding:0}@media print{.res-code pre{white-space:pre-wrap;word-break:break-word}}</style>
 </head>
 <body class="v2 sdoc">
 <div class="doc-bar no-print">
@@ -196,15 +205,39 @@ $hasPassed = $scorePercent >= 50;
     <?php foreach ($answers as $index => $qa):
         $num = $index + 1;
         $isWritten = ($qa['question_type'] ?? 'mcq') === 'written';
-        $isCorrect = LiveScoring::isCorrect($isWritten ? 'written' : 'mcq', (string)$qa['selected_option'], (string)$qa['correct_option']);
+        $isCode = ($qa['question_type'] ?? 'mcq') === 'code';
+        $isCorrect = LiveScoring::isCorrect($isCode ? 'code' : ($isWritten ? 'written' : 'mcq'), (string)$qa['selected_option'], (string)$qa['correct_option']);
+        $cr = $isCode ? ($codeReviews[(int)$qa['question_id']] ?? null) : null;
+        $crWaiting = $isCode && $cr && $cr['final'] === null;
     ?>
     <section class="res-q">
         <div class="res-q-head">
-            <h3 class="res-q-title latex-container"><span class="n num"><?= $num ?>.</span><span><?= sdH($qa['question_text']) ?></span></h3>
-            <span class="res-mark <?= $isCorrect ? 'is-ok' : 'is-bad' ?>"><?= sdIcon($isCorrect ? 'check' : 'x', 13) ?><?= sdH($isCorrect ? sd('doc_correct') : sd('doc_incorrect')) ?></span>
+            <h3 class="res-q-title <?= $isCode ? 'no-math' : 'latex-container' ?>"><span class="n num"><?= $num ?>.</span><span><?= sdH($qa['question_text']) ?></span></h3>
+            <?php if ($crWaiting): ?>
+                <span class="res-mark"><?= sdH(sdLang() === 'en' ? 'Being marked' : 'Correction en cours') ?></span>
+            <?php else: ?>
+                <span class="res-mark <?= $isCorrect ? 'is-ok' : 'is-bad' ?>"><?= sdIcon($isCorrect ? 'check' : 'x', 13) ?><?= sdH($isCorrect ? sd('doc_correct') : sd('doc_incorrect')) ?></span>
+            <?php endif; ?>
         </div>
 
-        <?php if ($isWritten): ?>
+        <?php if ($isCode): $en = sdLang() === 'en'; ?>
+            <div class="res-code no-math">
+                <?php if ($cr): ?>
+                    <b><?= sdH($en ? 'Your code' : 'Votre code') ?></b>
+                    <pre><?= sdH($cr['code']) ?></pre>
+                    <?php if ($crWaiting): ?>
+                        <p class="res-why"><span><?= sdH($en ? 'Your code is being marked. This page shows the correction once it is done: come back in a moment.' : 'Votre code est en cours de correction. Cette page affichera la correction dès qu’elle sera prête : revenez dans un instant.') ?></span></p>
+                    <?php else: ?>
+                        <?php if (trim((string)$cr['feedback']) !== ''): ?><div class="res-box <?= $isCorrect ? 'is-right' : 'is-wrong' ?>"><b><?= sdH($en ? 'Feedback' : 'Commentaire') ?></b><span><?= nl2br(sdH($cr['feedback'])) ?></span></div><?php endif; ?>
+                        <?php if ($cr['issues_list']): ?><ul class="res-issues"><?php foreach ($cr['issues_list'] as $iss): ?><li><?= $iss['where'] !== '' ? '<code>' . sdH($iss['where']) . '</code> ' : '' ?><?= sdH($iss['description']) ?></li><?php endforeach; ?></ul><?php endif; ?>
+                        <?php if (!empty($cr['corrected_code'])): ?><b><?= sdH($en ? 'Corrected script' : 'Script corrigé') ?></b><pre><?= sdH($cr['corrected_code']) ?></pre><?php endif; ?>
+                        <?php if ($cr['override_verdict'] !== null): ?><p class="res-note"><?= sdH($en ? 'This result was set by your teacher.' : 'Ce résultat a été fixé par votre enseignant.') ?></p><?php endif; ?>
+                    <?php endif; ?>
+                <?php else: ?>
+                    <div class="res-box is-wrong"><b><?= sdH(sd('doc_your_answer')) ?></b><span><?= sdH(sd('doc_none')) ?></span></div>
+                <?php endif; ?>
+            </div>
+        <?php elseif ($isWritten): ?>
             <div class="res-written">
                 <div class="res-box <?= $isCorrect ? 'is-right' : 'is-wrong' ?>"><b><?= sdH(sd('doc_your_answer')) ?></b><span class="latex-container"><?= $qa['selected_option'] === '' || $qa['selected_option'] === null ? '<em>' . sdH(sd('doc_none')) . '</em>' : sdH($qa['selected_option']) ?></span></div>
                 <?php if (!$isCorrect): ?>
@@ -243,6 +276,7 @@ function renderMath() {
     if (typeof renderMathInElement === 'function') {
         renderMathInElement(document.body, {
             delimiters: [{left: '$$', right: '$$', display: true}, {left: '$', right: '$', display: false}, {left: '\\(', right: '\\)', display: false}, {left: '\\[', right: '\\]', display: true}],
+            ignoredClasses: ['no-math'],
             throwOnError: false
         });
     }

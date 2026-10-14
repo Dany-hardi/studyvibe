@@ -190,7 +190,8 @@ final class Contests
         foreach ($st->fetchAll(PDO::FETCH_ASSOC) as $i => $row) {
             $row['selected_option'] = (string)($row['selected_option'] ?? '');
             $seen = LiveScoring::asSeen($row, $row['selected_option'], (int)$reg['id'], !empty($reg['shuffle_options']));
-            $written = $row['question_type'] === 'written';
+            $isCode = $row['question_type'] === 'code';
+            $written = $row['question_type'] === 'written' || $isCode;     // a code answer is shown like a written one: the code itself
             $options = [];
             if (!$written) {
                 foreach (['A', 'B', 'C', 'D'] as $l) {
@@ -201,6 +202,11 @@ final class Contests
                 }
             }
             $pick = (string)$seen['selected_option'];
+            if ($isCode) {
+                $cq = $pdo->prepare("SELECT code FROM live_eval_code_reviews WHERE registration_id = :r AND question_id = :q");
+                $cq->execute(['r' => $reg['id'], 'q' => $row['question_id']]);
+                $pick = (string)($cq->fetchColumn() ?: '');
+            }
             $out[] = [
                 'n' => $i + 1, 'text' => (string)$row['question_text'], 'type' => $written ? 'written' : 'mcq', 'options' => $options,
                 'picked' => $written ? '' : $pick, 'picked_text' => $written ? $pick : ($options[$pick] ?? ''),

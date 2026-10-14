@@ -511,3 +511,15 @@ php scripts/import-job.php docs/careers/postings/*.md             # publie (ajou
 ```
 
 Trois offres prêtes à publier sont dans `docs/careers/postings/` (ingénierie, ventes, éducation), lecture automatique activée. Relisez-les avant publication : l'organisation, les avantages et la rémunération y sont des propositions à adapter.
+
+## Marking of code questions (Anthropic)
+
+Code questions in live evaluations are read and marked by a model (it never runs the code). It needs one secret:
+
+| Variable | Meaning |
+|---|---|
+| `ANTHROPIC_API_KEY` | Key of a dedicated Anthropic project with a monthly spend limit. Set it in the host's environment (Render: Environment), never in the repository or in chat. Empty = the answers wait, nothing is marked wrong. |
+| `ANTHROPIC_MODEL` | Optional, default `claude-sonnet-5-5`. |
+| `ANTHROPIC_DAILY_CALLS` | Optional ceiling of marking calls per day, default 2000. |
+
+Limits already in place: per student, per address and per session on submissions, a size limit on the code, one marking per identical code, a daily ceiling, back-off when the API is busy, and a hand-over to the teacher after four failed attempts. The cron worker (`lib/email-worker.php`) also marks whatever is waiting.

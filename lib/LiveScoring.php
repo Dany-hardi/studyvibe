@@ -18,6 +18,10 @@ final class LiveScoring
         if ($type === 'written') {
             return self::isCorrectWritten($selected, $correct);
         }
+        if ($type === 'code') {
+            // A code answer is marked afterwards: its stored "selected option" is the verdict (CODE_OK / CODE_KO / CODE_PENDING)
+            return $selected === 'CODE_OK';
+        }
         return $selected !== '' && $selected === $correct;
     }
 
@@ -54,10 +58,63 @@ final class LiveScoring
         return str_replace([',', ' '], ['.', ''], mb_strtolower(trim($v)));
     }
 
+    /**
+     * Computes and saves the final score of a registration and queues the results email (once). A student whose code answers are still being
+     * marked gets a provisional score and no email yet: LiveCodeReview calls this again when the last one is marked.
+     * @return float score in percent
+     */
+    public static function finalize(PDO $pdo, array $session, array $registration, array $questions): float
+    {
+        $regId = (int)$registration['id'];
+        $stmt = $pdo->prepare("SELECT question_id, selected_option FROM live_eval_answers WHERE registration_id = :rid");
+        $stmt->execute(['rid' => $regId]);
+        $submitted = $stmt->fetchAll(PDO::FETCH_KEY_PAIR);
+
+        $correctCount = 0;
+        $total = count($questions);
+        $qasDetails = [];
+        foreach ($questions as $q) {
+            $selected = (string)($submitted[$q['id']] ?? '');
+            if (self::isCorrect((string)($q['question_type'] ?? 'mcq'), $selected, (string)$q['correct_option'])) {
+                $correctCount++;
+            }
+            // The email shows the options in the order this student saw them
+            $seen = self::asSeen($q, $selected, $regId, !empty($session['shuffle_options']));
+            $qasDetails[] = [
+                'question_text' => $seen['question_text'], 'option_a' => $seen['option_a'], 'option_b' => $seen['option_b'],
+                'option_c' => $seen['option_c'], 'option_d' => $seen['option_d'], 'correct_option' => $seen['correct_option'],
+                'selected_option' => $seen['selected_option'], 'question_type' => $q['question_type'] ?? 'mcq',
+            ];
+        }
+        $score = $total > 0 ? round(($correctCount / $total) * 100, 2) : 100.00;
+        $pdo->prepare("UPDATE live_eval_registrations SET score = :score WHERE id = :id")->execute(['score' => $score, 'id' => $regId]);
+
+        $waiting = 0;
+        try {
+            $w = $pdo->prepare("SELECT COUNT(*) FROM live_eval_code_reviews WHERE registration_id = :r AND status IN ('pending', 'working')");
+            $w->execute(['r' => $regId]);
+            $waiting = (int)$w->fetchColumn();
+        } catch (Throwable $e) { /* table absent on a schema that has not migrated yet */ }
+        if ($waiting > 0) {
+            return (float)$score;
+        }
+
+        // The results email is queued and sent in the background (see lib/LiveMailQueue.php): sending it here made every
+        // student wait 1 to 3 seconds for the mail server, all at the same moment, when the exam ended.
+        require_once __DIR__ . '/LiveMailQueue.php';
+        try {
+            LiveMailQueue::enqueue($pdo, $regId, [
+                'email' => $registration['email'], 'name' => $registration['name'], 'session_title' => $session['title'],
+                'correct' => $correctCount, 'total' => $total, 'qas' => $qasDetails,
+            ]);
+        } catch (Throwable $e) { error_log('live mail queue: ' . $e->getMessage()); }
+        return (float)$score;
+    }
+
     /** Shuffling only makes sense for a full A to D question: a true/false question keeps "Vrai" before "Faux". */
     public static function canShuffle(array $q): bool
     {
-        if (($q['question_type'] ?? 'mcq') !== 'mcq') {
+        if (($q['question_type'] ?? 'mcq') !== 'mcq') {   // written and code questions have no options to shuffle
             return false;
         }
         foreach (['a', 'b', 'c', 'd'] as $l) {

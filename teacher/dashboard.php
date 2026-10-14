@@ -25,6 +25,7 @@ declare(strict_types=1);
 require_once __DIR__ . '/../auth.php';
 require_once __DIR__ . '/../lib/MediaStore.php';
 require_once __DIR__ . '/../lib/LiveEvalModes.php';
+require_once __DIR__ . '/../lib/LiveCodeReview.php';
 require_once __DIR__ . '/../lib/BulkPackage.php';
 require_once __DIR__ . '/../lib/AssignmentRubric.php';
 require_once __DIR__ . '/../lib/AssignmentSimilarity.php';
@@ -876,9 +877,17 @@ try {
             $explanation  = trim((string)($_POST['explanation'] ?? ''));
             $timeLimit    = trim((string)($_POST['time_limit'] ?? ''));
             
+            $codeLang = LiveCodeReview::langOf((string)($_POST['code_lang'] ?? ''));
+            $codeRef = mb_substr(str_replace(["\r\n", "\r"], "\n", trim((string)($_POST['code_reference'] ?? ''))), 0, LiveCodeReview::MAX_REFERENCE);
+            $codeNotes = mb_substr(trim((string)($_POST['code_notes'] ?? '')), 0, 3000);
+            if ($qType === 'code') {
+                $correct = LiveCodeReview::MARK_OK;      // the stored "right answer" of a code question is only a marker: the verdict comes from the marking
+            }
             $isValid = false;
             if ($sid > 0 && !empty($questionText) && !empty($correct)) {
-                if ($qType === 'written') {
+                if ($qType === 'code') {
+                    $isValid = $codeRef !== '' || $codeNotes !== '';
+                } elseif ($qType === 'written') {
                     $isValid = true;
                 } elseif (!empty($optionA) && !empty($optionB)
                     && (($optionC !== '' && $optionD !== '') || ($optionC === '' && $optionD === '' && in_array($correct, ['A', 'B'], true)))) {
@@ -902,21 +911,25 @@ try {
                 $tLimit = ($timeLimit === '') ? null : (int)$timeLimit;
 
                 $stmt = $pdo->prepare("
-                    INSERT INTO live_eval_questions (session_id, question_text, question_type, option_a, option_b, option_c, option_d, correct_option, explanation, time_limit, image_path)
-                    VALUES (:sid, :qt, :type, :a, :b, :c, :d, :co, :exp, :limit, :img)
+                    INSERT INTO live_eval_questions (session_id, question_text, question_type, option_a, option_b, option_c, option_d, correct_option, explanation, time_limit, image_path,
+                                                     code_lang, code_reference, code_notes)
+                    VALUES (:sid, :qt, :type, :a, :b, :c, :d, :co, :exp, :limit, :img, :cl, :cr, :cn)
                 ");
                 $stmt->execute([
                     'sid'   => $sid,
                     'qt'    => $questionText,
                     'type'  => $qType,
-                    'a'     => $qType === 'written' ? '' : $optionA,
-                    'b'     => $qType === 'written' ? '' : $optionB,
-                    'c'     => $qType === 'written' ? '' : $optionC,
-                    'd'     => $qType === 'written' ? '' : $optionD,
+                    'a'     => $qType !== 'mcq' ? '' : $optionA,
+                    'b'     => $qType !== 'mcq' ? '' : $optionB,
+                    'c'     => $qType !== 'mcq' ? '' : $optionC,
+                    'd'     => $qType !== 'mcq' ? '' : $optionD,
                     'co'    => $correct,
                     'exp'   => $explanation,
                     'limit' => $tLimit,
-                    'img'   => $imagePath
+                    'img'   => $imagePath,
+                    'cl'    => $qType === 'code' ? $codeLang : null,
+                    'cr'    => $qType === 'code' ? $codeRef : null,
+                    'cn'    => $qType === 'code' ? $codeNotes : null,
                 ]);
 
                 $sidForRedirect = (int)($_POST['session_id'] ?? 0);
@@ -2318,6 +2331,10 @@ $tdHasCourse = (bool)$selectedCourse;
                                             <div class="t-menu-list">
                                                 <a href="#" onclick="SVReview.open(<?= $sid ?>); return false;"><?= tde('rv_open') ?></a>
                                                 <a href="/teacher/live-analysis.php?session_id=<?= $sid ?>"><?= tde('live_analysis') ?></a>
+                                                <?php if (array_filter($ls['questions'] ?? [], fn($qq) => ($qq['question_type'] ?? '') === 'code')): ?>
+                                                    <a href="/teacher/live-code-review.php?session_id=<?= $sid ?>"><?= tde('code_corrections_btn') ?></a>
+                                                    <a href="/teacher/export-live-corrections.php?session_id=<?= $sid ?>"><?= tde('code_zip') ?></a>
+                                                <?php endif; ?>
                                                 <hr>
                                                 <small><?= tde('exp_grades') ?></small>
                                                 <a href="/teacher/export-live-grades.php?session_id=<?= $sid ?>"><?= tde('exp_excel') ?></a>
@@ -2393,8 +2410,12 @@ $tdHasCourse = (bool)$selectedCourse;
                                                             </div>
                                                         <?php endif; ?>
                                                         <div style="display:flex;flex-wrap:wrap;gap:.25rem 1rem;font-size:.8125rem;color:var(--ink-3);margin-top:.4rem">
-                                                            <span class="t-chip" style="padding:0 .5rem"><?= $qType === 'written' ? tde('q_type_written') : tde('q_type_mcq') ?></span>
+                                                            <span class="t-chip" style="padding:0 .5rem"><?= $qType === 'code' ? tde('q_type_code') : ($qType === 'written' ? tde('q_type_written') : tde('q_type_mcq')) ?></span>
+                                                            <?php if ($qType === 'code'): ?>
+                                                                <span><?= htmlspecialchars(LiveCodeReview::LANGS[LiveCodeReview::langOf($q['code_lang'] ?? null)][0]) ?> · <?= tde('code_ai_marked') ?></span>
+                                                            <?php else: ?>
                                                             <span><?= tde('q_answer') ?> <strong style="color:var(--ink)"><?= htmlspecialchars((string)$q['correct_option']) ?></strong></span>
+                                                            <?php endif; ?>
                                                             <?php if ($q['time_limit']): ?><span class="num"><?= (int)$q['time_limit'] ?> s</span><?php endif; ?>
                                                             <?php if (!empty($q['explanation'])): ?><span><?= tde('q_explanation') ?> <?= htmlspecialchars($q['explanation']) ?></span><?php endif; ?>
                                                             <?php if ($q['image_path']): ?><a href="<?= htmlspecialchars(mediaUrl('live_question', (string)$q['image_path'])) ?>" target="_blank" rel="noopener" style="color:var(--clay)"><?= tde('q_image') ?></a><?php endif; ?>
@@ -2423,6 +2444,7 @@ $tdHasCourse = (bool)$selectedCourse;
                                                 <select id="qt-<?= $sid ?>" name="question_type" onchange="handleQuestionTypeChange(this)">
                                                     <option value="mcq"><?= tde('q_type_mcq_long') ?></option>
                                                     <option value="written"><?= tde('q_type_written_long') ?></option>
+                                                    <option value="code"><?= tde('q_type_code_long') ?></option>
                                                 </select>
                                             </div>
                                             <div class="t-field">
@@ -2438,6 +2460,24 @@ $tdHasCourse = (bool)$selectedCourse;
                                                             <input type="text" id="qo<?= $L ?>-<?= $sid ?>" name="option_<?= $L ?>">
                                                         </div>
                                                     <?php endforeach; ?>
+                                                </div>
+                                            </div>
+                                            <div class="code-fields hidden">
+                                                <div class="t-field">
+                                                    <label for="ql-<?= $sid ?>"><?= tde('code_lang') ?></label>
+                                                    <select id="ql-<?= $sid ?>" name="code_lang">
+                                                        <?php foreach (LiveCodeReview::LANGS as $lk => $lv): ?><option value="<?= $lk ?>"><?= htmlspecialchars($lv[0]) ?></option><?php endforeach; ?>
+                                                    </select>
+                                                </div>
+                                                <div class="t-field">
+                                                    <label for="qr-<?= $sid ?>"><?= tde('code_reference') ?></label>
+                                                    <textarea id="qr-<?= $sid ?>" name="code_reference" rows="8" maxlength="12000" spellcheck="false" style="font-family:ui-monospace,SFMono-Regular,Menlo,Consolas,monospace;font-size:.85rem;tab-size:4"></textarea>
+                                                    <span class="t-hint"><?= tde('code_reference_hint') ?></span>
+                                                </div>
+                                                <div class="t-field">
+                                                    <label for="qn-<?= $sid ?>"><?= tde('code_notes') ?></label>
+                                                    <textarea id="qn-<?= $sid ?>" name="code_notes" rows="3" maxlength="3000"></textarea>
+                                                    <span class="t-hint"><?= tde('code_notes_hint') ?></span>
                                                 </div>
                                             </div>
                                             <div style="display:grid;grid-template-columns:1fr 1fr;gap:0 .75rem">
@@ -4422,7 +4462,18 @@ function handleQuestionTypeChange(selectElement) {
     const type = selectElement.value;
     const mcqOptionsGroup = form.querySelector('.mcq-options-group');
     const correctOptionContainer = form.querySelector('.correct-option-container');
-    
+    const codeFields = form.querySelector('.code-fields');
+    if (codeFields) codeFields.classList.toggle('hidden', type !== 'code');
+
+    if (type === 'code') {
+        if (mcqOptionsGroup) mcqOptionsGroup.classList.add('hidden');
+        if (correctOptionContainer) {
+            correctOptionContainer.innerHTML = '<input type="hidden" name="correct_option" value="CODE_OK">';
+        }
+        const lim = form.querySelector('input[name=time_limit]');
+        if (lim && !lim.value) lim.placeholder = '300';
+        return;
+    }
     if (type === 'written') {
         if (mcqOptionsGroup) mcqOptionsGroup.classList.add('hidden');
         if (correctOptionContainer) {

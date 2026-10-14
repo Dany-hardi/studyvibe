@@ -67,6 +67,7 @@ $envKeys = [
     'LOGIN_MAX_ATTEMPTS', 'LOGIN_LOCKOUT_MINUTES',
     'SMTP_HOST', 'SMTP_PORT', 'SMTP_USER', 'SMTP_PASS', 'SMTP_FROM', 'SMTP_FROM_NAME',
     'GEMINI_API_KEY', 'VAPID_PRIVATE_PEM_B64', 'VAPID_SUBJECT',
+    'ANTHROPIC_API_KEY', 'ANTHROPIC_MODEL', 'ANTHROPIC_DAILY_CALLS',   // marking of code questions (lib/LiveCodeReview.php)
     'CONTACT_EMAIL',   // public contact address shown in the footer and on the privacy page
     'CONTROL_OWNER_EMAIL', 'REQUIRE_2FA_ROLES'   // the control center allow-list and the roles that must use an authenticator app
 ];
@@ -109,6 +110,10 @@ defined('SMTP_FROM_NAME')        || define('SMTP_FROM_NAME', 'StudyVibe');
 defined('VAPID_PRIVATE_PEM_B64') || define('VAPID_PRIVATE_PEM_B64', '');   // web push; php scripts/generate-vapid.php
 defined('VAPID_SUBJECT')         || define('VAPID_SUBJECT', 'mailto:admin@studyvibe.edu');
 defined('GEMINI_API_KEY')        || define('GEMINI_API_KEY', 'votre_cle_api_gemini_ici');
+// Marking of code questions. Empty key = the marking waits (answers stay "pending review"), nothing is marked wrong by accident.
+defined('ANTHROPIC_API_KEY')     || define('ANTHROPIC_API_KEY', '');
+defined('ANTHROPIC_MODEL')       || define('ANTHROPIC_MODEL', 'claude-sonnet-5-5');
+defined('ANTHROPIC_DAILY_CALLS') || define('ANTHROPIC_DAILY_CALLS', '2000');   // ceiling of marking calls per day, whatever happens
 // Master switch for everything that needs text messages: phone number at sign-up, the verification window, codes by SMS,
 // announcements of live evaluations. Off until an SMS provider works (see DEPLOYMENT.md).
 defined('FEATURE_SMS')           || define('FEATURE_SMS', 'false');

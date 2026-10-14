@@ -21,6 +21,7 @@ declare(strict_types=1);
 require_once __DIR__ . '/../Database.php';
 require_once __DIR__ . '/../lib/LiveScoring.php';
 require_once __DIR__ . '/../lib/LiveResume.php';
+require_once __DIR__ . '/../lib/LiveCodeReview.php';
 
 header('Content-Type: application/json');
 
@@ -412,7 +413,7 @@ try {
 
             // Top-10 leaderboard: the same for everybody, so it is computed once every 3 seconds
             $leaderboard = json_decode(liveCacheRemember(__DIR__ . '/../uploads/live_cache/leaderboard_' . (int)$session['id'] . '.json', 3, function () use ($pdo, $session) {
-                $st = $pdo->prepare("SELECT name, score FROM live_eval_registrations WHERE session_id = :sid AND score IS NOT NULL ORDER BY score DESC, name ASC LIMIT 10");
+                $st = $pdo->prepare("SELECT name, score FROM live_eval_registrations r WHERE session_id = :sid AND score IS NOT NULL AND NOT EXISTS (SELECT 1 FROM live_eval_code_reviews c WHERE c.registration_id = r.id AND c.status IN ('pending', 'working')) ORDER BY score DESC, name ASC LIMIT 10");
                 $st->execute(['sid' => $session['id']]);
                 return json_encode($st->fetchAll(PDO::FETCH_ASSOC));
             }), true) ?: [];
@@ -491,6 +492,7 @@ try {
                 'image_path'    => !empty($activeQ['image_path']) ? '/download.php?type=live_question&file=' . urlencode(basename($activeQ['image_path'])) : null,
                 'seconds_left'  => $secondsLeft,
                 'question_type' => $activeQ['question_type'] ?? 'mcq',
+                'code_lang'     => ($activeQ['question_type'] ?? 'mcq') === 'code' ? LiveCodeReview::langOf($activeQ['code_lang'] ?? null) : null,
             ],
             'answers_received' => $answersReceived,
             'total_registered' => $totalRegistered,
@@ -528,6 +530,45 @@ try {
             exit;
         }
         
+        // Code question: the code goes to its own table, the marking happens right after this answer is sent back
+        if (($activeQForSubmission['question_type'] ?? 'mcq') === 'code') {
+            if (!$activeQ || (int)$activeQ['id'] !== $questionId) {
+                echo json_encode(['success' => false, 'message' => 'Le temps imparti pour cette question est écoulé.']);
+                exit;
+            }
+            require_once __DIR__ . '/../lib/RateLimit.php';
+            require_once __DIR__ . '/../lib/Security.php';
+            $ipKey = hash('sha256', Security::clientIp());
+            if (!RateLimit::allow($pdo, 'code:reg:' . $regId, 40, 3600)
+                || !RateLimit::allow($pdo, 'code:ip:' . $ipKey, 120, 600)
+                || !RateLimit::allow($pdo, 'code:sess:' . (int)$session['id'], 3000, 3600)) {
+                echo json_encode(['success' => false, 'message' => 'Trop d’envois en peu de temps. Patientez un instant puis réessayez.']);
+                exit;
+            }
+            $codeIn = (string)($_POST['code_answer'] ?? '');
+            $sub = LiveCodeReview::submit($pdo, $regId, $questionId, $codeIn);
+            if (!$sub['ok']) {
+                echo json_encode(['success' => false, 'message' => $sub['error'] === 'empty' ? 'Écrivez votre code avant de valider.' : 'Votre code est trop long.']);
+                exit;
+            }
+            $_SESSION['answered_questions'][$questionId] = true;
+            // The student gets the answer at once; the marking carries on behind
+            ignore_user_abort(true);
+            ob_start();
+            echo json_encode(['success' => true, 'message' => 'Code enregistré.']);
+            $len = ob_get_length();
+            header('Connection: close');
+            header('Content-Length: ' . $len);
+            ob_end_flush();
+            flush();
+            if (function_exists('fastcgi_finish_request')) {
+                fastcgi_finish_request();
+            }
+            @set_time_limit(150);
+            try { LiveCodeReview::process($pdo, 2); } catch (Throwable $e) { error_log('code review: ' . $e->getMessage()); }
+            exit;
+        }
+
         // Parse input value according to question type (MCQ options vs written text)
         $qType = $activeQForSubmission['question_type'] ?? 'mcq';
         if ($qType === 'mcq') {
@@ -586,62 +627,5 @@ try {
  */
 function calculateAndSaveScore(PDO $pdo, array $session, array $registration, array $questions): float
 {
-    $regId = (int)$registration['id'];
-    
-    // Fetch submitted answers
-    $stmt = $pdo->prepare("
-        SELECT question_id, selected_option FROM live_eval_answers
-        WHERE registration_id = :rid
-    ");
-    $stmt->execute(['rid' => $regId]);
-    $submittedAnswers = $stmt->fetchAll(PDO::FETCH_KEY_PAIR);
-
-    $correctCount = 0;
-    $totalQuestions = count($questions);
-    $qasDetails = [];
-
-    // Evaluate answers
-    foreach ($questions as $q) {
-        $selected = $submittedAnswers[$q['id']] ?? '';
-        $isCorrect = LiveScoring::isCorrect((string)($q['question_type'] ?? 'mcq'), (string)$selected, (string)$q['correct_option']);
-
-        if ($isCorrect) {
-            $correctCount++;
-        }
-        
-        // The email shows the options in the order this student saw them
-        $seen = LiveScoring::asSeen($q, (string)$selected, $regId, !empty($session['shuffle_options']));
-        $qasDetails[] = [
-            'question_text'  => $seen['question_text'],
-            'option_a'       => $seen['option_a'],
-            'option_b'       => $seen['option_b'],
-            'option_c'       => $seen['option_c'],
-            'option_d'       => $seen['option_d'],
-            'correct_option' => $seen['correct_option'],
-            'selected_option'=> $seen['selected_option'],
-            'question_type'  => $q['question_type'] ?? 'mcq',
-        ];
-    }
-
-    $scorePercent = $totalQuestions > 0 ? round(($correctCount / $totalQuestions) * 100, 2) : 100.00;
-
-    // Save final calculated score in database
-    $updateStmt = $pdo->prepare("UPDATE live_eval_registrations SET score = :score WHERE id = :id");
-    $updateStmt->execute(['score' => $scorePercent, 'id' => $regId]);
-
-    // The results email is queued and sent in the background (see lib/LiveMailQueue.php): sending it here made every
-    // student wait 1 to 3 seconds for the mail server, all at the same moment, when the exam ended.
-    require_once __DIR__ . '/../lib/LiveMailQueue.php';
-    try {
-    LiveMailQueue::enqueue($pdo, $regId, [
-        'email'         => $registration['email'],
-        'name'          => $registration['name'],
-        'session_title' => $session['title'],
-        'correct'       => $correctCount,
-        'total'         => $totalQuestions,
-        'qas'           => $qasDetails,
-    ]);
-    } catch (Throwable $e) { error_log('live mail queue: ' . $e->getMessage()); }
-
-    return (float)$scorePercent;
+    return LiveScoring::finalize($pdo, $session, $registration, $questions);
 }

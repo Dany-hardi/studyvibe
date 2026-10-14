@@ -211,6 +211,29 @@ final class ExportDocs
         $percent = $total > 0 ? round($correct / $total * 100, 1) : 0.0;
         $assets = [];
 
+        // The marking of the code answers (verdict, feedback, corrected script)
+        require_once __DIR__ . '/LiveCodeReview.php';
+        $reviews = [];
+        if ((int)($registration['id'] ?? 0) > 0) {
+            $rq = $pdo->prepare("SELECT * FROM live_eval_code_reviews WHERE registration_id = :r");
+            $rq->execute(['r' => (int)$registration['id']]);
+            foreach ($rq->fetchAll(PDO::FETCH_ASSOC) as $rr) {
+                $reviews[(int)$rr['question_id']] = LiveCodeReview::effective($rr);
+            }
+        }
+        // Code in a verbatim block: plain ASCII, tabs as spaces, long lines folded, so it can never break the document
+        $verb = static function (string $code): string {
+            $lines = [];
+            foreach (explode("\n", str_replace(["\r", "\t"], ['', '    '], $code)) as $line) {
+                $line = (string)preg_replace('/[^\x20-\x7E]/u', '?', $line);
+                $line = str_replace('\\end{verbatim}', '\\ end{verbatim}', $line);
+                foreach (str_split($line === '' ? ' ' : $line, 86) as $part) {
+                    $lines[] = $part;
+                }
+            }
+            return "{\\footnotesize\\begin{verbatim}\n" . implode("\n", array_slice($lines, 0, 260)) . "\n\\end{verbatim}}\n";
+        };
+
         $body = ExportTheme::titleBlockClassic($en ? 'Correction report' : 'Rapport de correction', (string)$registration['session_title'], (string)$registration['course_title'], [
             [$en ? 'Candidate' : 'Candidat', (string)$registration['name']],
             [$L('course'), (string)$registration['course_title']],
@@ -243,6 +266,23 @@ final class ExportDocs
                     $body .= "  \\item[{$mark}~\\textbf{{$letter}.}] " . ($isRight ? "\\textbf{{$t}}" : $t) . $note . "\n";
                 }
                 $body .= "\\end{itemize}\n";
+            } elseif ($type === 'code') {
+                $rv = $reviews[(int)($qa['question_id'] ?? $qa['id'] ?? 0)] ?? null;
+                if (!$rv) {
+                    $body .= "\\begin{quote}\\small " . ExportTheme::esc($L('none')) . "\\end{quote}\n";
+                } else {
+                    $body .= "\\par\\smallskip\\textit{" . ExportTheme::esc($en ? 'Your code.' : 'Votre code.') . "}\n" . $verb((string)$rv['code']);
+                    if ($rv['final'] === null) {
+                        $body .= "\\begin{quote}\\small " . ExportTheme::esc($en ? 'This code was still being marked when this report was issued.' : 'Ce code était encore en cours de correction à l’édition de ce rapport.') . "\\end{quote}\n";
+                    } else {
+                        if (trim((string)$rv['feedback']) !== '') {
+                            $body .= "\\begin{quote}\\small\\textit{" . ExportTheme::esc($en ? 'Feedback.' : 'Commentaire.') . '} ' . ExportTheme::tex((string)$rv['feedback'], true) . "\\end{quote}\n";
+                        }
+                        if (!empty($rv['corrected_code'])) {
+                            $body .= "\\par\\smallskip\\textit{" . ExportTheme::esc($en ? 'Corrected script.' : 'Script corrigé.') . "}\n" . $verb((string)$rv['corrected_code']);
+                        }
+                    }
+                }
             } else {
                 $given = trim((string)$qa['selected_option']) !== '' ? ExportTheme::tex((string)$qa['selected_option'], true) : ExportTheme::esc($L('none'));
                 $body .= "\\begin{quote}\\small\\textit{" . ExportTheme::esc($L('your_answer')) . '.} ' . $given

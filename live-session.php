@@ -19,6 +19,7 @@ require_once __DIR__ . '/auth.php';
 require_once __DIR__ . '/lib/Brand.php';
 require_once __DIR__ . '/lib/LiveGuest.php';
 require_once __DIR__ . '/lib/LiveResume.php';
+require_once __DIR__ . '/lib/LiveCodeReview.php';
 
 // =========================================================================
 // SECTION 1: LOGOUT OR STATE RESET
@@ -1717,6 +1718,15 @@ if (!$error) {
                                     </button>
                                 </div>
 
+                                <!-- Code question: a button opens the editor window -->
+                                <div id="quiz-code-container" class="hidden" style="display:flex; flex-direction:column; gap:0.85rem;">
+                                    <div style="display:flex; align-items:center; gap:.6rem; flex-wrap:wrap; font-size:.85rem; color:var(--muted,#6b6559);">
+                                        <span id="code-lang-chip" style="font-family:ui-monospace,Menlo,Consolas,monospace; font-weight:700; padding:.2rem .6rem; border-radius:999px; background:rgba(36,64,47,.1); color:#24402F;"></span>
+                                        <span id="code-draft-info"></span>
+                                    </div>
+                                    <button type="button" onclick="openCodeModal()" id="btn-open-code" class="btn-primary" style="font-weight:700; border-radius:4px; padding:0.95rem;">Écrire mon code</button>
+                                </div>
+
                                 <!-- Submit feedback status overlay -->
                                 <div id="quiz-submit-status" class="hidden" style="margin-top:1.25rem; padding:0.9rem 1rem; background:rgba(62,107,71,0.08); border:1px solid rgba(62,107,71,0.3); color:#3E6B47; font-size:0.82rem; text-align:center; font-weight:600; border-radius:3px;">
                                     ✓ Réponse enregistrée — en attente de la prochaine question...
@@ -1854,7 +1864,29 @@ if (!$error) {
          SECTION 4: JAVASCRIPT POLLING & DYNAMIC STATE MACHINE
          ========================================================================= -->
     <?php if (!$error): ?>
-    <script>
+    <!-- Code editor window of a code question -->
+<div id="code-modal" class="hidden" role="dialog" aria-modal="true" aria-labelledby="code-modal-title" style="position:fixed; inset:0; z-index:9000; background:rgba(20,17,14,.62); display:none; align-items:center; justify-content:center; padding:1rem;">
+    <div style="background:#fff; color:#1f1b16; width:min(960px,100%); max-height:94vh; display:flex; flex-direction:column; border-radius:14px; box-shadow:0 24px 70px rgba(0,0,0,.35); overflow:hidden;">
+        <div style="padding:1rem 1.25rem; border-bottom:1px solid #eee8dc; display:flex; gap:1rem; align-items:flex-start; justify-content:space-between;">
+            <div style="min-width:0;">
+                <div id="code-modal-title" style="font-weight:700; font-size:.78rem; letter-spacing:.06em; text-transform:uppercase; color:#8a8070;">Question de code · <span id="code-modal-lang"></span></div>
+                <div id="code-modal-question" class="no-math" style="margin-top:.35rem; font-size:1rem; line-height:1.5; max-height:22vh; overflow:auto; white-space:pre-wrap;"></div>
+            </div>
+            <div id="code-modal-time" style="font-variant-numeric:tabular-nums; font-weight:700; font-size:1.1rem; color:#B5482A; white-space:nowrap;"></div>
+        </div>
+        <textarea id="code-input" spellcheck="false" autocomplete="off" autocapitalize="off" autocorrect="off" wrap="off" aria-label="Votre code"
+                  style="flex:1; min-height:42vh; width:100%; border:0; outline:0; resize:none; padding:1rem 1.25rem; font:14px/1.55 ui-monospace,SFMono-Regular,Menlo,Consolas,monospace; tab-size:4; background:#faf8f4; color:#1f1b16; white-space:pre; overflow:auto;"></textarea>
+        <div style="padding:.8rem 1.25rem; border-top:1px solid #eee8dc; display:flex; flex-wrap:wrap; gap:.75rem; align-items:center; justify-content:space-between;">
+            <div style="font-size:.8rem; color:#6b6559; flex:1 1 20rem;"><span id="code-count">0</span> / <?= (int)LiveCodeReview::MAX_CODE ?> caractères · Votre code est enregistré dans ce navigateur pendant que vous écrivez et envoyé automatiquement à la fin du temps.</div>
+            <div style="display:flex; gap:.6rem; flex-wrap:wrap;">
+                <button type="button" onclick="closeCodeModal()" class="btn-secondary" style="padding:.7rem 1rem; border-radius:6px; border:1px solid #d9d2c3; background:#fff; cursor:pointer; font-weight:600; white-space:nowrap;">Fermer (brouillon gardé)</button>
+                <button type="button" onclick="submitCodeAnswer(false)" id="btn-submit-code" class="btn-primary" style="padding:.7rem 1.2rem; border-radius:6px; font-weight:700; white-space:nowrap;">Valider mon code</button>
+            </div>
+        </div>
+    </div>
+</div>
+
+<script>
         // Synchronise client clock with the server
         const sessionCode = <?= json_encode($code) ?>;
         const registrationId = <?= $registration ? (int)$regId : 'null' ?>;
@@ -1895,6 +1927,10 @@ if (!$error) {
         let countdownTimer = null;
         let isFinalCountdown = false;
         let currentQuestionId = null;
+        let currentQType = 'mcq';
+        let codeSubmitted = false;
+        let codeAutoSent = false;
+        let codeQuestionText = '';
         let currentOptionKeys = ['A', 'B', 'C', 'D'];   // original letter behind each displayed button (shuffled per student)
         let integrityWatch = false;
         let redirectTimer = null;
@@ -2231,7 +2267,7 @@ if (!$error) {
                 }
 
                 if (data.already_answered) {
-                    disableOptions();
+                    if (currentQType === 'code') { codeSubmitted = true; } else { disableOptions(); }
                     const statusEl = document.getElementById('quiz-submit-status');
                     if (statusEl) {
                         statusEl.classList.remove('hidden');
@@ -2373,12 +2409,20 @@ if (!$error) {
                         
                         updateSvgTimer(questionSecondsLeft, questionTotalDuration);
                     }
+                    if (currentQType === 'code') {
+                        const tm = document.getElementById('code-modal-time');
+                        if (tm) tm.textContent = Math.floor(Math.max(0, questionSecondsLeft) / 60) + ':' + String(Math.max(0, questionSecondsLeft) % 60).padStart(2, '0');
+                        // the time is almost over: what is written is sent by itself
+                        if (questionSecondsLeft <= 3 && !codeAutoSent && codeHasUnsent()) { codeAutoSent = true; submitCodeAnswer(true); }
+                    }
                     if (questionSecondsLeft <= 0) {
                         clearInterval(questionTimer);
                         questionTimer = null;
                         updateSvgTimer(0, questionTotalDuration);
                         disableOptions();
-                        if (isAsync) {
+                        if (currentQType === 'code') {
+                            closeCodeModal(true);
+                        } else if (isAsync) {
                             submitLiveAnswerRaw("");
                         }
                     }
@@ -2516,6 +2560,7 @@ if (!$error) {
                         {left: '\\(', right: '\\)', display: false},
                         {left: '\\[', right: '\\]', display: true}
                     ],
+                    ignoredClasses: ['no-math'],    // code questions: $a and $b are variables, not formulas
                     throwOnError: false
                 });
             }
@@ -2562,10 +2607,20 @@ if (!$error) {
             }
 
             const qType = q.question_type || 'mcq';
+            currentQType = qType;
+            document.getElementById('quiz-question-text').classList.toggle('no-math', qType === 'code');
             const mcqContainer = document.getElementById('quiz-options-container');
             const writtenContainer = document.getElementById('quiz-written-container');
-            
-            if (qType === 'written') {
+            const codeContainer = document.getElementById('quiz-code-container');
+            codeContainer.classList.add('hidden');
+            closeCodeModal(true);
+
+            if (qType === 'code') {
+                mcqContainer.classList.add('hidden');
+                writtenContainer.classList.add('hidden');
+                codeContainer.classList.remove('hidden');
+                setupCodeQuestion(q);
+            } else if (qType === 'written') {
                 mcqContainer.classList.add('hidden');
                 writtenContainer.classList.remove('hidden');
                 
@@ -2616,6 +2671,137 @@ if (!$error) {
             z.querySelector('img').src = src;
             z.style.display = 'flex';
         }
+
+        // ── Code question ─────────────────────────────────────────────
+        const CODE_LANG_LABELS = <?= json_encode(array_map(fn($l) => $l[0], LiveCodeReview::LANGS), JSON_UNESCAPED_UNICODE | JSON_HEX_TAG) ?>;
+        const CODE_MAX = <?= (int)LiveCodeReview::MAX_CODE ?>;
+        const codeDraftKey = () => 'sv_code_draft_' + sessionCode + '_' + currentQuestionId;
+
+        function setupCodeQuestion(q) {
+            codeSubmitted = false;
+            codeAutoSent = false;
+            codeQuestionText = q.question_text || '';
+            const label = CODE_LANG_LABELS[q.code_lang] || CODE_LANG_LABELS.other;
+            document.getElementById('code-lang-chip').textContent = label;
+            document.getElementById('code-modal-lang').textContent = label;
+            document.getElementById('code-modal-question').textContent = codeQuestionText;
+            const input = document.getElementById('code-input');
+            let draft = '';
+            try { draft = localStorage.getItem(codeDraftKey()) || ''; } catch (e) {}
+            input.value = draft;
+            input.disabled = false;
+            document.getElementById('btn-submit-code').disabled = false;
+            document.getElementById('btn-open-code').disabled = false;
+            updateCodeCount();
+            // the window opens by itself: the student can start typing at once
+            setTimeout(() => openCodeModal(), 150);
+        }
+
+        const codeSentKey = () => 'sv_code_sent_' + sessionCode + '_' + currentQuestionId;
+        // true when what is in the editor is not what the server already has
+        function codeHasUnsent() {
+            const v = document.getElementById('code-input').value;
+            if (v.trim() === '') return false;
+            let sent = null;
+            try { sent = localStorage.getItem(codeSentKey()); } catch (e) {}
+            return sent !== v;
+        }
+
+        function updateCodeCount() {
+            const input = document.getElementById('code-input');
+            document.getElementById('code-count').textContent = input.value.length;
+            const lines = input.value === '' ? 0 : input.value.split('\n').length;
+            document.getElementById('code-draft-info').textContent = input.value === '' ? 'Aucun code écrit pour l’instant.' : lines + ' ligne' + (lines > 1 ? 's' : '') + ' écrite' + (lines > 1 ? 's' : '') + (codeSubmitted ? ' · envoyé' : '');
+            document.getElementById('btn-open-code').textContent = input.value === '' ? 'Écrire mon code' : 'Reprendre mon code';
+        }
+
+        function openCodeModal() {
+            if (currentQType !== 'code') return;
+            const m = document.getElementById('code-modal');
+            m.style.display = 'flex';
+            m.classList.remove('hidden');
+            const input = document.getElementById('code-input');
+            input.focus();
+        }
+
+        function closeCodeModal(silent) {
+            const m = document.getElementById('code-modal');
+            if (!m) return;
+            m.style.display = 'none';
+            m.classList.add('hidden');
+        }
+
+        function submitCodeAnswer(auto) {
+            const input = document.getElementById('code-input');
+            const code = input.value;
+            if (code.trim() === '') {
+                if (!auto) alert('Écrivez votre code avant de valider.');
+                return;
+            }
+            if (code.length > CODE_MAX + 2000) { alert('Votre code est trop long.'); return; }
+            const btn = document.getElementById('btn-submit-code');
+            btn.disabled = true;
+            const statusEl = document.getElementById('quiz-submit-status');
+            statusEl.classList.remove('hidden');
+            statusEl.innerHTML = 'Envoi de votre code...';
+            statusEl.style.borderColor = 'rgba(62,107,71,0.3)'; statusEl.style.background = 'rgba(62,107,71,0.08)'; statusEl.style.color = '#3E6B47';
+            const qid = currentQuestionId;
+            const formData = new FormData();
+            formData.append('code', sessionCode);
+            formData.append('action', 'submit_answer');
+            formData.append('question_id', qid);
+            formData.append('selected_option', 'CODE');
+            formData.append('code_answer', code);
+            fetch('/api/live-eval-poll.php', { method: 'POST', body: formData })
+                .then(res => res.json())
+                .then(data => {
+                    if (data.success) {
+                        codeSubmitted = true;
+                        try { localStorage.removeItem('pending_live_code_' + sessionCode); localStorage.setItem(codeSentKey(), code); } catch (e) {}
+                        statusEl.innerHTML = '✓ Code envoyé — il est en cours de correction. Vous pouvez le modifier et le renvoyer tant que le temps n’est pas écoulé.';
+                        updateCodeCount();
+                        if (!auto) closeCodeModal();
+                        btn.disabled = false;
+                        playPositiveChime();
+                    } else {
+                        btn.disabled = false;
+                        statusEl.innerHTML = 'Erreur : ' + (data.message || 'envoi impossible') + ' Votre code reste ici, réessayez.';
+                        statusEl.style.borderColor = '#EF4444'; statusEl.style.background = '#FEF2F2'; statusEl.style.color = '#991B1B';
+                    }
+                })
+                .catch(() => {
+                    btn.disabled = false;
+                    // network trouble: the code is kept and sent again as soon as the connection returns
+                    try { localStorage.setItem('pending_live_code_' + sessionCode, JSON.stringify({ q: qid, code: code })); } catch (e) {}
+                    statusEl.innerHTML = 'Connexion perdue : votre code est gardé et sera renvoyé dès que la connexion revient.';
+                    statusEl.style.borderColor = '#EF4444'; statusEl.style.background = '#FEF2F2'; statusEl.style.color = '#991B1B';
+                });
+        }
+
+        function syncPendingCode() {
+            let p = null;
+            try { p = JSON.parse(localStorage.getItem('pending_live_code_' + sessionCode) || 'null'); } catch (e) {}
+            if (!p || p.q !== currentQuestionId || currentQType !== 'code') return;
+            submitCodeAnswer(true);
+        }
+
+        document.addEventListener('DOMContentLoaded', () => {
+            const input = document.getElementById('code-input');
+            if (!input) return;
+            input.addEventListener('input', () => {
+                try { localStorage.setItem(codeDraftKey(), input.value); } catch (e) {}
+                updateCodeCount();
+            });
+            // Tab writes a tab of four spaces instead of leaving the field
+            input.addEventListener('keydown', (e) => {
+                if (e.key === 'Tab') {
+                    e.preventDefault();
+                    const s = input.selectionStart, en = input.selectionEnd;
+                    input.setRangeText('    ', s, en, 'end');
+                    input.dispatchEvent(new Event('input'));
+                }
+            });
+        });
 
         function submitLiveAnswer(option) {
             ['A', 'B', 'C', 'D'].forEach(opt => {
@@ -2716,6 +2902,7 @@ if (!$error) {
          * Empties and synchronizes locally cached submission queue if internet link restores.
          */
         function syncPendingAnswers() {
+            syncPendingCode();
             const pendingKey = 'pending_live_answer_' + sessionCode;
             const dataStr = localStorage.getItem(pendingKey);
             if (!dataStr) return;
@@ -2772,6 +2959,8 @@ if (!$error) {
             if (wrInput) wrInput.disabled = true;
             const wrBtn = document.getElementById('btn-submit-written');
             if (wrBtn) wrBtn.disabled = true;
+            const codeBtn = document.getElementById('btn-open-code');
+            if (codeBtn) codeBtn.disabled = true;
         }
 
         /**
