@@ -128,6 +128,8 @@ try {
     $pdo = Database::getInstance();
     require_once __DIR__ . '/lib/LiveReminders.php';
     LiveReminders::tick($pdo);
+    require_once __DIR__ . '/lib/LiveEvalModes.php';
+    LiveEvalModes::advance($pdo);
     if ($code !== '') {
         $stmt = $pdo->prepare("
             SELECT s.*, c.title AS course_title

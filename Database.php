@@ -1147,6 +1147,9 @@ class Database
             }
         } catch (PDOException $ex) { /* table absent on a very old schema */ }
         try { $pdo->exec("ALTER TABLE `career_jobs` ADD UNIQUE KEY `uq_career_public_id` (`public_id`)"); } catch (PDOException $ex) { /* already applied */ }
+
+        // Migration 2.26: an evaluation can start live and go on as a free assignment once the live window is over.
+        try { $pdo->exec("ALTER TABLE `live_eval_sessions` ADD COLUMN `async_after_live` TINYINT(1) NOT NULL DEFAULT 0"); } catch (PDOException $ex) { /* already applied */ }
     }
 
     /**

@@ -25,6 +25,8 @@ if (!$lock || !flock($lock, LOCK_EX | LOCK_NB)) {
 }
 $pdo = Database::getInstance();
 // Live evaluations about to start get their reminder first, so it leaves in the same run
+require_once __DIR__ . '/LiveEvalModes.php';
+LiveEvalModes::advance($pdo);
 $r = LiveReminders::dispatch($pdo);
 echo 'reminders: ' . $r['queued'] . ' for ' . $r['sessions'] . " session(s)\n";
 echo 'sent: ' . EmailQueue::work($pdo) . "\n";

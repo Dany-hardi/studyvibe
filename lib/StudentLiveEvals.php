@@ -13,6 +13,8 @@ final class StudentLiveEvals
     /** @return array<int, array<string, mixed>> sorted by start (live) or deadline (async) */
     public static function upcoming(PDO $pdo, int $studentId, string $email): array
     {
+        require_once __DIR__ . '/LiveEvalModes.php';
+        LiveEvalModes::advance($pdo);
         $stmt = $pdo->prepare("
             SELECT s.id, s.title, s.session_code, s.start_time, s.end_time, s.is_async, s.async_deadline,
                    c.title AS course_title,

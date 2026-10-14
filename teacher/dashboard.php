@@ -24,6 +24,7 @@ declare(strict_types=1);
 
 require_once __DIR__ . '/../auth.php';
 require_once __DIR__ . '/../lib/MediaStore.php';
+require_once __DIR__ . '/../lib/LiveEvalModes.php';
 require_once __DIR__ . '/../lib/BulkPackage.php';
 require_once __DIR__ . '/../lib/AssignmentRubric.php';
 require_once __DIR__ . '/../lib/AssignmentSimilarity.php';
@@ -39,6 +40,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 
 $user = getCurrentUser();
 $pdo  = Database::getInstance();
+LiveEvalModes::advance($pdo);
 
 $defaultCourseSvg = '<svg class="w-12 h-12 text-[#B5482A]" fill="none" stroke="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M12 6.253v13m0-13C10.832 5.477 9.246 5 7.5 5S4.168 5.477 3 6.253v13C4.168 18.477 5.754 18 7.5 18s3.332.477 4.5 1.253m0-13C13.168 5.477 14.754 5 16.5 5c1.747 0 3.332.477 4.5 1.253v13C19.832 18.477 18.247 18 16.5 18c-1.746 0-3.332.477-4.5 1.253"></path></svg>';
 
@@ -678,57 +680,59 @@ try {
         // ── M. Ajouter une séance de téléévaluation ───────────────────
         if ($action === 'add_live_session') {
             $title = trim((string)($_POST['live_title'] ?? ''));
-            $startTime = trim((string)($_POST['live_start_time'] ?? ''));
-            $endTime = trim((string)($_POST['live_end_time'] ?? ''));
             $limit = (int)($_POST['default_time_limit'] ?? 30);
-
-            if (!empty($title) && !empty($startTime) && !empty($endTime)) {
-                $code = bin2hex(random_bytes(8));
-                $stmt = $pdo->prepare("
-                    INSERT INTO live_eval_sessions (course_id, teacher_id, title, session_code, start_time, end_time, default_time_limit, status, shuffle_options, integrity_watch)
-                    VALUES (:cid, :tid, :title, :code, :start, :end, :limit, 0, :shuf, :watch)
-                ");
-                $stmt->execute([
-                    'cid'   => $selectedCourse['id'],
-                    'tid'   => $teacherId,
-                    'title' => $title,
-                    'code'  => $code,
-                    'start' => $startTime,
-                    'end'   => $endTime,
-                    'limit' => $limit,
-                    'shuf'  => isset($_POST['shuffle_options']) ? 1 : 0,
-                    'watch' => isset($_POST['integrity_watch']) ? 1 : 0,
-                ]);
-                $newSessionId = (int)$pdo->lastInsertId();
-                header("Location: /teacher/dashboard.php?course_id={$selectedCourse['id']}&success=live_session_created&open_session={$newSessionId}#tab-live-eval"); exit;
+            $m = LiveEvalModes::fromForm($_POST);
+            if ($title === '' || !$m['ok']) {
+                header("Location: /teacher/dashboard.php?course_id={$selectedCourse['id']}&error=live_mode_" . ($m['error'] ?? 'window') . "#tab-live-eval"); exit;
             }
+            $code = bin2hex(random_bytes(8));
+            $stmt = $pdo->prepare("
+                INSERT INTO live_eval_sessions (course_id, teacher_id, title, session_code, start_time, end_time, default_time_limit, status, shuffle_options, integrity_watch,
+                                                is_async, async_after_live, async_deadline)
+                VALUES (:cid, :tid, :title, :code, :start, :end, :limit, 0, :shuf, :watch, :isa, :after, :deadline)
+            ");
+            $stmt->execute([
+                'cid'   => $selectedCourse['id'],
+                'tid'   => $teacherId,
+                'title' => $title,
+                'code'  => $code,
+                'start' => $m['start'],
+                'end'   => $m['end'],
+                'limit' => $limit,
+                'shuf'  => isset($_POST['shuffle_options']) ? 1 : 0,
+                'watch' => isset($_POST['integrity_watch']) ? 1 : 0,
+                'isa'   => $m['is_async'], 'after' => $m['after'], 'deadline' => $m['deadline'],
+            ]);
+            $newSessionId = (int)$pdo->lastInsertId();
+            header("Location: /teacher/dashboard.php?course_id={$selectedCourse['id']}&success=live_session_created&open_session={$newSessionId}#tab-live-eval"); exit;
         }
 
         // ── Modifier une séance de téléévaluation ───────────────────
         if ($action === 'edit_live_session') {
             $sid = (int)($_POST['session_id'] ?? 0);
             $title = trim((string)($_POST['live_title'] ?? ''));
-            $startTime = trim((string)($_POST['live_start_time'] ?? ''));
-            $endTime = trim((string)($_POST['live_end_time'] ?? ''));
             $limit = (int)($_POST['default_time_limit'] ?? 30);
-            $isAsync = isset($_POST['is_async']) ? 1 : 0;
-            $asyncDeadline = isset($_POST['async_deadline']) && $_POST['async_deadline'] !== '' ? trim((string)$_POST['async_deadline']) : null;
+            $m = LiveEvalModes::fromForm($_POST);
 
-            if ($sid > 0 && !empty($title) && !empty($startTime) && !empty($endTime)) {
+            if ($sid > 0 && $title !== '') {
+                if (!$m['ok']) {
+                    header("Location: /teacher/dashboard.php?course_id={$selectedCourse['id']}&error=live_mode_" . ($m['error'] ?? 'window') . "&open_session={$sid}#tab-live-eval"); exit;
+                }
                 $stmt = $pdo->prepare("
                     UPDATE live_eval_sessions 
                     SET title = :title, start_time = :start, end_time = :end, default_time_limit = :limit,
-                        is_async = :is_async, async_deadline = :async_deadline, status = 1,
+                        is_async = :is_async, async_after_live = :after, async_deadline = :async_deadline, status = 1,
                         shuffle_options = :shuf, integrity_watch = :watch
                     WHERE id = :id AND teacher_id = :tid
                 ");
                 $stmt->execute([
                     'title' => $title,
-                    'start' => $startTime,
-                    'end'   => $endTime,
+                    'start' => $m['start'],
+                    'end'   => $m['end'],
                     'limit' => $limit,
-                    'is_async' => $isAsync,
-                    'async_deadline' => $asyncDeadline,
+                    'is_async' => $m['is_async'],
+                    'after' => $m['after'],
+                    'async_deadline' => $m['deadline'],
                     'shuf'  => isset($_POST['shuffle_options']) ? 1 : 0,
                     'watch' => isset($_POST['integrity_watch']) ? 1 : 0,
                     'id'    => $sid,
@@ -1518,6 +1522,8 @@ $tdHasCourse = (bool)$selectedCourse;
                 'live_image_server'    => td('err_upload'),
                 'live_image_upload'    => td('err_upload'),
                 'rubric_invalid'       => td('asg_rubric_err'),
+                'live_mode_window'     => td('mode_err_window'),
+                'live_mode_deadline'   => td('mode_err_deadline'),
             ];
             $errorMsg = $errorMessages[$errorKey] ?? null;
             if ($errorMsg): ?>
@@ -2295,6 +2301,7 @@ $tdHasCourse = (bool)$selectedCourse;
                                                     "end_time" => date("Y-m-d\TH:i", strtotime($ls["end_time"])),
                                                     "default_time_limit" => $ls["default_time_limit"],
                                                     "is_async" => $ls["is_async"] ?? 0,
+                                                    "async_after_live" => $ls["async_after_live"] ?? 0,
                                                     "shuffle_options" => $ls["shuffle_options"] ?? 0,
                                                     "integrity_watch" => $ls["integrity_watch"] ?? 0,
                                                     "async_deadline" => isset($ls["async_deadline"]) && $ls["async_deadline"] ? date("Y-m-d\TH:i", strtotime($ls["async_deadline"])) : ""
@@ -3793,14 +3800,37 @@ $tdHasCourse = (bool)$selectedCourse;
                 <input type="number" name="default_time_limit" id="edit-live-limit" required min="5" class="w-full px-3 py-2 border border-[var(--line)] rounded-sm focus:outline-none focus:border-[var(--clay)] text-sm bg-[var(--card)]">
             </div>
             
-            <div>
-                <label class="block text-xs font-semibold text-[var(--ink-2)]   mb-2">Date/Heure de Début</label>
-                <input type="datetime-local" name="live_start_time" id="edit-live-start-time" required class="w-full px-3 py-2 border border-[var(--line)] rounded-sm focus:outline-none focus:border-[var(--clay)] text-sm bg-[var(--card)]">
+            <fieldset class="space-y-2">
+                <legend class="block text-xs font-semibold text-[var(--ink-2)] mb-2"><?= tde('mode_title') ?></legend>
+                <label class="flex items-start gap-3 p-3 border border-[var(--line)] rounded-lg cursor-pointer bg-[var(--card)]">
+                    <input type="radio" name="eval_mode" value="live" id="edit-mode-live" onchange="svSetEvalMode('edit', this.value)" class="mt-0.5">
+                    <span><span class="block text-sm font-semibold text-[var(--ink)]"><?= tde('mode_live') ?></span><span class="block text-xs text-[var(--ink-3)]"><?= tde('mode_live_d') ?></span></span>
+                </label>
+                <label class="flex items-start gap-3 p-3 border border-[var(--line)] rounded-lg cursor-pointer bg-[var(--card)]">
+                    <input type="radio" name="eval_mode" value="async" id="edit-mode-async" onchange="svSetEvalMode('edit', this.value)" class="mt-0.5">
+                    <span><span class="block text-sm font-semibold text-[var(--ink)]"><?= tde('mode_async') ?></span><span class="block text-xs text-[var(--ink-3)]"><?= tde('mode_async_d') ?></span></span>
+                </label>
+                <label class="flex items-start gap-3 p-3 border border-[var(--line)] rounded-lg cursor-pointer bg-[var(--card)]">
+                    <input type="radio" name="eval_mode" value="live_async" id="edit-mode-live_async" onchange="svSetEvalMode('edit', this.value)" class="mt-0.5">
+                    <span><span class="block text-sm font-semibold text-[var(--ink)]"><?= tde('mode_live_async') ?></span><span class="block text-xs text-[var(--ink-3)]"><?= tde('mode_live_async_d') ?></span></span>
+                </label>
+            </fieldset>
+
+            <div id="edit-live-window" class="grid grid-cols-1 md:grid-cols-2 gap-4">
+                <div>
+                    <label class="block text-xs font-semibold text-[var(--ink-2)] mb-2" data-mode-label="start"><?= tde('mode_start_live') ?></label>
+                    <input type="datetime-local" name="live_start_time" id="edit-live-start-time" class="w-full px-3 py-2 border border-[var(--line)] rounded-lg focus:outline-none focus:border-[var(--clay)] text-sm bg-[var(--card)]">
+                </div>
+                <div id="edit-live-end-box">
+                    <label class="block text-xs font-semibold text-[var(--ink-2)] mb-2"><?= tde('mode_end_live') ?></label>
+                    <input type="datetime-local" name="live_end_time" id="edit-live-end-time" class="w-full px-3 py-2 border border-[var(--line)] rounded-lg focus:outline-none focus:border-[var(--clay)] text-sm bg-[var(--card)]">
+                </div>
             </div>
-            
-            <div>
-                <label class="block text-xs font-semibold text-[var(--ink-2)]   mb-2">Date/Heure de Fin</label>
-                <input type="datetime-local" name="live_end_time" id="edit-live-end-time" required class="w-full px-3 py-2 border border-[var(--line)] rounded-sm focus:outline-none focus:border-[var(--clay)] text-sm bg-[var(--card)]">
+
+            <div id="async-deadline-container" class="hidden">
+                <label class="block text-xs font-semibold text-[var(--ink-2)] mb-2"><?= tde('mode_deadline') ?></label>
+                <input type="datetime-local" name="async_deadline" id="edit-live-async-deadline" class="w-full px-3 py-2 border border-[var(--line)] rounded-lg focus:outline-none focus:border-[var(--clay)] text-sm bg-[var(--card)]">
+                <p class="text-xs text-[var(--ink-3)] mt-1" id="edit-deadline-hint"></p>
             </div>
 
             <div class="flex items-center gap-2 py-1">
@@ -3812,16 +3842,6 @@ $tdHasCourse = (bool)$selectedCourse;
                 <label for="edit-live-integrity" class="text-xs font-semibold text-[var(--ink-2)] cursor-pointer"><?= tde('live_integrity') ?></label>
             </div>
 
-            <div class="flex items-center gap-2 py-1">
-                <input type="checkbox" name="is_async" id="edit-live-is-async" value="1" onchange="toggleAsyncDeadlineField(this.checked)" class="w-4 h-4 text-[var(--clay)] border-[var(--line)] rounded focus:ring-0">
-                <label for="edit-live-is-async" class="text-xs font-semibold text-[var(--ink-2)]   cursor-pointer">Activer le Mode Asynchrone (Devoir Libre)</label>
-            </div>
-            
-            <div id="async-deadline-container" class="hidden">
-                <label class="block text-xs font-semibold text-[var(--ink-2)]   mb-2">Date Limite d'Accès Asynchrone</label>
-                <input type="datetime-local" name="async_deadline" id="edit-live-async-deadline" class="w-full px-3 py-2 border border-[var(--line)] rounded-sm focus:outline-none focus:border-[var(--clay)] text-sm bg-[var(--card)]">
-            </div>
-            
             <div class="flex justify-end gap-3 pt-2">
                 <button type="button" onclick="toggleModal('edit-live-session-modal')" class="px-4 py-2 border border-[var(--line)] text-xs font-semibold   rounded-sm text-[var(--ink-2)] hover:bg-[var(--paper-2)] bg-[var(--card)]">Annuler</button>
                 <button type="submit" class="px-4 py-2 bg-[var(--ink)] text-white text-xs font-semibold   rounded-sm hover:bg-black">Enregistrer</button>
@@ -4088,15 +4108,37 @@ try {
                 <input type="number" name="default_time_limit" required value="30" min="5" class="w-full px-3 py-2 border border-[var(--line)]  rounded-lg focus:outline-none focus:border-[var(--clay)] text-sm bg-[var(--card)]  ">
             </div>
             
-            <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+            <fieldset class="space-y-2">
+                <legend class="block text-xs font-semibold text-[var(--ink-2)] mb-2"><?= tde('mode_title') ?></legend>
+                <label class="flex items-start gap-3 p-3 border border-[var(--line)] rounded-lg cursor-pointer bg-[var(--card)]">
+                    <input type="radio" name="eval_mode" value="live" checked onchange="svSetEvalMode('add', this.value)" class="mt-0.5">
+                    <span><span class="block text-sm font-semibold text-[var(--ink)]"><?= tde('mode_live') ?></span><span class="block text-xs text-[var(--ink-3)]"><?= tde('mode_live_d') ?></span></span>
+                </label>
+                <label class="flex items-start gap-3 p-3 border border-[var(--line)] rounded-lg cursor-pointer bg-[var(--card)]">
+                    <input type="radio" name="eval_mode" value="async"  onchange="svSetEvalMode('add', this.value)" class="mt-0.5">
+                    <span><span class="block text-sm font-semibold text-[var(--ink)]"><?= tde('mode_async') ?></span><span class="block text-xs text-[var(--ink-3)]"><?= tde('mode_async_d') ?></span></span>
+                </label>
+                <label class="flex items-start gap-3 p-3 border border-[var(--line)] rounded-lg cursor-pointer bg-[var(--card)]">
+                    <input type="radio" name="eval_mode" value="live_async"  onchange="svSetEvalMode('add', this.value)" class="mt-0.5">
+                    <span><span class="block text-sm font-semibold text-[var(--ink)]"><?= tde('mode_live_async') ?></span><span class="block text-xs text-[var(--ink-3)]"><?= tde('mode_live_async_d') ?></span></span>
+                </label>
+            </fieldset>
+
+            <div id="add-live-window" class="grid grid-cols-1 md:grid-cols-2 gap-4">
                 <div>
-                    <label class="block text-xs font-semibold text-[var(--ink-2)]    mb-2">Date/Heure Début</label>
-                    <input type="datetime-local" name="live_start_time" required class="w-full px-3 py-2 border border-[var(--line)]  rounded-lg focus:outline-none focus:border-[var(--clay)] text-sm bg-[var(--card)]  ">
+                    <label class="block text-xs font-semibold text-[var(--ink-2)] mb-2" data-mode-label="start"><?= tde('mode_start_live') ?></label>
+                    <input type="datetime-local" name="live_start_time" id="add-live-start" required class="w-full px-3 py-2 border border-[var(--line)] rounded-lg focus:outline-none focus:border-[var(--clay)] text-sm bg-[var(--card)]">
                 </div>
-                <div>
-                    <label class="block text-xs font-semibold text-[var(--ink-2)]    mb-2">Date/Heure Fin</label>
-                    <input type="datetime-local" name="live_end_time" required class="w-full px-3 py-2 border border-[var(--line)]  rounded-lg focus:outline-none focus:border-[var(--clay)] text-sm bg-[var(--card)]  ">
+                <div id="add-live-end-box">
+                    <label class="block text-xs font-semibold text-[var(--ink-2)] mb-2"><?= tde('mode_end_live') ?></label>
+                    <input type="datetime-local" name="live_end_time" id="add-live-end" required class="w-full px-3 py-2 border border-[var(--line)] rounded-lg focus:outline-none focus:border-[var(--clay)] text-sm bg-[var(--card)]">
                 </div>
+            </div>
+
+            <div id="add-async-deadline-container" class="hidden">
+                <label class="block text-xs font-semibold text-[var(--ink-2)] mb-2"><?= tde('mode_deadline') ?></label>
+                <input type="datetime-local" name="async_deadline" id="add-live-deadline" class="w-full px-3 py-2 border border-[var(--line)] rounded-lg focus:outline-none focus:border-[var(--clay)] text-sm bg-[var(--card)]">
+                <p class="text-xs text-[var(--ink-3)] mt-1" id="add-deadline-hint"></p>
             </div>
 
             <div class="flex items-center gap-2 py-1">
@@ -4108,16 +4150,6 @@ try {
                 <label for="add-live-integrity" class="text-xs font-semibold text-[var(--ink-2)] cursor-pointer"><?= tde('live_integrity') ?></label>
             </div>
 
-            <div class="flex items-center gap-2 py-1">
-                <input type="checkbox" name="is_async" id="add-live-is-async" value="1" onchange="document.getElementById('add-async-deadline-container').classList.toggle('hidden', !this.checked)" class="w-4 h-4 text-[var(--clay)] border-[var(--line)] rounded focus:ring-0">
-                <label for="add-live-is-async" class="text-xs font-semibold text-[var(--ink-2)]    cursor-pointer">Activer Mode Asynchrone (Devoir Libre)</label>
-            </div>
-            
-            <div id="add-async-deadline-container" class="hidden">
-                <label class="block text-xs font-semibold text-[var(--ink-2)]    mb-2">Date Limite Asynchrone</label>
-                <input type="datetime-local" name="async_deadline" class="w-full px-3 py-2 border border-[var(--line)]  rounded-lg focus:outline-none focus:border-[var(--clay)] text-sm bg-[var(--card)]  ">
-            </div>
-            
             <div class="flex justify-end gap-3 pt-4 border-t border-[var(--line)] ">
                 <button type="button" onclick="toggleModal('add-live-session-modal')" class="px-4 py-2 border border-[var(--line)]  text-xs font-semibold   rounded-lg text-[var(--ink-2)]  hover:bg-[var(--paper-2)] bg-[var(--card)] ">Annuler</button>
                 <button type="submit" class="px-4 py-2 bg-[var(--clay)] text-white text-xs font-semibold   rounded-lg hover:bg-[var(--clay-press)]">Créer la séance</button>
@@ -4415,16 +4447,29 @@ function handleQuestionTypeChange(selectElement) {
     }
 }
 
-function toggleAsyncDeadlineField(checked) {
-    const container = document.getElementById('async-deadline-container');
-    if (container) {
-        if (checked) {
-            container.classList.remove('hidden');
-        } else {
-            container.classList.add('hidden');
-        }
+// Live / asynchronous / live then asynchronous: which fields apply to each mode
+const SV_MODE_TXT = <?= json_encode(['start_live' => td('mode_start_live'), 'start_async' => td('mode_start_async'), 'hint_async' => td('mode_hint_async'), 'hint_both' => td('mode_hint_both')], JSON_UNESCAPED_UNICODE | JSON_HEX_TAG | JSON_HEX_AMP) ?>;
+function svSetEvalMode(which, mode) {
+    const win = document.getElementById(which + '-live-window');
+    const endBox = document.getElementById(which + '-live-end-box');
+    const dead = document.getElementById(which === 'add' ? 'add-async-deadline-container' : 'async-deadline-container');
+    const start = document.getElementById(which === 'add' ? 'add-live-start' : 'edit-live-start-time');
+    const end = document.getElementById(which === 'add' ? 'add-live-end' : 'edit-live-end-time');
+    const hint = document.getElementById(which + '-deadline-hint');
+    const async = mode === 'async';
+    if (endBox) endBox.classList.toggle('hidden', async);
+    if (dead) dead.classList.toggle('hidden', mode === 'live');
+    if (start) start.required = !async;
+    if (end) end.required = !async;
+    if (win) {
+        const lbl = win.querySelector('[data-mode-label="start"]');
+        if (lbl) lbl.textContent = async ? SV_MODE_TXT.start_async : SV_MODE_TXT.start_live;
     }
+    const dl = dead ? dead.querySelector('input') : null;
+    if (dl) dl.required = mode === 'live_async';
+    if (hint) hint.textContent = async ? SV_MODE_TXT.hint_async : (mode === 'live_async' ? SV_MODE_TXT.hint_both : '');
 }
+function toggleAsyncDeadlineField(checked) { svSetEvalMode('edit', checked ? 'async' : 'live'); }
 
 function openEditLiveSessionModal(button) {
     const session = JSON.parse(button.getAttribute('data-session'));
@@ -4439,17 +4484,13 @@ function openEditLiveSessionModal(button) {
     const watch = document.getElementById('edit-live-integrity');
     if (watch) watch.checked = parseInt(session.integrity_watch) === 1;
 
-    const isAsync = (parseInt(session.is_async) === 1);
-    const cb = document.getElementById('edit-live-is-async');
-    if (cb) {
-        cb.checked = isAsync;
-        toggleAsyncDeadlineField(isAsync);
-    }
+    const mode = parseInt(session.async_after_live) === 1 ? 'live_async' : (parseInt(session.is_async) === 1 ? 'async' : 'live');
+    const radio = document.getElementById('edit-mode-' + mode);
+    if (radio) radio.checked = true;
     const deadlineInput = document.getElementById('edit-live-async-deadline');
-    if (deadlineInput) {
-        deadlineInput.value = session.async_deadline || '';
-    }
-    
+    if (deadlineInput) deadlineInput.value = session.async_deadline || '';
+    svSetEvalMode('edit', mode);
+
     toggleModal('edit-live-session-modal');
 }
 

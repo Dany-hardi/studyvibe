@@ -9,6 +9,8 @@ require_once __DIR__ . '/lib/Brand.php';
 require_once __DIR__ . '/lib/EvalTheme.php';
 
 $pdo = Database::getInstance();
+require_once __DIR__ . '/lib/LiveEvalModes.php';
+LiveEvalModes::advance($pdo);
 
 // Récupérer toutes les évaluations asynchrones actives
 $stmt = $pdo->prepare("
