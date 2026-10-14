@@ -11,6 +11,7 @@ putenv('SV_NO_BACKGROUND_MAIL=1');
 require_once __DIR__ . '/../../Database.php';
 require_once __DIR__ . '/../../lib/LivePaced.php';
 require_once __DIR__ . '/../../lib/LiveMailQueue.php';
+require_once __DIR__ . '/../../lib/LiveParticipants.php';
 
 $pdo = Database::getInstance();
 $passed = 0; $failed = [];
@@ -193,6 +194,35 @@ check('at the final submission only the code not registered yet is added', $rows
 check('a skipped question is never marked', (int)$pdo->query("SELECT COUNT(*) FROM live_eval_code_reviews WHERE registration_id = $rr AND question_id = $qR3")->fetchColumn() === 0);
 $rr2 = $reg($sidR, 'Empty'); $fin2 = LivePaced::submit($pdo, $sessR, $rr2, true);
 check('handing in with no code sends nothing to the model', $fin2['pending_ai'] === 0 && (int)$pdo->query("SELECT COUNT(*) FROM live_eval_code_reviews WHERE registration_id = $rr2")->fetchColumn() === 0);
+
+// ---- the teacher's list of participants and the re-marking of a handed-in copy
+$rr3 = $reg($sidR, 'Fresh'); $rr4 = $reg($sidR, 'Typing');
+LivePaced::save($pdo, $sessR, $rr4, $qR1, 'return 1;');
+$byId = []; foreach (LiveParticipants::rows($pdo, $sidR) as $r) { $byId[(int)$r['id']] = $r['status']; }
+check('a copy with code still being marked is "marking"', $byId[$rr] === 'marking');
+check('a copy handed in with nothing to mark is "submitted"', $byId[$rr2] === 'submitted');
+check('a student who never started is "registered"', $byId[$rr3] === 'registered');
+check('a student who typed and left without handing in is "offline"', $byId[$rr4] === 'offline');
+$pdo->exec("UPDATE live_eval_registrations SET last_activity = NOW() WHERE id = $rr4");
+$byId = []; foreach (LiveParticipants::rows($pdo, $sidR) as $r) { $byId[(int)$r['id']] = $r['status']; }
+check('a student who pinged a moment ago is "online"', $byId[$rr4] === 'online');
+$pdo->exec("UPDATE live_eval_registrations SET cancelled_at = NOW() WHERE id = $rr3");
+check('a cancelled result is not a submission', LiveParticipants::statusOf(array_merge((array)$pdo->query("SELECT * FROM live_eval_registrations WHERE id = $rr3")->fetch(PDO::FETCH_ASSOC), ['ai_pending' => 0])) === 'cancelled');
+
+$pdo->exec("UPDATE live_eval_mail_queue SET status = 'sent', sent_at = NOW() WHERE registration_id = $rr2");
+$sent = (int)$pdo->query("SELECT COUNT(*) FROM live_eval_mail_queue WHERE registration_id = $rr2 AND status = 'sent'")->fetchColumn();
+$n = LiveCodeReview::recorrect($pdo, $rr2);
+$q = $pdo->query("SELECT status, payload FROM live_eval_mail_queue WHERE registration_id = $rr2")->fetch(PDO::FETCH_ASSOC);
+check('re-marking a copy with nothing to mark sends a new email copy at once, marked as an update', $sent === 1 && $n === 0 && $q['status'] === 'pending' && str_contains((string)$q['payload'], '"updated":true'));
+check('and the flag is cleared', (int)$pdo->query("SELECT resend_results FROM live_eval_registrations WHERE id = $rr2")->fetchColumn() === 0);
+$pdo->exec("UPDATE live_eval_code_reviews SET status = 'done', verdict = 1, override_verdict = 0, override_note = 'x' WHERE registration_id = $rr");
+$pdo->exec("UPDATE live_eval_mail_queue SET status = 'sent' WHERE registration_id = $rr");
+$n = LiveCodeReview::recorrect($pdo, $rr);
+check('re-marking a copy with code queues every code answer again and clears the manual decision', $n === 2 && LiveCodeReview::pendingCount($pdo, $rr) === 2 && (int)$pdo->query("SELECT COUNT(*) FROM live_eval_code_reviews WHERE registration_id = $rr AND override_verdict IS NOT NULL")->fetchColumn() === 0);
+check('the email waits until the marking is over', (string)$pdo->query("SELECT status FROM live_eval_mail_queue WHERE registration_id = $rr")->fetchColumn() !== 'pending' && (int)$pdo->query("SELECT resend_results FROM live_eval_registrations WHERE id = $rr")->fetchColumn() === 1);
+$pdo->exec("UPDATE live_eval_code_reviews SET status = 'done', verdict = 1 WHERE registration_id = $rr");
+LiveCodeReview::finalizeIfDone($pdo, $rr);
+check('then the new copy of the email is queued', (string)$pdo->query("SELECT status FROM live_eval_mail_queue WHERE registration_id = $rr")->fetchColumn() === 'pending');
 
 echo "live paced: $passed passed, " . count($failed) . " failed\n";
 foreach ($failed as $f) { echo "  FAIL: $f\n"; }

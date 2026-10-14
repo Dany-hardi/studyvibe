@@ -1148,6 +1148,9 @@ class Database
         } catch (PDOException $ex) { /* table absent on a very old schema */ }
         try { $pdo->exec("ALTER TABLE `career_jobs` ADD UNIQUE KEY `uq_career_public_id` (`public_id`)"); } catch (PDOException $ex) { /* already applied */ }
 
+        // Migration 2.29: a teacher can re-mark a handed-in evaluation; the next results email then goes out again, as an update.
+        try { $pdo->exec("ALTER TABLE `live_eval_registrations` ADD COLUMN `resend_results` TINYINT(1) NOT NULL DEFAULT 0"); } catch (PDOException $ex) { /* already applied */ }
+
         // Migration 2.28: free-pace evaluations (common start, everybody moves and hands in at their own speed): the answers wait in a bucket
         // (drafts) until the student submits them all; a timed question counts only the time it has been open.
         foreach ([

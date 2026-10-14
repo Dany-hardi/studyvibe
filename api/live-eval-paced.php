@@ -46,6 +46,8 @@ try {
     if (!$own->fetchColumn()) {
         $out(['ok' => false, 'error' => 'not_registered'], 403);
     }
+    // presence: the teacher sees who is in the room (the browser pings every 10 seconds)
+    $pdo->prepare("UPDATE live_eval_registrations SET last_activity = NOW() WHERE id = :r")->execute(['r' => $regId]);
     require_once __DIR__ . '/../lib/LiveEvalModes.php';
     LiveEvalModes::advance($pdo);
 

@@ -25,6 +25,16 @@ final class LiveMailQueue
         self::kick();
     }
 
+    /** A corrected copy for a student who already got one: the same row goes back in line with the new payload (marked as an update). */
+    public static function resend(PDO $pdo, int $registrationId, array $payload): void
+    {
+        $payload['updated'] = true;
+        $pdo->prepare("INSERT INTO live_eval_mail_queue (registration_id, payload) VALUES (:r, :p)
+                       ON DUPLICATE KEY UPDATE payload = VALUES(payload), status = 'pending', attempts = 0, claim = NULL, next_try_at = NULL, last_error = NULL, sent_at = NULL")
+            ->execute(['r' => $registrationId, 'p' => json_encode($payload, JSON_UNESCAPED_UNICODE)]);
+        self::kick();
+    }
+
     /** Starts the background sender, at most once every 3 seconds however many students finish at once. */
     public static function kick(): void
     {
@@ -128,7 +138,7 @@ final class LiveMailQueue
             try {
                 $ok = Mailer::sendLiveEvalResults(
                     (string)$p['email'], (string)$p['name'], (string)$p['session_title'],
-                    (int)$p['correct'], (int)$p['total'], (array)$p['qas'], (int)$job['registration_id']
+                    (int)$p['correct'], (int)$p['total'], (array)$p['qas'], (int)$job['registration_id'], !empty($p['updated'])
                 );
             } catch (Throwable $e) {
                 $p['err'] = $e->getMessage();

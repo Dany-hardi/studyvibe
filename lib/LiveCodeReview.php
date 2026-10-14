@@ -229,10 +229,10 @@ final class LiveCodeReview
         }
 
         // the same code for the same question was already marked: same verdict, no new call
-        $same = $pdo->prepare("SELECT verdict, needs_human, feedback, logic_analysis, issues, corrected_code, model FROM live_eval_code_reviews
+        $same = ($row['last_error'] ?? '') === 'recorrect' ? null : $pdo->prepare("SELECT verdict, needs_human, feedback, logic_analysis, issues, corrected_code, model FROM live_eval_code_reviews
                                WHERE question_id = :q AND code_hash = :h AND status = 'done' AND override_verdict IS NULL AND id <> :i ORDER BY id LIMIT 1");
-        $same->execute(['q' => $row['question_id'], 'h' => $row['code_hash'], 'i' => $id]);
-        if ($prev = $same->fetch(PDO::FETCH_ASSOC)) {
+        if ($same) { $same->execute(['q' => $row['question_id'], 'h' => $row['code_hash'], 'i' => $id]); }
+        if ($same && ($prev = $same->fetch(PDO::FETCH_ASSOC))) {
             self::store($pdo, $row, array_merge($prev, ['model' => $prev['model'] . ' (cache)']));
             return true;
         }
@@ -345,6 +345,27 @@ final class LiveCodeReview
                        override_verdict = NULL, override_note = NULL, override_by = NULL, override_at = NULL WHERE id = :i")->execute(['i' => $reviewId]);
         $pdo->prepare("UPDATE live_eval_answers a JOIN live_eval_code_reviews r ON r.registration_id = a.registration_id AND r.question_id = a.question_id
                        SET a.selected_option = :m WHERE r.id = :i")->execute(['m' => self::MARK_PENDING, 'i' => $reviewId]);
+    }
+
+    /**
+     * The teacher has a handed-in copy marked again: every code answer goes back to the model, the score is recomputed (QCM included, with the
+     * current answer keys) and the results email goes out again once the marking is over. The report reads the database, so it is up to date as soon as
+     * the new verdicts are in.
+     * @return int code answers queued again
+     */
+    public static function recorrect(PDO $pdo, int $registrationId): int
+    {
+        $pdo->prepare("UPDATE live_eval_registrations SET resend_results = 1 WHERE id = :i")->execute(['i' => $registrationId]);
+        $ids = $pdo->prepare("SELECT id FROM live_eval_code_reviews WHERE registration_id = :r");
+        $ids->execute(['r' => $registrationId]);
+        $n = 0;
+        foreach ($ids->fetchAll(PDO::FETCH_COLUMN) as $id) {
+            self::requeue($pdo, (int)$id);
+            $pdo->prepare("UPDATE live_eval_code_reviews SET last_error = 'recorrect' WHERE id = :i")->execute(['i' => $id]);   // a fresh look, not the verdict cached for the same code
+            $n++;
+        }
+        self::finalizeIfDone($pdo, $registrationId);   // nothing to wait for (a QCM-only exam): the score and the email follow at once
+        return $n;
     }
 
     /** Recomputes the stored score of a registration from its answers (after a teacher's decision). */

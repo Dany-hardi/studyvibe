@@ -103,10 +103,17 @@ final class LiveScoring
         // student wait 1 to 3 seconds for the mail server, all at the same moment, when the exam ended.
         require_once __DIR__ . '/LiveMailQueue.php';
         try {
-            LiveMailQueue::enqueue($pdo, $regId, [
+            $payload = [
                 'email' => $registration['email'], 'name' => $registration['name'], 'session_title' => $session['title'],
                 'correct' => $correctCount, 'total' => $total, 'qas' => $qasDetails,
-            ]);
+            ];
+            if (!empty($registration['resend_results'])) {
+                // the teacher had this copy marked again: a new copy of the email goes out, once
+                LiveMailQueue::resend($pdo, $regId, $payload);
+                $pdo->prepare("UPDATE live_eval_registrations SET resend_results = 0 WHERE id = :i")->execute(['i' => $regId]);
+            } else {
+                LiveMailQueue::enqueue($pdo, $regId, $payload);
+            }
         } catch (Throwable $e) { error_log('live mail queue: ' . $e->getMessage()); }
         return (float)$score;
     }

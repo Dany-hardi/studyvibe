@@ -54,7 +54,7 @@ try {
         $onlineStmt = $pdo->prepare("
             SELECT COUNT(*) 
             FROM live_eval_registrations 
-            WHERE session_id = :sid AND last_activity >= NOW() - INTERVAL 10 SECOND
+            WHERE session_id = :sid AND last_activity >= NOW() - INTERVAL 25 SECOND
         ");
         $onlineStmt->execute(['sid' => $sid]);
         $onlineCount = (int)$onlineStmt->fetchColumn();
@@ -108,7 +108,11 @@ try {
             }
         }
 
+        require_once __DIR__ . '/../lib/LiveParticipants.php';
+        $participants = array_map(fn($r) => ['id' => (int)$r['id'], 'status' => $r['status'], 'submitted' => (bool)$r['submitted'], 'score' => $r['score'] !== null ? (float)$r['score'] : null], LiveParticipants::rows($pdo, $sid));
+
         $results[] = [
+            'participants'           => $participants,
             'id'                     => $sid,
             'title'                  => $session['title'],
             'session_code'           => $session['session_code'],

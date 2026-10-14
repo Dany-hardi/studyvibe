@@ -397,7 +397,7 @@ class Mailer
         return self::send($to, "Résultats du quiz — {$lessonTitle}", $html);
     }
 
-    public static function sendLiveEvalResults(string $to, string $studentName, string $sessionTitle, int $correctCount, int $totalQuestions, array $qas, int $registrationId = 0): bool
+    public static function sendLiveEvalResults(string $to, string $studentName, string $sessionTitle, int $correctCount, int $totalQuestions, array $qas, int $registrationId = 0, bool $updated = false): bool
     {
         $percent = $totalQuestions > 0 ? round(($correctCount / $totalQuestions) * 100, 1) : 0.0;
         $passed = $percent >= 50;
@@ -412,15 +412,15 @@ class Mailer
         }
         $html = EmailTheme::layout(
             EmailTheme::badge('Évaluation en direct', $passed ? 'pine' : 'clay')
-            . EmailTheme::title('Vos résultats sont arrivés')
+            . EmailTheme::title($updated ? 'Votre résultat a été mis à jour' : 'Vos résultats sont arrivés')
             . self::hello($studentName)
-            . EmailTheme::lede('Merci d’avoir participé à <strong>' . self::h($sessionTitle) . '</strong>. Voici votre résultat.')
+            . EmailTheme::lede($updated ? 'Votre copie de <strong>' . self::h($sessionTitle) . '</strong> a été corrigée de nouveau par votre enseignant. Voici votre nouveau résultat ; le rapport en ligne est à jour.' : 'Merci d’avoir participé à <strong>' . self::h($sessionTitle) . '</strong>. Voici votre résultat.')
             . EmailTheme::stat('Votre note', "{$correctCount} / {$totalQuestions}", ($passed ? 'Validé' : 'Non validé') . ' · ' . str_replace('.', ',', (string)$percent) . ' %', $passed ? 'pine' : 'clay')
             . $button
             . EmailTheme::signature('fr'),
             ['preheader' => "Votre note : {$correctCount} / {$totalQuestions} à « {$sessionTitle} »", 'lang' => 'fr']
         );
-        return self::send($to, "Vos résultats — {$sessionTitle}", $html);
+        return self::send($to, ($updated ? 'Résultat mis à jour' : 'Vos résultats') . " — {$sessionTitle}", $html);
     }
 
     // =========================================================================

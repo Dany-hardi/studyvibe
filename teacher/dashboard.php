@@ -26,6 +26,7 @@ require_once __DIR__ . '/../auth.php';
 require_once __DIR__ . '/../lib/MediaStore.php';
 require_once __DIR__ . '/../lib/LiveEvalModes.php';
 require_once __DIR__ . '/../lib/LiveCodeReview.php';
+require_once __DIR__ . '/../lib/LiveParticipants.php';
 require_once __DIR__ . '/../lib/BulkPackage.php';
 require_once __DIR__ . '/../lib/AssignmentRubric.php';
 require_once __DIR__ . '/../lib/AssignmentSimilarity.php';
@@ -810,6 +811,35 @@ try {
                     $delStmt = $pdo->prepare("DELETE FROM live_eval_registrations WHERE id = :id AND session_id = :sid");
                     $delStmt->execute(['id' => $regId, 'sid' => $sid]);
                     header("Location: /teacher/dashboard.php?course_id={$selectedCourse['id']}&success=live_participant_deleted&open_session={$sid}#tab-live-eval");
+                    exit;
+                }
+            }
+        }
+
+        // ── O2b. Re-corriger la copie d'un participant (copie rendue) ────
+        if ($action === 'recorrect_live_participant') {
+            $regId = (int)($_POST['registration_id'] ?? 0);
+            $sid   = (int)($_POST['session_id'] ?? 0);
+            if ($regId > 0 && $sid > 0) {
+                $own = $pdo->prepare("SELECT 1 FROM live_eval_sessions s JOIN live_eval_registrations r ON r.session_id = s.id WHERE s.id = :sid AND s.teacher_id = :tid AND r.id = :rid");
+                $own->execute(['sid' => $sid, 'tid' => $teacherId, 'rid' => $regId]);
+                $reg = $pdo->prepare("SELECT submitted_at, score, cancelled_at FROM live_eval_registrations WHERE id = :i");
+                $reg->execute(['i' => $regId]);
+                $regRow = (array)$reg->fetch(PDO::FETCH_ASSOC);
+                if ($own->fetchColumn() && LiveParticipants::isSubmitted($regRow)) {
+                    auditLog('live_recorrect', 'registration ' . $regId . ', session ' . $sid);
+                    $queued = LiveCodeReview::recorrect($pdo, $regId);
+                    header("Location: /teacher/dashboard.php?course_id={$selectedCourse['id']}&success=live_recorrect&open_session={$sid}#tab-live-eval");
+                    // the answer goes out first; the marking carries on behind (the cron worker finishes it if this request is cut short)
+                    if ($queued > 0) {
+                        if (session_status() === PHP_SESSION_ACTIVE) { session_write_close(); }
+                        ignore_user_abort(true);
+                        header('Content-Length: 0'); header('Connection: close');
+                        @ob_end_flush(); flush();
+                        if (function_exists('fastcgi_finish_request')) { fastcgi_finish_request(); }
+                        @set_time_limit(240);
+                        try { LiveCodeReview::processFor($pdo, 200, $regId); } catch (Throwable $e) { error_log('recorrect marking: ' . $e->getMessage()); }
+                    }
                     exit;
                 }
             }
@@ -2247,11 +2277,7 @@ $tdHasCourse = (bool)$selectedCourse;
                         $startTs = strtotime($ls['start_time']);
                         $collapsed = !($rIdx === 0 || $tdOpenSession === $sid);
                         $endLabel = $isAsync && !empty($ls['async_deadline']) ? date('d/m/Y H:i', strtotime($ls['async_deadline'])) : date('d/m/Y H:i', strtotime($ls['end_time']));
-                        $partStmt = $pdo->prepare("
-                            SELECT id, name, email, score, last_activity, registered_at
-                            FROM live_eval_registrations WHERE session_id = :sid ORDER BY registered_at DESC");
-                        $partStmt->execute(['sid' => $sid]);
-                        $participants = $partStmt->fetchAll(PDO::FETCH_ASSOC);
+                        $participants = LiveParticipants::rows($pdo, $sid);
                         $stateSub = [
                             'off'    => td('room_sub_off'),
                             'wait'   => td('room_sub_wait', ['w' => tdWhen($startTs)]),
@@ -2651,25 +2677,35 @@ $tdHasCourse = (bool)$selectedCourse;
                                                         <th data-sort="text"><?= tde('col_name') ?></th>
                                                         <th data-sort="text"><?= tde('col_email') ?></th>
                                                         <th data-sort="num" class="text-right"><?= tde('col_score') ?></th>
-                                                        <th data-sort="text"><?= tde('col_presence') ?></th>
+                                                        <th data-sort="text"><?= tde('col_status') ?></th>
                                                         <th data-sort="num"><?= tde('col_registered_at') ?></th>
                                                         <th><span class="sr-only"><?= tde('col_actions') ?></span></th>
                                                     </tr>
                                                 </thead>
                                                 <tbody>
                                                     <?php foreach ($participants as $p):
-                                                        $isOnline = $p['last_activity'] ? (time() - strtotime($p['last_activity']) <= 10) : false;
+                                                        $pStatus = (string)$p['status'];
                                                     ?>
-                                                        <tr>
-                                                            <td style="font-weight:600"><?= htmlspecialchars($p['name']) ?></td>
+                                                        <tr data-reg="<?= (int)$p['id'] ?>">
+                                                            <td style="font-weight:600"><?= htmlspecialchars($p['name']) ?>
+                                                                <?php if (!empty($p['submitted'])): ?>
+                                                                <form method="POST" action="/teacher/dashboard.php?course_id=<?= (int)$selectedCourse['id'] ?>&action=recorrect_live_participant" style="display:inline; margin-left:.5rem">
+                                                                    <?= csrfInput(); ?>
+                                                                    <input type="hidden" name="registration_id" value="<?= (int)$p['id'] ?>">
+                                                                    <input type="hidden" name="session_id" value="<?= $sid ?>">
+                                                                    <button type="submit" class="t-btn t-btn-sm" style="border:1px solid var(--line-2); border-radius:8px; padding:.1rem .6rem" title="<?= tde('recorrect_hint') ?>"
+                                                                        data-confirm="<?= tde('confirm_recorrect') ?>" data-confirm-title="<?= tde('confirm_recorrect_title') ?>" data-confirm-ok="<?= tde('btn_recorrect') ?>"><?= tde('btn_recorrect') ?></button>
+                                                                </form>
+                                                                <?php endif; ?>
+                                                            </td>
                                                             <td style="color:var(--ink-2)"><?= htmlspecialchars($p['email']) ?></td>
-                                                            <td class="text-right" data-v="<?= $p['score'] !== null ? (float)$p['score'] : -1 ?>">
+                                                            <td class="text-right part-score" data-v="<?= $p['score'] !== null ? (float)$p['score'] : -1 ?>">
                                                                 <?php if ($p['score'] !== null): ?>
                                                                     <strong><?= number_format((float)$p['score'], 2) ?></strong><span style="color:var(--ink-3)"> / 20</span>
                                                                 <?php else: ?><span style="color:var(--ink-3)"><?= tde('score_pending') ?></span><?php endif; ?>
                                                             </td>
-                                                            <td data-v="<?= $isOnline ? 1 : 0 ?>">
-                                                                <span class="t-chip <?= $isOnline ? 'live' : 'off' ?>"><i></i><?= $isOnline ? tde('presence_online') : tde('presence_offline') ?></span>
+                                                            <td data-v="<?= htmlspecialchars($pStatus) ?>" class="part-status">
+                                                                <span class="t-chip <?= in_array($pStatus, ['online', 'marking'], true) ? 'live' : 'off' ?>"><i></i><span><?= tde('status_' . $pStatus) ?></span></span>
                                                             </td>
                                                             <td class="num" data-v="<?= strtotime($p['registered_at']) ?>"><?= date('d/m/Y H:i', strtotime($p['registered_at'])) ?></td>
                                                             <td class="text-right">
@@ -4854,6 +4890,10 @@ function escapeHtml(str) {
     return s;
 }
 
+window.SV_PART_STATUS = <?= json_encode([
+    'registered' => td('status_registered'), 'online' => td('status_online'), 'offline' => td('status_offline'), 'submitted' => td('status_submitted'),
+    'marking' => td('status_marking'), 'needs_review' => td('status_needs_review'), 'cancelled' => td('status_cancelled'), 'score_pending' => td('score_pending'),
+], JSON_UNESCAPED_UNICODE | JSON_HEX_TAG) ?>;
 function pollTeacherLiveStats() {
     const liveTab = document.getElementById('tab-live-eval');
     const isTabActive = liveTab && !liveTab.classList.contains('hidden');
@@ -4873,6 +4913,25 @@ function pollTeacherLiveStats() {
                     set('.questions-count-', session.total_questions);
                     set('.live-votes-count-', session.status === 'active' ? session.active_question_votes : 0);
                     if (window.svRoomUpdate) window.svRoomUpdate(session);
+                    (session.participants || []).forEach(p => {
+                        const tr = document.querySelector('#part-table-' + session.id + ' tr[data-reg="' + p.id + '"]');
+                        if (!tr) return;
+                        const cell = tr.querySelector('.part-status');
+                        if (cell && cell.dataset.v !== p.status) {
+                            cell.dataset.v = p.status;
+                            const chip = cell.querySelector('.t-chip');
+                            chip.className = 't-chip ' + (p.status === 'online' || p.status === 'marking' ? 'live' : 'off');
+                            chip.querySelector('span').textContent = (window.SV_PART_STATUS || {})[p.status] || p.status;
+                        }
+                        const sc = tr.querySelector('.part-score');
+                        if (sc && sc.dataset.score !== String(p.score)) {
+                            sc.dataset.score = String(p.score);
+                            sc.dataset.v = p.score === null ? -1 : p.score;
+                            sc.innerHTML = p.score === null ? '<span style="color:var(--ink-3)">' + ((window.SV_PART_STATUS || {}).score_pending || '') + '</span>' : '<strong>' + Number(p.score).toFixed(2) + '</strong><span style="color:var(--ink-3)"> / 20</span>';
+                        }
+                        const form = tr.querySelector('form[action*="recorrect_live_participant"]');
+                        if (form) form.style.display = p.submitted ? 'inline' : 'none';
+                    });
                 });
             }
         })
