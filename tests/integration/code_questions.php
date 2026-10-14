@@ -32,6 +32,7 @@ $calls = []; $mode = 'ok';
 AnthropicClient::$transport = function (array $p) use (&$calls, &$mode): array {
     $calls[] = $p;
     if ($mode === 'down') { return [529, '{"error":{"type":"overloaded_error"}}']; }
+    if ($mode === 'billing') { return [400, '{"type":"error","error":{"type":"invalid_request_error","message":"Your credit balance is too low to access the Anthropic API."}}']; }
     if ($mode === 'auth') { return [401, '{"error":{"type":"authentication_error"}}']; }
     if ($mode === 'garbage') { return [200, json_encode(['content' => [['type' => 'text', 'text' => 'I think it is fine']]])]; }
     $user = (string)$p['messages'][0]['content'];
@@ -144,6 +145,14 @@ LiveCodeReview::process($pdo, 5);
 $d = $pdo->query("SELECT * FROM live_eval_code_reviews WHERE registration_id = $rDown")->fetch(PDO::FETCH_ASSOC);
 check('after the last attempt it goes to the teacher, with no verdict', $d['status'] === 'review' && $d['verdict'] === null);
 check('and the answer still counts as not-correct without being marked wrong', $pdo->query("SELECT selected_option FROM live_eval_answers WHERE registration_id = $rDown AND question_id = $qCode")->fetchColumn() === 'CODE_PENDING');
+$mode = 'billing';
+LiveCodeReview::requeue($pdo, (int)$d['id']);
+for ($i = 0; $i < 6; $i++) {
+    LiveCodeReview::process($pdo, 5);
+    $pdo->exec("UPDATE live_eval_code_reviews SET next_attempt_at = NULL WHERE id = " . (int)$d['id']);
+}
+$b = $pdo->query("SELECT status, attempts, last_error FROM live_eval_code_reviews WHERE id = " . (int)$d['id'])->fetch(PDO::FETCH_ASSOC);
+check('an account without credit keeps the answer in line, however many times, and says why', $b['status'] === 'pending' && $b['last_error'] === 'billing' && (int)$b['attempts'] === 0);
 $mode = 'auth';
 LiveCodeReview::requeue($pdo, (int)$d['id']);
 LiveCodeReview::process($pdo, 5);

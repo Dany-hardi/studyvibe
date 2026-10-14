@@ -255,6 +255,10 @@ final class LiveCodeReview
             'Report the review of the student answer: verdict, reasoning, feedback and a corrected version.', self::schema($type));
         if (!$call['ok']) {
             error_log('LiveCodeReview: marking failed (' . $call['error'] . ') for review #' . $id);   // the code itself is never logged
+            if ($call['error'] === 'billing') {
+                // the account has no credit: the answer stays in line (never handed over) and is tried again every 30 minutes until the top-up
+                return self::postpone($pdo, $id, 30, 'billing', false);
+            }
             $attempts = (int)$row['attempts'];
             if (!empty($call['retryable']) && $attempts < self::MAX_ATTEMPTS) {
                 return self::postpone($pdo, $id, self::BACKOFF_MINUTES[min($attempts, count(self::BACKOFF_MINUTES)) - 1] ?? 15, (string)$call['error'], true);

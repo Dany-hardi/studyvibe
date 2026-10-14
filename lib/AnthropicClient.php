@@ -54,13 +54,14 @@ final class AnthropicClient
         }
         if ($status !== 200) {
             $err = match (true) {
+                $status === 400 && stripos($body, 'credit balance') !== false => 'billing',   // no credit left on the account: waits for the top-up
                 $status === 429 => 'rate_limited',
                 $status === 529 => 'overloaded',
                 $status === 401 || $status === 403 => 'auth',
                 $status >= 500 => 'server',
                 default => 'bad_request',
             };
-            return ['ok' => false, 'error' => $err, 'retryable' => in_array($err, ['rate_limited', 'overloaded', 'server'], true)];
+            return ['ok' => false, 'error' => $err, 'retryable' => in_array($err, ['rate_limited', 'overloaded', 'server', 'billing'], true)];
         }
         $json = json_decode($body, true);
         foreach ((array)($json['content'] ?? []) as $block) {
