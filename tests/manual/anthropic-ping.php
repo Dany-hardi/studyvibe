@@ -11,6 +11,8 @@ if (PHP_SAPI !== 'cli') { http_response_code(404); exit; }
 require_once __DIR__ . '/../../config.php';
 require_once __DIR__ . '/../../Database.php';
 require_once __DIR__ . '/../../lib/LiveCodeReview.php';
+require_once __DIR__ . '/../../lib/AiKeyPool.php';
+require_once __DIR__ . '/../../lib/AnthropicClient.php';
 
 echo 'keys: ', count(AiKeyPool::keys()), ' | model: ', AnthropicClient::model(), "\n";
 $q = ['question_text' => 'Write a C function int add(int a, int b) that returns a + b.', 'question_type' => 'code', 'code_lang' => 'c',
