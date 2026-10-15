@@ -295,7 +295,7 @@ final class LiveCodeReview
             sleep(3 + 3 * $try);
         }
         if (!$call['ok']) {
-            error_log('LiveCodeReview: marking failed (' . $call['error'] . ') for review #' . $id);   // the code itself is never logged
+            error_log('LiveCodeReview: marking failed (' . $call['error'] . (isset($call['detail']) ? ': ' . $call['detail'] : '') . ') for review #' . $id);   // the code itself is never logged
             if ($call['error'] === 'billing') {
                 // the account has no credit: the answer stays in line (never handed over) and is tried again every 30 minutes until the top-up
                 return self::postpone($pdo, $id, 30, 'billing', false);
@@ -308,7 +308,7 @@ final class LiveCodeReview
             if (!empty($call['retryable']) && $attempts < self::MAX_ATTEMPTS) {
                 return self::postpone($pdo, $id, self::BACKOFF_MINUTES[min($attempts, count(self::BACKOFF_MINUTES)) - 1] ?? 15, (string)$call['error'], true);
             }
-            $pdo->prepare("UPDATE live_eval_code_reviews SET status = 'review', last_error = :e, locked_at = NULL WHERE id = :i")->execute(['e' => $call['error'], 'i' => $id]);
+            $pdo->prepare("UPDATE live_eval_code_reviews SET status = 'review', last_error = :e, locked_at = NULL WHERE id = :i")->execute(['e' => mb_substr($call['error'] . (isset($call['detail']) ? ': ' . $call['detail'] : ''), 0, 190), 'i' => $id]);
             self::finalizeIfDone($pdo, (int)$row['registration_id']);
             return true;
         }

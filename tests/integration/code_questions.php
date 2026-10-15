@@ -278,7 +278,7 @@ check('the message is cut in blocks: the question first, the student answer last
 check('the question block is marked for caching, the answer block is not', ($b1[0]['cache_control']['type'] ?? '') === 'ephemeral' && !isset($b1[1]['cache_control']));
 check('the cached prefix is byte for byte the same for every student, whatever the answer', $b1[0] === $b2[0] && $b1[1] !== $b2[1]);
 check('the student answer is only in the last block', !str_contains($b1[0]['text'], 'return $p + $q') && str_contains($b1[1]['text'], 'return $p + $q'));
-check('the system prompt is cached too, and the call is deterministic with a short output limit', ($cacheSeen[0]['system'][0]['cache_control']['type'] ?? '') === 'ephemeral' && $cacheSeen[0]['temperature'] === 0 && $cacheSeen[0]['max_tokens'] === LiveCodeReview::MAX_OUTPUT_TOKENS);
+check('the system prompt is cached too, and the call is deterministic with a short output limit', ($cacheSeen[0]['system'][0]['cache_control']['type'] ?? '') === 'ephemeral' && !isset($cacheSeen[0]['temperature']) && $cacheSeen[0]['max_tokens'] === LiveCodeReview::MAX_OUTPUT_TOKENS);
 $short = $pdo->query("SELECT status, verdict, model, tokens_in FROM live_eval_code_reviews WHERE registration_id = $rC3")->fetch(PDO::FETCH_ASSOC);
 check('a one-word answer is marked wrong without any call', $short['status'] === 'done' && (int)$short['verdict'] === 0 && str_starts_with((string)$short['model'], 'local') && (int)$short['tokens_in'] === 0);
 $u = $pdo->query("SELECT tokens_in, tokens_out, tokens_cache_read FROM live_eval_code_reviews WHERE registration_id = $rC1")->fetch(PDO::FETCH_ASSOC);

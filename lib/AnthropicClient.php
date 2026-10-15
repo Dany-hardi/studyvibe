@@ -8,7 +8,7 @@ declare(strict_types=1);
  * Spending tokens wisely:
  *  - prompt caching: the tool schema, the system prompt, and for marking the whole question (figure, statement, reference, notes) are a cached
  *    prefix shared by every student; only the student's answer is new, and it comes last;
- *  - the model answers with a tool call whose schema keeps the verdict short; the output limit is tight, and temperature is 0;
+ *  - the model answers with a tool call whose schema keeps the verdict short; the output limit is tight (no sampling parameter is sent: recent models refuse them);
  *  - marking uses the strong model (ANTHROPIC_MODEL);
  *  - the token usage of every call is returned so it can be stored and shown.
  * Rate limiting: calls go through a pool of lanes (one per key and model, see AiKeyPool) with a per-minute budget (ANTHROPIC_RPM); the rate-limit
@@ -66,7 +66,6 @@ final class AnthropicClient
     {
         $payload = [
             'max_tokens' => $maxTokens,
-            'temperature' => 0,
             'system' => self::systemBlocks($system),
             'messages' => [['role' => 'user', 'content' => $user]],
             'tools' => [['name' => $toolName, 'description' => $toolDescription, 'input_schema' => $schema]],
@@ -142,6 +141,10 @@ final class AnthropicClient
             default => 'bad_request',
         };
         $res = ['ok' => false, 'error' => $err, 'retryable' => in_array($err, ['rate_limited', 'overloaded', 'server', 'billing'], true)];
+        if ($err === 'bad_request' && is_array($json) && is_string($json['error']['message'] ?? null)) {
+            // the API's own explanation of what it refused (a parameter, a size...), short; it never contains the prompt
+            $res['detail'] = mb_substr(trim(preg_replace('/\s+/', ' ', $json['error']['message'])), 0, 160);
+        }
         if ($lastRetry !== null) {
             $res['retry_after'] = $lastRetry;
         }
