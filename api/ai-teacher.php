@@ -6,7 +6,7 @@ declare(strict_types=1);
 
 require_once __DIR__ . '/../config.php';
 require_once __DIR__ . '/../Database.php';
-require_once __DIR__ . '/../lib/AiClient.php';
+require_once __DIR__ . '/../lib/GeminiClient.php';
 
 // Verifier l'authentification et le role enseignant
 session_start();
@@ -151,13 +151,13 @@ try {
         exit;
     }
 
-    $aiLimit = AiClient::guard(Database::getInstance(), (int)$_SESSION['user_id'], 'teacher');
+    $aiLimit = GeminiClient::guard(Database::getInstance(), (int)$_SESSION['user_id'], 'teacher');
     if ($aiLimit !== null) {
         http_response_code(429);
         echo json_encode(['success' => false, 'error' => $aiLimit]);
         exit;
     }
-    $client = new AiClient();
+    $client = new GeminiClient();
 
     // Prompt systeme strict pour la creation d'evaluations (sans emojis)
     $systemInstruction = "Vous etes un ingenieur pedagogique méthodique et expert dans la conception d'evaluations academiques.\n"

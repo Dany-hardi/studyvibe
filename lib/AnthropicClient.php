@@ -2,14 +2,14 @@
 declare(strict_types=1);
 
 /**
- * Client of the Anthropic Messages API: the marking of code and written answers (structured verdicts) and the AI assistants (text).
- * Anthropic is the only provider.
+ * Client of the Anthropic Messages API, used ONLY to mark code and written answers in live evaluations (structured verdicts).
+ * The lesson assistants do not use it: they run on Gemini (see GeminiClient).
  *
  * Spending tokens wisely:
  *  - prompt caching: the tool schema, the system prompt, and for marking the whole question (figure, statement, reference, notes) are a cached
  *    prefix shared by every student; only the student's answer is new, and it comes last;
  *  - the model answers with a tool call whose schema keeps the verdict short; the output limit is tight, and temperature is 0;
- *  - marking uses the strong model, the assistants the small one (ANTHROPIC_MODEL, ANTHROPIC_MODEL_CHAT);
+ *  - marking uses the strong model (ANTHROPIC_MODEL);
  *  - the token usage of every call is returned so it can be stored and shown.
  * Rate limiting: calls go through a pool of lanes (one per key and model, see AiKeyPool) with a per-minute budget (ANTHROPIC_RPM); the rate-limit
  * headers of every answer and the Retry-After header put a lane to rest exactly as long as needed, so a full quota is never hammered.
@@ -33,21 +33,20 @@ final class AnthropicClient
         return self::$transport !== null || AiKeyPool::keys() !== [];
     }
 
-    /** The models of a role, in order of preference. role: mark (code and written answers) or chat (assistants). */
+    /** The marking models, in order of preference (ANTHROPIC_MODEL, comma separated). */
     public static function models(string $role = 'mark'): array
     {
         if (self::$modelsOverride !== null) {
             return self::$modelsOverride;
         }
-        $raw = $role === 'chat' ? (defined('ANTHROPIC_MODEL_CHAT') ? (string)ANTHROPIC_MODEL_CHAT : '') : (defined('ANTHROPIC_MODEL') ? (string)ANTHROPIC_MODEL : '');
         $out = [];
-        foreach (explode(',', $raw) as $m) {
+        foreach (explode(',', defined('ANTHROPIC_MODEL') ? (string)ANTHROPIC_MODEL : '') as $m) {
             $m = trim($m);
             if (preg_match('/^[a-z0-9._-]{3,60}$/i', $m)) {
                 $out[] = $m;
             }
         }
-        return $out ?: [$role === 'chat' ? 'claude-haiku-5-5' : 'claude-sonnet-5-5'];
+        return $out ?: ['claude-sonnet-5-5'];
     }
 
     public static function model(string $role = 'mark'): string
@@ -83,34 +82,6 @@ final class AnthropicClient
             }
         }
         return ['ok' => false, 'error' => 'bad_answer', 'retryable' => true, 'usage' => $r['usage']];
-    }
-
-    /**
-     * A plain text answer (the assistants).
-     * @return array{ok:bool,text?:string,error?:string,model?:string,retryable?:bool,retry_after?:int,usage?:array}
-     */
-    public static function text(string $system, string $prompt, int $maxTokens = 1200, string $role = 'chat', int $timeout = 90): array
-    {
-        $payload = [
-            'max_tokens' => $maxTokens,
-            'temperature' => 0.3,
-            'system' => self::systemBlocks($system),
-            'messages' => [['role' => 'user', 'content' => $prompt]],
-        ];
-        $r = self::call($payload, $role, $timeout);
-        if (!$r['ok']) {
-            return $r;
-        }
-        $text = '';
-        foreach ((array)($r['json']['content'] ?? []) as $block) {
-            if (($block['type'] ?? '') === 'text') {
-                $text .= (string)$block['text'];
-            }
-        }
-        if (trim($text) === '') {
-            return ['ok' => false, 'error' => 'bad_answer', 'retryable' => true, 'usage' => $r['usage']];
-        }
-        return ['ok' => true, 'text' => $text, 'model' => (string)($r['json']['model'] ?? $r['model']), 'usage' => $r['usage']];
     }
 
     /** The system prompt as a cached block (a prompt that is too short to be cached is simply sent as is). */

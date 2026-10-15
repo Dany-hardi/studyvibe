@@ -172,7 +172,7 @@ check('an unusable answer from the model never becomes a verdict', in_array($pdo
 $mode = 'ok';
 $pdo->exec("UPDATE live_eval_code_reviews SET status='pending', attempts=0, next_attempt_at=NULL WHERE registration_id = $rDown");
 $pdo->exec("DELETE FROM rate_hits WHERE bucket = 'ai:code:day'");
-for ($i = 0; $i < 2000; $i++) { $pdo->prepare("INSERT INTO rate_hits (bucket, hit_at) VALUES ('ai:code:day', NOW())")->execute(); }
+$cap = (int)ANTHROPIC_DAILY_CALLS; $pdo->exec("INSERT INTO rate_hits (bucket, hit_at) SELECT 'ai:code:day', NOW() FROM (SELECT a.n FROM (SELECT 0 n UNION SELECT 1 UNION SELECT 2 UNION SELECT 3 UNION SELECT 4 UNION SELECT 5 UNION SELECT 6 UNION SELECT 7 UNION SELECT 8 UNION SELECT 9) a) x1 JOIN (SELECT 0 m UNION SELECT 1 UNION SELECT 2 UNION SELECT 3 UNION SELECT 4 UNION SELECT 5 UNION SELECT 6 UNION SELECT 7 UNION SELECT 8 UNION SELECT 9) x2 JOIN (SELECT 0 k UNION SELECT 1 UNION SELECT 2 UNION SELECT 3 UNION SELECT 4 UNION SELECT 5 UNION SELECT 6 UNION SELECT 7 UNION SELECT 8 UNION SELECT 9) x3 JOIN (SELECT 0 j UNION SELECT 1 UNION SELECT 2 UNION SELECT 3 UNION SELECT 4 UNION SELECT 5 UNION SELECT 6 UNION SELECT 7 UNION SELECT 8 UNION SELECT 9) x4 JOIN (SELECT 0 q UNION SELECT 1) x5 LIMIT " . $cap);
 $calls = [];
 LiveCodeReview::process($pdo, 5);
 check('the daily ceiling stops the calls and postpones the answer', count($calls) === 0 && $pdo->query("SELECT status FROM live_eval_code_reviews WHERE registration_id = $rDown")->fetchColumn() === 'pending');
@@ -285,7 +285,7 @@ $u = $pdo->query("SELECT tokens_in, tokens_out, tokens_cache_read FROM live_eval
 check('the tokens of a call are stored (input, output, read from the cache)', (int)$u['tokens_in'] === 120 && (int)$u['tokens_out'] === 80 && (int)$u['tokens_cache_read'] === 900);
 check('a correct answer comes back without a corrected copy (no tokens spent repeating it)', (string)$pdo->query("SELECT corrected_code FROM live_eval_code_reviews WHERE registration_id = $rC1")->fetchColumn() === '');
 check('the schema asks for short things', ($cacheSeen[0]['tools'][0]['input_schema']['properties']['issues']['maxItems'] ?? 0) === 6 && str_contains($cacheSeen[0]['tools'][0]['input_schema']['properties']['feedback']['description'], '90 words'));
-check('marking uses the strong model and the assistants the small one', AnthropicClient::model('mark') === 'claude-sonnet-5-5' && AnthropicClient::model('chat') === 'claude-haiku-5-5' && $cacheSeen[0]['model'] === 'claude-sonnet-5-5');
+check('marking uses the strong model', AnthropicClient::model('mark') === 'claude-sonnet-5-5' && $cacheSeen[0]['model'] === 'claude-sonnet-5-5');
 
 // ---- the balancer and the rate limiter (fake network, fake keys: nothing leaves this machine)
 $A = 'sk-ant-test-' . str_repeat('a', 24); $B = 'sk-ant-test-' . str_repeat('b', 24); $C = 'sk-ant-test-' . str_repeat('c', 24);
@@ -336,21 +336,40 @@ foreach ([[529, 'overloaded', true], [500, 'server', true], [401, 'auth', false]
 $fresh(); AnthropicClient::$transport = fn(array $p) => [200, json_encode(['content' => [['type' => 'text', 'text' => 'no tool']]]), []];
 check('an answer without the tool call is retried', AnthropicClient::structured('S', 'U', 'submit_review', 'd', ['type' => 'object'])['error'] === 'bad_answer');
 
-// ---- the assistants: rate limited per person and for the platform, short, on the small model
-require_once __DIR__ . '/../../lib/AiClient.php';
-$fresh(); AiKeyPool::$keysOverride = [$A]; AnthropicClient::$modelsOverride = null; $sentChat = null;
-AnthropicClient::$transport = function (array $p) use (&$sentChat): array { $sentChat = $p; return [200, json_encode(['content' => [['type' => 'text', 'text' => "```json\n{\"a\":1}\n```"]], 'usage' => ['input_tokens' => 3, 'output_tokens' => 4]]), []]; };
-$txt = (new AiClient())->generate(str_repeat('x', 20000), str_repeat('s', 40000), true);
-check('assistant: the answer in JSON mode comes back without Markdown fences', $txt === '{"a":1}');
-check('assistant: the small model answers, the prompt and the instructions are capped, the answer length is capped', $sentChat['model'] === 'claude-haiku-5-5' && mb_strlen($sentChat['messages'][0]['content']) === 12000 && mb_strlen($sentChat['system'][0]['text']) <= 30000 + 400 && $sentChat['max_tokens'] <= 2800);
+// ---- the lesson assistants run on Gemini (never on Anthropic): rotation over keys and models, rests, limits
+require_once __DIR__ . '/../../lib/GeminiClient.php';
+$fresh(); $gSeen = [];
+$gok = fn(string $t) => json_encode(['candidates' => [['content' => ['parts' => [['text' => $t]]]]]]);
+GeminiClient::$keysOverride = ['gem-key-aaaaaaaaaaaaaaaaaaaa', 'gem-key-bbbbbbbbbbbbbbbbbbbb', 'gem-key-cccccccccccccccccccc'];
+$h = fn(string $k) => substr(hash('sha256', $k), 0, 12);
+GeminiClient::$transport = function (array $p, string $kh, string $model) use (&$gSeen, $gok): array { $gSeen[] = [$kh, $model, $p]; return [200, $gok('bonjour')]; };
+$t = (new GeminiClient())->generate('salut', 'sys');
+check('assistant: a call is answered through a key and a model of the configuration', $t === 'bonjour' && count($gSeen) === 1 && in_array($gSeen[0][1], GeminiClient::models(), true));
+check('assistant: nothing goes to Anthropic', !isset($gSeen[0][2]['messages']) && !str_contains(json_encode($gSeen[0][2]), 'anthropic'));
+$used = []; for ($i = 0; $i < 30; $i++) { $gSeen = []; (new GeminiClient())->generate('x'); $used[$gSeen[0][0]] = true; }
+check('assistant: the calls rotate over the keys', count($used) === 3);
+$gSeen = []; GeminiClient::$transport = function (array $p, string $kh, string $model) use (&$gSeen, $gok, $h): array { $gSeen[] = $kh; return $kh === $h('gem-key-aaaaaaaaaaaaaaaaaaaa') ? [403, '{"error":{"message":"Your project has been denied access."}}'] : [200, $gok('ok')]; };
+for ($i = 0; $i < 8; $i++) { (new GeminiClient())->generate('x'); }
+$ha = $h('gem-key-aaaaaaaaaaaaaaaaaaaa');
+check('assistant: a refused key is skipped by the next calls (it rests)', count(array_keys($gSeen, $ha, true)) <= 1 * count(GeminiClient::models()));
+GeminiClient::$transport = function (array $p, string $kh, string $model) use ($gok): array { return [429, '{}']; };
+$pdo->exec("DELETE FROM rate_hits WHERE bucket LIKE 'gemini:r%'");
+try { (new GeminiClient())->generate('x'); $thrown = false; } catch (Exception $e) { $thrown = str_contains($e->getMessage(), 'sollicité'); }
+check('assistant: when every lane is full the person gets a friendly message', $thrown);
+$pdo->exec("DELETE FROM rate_hits WHERE bucket LIKE 'gemini:r%'");
+$gSeen = []; GeminiClient::$transport = function (array $p, string $kh, string $model) use (&$gSeen, $gok): array { $gSeen[] = $p; return [200, $gok("```json\n{\"a\":1}\n```")]; };
+(new GeminiClient())->generate(str_repeat('x', 30000), str_repeat('s', 60000), true);
+check('assistant: JSON mode asks for application/json, the prompt and the instructions are capped', ($gSeen[0]['generationConfig']['responseMimeType'] ?? '') === 'application/json'
+    && mb_strlen($gSeen[0]['contents'][0]['parts'][0]['text']) === 16000 && mb_strlen($gSeen[0]['systemInstruction']['parts'][0]['text']) === 40000);
 $uid = 900000 + random_int(1, 90000); $blocked = null;
-for ($i = 0; $i < 25 && $blocked === null; $i++) { $blocked = AiClient::guard($pdo, $uid, 'student'); }
+for ($i = 0; $i < 25 && $blocked === null; $i++) { $blocked = GeminiClient::guard($pdo, $uid, 'student'); }
 check('assistant: a student is limited to 20 calls an hour', $blocked !== null && $i === 21);
 $pdo->exec("DELETE FROM rate_hits WHERE bucket LIKE 'ai:chat:student:$uid%'");
-AnthropicClient::$transport = fn(array $p) => [529, '{}', []];
-try { (new AiClient())->generate('hi', 'sys'); $thrown = false; } catch (Exception $e) { $thrown = str_contains($e->getMessage(), 'sollicité'); }
-check('assistant: a busy API gives a friendly message, not a technical error', $thrown);
+GeminiClient::$keysOverride = []; GeminiClient::$transport = null;
+check('assistant: without a key a demonstration answer is returned', str_contains((new GeminiClient())->generate('Bonjour'), 'mode demonstration'));
+GeminiClient::$keysOverride = null; GeminiClient::$transport = null;
 AnthropicClient::$transport = null; AnthropicClient::$modelsOverride = null; AiKeyPool::$keysOverride = null; AiKeyPool::$rpmOverride = null; AiKeyPool::$trackWithTransport = false; $fresh();
+$pdo->exec("DELETE FROM rate_hits WHERE bucket LIKE 'gemini:r%'");
 
 echo "code questions: $passed passed, " . count($failed) . " failed\n";
 foreach ($failed as $f) { echo "  FAIL: $f\n"; }

@@ -512,20 +512,30 @@ php scripts/import-job.php docs/careers/postings/*.md             # publie (ajou
 
 Trois offres prêtes à publier sont dans `docs/careers/postings/` (ingénierie, ventes, éducation), lecture automatique activée. Relisez-les avant publication : l'organisation, les avantages et la rémunération y sont des propositions à adapter.
 
-## AI: marking of code questions and assistants (Anthropic)
+## AI: two providers, two jobs
 
-Code and written answers in live evaluations are read and marked by a model (it never runs the code), and the student, teacher and promoter assistants answer with a smaller one. Anthropic is the only provider; no other AI key is read by the code.
+- **Lesson assistants (student mentor, teacher assistant, promoter reports): Gemini.** Anthropic is never used for them.
+- **Marking of code and written answers in live evaluations: Anthropic, and only that.** The model reads and marks (it never runs the code).
+
+### Gemini (assistants)
 
 | Variable | Meaning |
 |---|---|
-| `ANTHROPIC_API_KEY` | Key of a dedicated Anthropic project with a monthly spend limit. Set it in the host's environment (Render: Environment), never in the repository or in chat. Empty = the answers wait, nothing is marked wrong, the assistants answer in demonstration mode. |
-| `ANTHROPIC_API_KEYS` | Optional extra keys, comma separated. Calls are spread over every key (round robin); a key that is full, busy or refused rests while the others work. Keys of the same organisation share its limits. The state is in the table `ai_key_state`, shown on the teacher's corrections page. |
-| `ANTHROPIC_MODEL` | Marking, default `claude-sonnet-5-5`. |
-| `ANTHROPIC_MODEL_CHAT` | Assistants, default `claude-haiku-5-5`. |
-| `ANTHROPIC_RPM` | Calls per minute and per key and model, default 40: set it under the limit of your Anthropic plan (see the Limits page of the console). `0` = no limit. |
-| `ANTHROPIC_DAILY_CALLS` | Ceiling of marking calls per day, default 2000. |
-| `ANTHROPIC_DAILY_CHAT` | Ceiling of assistant calls per day, default 3000. Each person is also limited per hour and per day. |
+| `GEMINI_API_KEY` | Google AI key. Set it in the host's environment (Render: Environment), never in the repository or in chat. Empty = the assistants answer in demonstration mode. |
+| `GEMINI_API_KEYS` | Optional extra keys, comma separated. Calls rotate over every key and every model; a key or model that answers "quota full", "busy", "retired" or "refused" rests (a minute, or an hour for a refusal) while the others answer. Google counts the quota per project. |
+| `GEMINI_MODEL` | Models tried in order, default `gemini-2.5-flash,gemini-3-flash-preview`. |
+| `GEMINI_DAILY_CALLS` | Ceiling of assistant calls per day for the platform, default 3000. Each person is also limited per hour and per day (student 20 an hour and 60 a day, teacher 30 and 120, promoter 12 and 40). |
 
-How tokens are spent: the question (figure, statement, reference, notes) and the instructions form a cached prefix shared by every student, only the student's answer is new; the verdict is short (output limit, 90-word feedback, no corrected code when the answer is right); identical code is marked once; an answer of fewer than 10 characters is never sent; assistants send at most 12 000 characters of prompt. The tokens of every marking call (input, cache reads, output) are stored and shown on the corrections page. The rate-limit headers and Retry-After of every answer put a lane to rest exactly as long as needed.
+### Anthropic (marking only)
+
+| Variable | Meaning |
+|---|---|
+| `ANTHROPIC_API_KEY` | Key of a dedicated Anthropic project with a monthly spend limit. Set it in the host's environment, never in the repository or in chat. Empty = the answers wait, nothing is marked wrong. |
+| `ANTHROPIC_API_KEYS` | Optional extra keys, comma separated: calls are spread over every key; a key that is full, busy or refused rests while the others work. The state is in the table `ai_key_state`, shown on the teacher's corrections page. |
+| `ANTHROPIC_MODEL` | Marking model, default `claude-sonnet-5-5`. |
+| `ANTHROPIC_RPM` | Calls per minute and per key and model, default **600**. The plan of this project allows 10 000 requests, 10 M input tokens and 2 M output tokens per minute and per model: 600 a minute is far under it, a guard against a runaway loop, and a whole exam (100 students, 17 code questions each, spread over the session) never gets near it. `0` = no limit. |
+| `ANTHROPIC_DAILY_CALLS` | Ceiling of marking calls per day, default 10000 (about 580 students with 17 code questions). |
+
+How tokens are spent: the question (figure, statement, reference, notes) and the instructions form a cached prefix shared by every student, only the student's answer is new; the verdict is short (output limit, 90-word feedback, no corrected code when the answer is right); identical code is marked once; an answer of fewer than 10 characters is never sent. The tokens of every marking call (input, cache reads, output) are stored and shown on the corrections page. The rate-limit headers and Retry-After of every answer put a lane to rest exactly as long as needed. Set a monthly spend limit in the Anthropic console: it is the last safety net.
 
 Limits already in place: per student, per address and per session on submissions, a size limit on the code, one marking per identical code, a daily ceiling, back-off when the API is busy, and a hand-over to the teacher after four failed attempts. The cron worker (`lib/email-worker.php`) also marks whatever is waiting.

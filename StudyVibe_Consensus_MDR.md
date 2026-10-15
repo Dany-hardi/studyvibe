@@ -21,7 +21,7 @@ StudyVibe was conceived and engineered as an **enterprise-grade, zero-bloat Acad
 | 2. Zero-Downtime Schema Agility   | Self-healing, inline micro-migrations (DB)    |
 | 3. High-Concurrency Efficiency    | 1s-2s File Caching Layer for Live Polling     |
 | 4. Multi-Role Institutional Gate  | Promoter -> Teacher -> Student Role Hierarchy |
-| 5. Multi-Modal AI Co-Pilot        | Anthropic Claude API with Fallback Sandbox    |
+| 5. Multi-Modal AI Co-Pilot        | Gemini 2.5 Flash API with Fallback Sandbox    |
 | 6. Premium Aesthetic Experience   | Cream & Forest palette, Glassmorphism, 3D Deck|
 +-----------------------------------+-----------------------------------------------+
 ```
@@ -29,7 +29,7 @@ StudyVibe was conceived and engineered as an **enterprise-grade, zero-bloat Acad
 ### The Three Core Pillars of StudyVibe's Engineering Philosophy:
 1. **Lightweight & Local-First Architectural Autonomy**: Rather than relying on heavyweight PHP frameworks (like Laravel or Symfony) or massive vendor folders, StudyVibe implements custom, hand-crafted core engines for PDF generation, LaTeX compilation, Excel exports, authentication gating, email dispatching, and localization. This drastically reduces server overhead, eliminates supply-chain vulnerabilities, and enables instant page renders (<50ms execution times).
 2. **Resilient Self-Healing Data Model**: Database migrations in StudyVibe do not require external migration CLI utilities. The database initialization layer (`Database.php`) dynamically probes the database schema on execution and automatically runs incremental DDL statements (`ALTER TABLE`, `CREATE TABLE IF NOT EXISTS`) without locking tables or breaking running production instances.
-3. **Immersive Pedagogy & Real-Time Engagement**: Academic learning requires active participation. StudyVibe bridges traditional LMS passive reading with synchronous live classroom evaluations (**QuizBox**), an automated **18-tier gamification badge engine**, interactive note-taking tied to video timestamps, and a role-aware **Anthropic Claude AI Assistant**.
+3. **Immersive Pedagogy & Real-Time Engagement**: Academic learning requires active participation. StudyVibe bridges traditional LMS passive reading with synchronous live classroom evaluations (**QuizBox**), an automated **18-tier gamification badge engine**, interactive note-taking tied to video timestamps, and a role-aware **Gemini 2.5 Flash AI Assistant**.
 
 ---
 
@@ -44,7 +44,7 @@ graph TD
     S[Student / Learner] -->|Enrolls in Courses, Takes Quizzes, Collects Badges, Submits PDF Devoirs| DB
 
     subgraph "AI & External Integrations"
-        G[Anthropic Claude API]
+        G[Gemini 2.5 Flash API]
         L[LaTeX Engine pdflatex]
         M[Mailer Engine]
     end
@@ -85,7 +85,7 @@ Below is the repository structure mapped directly to functional sub-systems:
 ├── certificate.php              <-- Certificate validation portal with PDF download and verification code
 │
 ├── api/                         <-- REST API endpoints
-│   ├── ai-student.php           <-- Student AI Mentor (Anthropic Claude + pdftotext extraction)
+│   ├── ai-student.php           <-- Student AI Mentor (Gemini 2.5 Flash + pdftotext extraction)
 │   ├── ai-teacher.php           <-- Teacher AI Exam Generator (Automated MCQ generation from course assets)
 │   ├── ai-promoter.php          <-- Promoter Strategic Audit AI (Institutional KPI diagnostics)
 │   ├── live-eval-poll.php       <-- High-concurrency polling endpoint for QuizBox (1s-2s File Caching)
@@ -94,7 +94,7 @@ Below is the repository structure mapped directly to functional sub-systems:
 │   └── teacher-dispatch-live-emails.php <-- Async bulk email dispatch for live eval reports
 │
 ├── lib/                         <-- Core Helper Classes (Zero External Dependencies)
-│   ├── AiClient.php         <-- Anthropic Claude API client with fallback simulation sandbox
+│   ├── GeminiClient.php         <-- Google Gemini API client with fallback simulation sandbox
 │   ├── BadgeHelper.php          <-- 18-tier gamification evaluation engine
 │   ├── LatexCompiler.php        <-- Shell wrapper for pdflatex compilation (dual-pass + sanitization)
 │   ├── PdfReportBuilder.php     <-- Native PHP PDF 1.4 binary report generator
@@ -229,15 +229,15 @@ erDiagram
 
 ---
 
-### Playbook 2: Multi-Modal AI Assistant Suite (Anthropic Claude)
+### Playbook 2: Multi-Modal AI Assistant Suite (Gemini 2.5 Flash)
 
-> **Files**: `lib/AiClient.php`, `api/ai-student.php`, `api/ai-teacher.php`, `api/ai-promoter.php`
+> **Files**: `lib/GeminiClient.php`, `api/ai-student.php`, `api/ai-teacher.php`, `api/ai-promoter.php`
 
-StudyVibe integrates Anthropic's **Claude** model across all three roles, using strict system instructions, structured JSON outputs, and automated text extractions.
+StudyVibe integrates Google's **Gemini 2.5 Flash** model across all three roles, using strict system instructions, structured JSON outputs, and automated text extractions.
 
 ```
                    +---------------------------------------+
-                   |          AiClient.php             |
+                   |          GeminiClient.php             |
                    +---------------------------------------+
                                        |
            +---------------------------+---------------------------+
@@ -255,9 +255,9 @@ StudyVibe integrates Anthropic's **Claude** model across all three roles, using 
 ```
 
 #### Key Technical Capabilities:
-1. **On-the-Fly PDF Text Extraction**: When a lesson includes attached PDF documents, `api/ai-teacher.php` and `api/ai-student.php` execute system shell commands via `pdftotext` to extract raw textual content and append it directly into the model's context window.
-2. **Strict JSON Schema Enforcement**: For quiz generation, the model is told to answer with `responseMimeType: application/json` and strict structural prompt instructions to ensure predictable JSON objects containing questions, options A-D, and correct answers without markdown code fences.
-3. **Demonstration Sandbox / Fallback Simulation**: If `ANTHROPIC_API_KEY` is omitted from `.env`, `AiClient.php` automatically enters **Demonstration Mode**, generating intelligent mock responses and mock JSON quizzes. This allows local development, testing, and offline demonstrations without throwing errors or requiring API credentials.
+1. **On-the-Fly PDF Text Extraction**: When a lesson includes attached PDF documents, `api/ai-teacher.php` and `api/ai-student.php` execute system shell commands via `pdftotext` to extract raw textual content and append it directly into Gemini's context window.
+2. **Strict JSON Schema Enforcement**: For quiz generation, Gemini is configured with `responseMimeType: application/json` and strict structural prompt instructions to ensure predictable JSON objects containing questions, options A-D, and correct answers without markdown code fences.
+3. **Demonstration Sandbox / Fallback Simulation**: If `GEMINI_API_KEY` is omitted from `.env`, `GeminiClient.php` automatically enters **Demonstration Mode**, generating intelligent mock responses and mock JSON quizzes. This allows local development, testing, and offline demonstrations without throwing errors or requiring API credentials.
 
 ---
 
@@ -405,7 +405,7 @@ StudyVibe stands as a complete, self-contained academic ecosystem. Its architect
 - **Database Health**: 100% self-healing with zero-downtime micro-migrations.
 - **Export Capabilities**: Native PDF 1.4, compiled LaTeX, and XML SpreadsheetML Excel exports.
 - **Live Classroom Engine**: High-concurrency QuizBox tele-evaluation with 2s JSON file caching.
-- **AI Intelligence**: Anthropic Claude layer across all roles with local sandbox fallbacks.
+- **AI Intelligence**: Gemini 2.5 Flash layer across all roles with local sandbox fallbacks.
 - **Gamification**: 18 real-time student achievement badges.
 
 *Report compiled and certified for the StudyVibe Project Repository.*

@@ -3,7 +3,7 @@ declare(strict_types=1);
 
 require_once __DIR__ . '/../config.php';
 require_once __DIR__ . '/../Database.php';
-require_once __DIR__ . '/../lib/AiClient.php';
+require_once __DIR__ . '/../lib/GeminiClient.php';
 
 // Verifier l'authentification et le role promoteur
 session_start();
@@ -45,13 +45,13 @@ try {
         $dataReport .= "- Cours \"{$cs['title']}\" : {$cs['student_count']} inscriptions.\n";
     }
 
-    $aiLimit = AiClient::guard(Database::getInstance(), (int)$_SESSION['user_id'], 'promoter');
+    $aiLimit = GeminiClient::guard(Database::getInstance(), (int)$_SESSION['user_id'], 'promoter');
     if ($aiLimit !== null) {
         http_response_code(429);
         echo json_encode(['success' => false, 'error' => $aiLimit]);
         exit;
     }
-    $client = new AiClient();
+    $client = new GeminiClient();
 
     // Prompt systeme strict pour le promoteur (sans emojis, analytique)
     $systemInstruction = "Vous etes un expert en audit educatif et strategie universitaire.\n"

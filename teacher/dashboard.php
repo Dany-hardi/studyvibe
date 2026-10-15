@@ -3791,7 +3791,7 @@ $tdHasCourse = (bool)$selectedCourse;
     <div class="bg-[var(--card)] p-8 max-w-md w-full border border-[var(--line)] space-y-6 modal-inner">
         <div class="flex justify-between items-center pb-3 border-b border-[var(--line)]">
             <div>
-                <h3 class="font-serif text-xl font-light">Génération de Quiz IA</h3>
+                <h3 class="font-serif text-xl font-light">Génération de Quiz IA (Gemini)</h3>
                 <p id="ai-config-lesson-title" class="text-xs font-light text-[var(--ink-3)] mt-1">Configuration du questionnaire</p>
             </div>
             <button type="button" onclick="toggleModal('ai-quiz-config-modal')" class="text-[var(--ink-3)] hover:text-[var(--danger)]">
@@ -3833,12 +3833,12 @@ $tdHasCourse = (bool)$selectedCourse;
     </div>
 </div>
 
-<!-- ── Modal : Génération de Quiz IA ───────────────────────── -->
+<!-- ── Modal : Génération de Quiz IA (Gemini) ───────────────────────── -->
 <div id="ai-quiz-modal" class="hidden fixed inset-0 bg-black/40  z-50 flex items-center justify-center p-6">
     <div class="bg-[var(--card)] p-8 max-w-2xl w-full border border-[var(--line)] flex flex-col max-h-[85vh] modal-inner">
         <div class="flex justify-between items-center mb-4 flex-shrink-0">
             <div>
-                <h3 class="font-serif text-2xl font-light">Génération de Quiz IA</h3>
+                <h3 class="font-serif text-2xl font-light">Génération de Quiz IA (Gemini)</h3>
                 <p id="ai-quiz-lesson-title" class="text-xs font-light text-[var(--ink-3)] mt-1">Leçon : ...</p>
             </div>
             <button type="button" onclick="toggleModal('ai-quiz-modal')" class="text-[var(--ink-3)] hover:text-[var(--danger)]">
@@ -5299,7 +5299,7 @@ function addResourceRow() {
     document.getElementById('resource-rows').appendChild(row);
 }
 
-// ── Génération de Quiz IA ──────────────────────
+// ── Génération de Quiz IA (Gemini) ──────────────────────
 let aiQuizLessonId = null;
 let aiGeneratedQuestions = [];
 

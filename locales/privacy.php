@@ -117,7 +117,8 @@ return [
                     'rows' => [
                         ['<strong>Hébergement et base de données</strong>', 'Faire tourner le site et stocker les données de la plateforme.', 'L’ensemble des données du service, dans un environnement à accès restreint. Le lieu d’hébergement précis est communiqué sur simple demande.'],
                         ['<strong>Envoi d’e-mails (SMTP)</strong>', 'Confirmation d’adresse, réinitialisation de mot de passe, résultats, lettre d’information.', 'Votre adresse e-mail, votre nom et le contenu du message envoyé.'],
-                        ['<strong>Anthropic (correction des questions de code et assistants IA)</strong>', 'Générer les réponses et les quiz proposés par l’assistant ; lire et corriger le code écrit par un étudiant dans une évaluation en direct, et rédiger le commentaire et le script corrigé.', 'Pour l’assistant : votre message et le texte de la leçon. Pour la correction : la consigne de la question, la solution de référence de l’enseignant et le code soumis. Jamais votre nom, ni votre e-mail, ni votre matricule.'],
+                        ['<strong>Google Gemini (assistant IA)</strong>', 'Générer les réponses et les quiz proposés par l’assistant.', 'Votre message et le texte de la leçon concernée. Jamais votre nom, ni votre e-mail, ni votre matricule.'],
+                        ['<strong>Anthropic (correction des questions de code)</strong>', 'Lire et corriger le code écrit par un étudiant dans une évaluation en direct, et rédiger le commentaire et le script corrigé.', 'La consigne de la question, la solution de référence de l’enseignant et le code soumis. Jamais votre nom, ni votre e-mail, ni votre matricule.'],
                         ['<strong>YouTube</strong>', 'Lire les vidéos de cours hébergées sur YouTube.', 'Lorsqu’une leçon contient une vidéo YouTube, votre navigateur contacte YouTube (Google), qui reçoit votre adresse IP et peut déposer ses propres cookies, selon sa propre politique.'],
                         ['<strong>Google Fonts, cdnjs, jsDelivr</strong>', 'Charger les polices, le lecteur PDF, les formules mathématiques et les animations.', 'Votre navigateur télécharge ces fichiers depuis ces services, qui voient votre adresse IP comme tout site web.'],
                     ],
@@ -131,7 +132,7 @@ return [
                 ['p' => 'Dans la lecture d’une leçon, vous pouvez poser une question à un assistant, lui demander un résumé ou un quiz. Voici exactement ce qui se passe.'],
                 ['steps' => [
                     'Vous écrivez un message ou choisissez une action (résumer, expliquer, générer un quiz).',
-                    'La plateforme envoie à Anthropic votre message et le texte de la leçon ouverte, pour que la réponse porte sur le bon contenu.',
+                    'La plateforme envoie à Google Gemini votre message et le texte de la leçon ouverte, pour que la réponse porte sur le bon contenu.',
                     'La réponse revient et s’affiche dans le panneau. Elle n’est pas enregistrée dans votre dossier scolaire et n’influence aucune note.',
                 ]],
                 ['p' => 'Ne saisissez pas d’informations personnelles ou confidentielles dans vos messages : ils sont traités par un service externe. Une réponse de l’assistant peut contenir des erreurs, vérifiez-la avec le cours. L’usage de l’assistant est facultatif, rien d’obligatoire dans votre parcours ne dépend de lui.'],
@@ -383,7 +384,8 @@ return [
                     'rows' => [
                         ['<strong>Hosting and database</strong>', 'Run the site and store the platform’s data.', 'All the service’s data, in a restricted-access environment. The exact hosting location is provided on request.'],
                         ['<strong>Email delivery (SMTP)</strong>', 'Address confirmation, password reset, results, newsletter.', 'Your email address, your name and the content of the message sent.'],
-                        ['<strong>Anthropic (marking of code questions and AI assistants)</strong>', 'Generate the answers and quizzes the assistant offers; read and mark the code a student writes in a live evaluation, and write the feedback and the corrected script.', 'For the assistant: your message and the text of the lesson. For the marking: the question, the teacher’s reference solution and the submitted code. Never your name, email or matricule.'],
+                        ['<strong>Google Gemini (AI assistant)</strong>', 'Generate the answers and quizzes the assistant offers.', 'Your message and the text of the lesson concerned. Never your name, email or matricule.'],
+                        ['<strong>Anthropic (marking of code questions)</strong>', 'Read and mark the code a student writes in a live evaluation, and write the feedback and the corrected script.', 'The question, the teacher’s reference solution and the submitted code. Never your name, email or matricule.'],
                         ['<strong>YouTube</strong>', 'Play course videos hosted on YouTube.', 'When a lesson contains a YouTube video, your browser contacts YouTube (Google), which receives your IP address and may set its own cookies, under its own policy.'],
                         ['<strong>Google Fonts, cdnjs, jsDelivr</strong>', 'Load fonts, the PDF reader, math formulas and animations.', 'Your browser downloads these files from those services, which see your IP address like any website would.'],
                     ],
@@ -397,7 +399,7 @@ return [
                 ['p' => 'While reading a lesson, you can ask an assistant a question, request a summary or a quiz. Here is exactly what happens.'],
                 ['steps' => [
                     'You write a message or choose an action (summarise, explain, generate a quiz).',
-                    'The platform sends Anthropic your message and the text of the open lesson, so the answer is about the right content.',
+                    'The platform sends Google Gemini your message and the text of the open lesson, so the answer is about the right content.',
                     'The answer comes back and is shown in the panel. It is not saved in your academic record and affects no grade.',
                 ]],
                 ['p' => 'Do not enter personal or confidential information in your messages: they are processed by an external service. An assistant answer can contain mistakes, so check it against the course. Using the assistant is optional, nothing required in your path depends on it.'],

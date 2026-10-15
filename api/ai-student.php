@@ -6,7 +6,7 @@ declare(strict_types=1);
 
 require_once __DIR__ . '/../config.php';
 require_once __DIR__ . '/../Database.php';
-require_once __DIR__ . '/../lib/AiClient.php';
+require_once __DIR__ . '/../lib/GeminiClient.php';
 
 // Verifier l'authentification et le role
 session_start();
@@ -113,13 +113,13 @@ try {
         $contextDescription .= "\n";
     }
 
-    $aiLimit = AiClient::guard(Database::getInstance(), (int)$_SESSION['user_id'], 'student');
+    $aiLimit = GeminiClient::guard(Database::getInstance(), (int)$_SESSION['user_id'], 'student');
     if ($aiLimit !== null) {
         http_response_code(429);
         echo json_encode(['success' => false, 'error' => $aiLimit]);
         exit;
     }
-    $client = new AiClient();
+    $client = new GeminiClient();
 
     // Prompt systeme strict (sans emojis, base sur la lecon)
     $systemInstruction = "Vous etes l'assistant IA de StudyVibe, un mentor academique de confiance, professionnel et concis.\n"
@@ -191,7 +191,7 @@ try {
         }
         $quizData = json_decode($response, true);
         if (json_last_error() !== JSON_ERROR_NONE) {
-            throw new \Exception("Erreur lors de l'analyse du JSON genere par l'IA.");
+            throw new \Exception("Erreur lors de l'analyse du JSON genere par Gemini.");
         }
         echo json_encode(['success' => true, 'quiz' => $quizData['questions'] ?? []]);
     } else {
