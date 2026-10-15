@@ -1772,12 +1772,67 @@ if (!$error && $session && !empty($session['free_pace']) && $registration && !$i
                                 <?php endif; ?>
                                 
                                 <div style="background: rgba(181,72,42,0.04); border: 1px solid rgba(181,72,42,0.1); padding: 1.25rem; font-size: 0.8rem; line-height: 1.6; color: var(--ink); text-align: left; margin-bottom: 1.5rem; border-radius: 1px;">
-                                    Vos réponses ont été soumises avec succès. Un e-mail contenant votre score, vos statistiques individuelles et le lien sécurisé vers votre rapport de correction a été envoyé à :
-                                    <strong style="display:block; font-size:0.9rem; color:var(--green); margin-top:0.4rem;"><?= htmlspecialchars($registration['email']) ?></strong>
+                                    Vos réponses ont été soumises avec succès. Votre score, vos statistiques individuelles et le lien sécurisé vers votre rapport de correction vous seront envoyés par e-mail à l’adresse suivante :
+                                    <strong id="results-email" style="display:block; font-size:0.9rem; color:var(--green); margin-top:0.4rem; word-break:break-all;"><?= htmlspecialchars($registration['email']) ?></strong>
+                                    <?php if ($isGuestParticipant): ?>
+                                    <div id="results-email-confirm" style="margin-top:0.9rem;">
+                                        <strong style="display:block; font-size:0.8rem;">Cette adresse e-mail est-elle correcte ?</strong>
+                                        <div style="display:flex; gap:0.5rem; flex-wrap:wrap; margin-top:0.5rem;">
+                                            <button type="button" id="results-email-yes" class="btn-primary" style="width:auto; padding:0.55rem 1.1rem; background-color:var(--green); border-color:var(--green);">Oui, elle est correcte</button>
+                                            <button type="button" id="results-email-no" class="btn-primary" style="width:auto; padding:0.55rem 1.1rem; background-color:var(--ink); border-color:var(--ink);">Non, la corriger</button>
+                                        </div>
+                                    </div>
+                                    <form id="results-email-form" class="hidden" style="margin-top:0.9rem;" novalidate>
+                                        <label for="results-email-input" style="display:block; font-size:0.65rem; font-weight:600; text-transform:uppercase; letter-spacing:0.08em; color:var(--muted); margin-bottom:0.4rem;">Votre bonne adresse e-mail</label>
+                                        <input type="email" id="results-email-input" class="input-field" autocomplete="email" inputmode="email" autocapitalize="off" spellcheck="false" placeholder="Ex: jean.dupont@gmail.com" value="<?= htmlspecialchars($registration['email']) ?>">
+                                        <div style="display:flex; gap:0.5rem; flex-wrap:wrap; margin-top:0.5rem;">
+                                            <button type="submit" id="results-email-save" class="btn-primary" style="width:auto; padding:0.55rem 1.1rem;">Enregistrer cette adresse</button>
+                                            <button type="button" id="results-email-cancel" class="btn-primary" style="width:auto; padding:0.55rem 1.1rem; background:transparent; color:var(--ink); border-color:var(--line);">Annuler</button>
+                                        </div>
+                                        <p style="margin-top:0.4rem; font-size:0.72rem; color:var(--muted);">Adresses acceptées : gmail.com, icloud.com ou facsciences-uy1.cm.</p>
+                                    </form>
+                                    <p id="results-email-msg" role="status" aria-live="polite" style="display:none; margin-top:0.6rem; font-size:0.78rem;"></p>
+                                    <span style="display:block; margin-top:0.9rem; padding-top:0.8rem; border-top:1px solid rgba(0,0,0,0.06); font-size:0.75rem; color:var(--muted);">
+                                        Pour retrouver l’ensemble de vos résultats et les consulter à tout moment, <a href="/index.php" style="color:var(--green); font-weight:600;">créez votre compte StudyVibe gratuit</a> avec cette même adresse e-mail.
+                                    </span>
+                                    <?php else: ?>
                                     <span style="display:block; margin-top:0.5rem; font-size:0.75rem; color:var(--muted);">
                                         Vous pouvez consulter votre boîte de réception ou accéder à vos résultats directement ci-dessus.
                                     </span>
+                                    <?php endif; ?>
                                 </div>
+                                <?php if ($isGuestParticipant): ?>
+                                <script>
+                                (function () {
+                                    const $ = (id) => document.getElementById(id);
+                                    const form = $('results-email-form'), confirmBox = $('results-email-confirm'), msg = $('results-email-msg');
+                                    if (!form) return;
+                                    const say = (text, ok) => { msg.style.display = 'block'; msg.style.color = ok ? 'var(--green)' : '#B42318'; msg.textContent = text; };
+                                    $('results-email-yes').addEventListener('click', () => { confirmBox.classList.add('hidden'); say('Merci, votre adresse est confirmée.', true); });
+                                    $('results-email-no').addEventListener('click', () => { confirmBox.classList.add('hidden'); msg.style.display = 'none'; form.classList.remove('hidden'); $('results-email-input').focus(); });
+                                    $('results-email-cancel').addEventListener('click', () => { form.classList.add('hidden'); confirmBox.classList.remove('hidden'); msg.style.display = 'none'; });
+                                    form.addEventListener('submit', (e) => {
+                                        e.preventDefault();
+                                        const btn = $('results-email-save');
+                                        btn.disabled = true;
+                                        const body = new URLSearchParams({ code: <?= json_encode($code) ?>, email: $('results-email-input').value });
+                                        fetch('/api/live-update-email.php', { method: 'POST', body, credentials: 'same-origin', cache: 'no-store' })
+                                            .then((r) => r.json().catch(() => ({ ok: false, message: 'Réponse inattendue du serveur.' })))
+                                            .then((d) => {
+                                                if (d.ok) {
+                                                    $('results-email').textContent = d.email;
+                                                    form.classList.add('hidden');
+                                                    say(d.changed ? 'Adresse mise à jour : vos résultats seront envoyés à ' + d.email + '.' : 'Cette adresse était déjà la bonne.', true);
+                                                } else {
+                                                    say(d.message || 'Modification impossible.', false);
+                                                }
+                                            })
+                                            .catch(() => say('Connexion impossible. Réessayez.', false))
+                                            .finally(() => { btn.disabled = false; });
+                                    });
+                                })();
+                                </script>
+                                <?php endif; ?>
 
                                 <!-- Podium & Leaderboard visual graphics -->
                                 <div id="live-leaderboard-container" class="hidden" style="margin: 2rem 0; padding: 1.5rem; background: var(--card); border: 1px solid var(--line); border-radius: 4px; box-shadow: 0 4px 12px rgba(0,0,0,0.02); text-align: left;">

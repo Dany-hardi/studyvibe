@@ -68,6 +68,7 @@ try {
     if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action']) && $_POST['action'] === 'cancel_session') {
         $sessionId = (int)($_POST['session_id'] ?? 0);
         if ($sessionId > 0) {
+            try { require_once __DIR__ . '/../lib/Archive.php'; Archive::snapshotSession($pdo, $sessionId, 'before_delete'); } catch (Throwable $e) { error_log('archive: ' . $e->getMessage()); }
             $stmt = $pdo->prepare("DELETE FROM live_eval_sessions WHERE id = :id");
             $stmt->execute(['id' => $sessionId]);
             auditLog('live_eval_cancelled', "Session ID: {$sessionId}");
@@ -531,6 +532,7 @@ $TX = [
  'dd_teacher' => ['Que deviennent ses cours et ses évaluations ?', 'What happens to their courses and evaluations?'],
  'dd_reassign' => ['Les confier à un autre enseignant (rien n’est perdu)', 'Hand them to another teacher (nothing is lost)'],
  'dd_cascade' => ['Les supprimer avec lui : étudiants inscrits, progression, certificats et résultats compris', 'Delete them with the teacher: enrolled students, progress, certificates and results included'],
+ 'dd_erase' => ['Demande d’effacement : retirer aussi l’identité de cette personne des archives (les chiffres et notes restent, sans nom). Sinon les archives sont conservées comme preuve d’activité.', 'Erasure request: also remove this person’s identity from the archives (figures and marks stay, anonymous). Otherwise the archives are kept as proof of activity.'],
  'dd_pick' => ['Choisir un enseignant…', 'Choose a teacher…'],
  'dd_delete' => ['Supprimer définitivement', 'Delete permanently'],
  'confirm' => ['Confirmer', 'Confirm'],
@@ -1352,6 +1354,7 @@ X-API-Key: &lt;key&gt;</div>
       <select class="input" id="dd-teacher" aria-label="<?= $h($t('dd_pick')) ?>"></select>
       <label class="cu-mode"><input type="radio" name="dd_mode" value="cascade"> <span><?= $t('dd_cascade') ?></span></label>
     </fieldset>
+    <label class="cu-mode"><input type="checkbox" id="dd-erase"> <span><?= $t('dd_erase') ?></span></label>
     <div class="field" id="dd-phrase-wrap"><label for="dd-phrase" id="dd-phrase-hint"></label><input class="input" id="dd-phrase" type="text" autocomplete="off"></div>
     <div class="dlg-actions"><button type="button" class="btn btn-ghost" data-close><?= $t('cancel') ?></button><button type="submit" class="btn btn-danger" id="dd-go" disabled><?= $t('dd_delete') ?></button></div>
   </form>

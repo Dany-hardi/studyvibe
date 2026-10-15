@@ -2549,6 +2549,11 @@ $tdHasCourse = (bool)$selectedCourse;
                                                         <input type="number" min="5" max="3600" id="times-all-<?= $sid ?>" placeholder="60" style="width:6rem;padding:.35rem .5rem;border:1px solid var(--line);border-radius:8px;background:var(--card)">
                                                         <button type="button" class="t-btn t-btn-ghost t-btn-sm" onclick="document.querySelectorAll('#<?= $timesModalId ?> input[data-empty-time]').forEach(function(i){ if(i.value==='') i.value=document.getElementById('times-all-<?= $sid ?>').value; })"><?= tde('times_apply') ?></button>
                                                     </div>
+                                                    <div style="display:flex;align-items:center;gap:.6rem;flex-wrap:wrap;margin-bottom:1rem">
+                                                        <label for="times-mcq-<?= $sid ?>" class="text-xs font-semibold"><?= tde('times_mcq_same') ?></label>
+                                                        <input type="number" min="5" max="3600" id="times-mcq-<?= $sid ?>" placeholder="60" style="width:6rem;padding:.35rem .5rem;border:1px solid var(--line);border-radius:8px;background:var(--card)">
+                                                        <button type="button" class="t-btn t-btn-ghost t-btn-sm" onclick="var v=document.getElementById('times-mcq-<?= $sid ?>').value; if(v!==''){ document.querySelectorAll('#<?= $timesModalId ?> input[data-qtype=mcq]').forEach(function(i){ i.value=v; }); }"><?= tde('times_mcq_apply') ?></button>
+                                                    </div>
                                                     <?php foreach ($ls['questions'] as $ti => $tq): $isCodeQ = ($tq['question_type'] ?? '') === 'code'; ?>
                                                     <div style="display:grid;grid-template-columns:2rem 1fr 7rem;gap:.6rem;align-items:center;padding:.5rem 0;border-bottom:1px solid var(--line)">
                                                         <span class="num" style="font-weight:600;color:var(--ink-3)"><?= $ti + 1 ?></span>
@@ -2556,7 +2561,7 @@ $tdHasCourse = (bool)$selectedCourse;
                                                         <?php if ($isCodeQ): ?>
                                                             <span class="t-hint" style="font-size:.75rem"><?= tde('times_code_none') ?></span>
                                                         <?php else: ?>
-                                                            <input type="number" min="5" max="3600" name="times[<?= (int)$tq['id'] ?>]" value="<?= $tq['time_limit'] !== null ? (int)$tq['time_limit'] : '' ?>" placeholder="<?= (int)$ls['default_time_limit'] ?>" <?= $tq['time_limit'] === null ? 'data-empty-time' : '' ?> aria-label="<?= tde('q_duration') ?> <?= $ti + 1 ?>" style="width:100%;padding:.35rem .5rem;border:1px solid var(--line);border-radius:8px;background:var(--card)">
+                                                            <input type="number" min="5" max="3600" name="times[<?= (int)$tq['id'] ?>]" data-qtype="<?= htmlspecialchars((string)($tq['question_type'] ?? 'mcq')) ?>" value="<?= $tq['time_limit'] !== null ? (int)$tq['time_limit'] : '' ?>" placeholder="<?= (int)$ls['default_time_limit'] ?>" <?= $tq['time_limit'] === null ? 'data-empty-time' : '' ?> aria-label="<?= tde('q_duration') ?> <?= $ti + 1 ?>" style="width:100%;padding:.35rem .5rem;border:1px solid var(--line);border-radius:8px;background:var(--card)">
                                                         <?php endif; ?>
                                                     </div>
                                                     <?php endforeach; ?>
