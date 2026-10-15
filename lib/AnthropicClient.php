@@ -141,9 +141,10 @@ final class AnthropicClient
             default => 'bad_request',
         };
         $res = ['ok' => false, 'error' => $err, 'retryable' => in_array($err, ['rate_limited', 'overloaded', 'server', 'billing'], true)];
-        if ($err === 'bad_request' && is_array($json) && is_string($json['error']['message'] ?? null)) {
-            // the API's own explanation of what it refused (a parameter, a size...), short; it never contains the prompt
-            $res['detail'] = mb_substr(trim(preg_replace('/\s+/', ' ', $json['error']['message'])), 0, 160);
+        if ($err === 'bad_request') {
+            // the API's own short explanation of what it refused (a parameter, a size...); without a readable one, the HTTP status and the start of the answer
+            $msg = is_array($json) && is_string($json['error']['message'] ?? null) ? $json['error']['message'] : 'HTTP ' . $status . ' ' . substr(strip_tags((string)$body), 0, 100);
+            $res['detail'] = mb_substr(trim(preg_replace('/\s+/', ' ', $msg)), 0, 160);
         }
         if ($lastRetry !== null) {
             $res['retry_after'] = $lastRetry;
