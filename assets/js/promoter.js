@@ -263,6 +263,7 @@
       form.onsubmit = function (e) {
         e.preventDefault(); go.disabled = true;
         var f = new FormData(); f.append('user_id', id); f.append('action', 'delete');
+        var er = document.getElementById('dd-erase'); if (er && er.checked) f.append('erase_archives', '1');
         if (imp.needs_decision) { if (mode() === 'reassign') f.append('reassign_to', sel.value); else f.append('cascade', '1'); }
         post('/promoter/manage-user.php', f).then(function (r) {
           if (r.success) { dlg.close(); toast(r.message || T.ok); setTimeout(function () { location.reload(); }, 700); }

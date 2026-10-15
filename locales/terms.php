@@ -78,6 +78,7 @@ return [
         ]],
         ['id' => 'privacy', 'h' => 'Données personnelles', 'blocks' => [
             ['p' => 'Nous traitons vos données comme l’explique la <a href="/privacy.php">politique de confidentialité</a> : ce que nous gardons, pourquoi, qui peut le voir, combien de temps, et comment exercer vos droits. Ce texte et cette politique forment un ensemble.'],
+            ['p' => 'Les évaluations, cours, comptes et chiffres de la plateforme sont archivés automatiquement et protégés contre la suppression, afin de garantir l’authenticité des résultats et de permettre de prouver l’activité (par exemple le nombre de personnes évaluées). Vous pouvez demander l’effacement de vos données personnelles : votre identité est alors retirée des archives et seuls des chiffres anonymes subsistent.'],
         ]],
         ['id' => 'availability', 'h' => 'Disponibilité et modifications du service', 'blocks' => [
             ['p' => 'Nous faisons le nécessaire pour que le service soit disponible, mais nous ne pouvons pas garantir qu’il soit ininterrompu ou sans erreur : maintenance, incident d’un prestataire, coupure de réseau. Pour une évaluation importante, connectez-vous quelques minutes à l’avance et gardez l’onglet ouvert.'],
@@ -181,6 +182,7 @@ return [
         ]],
         ['id' => 'privacy', 'h' => 'Personal data', 'blocks' => [
             ['p' => 'We process your data as explained in the <a href="/privacy.php">privacy policy</a>: what we keep, why, who can see it, how long, and how to exercise your rights. This text and that policy go together.'],
+            ['p' => 'Evaluations, courses, accounts and platform figures are archived automatically and protected against deletion, to guarantee the authenticity of results and make it possible to prove activity (for example the number of people assessed). You can ask for your personal data to be erased: your identity is then removed from the archives and only anonymous figures remain.'],
         ]],
         ['id' => 'availability', 'h' => 'Availability and changes to the service', 'blocks' => [
             ['p' => 'We do what is needed to keep the service available, but cannot guarantee it is uninterrupted or error-free: maintenance, a provider incident, a network outage. For an important evaluation, sign in a few minutes early and keep the tab open.'],

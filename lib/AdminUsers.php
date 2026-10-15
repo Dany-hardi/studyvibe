@@ -222,7 +222,7 @@ final class AdminUsers
     /**
      * Deletes an account.
      *
-     * @param array $opts reassign_to (teacher id) | cascade (bool)
+     * @param array $opts reassign_to (teacher id) | cascade (bool) | erase_archives (bool: also remove the identity from the archives, on an erasure request)
      * @return array{ok:bool,error?:string,message?:string,impact?:array,reassigned?:array,removed_files?:int}
      *         errors: not_found, self, last_admin, needs_decision, bad_reassign
      */
@@ -254,6 +254,18 @@ final class AdminUsers
             } elseif (!$cascade) {
                 return $fail('needs_decision', 'Cet enseignant a des cours ou des évaluations : confiez-les à un autre enseignant ou confirmez leur suppression.', ['impact' => $imp]);
             }
+        }
+
+        // Governance: what is about to disappear is archived first (account, courses and evaluations of a teacher deleted with them)
+        try {
+            require_once __DIR__ . '/Archive.php';
+            Archive::snapshotUser($pdo, $userId, 'before_delete');
+            if ($u['role'] === 'teacher' && $imp['needs_decision'] && $reassign === 0) {
+                foreach ($pdo->query('SELECT id FROM courses WHERE teacher_id = ' . $userId)->fetchAll(PDO::FETCH_COLUMN) as $cid) { Archive::snapshotCourse($pdo, (int)$cid, 'before_delete'); }
+                foreach ($pdo->query('SELECT id FROM live_eval_sessions WHERE teacher_id = ' . $userId)->fetchAll(PDO::FETCH_COLUMN) as $sid) { Archive::snapshotSession($pdo, (int)$sid, 'before_delete', $userId); }
+            }
+        } catch (Throwable $e) {
+            error_log('AdminUsers::delete archive: ' . $e->getMessage());
         }
 
         // Files to remove, listed before the rows disappear
@@ -304,6 +316,16 @@ final class AdminUsers
             }
             throw $e;
         }
+        // Right to erasure: on request the identity is also removed from the archives (the figures and marks stay, anonymous)
+        $erased = null;
+        if (!empty($opts['erase_archives'])) {
+            try {
+                $erased = Archive::redactPerson($pdo, (string)$u['email'], $userId, 'admin #' . $adminId, 'account erasure request');
+                self::audit($pdo, $adminId, 'archives_redacted', "User #{$userId}: {$erased['archives']} archive(s), {$erased['rows']} row(s)");
+            } catch (Throwable $e) {
+                error_log('AdminUsers::delete redact: ' . $e->getMessage());
+            }
+        }
         $removed = 0;
         foreach ($files as [$kind, $f]) {
             try {
@@ -313,7 +335,7 @@ final class AdminUsers
                 error_log('AdminUsers::delete file ' . $kind . '/' . $f . ': ' . $e->getMessage());
             }
         }
-        return ['ok' => true, 'message' => 'Le compte a été supprimé définitivement.', 'reassigned' => $reassigned, 'removed_files' => $removed];
+        return ['ok' => true, 'message' => 'Le compte a été supprimé définitivement.', 'reassigned' => $reassigned, 'removed_files' => $removed, 'archives_redacted' => $erased['archives'] ?? 0];
     }
 
     /** Files of a teacher's courses and live sessions (only removed when those are deleted with the teacher). @return array<int,array{0:string,1:string}> */

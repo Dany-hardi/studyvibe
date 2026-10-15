@@ -20,13 +20,16 @@ function check(string $what, bool $ok, string $detail = ''): void { global $pass
 
 $tag = 'zz.arch.' . bin2hex(random_bytes(2));
 register_shutdown_function(function () use ($pdo, $tag) {
-    $pdo->exec("DELETE FROM archives WHERE title LIKE 'ZZ arch%' OR title LIKE 'ZZ Reg%'");
+    Archive::unlocked($pdo, function () use ($pdo) {
+        $pdo->exec("DELETE FROM archive_subjects WHERE archive_id IN (SELECT id FROM archives WHERE title LIKE 'ZZ arch%' OR title LIKE 'ZZ Reg%' OR title LIKE 'Attestation SVA-%' OR title LIKE 'user #%' OR reason = 'zz')");
+        $pdo->exec("DELETE FROM archives WHERE title LIKE 'ZZ arch%' OR title LIKE 'ZZ Reg%' OR title LIKE 'Attestation SVA-%' OR reason = 'zz'");
+        $pdo->exec("DELETE FROM archives WHERE kind = 'logs' AND title LIKE '%2001-01%'");
+    });
     $pdo->exec("DELETE FROM live_eval_sessions WHERE title LIKE 'ZZ arch%'");
     $pdo->exec("DELETE FROM courses WHERE title = 'ZZ arch course'");
     $pdo->exec("DELETE FROM users WHERE email LIKE '" . $tag . "%'");
     $pdo->exec("DELETE FROM audit_logs WHERE action = 'zz_arch_test'");
     $pdo->exec("DELETE FROM server_errors WHERE context = 'zz_arch_test'");
-    $pdo->exec("DELETE FROM archives WHERE kind = 'logs' AND title LIKE '%2001-01%'");
 });
 
 $mod = (int)$pdo->query("SELECT id FROM modules LIMIT 1")->fetchColumn();
@@ -93,7 +96,11 @@ check('another teacher cannot open it', Archive::open($pdo, $a1, $teacher + 9999
 $pdo->exec("UPDATE live_eval_registrations SET name = 'Cy changed' WHERE id = $cy");
 $a3 = Archive::snapshotSession($pdo, $sid, 'manual');
 check('a change gives a new snapshot', $a3 !== null && $a3 !== $a1);
-$pdo->prepare("UPDATE archives SET payload = :p WHERE id = :i")->execute(['p' => gzencode('{"tampered":true}'), 'i' => $a3]);
+$blocked = false;
+try { $pdo->prepare("UPDATE archives SET payload = :p WHERE id = :i")->execute(['p' => gzencode('{"tampered":true}'), 'i' => $a3]); } catch (PDOException $e) { $blocked = true; }
+$triggers = (int)$pdo->query("SELECT COUNT(*) FROM information_schema.TRIGGERS WHERE TRIGGER_SCHEMA = DATABASE() AND TRIGGER_NAME = 'archives_no_rewrite'")->fetchColumn() === 1;
+check('rewriting an archive is refused by the database (when triggers can be created)', !$triggers || $blocked);
+Archive::unlocked($pdo, fn() => $pdo->prepare("UPDATE archives SET payload = :p WHERE id = :i")->execute(['p' => gzencode('{"tampered":true}'), 'i' => $a3]));
 check('a tampered archive is refused', Archive::open($pdo, $a3, $teacher) === null);
 $ar = Archive::snapshotRegistration($pdo, $ben, 'excluded');
 $o = Archive::open($pdo, (int)$ar, $teacher);
@@ -117,6 +124,35 @@ require_once __DIR__ . '/../../auth.php';
 logServerError(new RuntimeException('zz arch boom'), 'zz_arch_test'); logServerError(new RuntimeException('zz arch boom'), 'zz_arch_test');
 $e = $pdo->query("SELECT hits FROM server_errors WHERE context = 'zz_arch_test' AND message = 'zz arch boom'")->fetchColumn();
 check('a server error is stored once with its counter', (int)$e >= 1);
+
+// ---- governance: ledger, erasure, purge, proof of activity
+$v = Archive::verifyLedger($pdo);
+check('the ledger knows the archive that was tampered with', in_array($a3, $v['mismatches'], true) && !$v['ok']);
+Archive::unlocked($pdo, function () use ($pdo, $a3) { $pdo->prepare("DELETE FROM archives WHERE id = :i")->execute(['i' => $a3]); });
+$ghost = Archive::purge($pdo, 999999999, 'a long enough reason here', 'test');
+check('purging an unknown archive is refused', !$ghost['ok']);
+$short = Archive::purge($pdo, $a1, 'short', 'test');
+check('a purge needs a written reason', !$short['ok'] && Archive::open($pdo, $a1, $teacher) !== null);
+$subj = (int)$pdo->query("SELECT COUNT(*) FROM archive_subjects WHERE archive_id = $a1")->fetchColumn();
+check('the people of a session archive are indexed (hashed)', $subj === 3);
+$ana_mail = $tag . '.ana@test.local';
+$er = Archive::redactPerson($pdo, $ana_mail, null, 'test', 'zz request');
+$o = Archive::open($pdo, $a1, $teacher);
+$names = array_column($o['data']['registrations'], 'name');
+check('erasure removes the person from the archive, others stay', $er['archives'] >= 1 && !in_array('Ana', $names, true) && in_array('Ben', $names, true), json_encode($names));
+check('...marks and figures stay, and the archive is still sealed', $o !== null && count($o['data']['answers']) >= 3);
+$e2 = $pdo->query("SELECT COUNT(*) FROM archive_ledger WHERE archive_id = $a1 AND event = 'redacted'")->fetchColumn();
+check('the erasure is written to the ledger', (int)$e2 === 1);
+$gone = (int)$pdo->query("SELECT COUNT(*) FROM archive_subjects WHERE archive_id = $a1")->fetchColumn();
+check('the index no longer finds them', $gone === 2);
+$ar2 = Archive::snapshotUser($pdo, $teacher, 'zz');
+$ou = Archive::open($pdo, (int)$ar2);
+check('a user archive keeps no password or secret', $ou && !array_key_exists('password', $ou['data']['profile']));
+$att = Archive::issueAttestation($pdo, $teacher);
+check('a certificate of activity is issued with a code', $att && preg_match('/^SVA-[A-Z0-9]{10}$/', $att['code']) === 1);
+$pub = $att ? Archive::openAttestation($pdo, $att['code']) : null;
+check('anyone can verify it with the code', $pub && $pub['ledger_ok'] === true && $pub['data']['teacher']['id'] === $teacher);
+check('an unknown code verifies nothing', Archive::openAttestation($pdo, 'SVA-0000000000') === null && Archive::openAttestation($pdo, "x' OR 1=1") === null);
 
 echo "archive: $passed passed, " . count($failed) . " failed\n";
 foreach ($failed as $f) { echo "  FAIL: $f\n"; }

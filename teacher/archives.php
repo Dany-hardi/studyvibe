@@ -112,6 +112,7 @@ header('Cache-Control: no-store');
   <a href="/teacher/dashboard.php#tab-live-eval"><?= $h($T['back']) ?></a>
   <h1><?= $h($T['title']) ?></h1>
   <p class="sub"><?= $h($T['lede']) ?></p>
+  <p><a href="/teacher/attestation.php"><?= $en ? 'Certificate of activity: prove the evaluations you ran' : 'Attestation d’activité : prouvez les évaluations que vous avez menées' ?></a></p>
   <?php if ($flash !== ''): ?><p class="flash" role="status"><?= $h($flash) ?></p><?php endif; ?>
 
   <?php if ($sessionFilter): ?>

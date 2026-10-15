@@ -96,7 +96,7 @@ try {
         // Only an administrator can delete an account (this file is the only place in the application that does). The rules, the
         // guard rails and the clean-up are in AdminUsers::delete().
         $res = AdminUsers::delete($pdo, (int)$_SESSION['user_id'], $userId, [
-            'reassign_to' => (int)($_POST['reassign_to'] ?? 0), 'cascade' => !empty($_POST['cascade']),
+            'reassign_to' => (int)($_POST['reassign_to'] ?? 0), 'cascade' => !empty($_POST['cascade']), 'erase_archives' => !empty($_POST['erase_archives']),
         ]);
         echo json_encode(['success' => $res['ok']] + $res, JSON_UNESCAPED_UNICODE);
         exit;

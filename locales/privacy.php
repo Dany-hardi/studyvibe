@@ -167,7 +167,8 @@ return [
                         ['Compte, profil, matricule', 'Tant que le compte est actif. Suppression dans les 30 jours qui suivent une demande de fermeture.'],
                         ['Progression, notes, réponses, devoirs', 'Tant que le compte est actif, car ils constituent votre dossier. Supprimés avec le compte, sauf obligation de conservation.'],
                         ['Certificats', 'Conservés durablement pour que la vérification reste possible, car un certificat qui disparaît ne prouve plus rien. Vous pouvez demander son effacement : le code ne sera alors plus vérifiable.'],
-                        ['Évaluations en direct avec un invité', 'Tant que la séance et ses résultats sont conservés par l’enseignant, puis suppression avec la séance.'],
+                        ['Évaluations en direct avec un invité', 'Tant que la séance et ses résultats sont conservés par l’enseignant. À la fin de la séance, une archive est conservée (voir « Archives et preuve d’activité »).'],
+                        ['Archives (évaluations, cours, comptes, chiffres de la plateforme)', 'Conservées durablement et protégées contre la suppression. Votre identité en est retirée sur demande d’effacement ; les chiffres et notes anonymes restent.'],
                         ['Tentatives de connexion (adresse IP, e-mail)', '90 jours, puis effacement automatique. Remises à zéro après une connexion réussie.'],
                         ['Journal d’audit', '1 an, puis effacement automatique.'],
                         ['Jetons de confirmation et de réinitialisation', 'Quelques heures à 48 heures, puis invalides.'],
@@ -216,6 +217,19 @@ return [
                     'Nous répondons au plus tard sous 30 jours. Ce délai peut être prolongé si la demande est complexe, et nous vous le dirons alors.',
                 ]],
                 ['p' => 'L’exercice de vos droits est gratuit. Si votre demande est manifestement abusive ou répétée sans raison, nous pouvons la refuser ou demander des frais raisonnables, en expliquant pourquoi. Si vous estimez que vos droits ne sont pas respectés, vous pouvez aussi saisir l’autorité de protection des données de votre pays.'],
+            ],
+        ],
+        [
+            'id' => 'archives', 'h' => 'Archives et preuve d’activité',
+            'blocks' => [
+                ['p' => 'Pour garantir la fiabilité des résultats, traiter les réclamations, répondre aux autorités et permettre aux enseignants et à la plateforme de prouver leur activité (nombre d’évaluations menées, nombre de personnes évaluées), StudyVibe archive automatiquement les évaluations (séances, participants, réponses, notes), les cours, les comptes et des feuilles de chiffres quotidiennes de la plateforme.'],
+                ['ul' => [
+                    '<strong>Protection :</strong> une archive ne peut être ni modifiée ni supprimée par un enseignant ou un utilisateur. Chaque création, effacement ou suppression est inscrit dans un registre chaîné par empreintes (SHA-256) qui permet de détecter toute altération.',
+                    '<strong>Qui y accède :</strong> l’enseignant concerné pour ses propres séances, et le propriétaire de la plateforme. Les secrets (mots de passe, jetons) n’y figurent jamais.',
+                    '<strong>Preuve d’activité :</strong> un enseignant peut obtenir une attestation à code, vérifiable publiquement, qui n’indique que des chiffres (évaluations, participations, copies rendues) et non l’identité des participants.',
+                    '<strong>Votre droit à l’effacement :</strong> sur demande, votre nom, votre adresse e-mail et le lien avec votre compte sont retirés de toutes les archives. Seuls restent des chiffres et des notes anonymes, qui ne permettent plus de vous identifier.',
+                    '<strong>Suppression d’une archive :</strong> exceptionnelle (décision de justice, erreur avérée), réservée au propriétaire, avec un motif écrit conservé dans le registre.',
+                ]],
             ],
         ],
         [
@@ -434,7 +448,8 @@ return [
                         ['Account, profile, matricule', 'As long as the account is active. Deleted within 30 days of a closure request.'],
                         ['Progress, grades, answers, assignments', 'As long as the account is active, since they make up your record. Deleted with the account, unless a retention duty applies.'],
                         ['Certificates', 'Kept long term so verification stays possible, because a certificate that disappears proves nothing. You can ask for it to be erased: the code will then no longer be verifiable.'],
-                        ['Live evaluations with a guest', 'As long as the session and its results are kept by the teacher, then deleted with the session.'],
+                        ['Live evaluations with a guest', 'As long as the session and its results are kept by the teacher. When the session ends an archive is kept (see “Archives and proof of activity”).'],
+                        ['Archives (evaluations, courses, accounts, platform figures)', 'Kept long term and protected against deletion. Your identity is removed from them on an erasure request; anonymous figures and marks remain.'],
                         ['Sign-in attempts (IP address, email)', '90 days, then automatic erasure. Reset after a successful sign-in.'],
                         ['Audit log', '1 year, then automatic erasure.'],
                         ['Confirmation and reset tokens', 'A few hours up to 48 hours, then invalid.'],
@@ -483,6 +498,19 @@ return [
                     'We answer within 30 days at most. This can be extended if the request is complex, and we will tell you if so.',
                 ]],
                 ['p' => 'Exercising your rights is free. If a request is clearly abusive or repeated without reason, we may refuse it or ask for reasonable fees, explaining why. If you believe your rights are not respected, you can also lodge a complaint with the data protection authority of your country.'],
+            ],
+        ],
+        [
+            'id' => 'archives', 'h' => 'Archives and proof of activity',
+            'blocks' => [
+                ['p' => 'To keep results reliable, handle complaints, answer authorities and let teachers and the platform prove their activity (evaluations run, people assessed), StudyVibe automatically archives evaluations (sessions, participants, answers, marks), courses, accounts and daily figure sheets for the platform.'],
+                ['ul' => [
+                    '<strong>Protection:</strong> an archive can be neither changed nor deleted by a teacher or a user. Every creation, erasure or removal is written to a ledger chained by fingerprints (SHA-256), so any tampering can be detected.',
+                    '<strong>Who can access them:</strong> the teacher concerned for their own sessions, and the platform owner. Secrets (passwords, tokens) are never included.',
+                    '<strong>Proof of activity:</strong> a teacher can obtain a coded, publicly verifiable certificate that shows figures only (evaluations, participations, copies handed in), not the identity of participants.',
+                    '<strong>Your right to erasure:</strong> on request, your name, your email address and the link to your account are removed from every archive. Only anonymous figures and marks remain, which can no longer identify you.',
+                    '<strong>Removing an archive:</strong> exceptional (court order, proven error), reserved to the owner, with a written reason kept in the ledger.',
+                ]],
             ],
         ],
         [

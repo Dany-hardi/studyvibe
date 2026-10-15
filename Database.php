@@ -1208,6 +1208,50 @@ class Database
             try { $pdo->exec($ddl); } catch (PDOException $ex) { /* already applied */ }
         }
 
+        // Migration 2.32: governance of the archives. Every archive gets a code, a small JSON of figures (kept even when the data is erased), an
+        // append-only ledger chained by SHA-256 (proof that nothing was added, changed or removed unnoticed), an index of the people an archive
+        // concerns (hashed, so an erasure request can find them) and database triggers that refuse deleting or rewriting an archive unless the
+        // owner's purge or erasure procedure unlocks it for the length of its transaction.
+        foreach ([
+            "ALTER TABLE `archives` ADD COLUMN `code` VARCHAR(24) DEFAULT NULL, ADD COLUMN `meta` TEXT DEFAULT NULL, ADD COLUMN `redacted_at` DATETIME DEFAULT NULL",
+            "ALTER TABLE `archives` ADD UNIQUE KEY `uq_arch_code` (`code`)",
+            "ALTER TABLE `archives` ADD KEY `idx_arch_ref` (`kind`, `ref_id`)",
+            "CREATE TABLE IF NOT EXISTS `archive_ledger` (
+                `id` INT AUTO_INCREMENT PRIMARY KEY,
+                `archive_id` INT NOT NULL,
+                `event` VARCHAR(16) NOT NULL,
+                `sha256` CHAR(64) NOT NULL,
+                `note` VARCHAR(255) NOT NULL DEFAULT '',
+                `actor` VARCHAR(80) NOT NULL DEFAULT '',
+                `at` DATETIME NOT NULL,
+                `prev_chain` CHAR(64) NOT NULL,
+                `chain` CHAR(64) NOT NULL,
+                KEY `idx_al_archive` (`archive_id`, `id`)
+            ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4",
+            "CREATE TABLE IF NOT EXISTS `archive_subjects` (
+                `archive_id` INT NOT NULL,
+                `subject_hash` CHAR(64) NOT NULL,
+                PRIMARY KEY (`archive_id`, `subject_hash`),
+                KEY `idx_as_subject` (`subject_hash`)
+            ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4",
+            "DROP TRIGGER IF EXISTS `archives_no_delete`",
+            "CREATE TRIGGER `archives_no_delete` BEFORE DELETE ON `archives` FOR EACH ROW BEGIN
+                IF COALESCE(@archive_unlock, 0) <> 1 THEN SIGNAL SQLSTATE '45000' SET MESSAGE_TEXT = 'Archives are protected: use the purge procedure'; END IF;
+            END",
+            "DROP TRIGGER IF EXISTS `archives_no_rewrite`",
+            "CREATE TRIGGER `archives_no_rewrite` BEFORE UPDATE ON `archives` FOR EACH ROW BEGIN
+                IF COALESCE(@archive_unlock, 0) <> 1 AND (NOT (OLD.payload <=> NEW.payload) OR NOT (OLD.sha256 <=> NEW.sha256) OR NOT (OLD.kind <=> NEW.kind) OR NOT (OLD.ref_id <=> NEW.ref_id)) THEN
+                    SIGNAL SQLSTATE '45000' SET MESSAGE_TEXT = 'Archives are protected: use the erasure procedure';
+                END IF;
+            END",
+            "DROP TRIGGER IF EXISTS `archive_ledger_no_delete`",
+            "CREATE TRIGGER `archive_ledger_no_delete` BEFORE DELETE ON `archive_ledger` FOR EACH ROW SIGNAL SQLSTATE '45000' SET MESSAGE_TEXT = 'The archive ledger is append-only'",
+            "DROP TRIGGER IF EXISTS `archive_ledger_no_update`",
+            "CREATE TRIGGER `archive_ledger_no_update` BEFORE UPDATE ON `archive_ledger` FOR EACH ROW SIGNAL SQLSTATE '45000' SET MESSAGE_TEXT = 'The archive ledger is append-only'",
+        ] as $ddl) {
+            try { $pdo->exec($ddl); } catch (PDOException $ex) { /* already applied, or the database user may not create triggers: the application guards remain */ }
+        }
+
         // Migration 2.30: load balancer of the marking keys (one lane per key and model: when it may be used again, how many calls this minute).
         try {
             $pdo->exec("
