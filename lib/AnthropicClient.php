@@ -66,10 +66,10 @@ final class AnthropicClient
     {
         $payload = [
             'max_tokens' => $maxTokens,
-            'system' => self::systemBlocks($system),
+            'system' => self::systemBlocks(is_string($system) ? $system . "\n\nAnswer only by calling the tool " . $toolName . ' once; write no other text.' : $system),
             'messages' => [['role' => 'user', 'content' => $user]],
             'tools' => [['name' => $toolName, 'description' => $toolDescription, 'input_schema' => $schema]],
-            'tool_choice' => ['type' => 'tool', 'name' => $toolName],
+            'tool_choice' => ['type' => 'auto'],     // some models refuse a forced tool; the system prompt asks for the call and a missing call is tried again
         ];
         $r = self::call($payload, $role, $timeout);
         if (!$r['ok']) {

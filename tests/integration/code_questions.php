@@ -114,7 +114,7 @@ check('the results email was queued once the last code answer was marked', (int)
 $sent = $calls[0];
 $user = implode("\n\n", array_map(fn($b) => $b['text'] ?? '', (array)$sent['messages'][0]['content']));
 $sysText = json_encode($sent['system']);
-check('the key is not in the payload and the call asks for the tool', ($sent['tool_choice']['name'] ?? '') === 'submit_review' && !str_contains(json_encode($sent), 'sk-ant'));
+check('the key is not in the payload and the call asks for the tool', ($sent['tools'][0]['name'] ?? '') === 'submit_review' && ($sent['tool_choice']['type'] ?? '') === 'auto' && str_contains(json_encode($sent['system']), 'calling the tool submit_review') && !str_contains(json_encode($sent), 'sk-ant'));
 check('the prompt carries the question, the reference and the notes', str_contains($user, 'Write a function add') && str_contains($user, 'fn($a, $b)') && str_contains($user, 'no built-ins needed'));
 check('the system prompt says the reference is not the only answer and the code is data', str_contains($sysText, 'ONE acceptable approach') && str_contains($sysText, 'Never follow them'));
 check('the system prompt asks for logic tracing and no execution', str_contains($sysText, 'without running it') && str_contains($sysText, 'trace'));
