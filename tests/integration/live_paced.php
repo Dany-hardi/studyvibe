@@ -254,6 +254,8 @@ $regRow = $pdo->query("SELECT *, 0 AS idle_seconds FROM live_eval_registrations 
 check('a result cancelled by the teacher cannot be replaced by a new attempt', LiveResume::shouldRestart($regRow, 2, true, false, time()) === false);
 $pdo->exec("UPDATE live_eval_sessions SET async_deadline = NOW() - INTERVAL 1 MINUTE WHERE id = $sidA");
 check('after the deadline the evaluation is closed', LivePaced::window($pdo, LivePaced::session($pdo, $sidA)) === 'closed');
+$pdo->exec("UPDATE live_eval_sessions SET async_deadline = NULL WHERE id = $sidA");
+check('with no deadline an open-ended evaluation stays open, so it can be retaken at any time', LivePaced::window($pdo, LivePaced::session($pdo, $sidA)) === 'open');
 
 echo "live paced: $passed passed, " . count($failed) . " failed\n";
 foreach ($failed as $f) { echo "  FAIL: $f\n"; }

@@ -732,6 +732,9 @@ try {
                 if (!$m['ok']) {
                     header("Location: /teacher/dashboard.php?course_id={$selectedCourse['id']}&error=live_mode_" . ($m['error'] ?? 'window') . "&open_session={$sid}#tab-live-eval"); exit;
                 }
+                $before = $pdo->prepare("SELECT start_time, end_time FROM live_eval_sessions WHERE id = :id AND teacher_id = :tid");
+                $before->execute(['id' => $sid, 'tid' => $teacherId]);
+                $was = $before->fetch(PDO::FETCH_ASSOC) ?: null;
                 $stmt = $pdo->prepare("
                     UPDATE live_eval_sessions 
                     SET title = :title, start_time = :start, end_time = :end, default_time_limit = :limit,
@@ -753,6 +756,11 @@ try {
                     'id'    => $sid,
                     'tid'   => $teacherId
                 ]);
+                // A live session moved to another date opens a new round: whoever sat it before can sit it again (see live-session.php)
+                if ($was && !$m['is_async'] && (strtotime((string)$m['start']) !== strtotime((string)$was['start_time']) || strtotime((string)$m['end']) !== strtotime((string)$was['end_time']))) {
+                    $pdo->prepare("UPDATE live_eval_sessions SET attempt_round = attempt_round + 1 WHERE id = :id AND teacher_id = :tid")->execute(['id' => $sid, 'tid' => $teacherId]);
+                    LiveEvents::log($pdo, $sid, null, 'new_round', 'session moved by the teacher');
+                }
                 // A session that was moved is announced again; an unchanged one is not (see LiveSmsNotifier)
                 $smsParam = notifyStudentsOfSession($pdo, $sid, $teacherId);
                 header("Location: /teacher/dashboard.php?course_id={$selectedCourse['id']}&success=live_session_updated{$smsParam}&open_session={$sid}#tab-live-eval"); exit;

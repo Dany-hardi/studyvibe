@@ -1271,6 +1271,15 @@ class Database
             ");
         } catch (PDOException $ex) {}
 
+        // Migration 2.33: a live session (not open-ended) can be sat again only when the teacher moves it to a new date: the session counts its rounds,
+        // and a participant whose registration belongs to an earlier round starts again from the first question.
+        foreach ([
+            "ALTER TABLE `live_eval_sessions` ADD COLUMN `attempt_round` INT NOT NULL DEFAULT 1",
+            "ALTER TABLE `live_eval_registrations` ADD COLUMN `attempt_round` INT NOT NULL DEFAULT 1",
+        ] as $sql) {
+            try { $pdo->exec($sql); } catch (PDOException $ex) { /* already applied */ }
+        }
+
         // Migration 2.29: a teacher can re-mark a handed-in evaluation; the next results email then goes out again, as an update.
         try { $pdo->exec("ALTER TABLE `live_eval_registrations` ADD COLUMN `resend_results` TINYINT(1) NOT NULL DEFAULT 0"); } catch (PDOException $ex) { /* already applied */ }
 

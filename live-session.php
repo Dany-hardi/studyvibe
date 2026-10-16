@@ -255,12 +255,13 @@ if (!$error && $_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['register_l
         try {
             $pdo = Database::getInstance();
             $stmt = $pdo->prepare("
-                INSERT INTO live_eval_registrations (session_id, name, email, student_id)
-                VALUES (:sid, :name, :email, :student_id)
+                INSERT INTO live_eval_registrations (session_id, name, email, student_id, attempt_round)
+                VALUES (:sid, :name, :email, :student_id, :round)
                 ON DUPLICATE KEY UPDATE name = :name2, student_id = :student_id2
             ");
             $stmt->execute([
                 'sid'        => $session['id'],
+                'round'      => max(1, (int)($session['attempt_round'] ?? 1)),
                 'name'       => $name,
                 'name2'      => $name,
                 'email'      => $email,
@@ -345,6 +346,17 @@ if (!$error) {
                 $resultsToken = hash_hmac('sha256', (string)$regId, APP_SECRET);
                 $resultsUrl = "/student/evaluation-results.php?registration_id={$regId}&token={$resultsToken}";
             }
+        }
+
+        // A live session that the teacher moved to a new date starts again for everybody who sat it in an earlier round
+        if (!$isAsync && $registration && empty($registration['cancelled_at']) && (int)($registration['attempt_round'] ?? 1) < (int)($session['attempt_round'] ?? 1)) {
+            require_once __DIR__ . '/lib/LiveResume.php';
+            LiveResume::reset($pdo, $regId);
+            $pdo->prepare('UPDATE live_eval_registrations SET attempt_round = :r WHERE id = :id')->execute(['r' => (int)$session['attempt_round'], 'id' => $regId]);
+            unset($_SESSION['verified_registrations'][$code], $_SESSION['async_q_start'][$session['id']]);
+            $_SESSION['answered_questions'] = [];
+            header('Location: /live-session.php?code=' . urlencode($code));
+            exit;
         }
 
         // Handle automated restart triggers for completed async student attempts

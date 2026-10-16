@@ -173,6 +173,13 @@ check('Quit during a live session keeps the registration that holds answers', $r
 $page = $req($jar('l3'), "/live-session.php?code={$CL}"); $login($jar('l3'));
 $page = $req($jar('l3'), "/live-session.php?code={$CL}");
 check('opening the live link again never resets anything', $page['code'] === 200 && $regOf($LS) === $LR && $answers($LR) === 1);
+$pdo->exec("UPDATE live_eval_sessions SET attempt_round = 2 WHERE id = $LS");           // the teacher moved the session to a new date
+$page = $req($jar('l3'), "/live-session.php?code={$CL}");
+check('a live session moved to a new date starts again for who sat it before', $page['code'] === 302 && $regOf($LS) === $LR && $answers($LR) === 0
+    && (int)$pdo->query("SELECT attempt_round FROM live_eval_registrations WHERE id = $LR")->fetchColumn() === 2);
+$pdo->exec("INSERT INTO live_eval_answers (registration_id, question_id, selected_option) SELECT $LR, id, 'A' FROM live_eval_questions WHERE session_id = $LS LIMIT 1");
+$req($jar('l3'), "/live-session.php?code={$CL}");
+check('and only once: opening the link again in the same round keeps the answers', $answers($LR) === 1);
 
 // ================================================================ the evaluations page offers "Resume"
 $login($jar('a5'));
