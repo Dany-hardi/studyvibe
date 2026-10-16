@@ -14,6 +14,7 @@ $prLang = TranslationService::getLang() === 'en' ? 'en' : 'fr';
 $prCfg = [
     'code' => $code, 'lang' => $prLang, 'title' => (string)$session['title'], 'course' => (string)($session['course_title'] ?? ''),
     'results_url' => $resultsUrl, 'guest' => (bool)$isGuestParticipant,
+    'retake_url' => !empty($session['is_async']) ? '/live-session.php?code=' . urlencode($code) . '&restart=1' : '',   // an open-ended evaluation can be taken again until its deadline
     'leave_url' => isLoggedIn() ? '/student/dashboard.php' : '/evaluations.php',
     'max_code' => LiveCodeReview::MAX_CODE,
 ];
@@ -95,6 +96,7 @@ $prCfg = [
       <p class="pr-note" id="pr-done-ai"></p>
       <div class="pr-done-actions">
         <a class="pr-btn pr-btn-main" id="pr-done-results" href="#" hidden></a>
+        <a class="pr-btn pr-btn-ghost" id="pr-done-retake" href="#" hidden></a>
         <a class="pr-btn pr-btn-ghost" id="pr-done-leave" href="#"></a>
       </div>
     </div>

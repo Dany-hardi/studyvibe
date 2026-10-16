@@ -224,6 +224,37 @@ $pdo->exec("UPDATE live_eval_code_reviews SET status = 'done', verdict = 1 WHERE
 LiveCodeReview::finalizeIfDone($pdo, $rr);
 check('then the new copy of the email is queued', (string)$pdo->query("SELECT status FROM live_eval_mail_queue WHERE registration_id = $rr")->fetchColumn() === 'pending');
 
+// ---- retaking an open-ended (asynchronous) evaluation until its deadline
+require_once __DIR__ . '/../../lib/LiveResume.php';
+$sidA = $mkSession('ZZ paced async', 'NOW() - INTERVAL 5 MINUTE', 'NOW() + INTERVAL 2 HOUR');
+$pdo->exec("UPDATE live_eval_sessions SET is_async = 1, async_deadline = NOW() + INTERVAL 2 DAY WHERE id = $sidA");
+$qa1 = $addQ($sidA, 'mcq', 'Pick b', 1, 60);
+$qa2 = $addQ($sidA, 'code', 'Write add', 2);
+$rA = $reg($sidA, 'Retaker');
+$sessA = LivePaced::session($pdo, $sidA);
+LivePaced::open($pdo, $sessA, $rA, $qa1); LivePaced::save($pdo, $sessA, $rA, $qa1, 'B');
+LivePaced::open($pdo, $sessA, $rA, $qa2); LivePaced::save($pdo, $sessA, $rA, $qa2, "function add(\$a, \$b) { return \$a + \$b; }");
+$done = LivePaced::submit($pdo, $sessA, $rA, true);
+check('first attempt handed in', $done['ok'] === true && LivePaced::state($pdo, $sessA, $rA)['submitted'] === true && LiveCodeReview::pendingCount($pdo, $rA) === 1);
+$regRow = $pdo->query("SELECT *, 0 AS idle_seconds FROM live_eval_registrations WHERE id = $rA")->fetch(PDO::FETCH_ASSOC);
+check('Retake is accepted for a handed-in attempt', LiveResume::shouldRestart($regRow, 2, true, false, time()) === true);
+LiveResume::reset($pdo, $rA);
+$stA = LivePaced::state($pdo, $sessA, $rA);
+check('after the reset the attempt is open again and empty', $stA['submitted'] === false && $stA['window'] === 'open' && !array_filter($stA['questions'], fn($x) => $x['answered']));
+check('the previous marking, drafts and answers are gone', LiveCodeReview::pendingCount($pdo, $rA) === 0
+    && (int)$pdo->query("SELECT COUNT(*) FROM live_eval_drafts WHERE registration_id = $rA")->fetchColumn() === 0
+    && (int)$pdo->query("SELECT COUNT(*) FROM live_eval_answers WHERE registration_id = $rA")->fetchColumn() === 0
+    && $pdo->query("SELECT submitted_at FROM live_eval_registrations WHERE id = $rA")->fetchColumn() === null);
+check('the first attempt was archived before it was replaced', (int)$pdo->query("SELECT COUNT(*) FROM archives WHERE kind = 'registration' AND ref_id = $rA AND reason = 'before_retake'")->fetchColumn() === 1);
+check('the new attempt can be worked and handed in', LivePaced::open($pdo, $sessA, $rA, $qa1)['ok'] === true && LivePaced::save($pdo, $sessA, $rA, $qa1, 'B')['ok'] === true);
+LivePaced::save($pdo, $sessA, $rA, $qa2, 'function add(a, b) { return a + b }');
+check('and handed in again', LivePaced::submit($pdo, $sessA, $rA, true)['ok'] === true);
+$pdo->exec("UPDATE live_eval_registrations SET cancelled_at = NOW() WHERE id = $rA");
+$regRow = $pdo->query("SELECT *, 0 AS idle_seconds FROM live_eval_registrations WHERE id = $rA")->fetch(PDO::FETCH_ASSOC);
+check('a result cancelled by the teacher cannot be replaced by a new attempt', LiveResume::shouldRestart($regRow, 2, true, false, time()) === false);
+$pdo->exec("UPDATE live_eval_sessions SET async_deadline = NOW() - INTERVAL 1 MINUTE WHERE id = $sidA");
+check('after the deadline the evaluation is closed', LivePaced::window($pdo, LivePaced::session($pdo, $sidA)) === 'closed');
+
 echo "live paced: $passed passed, " . count($failed) . " failed\n";
 foreach ($failed as $f) { echo "  FAIL: $f\n"; }
 exit($failed ? 1 : 0);

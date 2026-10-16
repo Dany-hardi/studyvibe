@@ -35,7 +35,7 @@
       confirm_yes: 'Oui, soumettre', confirm_no: 'Non, continuer',
       done_title: 'Vos réponses ont été envoyées', done_lede: 'Merci ! Vous avez répondu à {a} question(s) sur {n}.',
       done_ai: 'Vos réponses de code et vos réponses rédigées sont corrigées par l\'IA, cela peut prendre quelques minutes. Vous les retrouverez avec leur correction dans votre rapport.',
-      done_results: 'Voir mon rapport', done_leave: 'Quitter', closed_title: 'La séance est terminée', closed_lede: 'Le temps imparti est écoulé : vos réponses enregistrées ont été envoyées.',
+      done_results: 'Voir mon rapport', done_leave: 'Quitter', retake: 'Recommencer l’évaluation', retake_ask: 'Recommencer remplace votre tentative actuelle et son résultat. Continuer ?', closed_title: 'La séance est terminée', closed_lede: 'Le temps imparti est écoulé : vos réponses enregistrées ont été envoyées.',
       net_err: 'Connexion perdue. Vos réponses restent enregistrées sur cet appareil et partiront dès que le réseau revient.', unload: 'Des réponses ne sont pas encore enregistrées. Quitter quand même ?',
       nav_aria: 'Liste des questions', lg_answered: 'Répondue', lg_skipped: 'Passée', lg_locked: 'Temps écoulé',
       lobby_title_in: 'Départ dans'
@@ -67,7 +67,7 @@
       confirm_yes: 'Yes, submit', confirm_no: 'No, keep going',
       done_title: 'Your answers have been sent', done_lede: 'Thank you! You answered {a} question(s) out of {n}.',
       done_ai: 'Your code and written answers are marked by AI, which can take a few minutes. You will find them with their correction in your report.',
-      done_results: 'View my report', done_leave: 'Leave', closed_title: 'The session is over', closed_lede: 'The time is up: your saved answers have been sent.',
+      done_results: 'View my report', done_leave: 'Leave', retake: 'Retake the evaluation', retake_ask: 'Retaking replaces your current attempt and its result. Continue?', closed_title: 'The session is over', closed_lede: 'The time is up: your saved answers have been sent.',
       net_err: 'Connection lost. Your answers stay saved on this device and will be sent as soon as the network is back.', unload: 'Some answers are not saved yet. Leave anyway?',
       nav_aria: 'Question list', lg_answered: 'Answered', lg_skipped: 'Skipped', lg_locked: 'Time is up',
       lobby_title_in: 'Starting in'
@@ -387,6 +387,14 @@
     $('pr-done-ai').textContent = hasMarked || !S.qs.length ? L.done_ai : ''; $('pr-done-ai').hidden = !$('pr-done-ai').textContent;
     var res = $('pr-done-results'); if (PR.results_url && !PR.guest) { res.href = PR.results_url; res.textContent = L.done_results; res.hidden = false; } else res.hidden = true;
     var lv = $('pr-done-leave'); lv.href = PR.leave_url; lv.textContent = L.done_leave;
+    var rt = $('pr-done-retake');
+    if (rt) {
+      rt.hidden = closed || !PR.retake_url;
+      if (!rt.hidden) {
+        rt.href = PR.retake_url; rt.textContent = L.retake;
+        rt.onclick = function (e) { if (!window.confirm(L.retake_ask)) e.preventDefault(); };
+      }
+    }
   }
 
   /* ── figure zoom ──────────────────────────────────────────────────────────────────────── */

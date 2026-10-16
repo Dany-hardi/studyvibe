@@ -52,7 +52,10 @@ final class LiveResume
      */
     public static function shouldRestart(array $reg, int $answers, bool $explicit, bool $viaForm, int $now): bool
     {
-        $completed = $reg['score'] !== null;
+        if (!empty($reg['cancelled_at'])) {
+            return false;                                      // a result the teacher cancelled is not wiped by a new attempt
+        }
+        $completed = $reg['score'] !== null || !empty($reg['submitted_at']);
         if ($explicit) {
             return true;
         }
@@ -79,10 +82,33 @@ final class LiveResume
         return (int)$st->fetchColumn();
     }
 
-    /** Wipes an asynchronous attempt so the next entry starts at question 1. */
+    /** Wipes an asynchronous attempt so the next entry starts at question 1 (the previous attempt is archived first). */
     public static function reset(PDO $pdo, int $regId): void
     {
+        $sid = 0;
+        try {
+            $q = $pdo->prepare('SELECT session_id, score FROM live_eval_registrations WHERE id = :id');
+            $q->execute(['id' => $regId]);
+            $row = $q->fetch(PDO::FETCH_ASSOC) ?: [];
+            $sid = (int)($row['session_id'] ?? 0);
+            if (($row['score'] ?? null) !== null) {
+                require_once __DIR__ . '/Archive.php';
+                Archive::snapshotRegistration($pdo, $regId, 'before_retake');
+            }
+        } catch (Throwable $e) { error_log('retake archive: ' . $e->getMessage()); }
+        // everything the previous attempt left, including what the free-pace room keeps (hand-in date, drafts, timers, AI markings)
         $pdo->prepare('UPDATE live_eval_registrations SET score = NULL, async_q_id = NULL, async_q_started_at = NULL WHERE id = :id')->execute(['id' => $regId]);
         $pdo->prepare('DELETE FROM live_eval_answers WHERE registration_id = :id')->execute(['id' => $regId]);
+        foreach ([
+            'UPDATE live_eval_registrations SET submitted_at = NULL, submit_mode = NULL, current_q_id = NULL, current_since = NULL, correct_count = NULL, resend_results = 0 WHERE id = :id',
+            'DELETE FROM live_eval_drafts WHERE registration_id = :id',
+            'DELETE FROM live_eval_code_reviews WHERE registration_id = :id',
+        ] as $sql) {
+            try { $pdo->prepare($sql)->execute(['id' => $regId]); } catch (PDOException $e) { /* a schema that has not migrated that part yet */ }
+        }
+        try {
+            require_once __DIR__ . '/LiveEvents.php';
+            LiveEvents::log($pdo, $sid, $regId, 'retake', 'new attempt');
+        } catch (Throwable $e) { /* the timeline is a bonus */ }
     }
 }
