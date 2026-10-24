@@ -71,7 +71,11 @@
     if (!dlg.open) dlg.showModal();
     show(view);
   }
-  $$('[data-open-auth]').forEach(b => b.addEventListener('click', () => open(b.dataset.openAuth)));
+  $$('[data-open-auth]').forEach(b => b.addEventListener('click', () => {
+    open(b.dataset.openAuth);
+    // A call to action aimed at one audience arrives with that role already chosen
+    if (b.dataset.presetRole) { const p = $('.pick[data-role="' + b.dataset.presetRole + '"]'); if (p) p.click(); }
+  }));
   $$('[data-view]').forEach(b => b.addEventListener('click', () => show(b.dataset.view)));
   $$('[data-close-auth]').forEach(b => b.addEventListener('click', () => dlg.close()));
   dlg.addEventListener('click', (e) => { if (e.target === dlg) dlg.close(); });

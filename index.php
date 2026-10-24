@@ -43,6 +43,14 @@ $T = [
 'fr' => [
  'title' => 'StudyVibe — Apprendre sans perdre le fil',
  'desc' => "Des cours clairs, des devoirs, des évaluations notées sans correction à la main, et un certificat vérifiable à la clé. Pour les universités et les centres de formation.",
+ 'nav_teach' => 'Enseignants',
+ 'cv_k' => 'Pour les enseignants', 'cv_h' => 'Corrigez moins. <em>Enseignez plus.</em>',
+ 'cv_p' => 'StudyVibe prépare, fait passer et note vos évaluations pendant que vous préparez le cours suivant. Vos étudiants reçoivent leur note par e-mail, et vous gardez la preuve de chaque séance.',
+ 'cv_b' => [['300 étudiants en même temps', 'Des évaluations en direct éprouvées avec 300 participants, sur un simple téléphone. Les invités n’ont pas besoin de compte.'], ['Le code et les réponses libres, notés pour vous', 'Les questions de code reçoivent une correction par IA avec un retour clair. Vous gardez la main sur chaque note.'], ['La preuve de chaque évaluation', 'Chaque séance est archivée et scellée. Obtenez une attestation vérifiable du nombre d’étudiants évalués.']],
+ 'cv_cta' => 'Créer mon espace enseignant', 'cv_note' => 'Gratuit pour commencer · prêt en moins d’une minute · sans carte bancaire',
+ 'cv_s' => [['300', 'étudiants en direct, testés de bout en bout'], ['< 1 min', 'pour créer votre espace enseignant'], ['SHA-256', 'chaque séance archivée et scellée']],
+ 'cv2_h' => 'Étudiant ?', 'cv2_p' => 'Passez vos évaluations, recevez vos résultats par e-mail et gardez tout votre parcours, certificats vérifiables compris.', 'cv2_cta' => 'Créer mon compte étudiant',
+ 'cv3_h' => 'Établissement ?', 'cv3_p' => 'Comptes enseignants et étudiants, certificats, archives et suivi de toute l’institution. Parlons de votre campus.', 'cv3_cta' => 'Nous écrire', 'cv3_subj' => 'StudyVibe pour mon établissement',
  'nav_eval' => 'Évaluations', 'nav_how' => 'Le parcours', 'nav_live' => 'Évaluations en direct', 'nav_who' => 'Pour qui',
  'login' => 'Se connecter', 'join' => 'Créer un compte', 'theme' => 'Changer de thème', 'menu' => 'Menu',
  'kicker' => 'La plateforme d’apprentissage pour l’enseignement supérieur et la formation',
@@ -93,6 +101,14 @@ $T = [
 'en' => [
  'title' => 'StudyVibe — Learn without losing the thread',
  'desc' => 'Clear courses, assignments, assessments graded without marking by hand, and a certificate anyone can verify. For universities and training centres.',
+ 'nav_teach' => 'Teachers',
+ 'cv_k' => 'For teachers', 'cv_h' => 'Grade less. <em>Teach more.</em>',
+ 'cv_p' => 'StudyVibe sets up, runs and marks your assessments while you prepare the next lesson. Students get their mark by email, and you keep proof of every session.',
+ 'cv_b' => [['300 students at once', 'Live assessments proven with 300 participants, on an ordinary phone. Guests need no account.'], ['Code and written answers, marked for you', 'Code questions get an AI correction with clear feedback. You keep the final say on every mark.'], ['Proof of every assessment', 'Every session is archived and sealed. Get a verifiable certificate of how many students you assessed.']],
+ 'cv_cta' => 'Create my teacher space', 'cv_note' => 'Free to start · ready in under a minute · no credit card',
+ 'cv_s' => [['300', 'students live, tested end to end'], ['< 1 min', 'to create your teacher space'], ['SHA-256', 'every session archived and sealed']],
+ 'cv2_h' => 'A student?', 'cv2_p' => 'Sit your assessments, get your results by email and keep your whole record, verifiable certificates included.', 'cv2_cta' => 'Create my student account',
+ 'cv3_h' => 'An institution?', 'cv3_p' => 'Teacher and student accounts, certificates, archives and an overview of the whole institution. Let’s talk about your campus.', 'cv3_cta' => 'Write to us', 'cv3_subj' => 'StudyVibe for my institution',
  'nav_eval' => 'Evaluations', 'nav_how' => 'How it works', 'nav_live' => 'Live assessments', 'nav_who' => 'Who it’s for',
  'login' => 'Sign in', 'join' => 'Create account', 'theme' => 'Toggle theme', 'menu' => 'Menu',
  'kicker' => 'The learning platform for higher education and training',
@@ -152,6 +168,7 @@ $e = fn(string $k): string => htmlspecialchars((string)$T[$k], ENT_QUOTES, 'UTF-
 <meta name="description" content="<?= $e('desc') ?>">
 <meta name="theme-color" content="#F5F0E6">
 <?= SocialMeta::tags((string)$T['title'], (string)$T['desc'], '/') ?>
+<?php require_once __DIR__ . '/lib/Seo.php'; echo Seo::head('/', ['jsonld' => [Seo::organization((string)$T['desc']), Seo::website((string)$T['desc'], $lang), Seo::application((string)$T['desc'], $lang)]]); ?>
 <?= Brand::headLinks() ?>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
@@ -173,6 +190,7 @@ $e = fn(string $k): string => htmlspecialchars((string)$T[$k], ENT_QUOTES, 'UTF-
     <nav class="nav-links" aria-label="Main">
       <a href="#parcours"><?= $e('nav_how') ?></a>
       <a href="#direct"><?= $e('nav_live') ?></a>
+      <a href="#enseignants"><?= $e('nav_teach') ?></a>
       <a href="#roles"><?= $e('nav_who') ?></a>
       <a href="/evaluations.php"><?= $e('nav_eval') ?></a>
     </nav>
@@ -209,6 +227,38 @@ $e = fn(string $k): string => htmlspecialchars((string)$T[$k], ENT_QUOTES, 'UTF-
       <span class="chip-float cf-cert"><span class="tick" aria-hidden="true">✓</span><code>SV-7K2Q-94MD</code></span>
       <span class="chip-float cf-score"><span class="num">17<small>/20</small></span></span>
     </figure>
+  </div>
+</section>
+
+<section class="pitch" id="enseignants" aria-labelledby="pitch-h">
+  <div class="wrap">
+    <div class="pitch-main rv">
+      <div class="pitch-copy">
+        <p class="kicker"><?= $e('cv_k') ?></p>
+        <h2 id="pitch-h"><?= $T['cv_h'] ?></h2>
+        <p class="pitch-p"><?= $e('cv_p') ?></p>
+        <ul class="pitch-list">
+          <?php foreach ($T['cv_b'] as $b): ?><li><strong><?= htmlspecialchars($b[0]) ?></strong><span><?= htmlspecialchars($b[1]) ?></span></li><?php endforeach; ?>
+        </ul>
+        <div class="pitch-cta">
+          <button class="btn btn-primary btn-lg" type="button" data-open-auth="signup" data-preset-role="teacher"><?= $e('cv_cta') ?></button>
+          <span class="pitch-note"><?= $e('cv_note') ?></span>
+        </div>
+      </div>
+      <dl class="pitch-stats">
+        <?php foreach ($T['cv_s'] as $st): ?><div><dt class="num"><?= htmlspecialchars($st[0]) ?></dt><dd><?= htmlspecialchars($st[1]) ?></dd></div><?php endforeach; ?>
+      </dl>
+    </div>
+    <div class="pitch-side">
+      <article class="pitch-card rv" style="--d:.08s">
+        <h3><?= $e('cv2_h') ?></h3><p><?= $e('cv2_p') ?></p>
+        <button class="btn btn-ghost" type="button" data-open-auth="signup" data-preset-role="student"><?= $e('cv2_cta') ?></button>
+      </article>
+      <article class="pitch-card rv" style="--d:.16s">
+        <h3><?= $e('cv3_h') ?></h3><p><?= $e('cv3_p') ?></p>
+        <a class="btn btn-ghost" href="mailto:<?= htmlspecialchars(SiteChrome::contactEmail()) ?>?subject=<?= rawurlencode((string)$T['cv3_subj']) ?>"><?= $e('cv3_cta') ?></a>
+      </article>
+    </div>
   </div>
 </section>
 

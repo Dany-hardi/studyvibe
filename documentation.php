@@ -72,7 +72,7 @@ $mail = SiteChrome::contactEmail();
 <!DOCTYPE html>
 <html lang="<?= $lang ?>">
 <head>
-<?= SiteChrome::head(['title' => $D['title'], 'desc' => $D['desc'], 'css' => ['/assets/css/docs.css']]) ?>
+<?= SiteChrome::head(['title' => $D['title'], 'desc' => $D['desc'], 'path' => '/documentation.php', 'css' => ['/assets/css/docs.css']]) ?>
 </head>
 <body class="v2 dc-body" id="top">
 <?= SiteChrome::header($lang, 'docs') ?>

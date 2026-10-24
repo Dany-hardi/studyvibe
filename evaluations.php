@@ -156,7 +156,8 @@ $jsCards = array_map(fn($c) => ['id' => $c['id'], 'title' => $c['title'], 'cours
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title><?= $h($T['title']) ?></title>
-<?php require_once __DIR__ . '/lib/SocialMeta.php'; echo SocialMeta::tags($T['title'], $T['lede'], '/evaluations.php', 'og-evaluation-async.png'); ?>
+<?php require_once __DIR__ . '/lib/SocialMeta.php'; require_once __DIR__ . '/lib/Seo.php'; echo SocialMeta::tags($T['title'], $T['lede'], '/evaluations.php', 'og-evaluation-async.png'), Seo::head('/evaluations.php'); ?>
+<meta name="description" content="<?= $h($T['lede']) ?>">
 <meta name="theme-color" content="#F5F0E6">
 <link rel="icon" type="image/svg+xml" href="/assets/img/favicon.svg">
 <link rel="apple-touch-icon" href="/assets/img/apple-touch-icon.png">

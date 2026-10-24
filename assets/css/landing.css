@@ -238,3 +238,26 @@ dialog.auth { max-height: calc(100dvh - 24px); overscroll-behavior: contain; }
 /* Consent notice under the sign-up button */
 .auth-legal { margin-top: 1rem; font-size: .8rem; line-height: 1.5; color: var(--ink-3); text-align: center; text-wrap: pretty; }
 .auth-legal a { color: var(--clay); font-weight: 600; text-underline-offset: 3px; }
+
+/* Conversion band (teachers first, then students and institutions) */
+.pitch { padding: 72px 0 40px; }
+.pitch-main { display: grid; grid-template-columns: minmax(0, 1.5fr) minmax(0, 1fr); gap: 40px; align-items: stretch; background: var(--card); border: 1px solid var(--line); border-radius: var(--r-lg); padding: clamp(24px, 4vw, 48px); box-shadow: var(--shadow-2); }
+.pitch-copy { min-width: 0; }
+.pitch-copy h2 { font-size: clamp(2rem, 4.2vw, 3.2rem); font-weight: 450; margin-top: .7rem; line-height: 1.08; text-wrap: balance; }
+.pitch-p { margin-top: 1rem; color: var(--ink-2); font-size: 1.1rem; max-width: 40rem; }
+.pitch-list { list-style: none; margin: 1.6rem 0 0; padding: 0; display: grid; gap: 1rem; }
+.pitch-list li { display: grid; gap: .15rem; padding-left: 1.6rem; position: relative; }
+.pitch-list li::before { content: "✓"; position: absolute; left: 0; top: 0; color: var(--clay); font-weight: 700; }
+.pitch-list strong { font-weight: 650; }
+.pitch-list span { color: var(--ink-2); font-size: .97rem; }
+.pitch-cta { display: flex; flex-wrap: wrap; align-items: center; gap: .8rem 1.2rem; margin-top: 1.8rem; }
+.pitch-note { color: var(--ink-3); font-size: .86rem; }
+.pitch-stats { margin: 0; display: grid; gap: 14px; align-content: center; }
+.pitch-stats > div { background: var(--paper-2); border-radius: var(--r-md); padding: 18px 20px; }
+.pitch-stats dt { font-family: var(--font-display, inherit); font-size: clamp(1.8rem, 3vw, 2.4rem); line-height: 1; color: var(--clay); font-weight: 500; }
+.pitch-stats dd { margin: .4rem 0 0; color: var(--ink-2); font-size: .93rem; }
+.pitch-side { display: grid; grid-template-columns: repeat(auto-fit, minmax(16rem, 1fr)); gap: 16px; margin-top: 16px; }
+.pitch-card { background: var(--card); border: 1px solid var(--line); border-radius: var(--r-lg); padding: 24px 26px; display: flex; flex-direction: column; align-items: flex-start; gap: .6rem; min-width: 0; }
+.pitch-card h3 { font-size: 1.25rem; font-weight: 500; }
+.pitch-card p { color: var(--ink-2); font-size: .97rem; flex: 1; }
+@media (max-width: 860px) { .pitch-main { grid-template-columns: 1fr; gap: 24px; } .pitch-stats { grid-template-columns: repeat(auto-fit, minmax(9rem, 1fr)); } }
