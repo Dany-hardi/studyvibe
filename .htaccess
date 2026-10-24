@@ -38,4 +38,16 @@ LimitRequestBody 671088640
 <IfModule mod_rewrite.c>
     RewriteEngine On
     RewriteRule ^jobs/([0-9]{1,12}|open)/?$ /career.php?job=$1 [L,QSA]
+    # Search engines: robots.txt and sitemap.xml are generated so they carry the real address of the site
+    RewriteRule ^robots\.txt$ /robots.php [L]
+    RewriteRule ^sitemap\.xml$ /sitemap.php [L]
+</IfModule>
+
+# Private areas never appear in search results, even if a link to them leaks (the same list is Disallowed in robots.txt)
+<IfModule mod_setenvif.c>
+    SetEnvIf Request_URI "^/(api|account|student|teacher|promoter|ops-5f208f200992fc7ea994|uploads)/" ROBOTS_PRIVATE
+    SetEnvIf Request_URI "^/(live-session|join|track|login-action|signup-action|logout|two-factor|reset-password|forgot-password-action|verify-email|verify-email-pending|resend-verification-action|download|certificate|newsletter-unsubscribe)\.php" ROBOTS_PRIVATE
+</IfModule>
+<IfModule mod_headers.c>
+    Header set X-Robots-Tag "noindex, nofollow" env=ROBOTS_PRIVATE
 </IfModule>

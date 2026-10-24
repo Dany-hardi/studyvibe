@@ -26,24 +26,22 @@ final class SiteChrome
         return htmlspecialchars($s, ENT_QUOTES, 'UTF-8');
     }
 
-    /** @param array{title:string,desc?:string,css?:string[],og?:string,robots?:string} $o */
+    /** @param array{title:string,desc?:string,css?:string[],og?:string,robots?:string,path?:string,jsonld?:array} $o */
     public static function head(array $o): string
     {
         $h = [self::class, 'h'];
         $out = '<meta charset="UTF-8">' . "\n"
             . '<meta name="viewport" content="width=device-width, initial-scale=1">' . "\n"
             . '<title>' . $h($o['title']) . '</title>' . "\n";
+        require_once __DIR__ . '/SocialMeta.php';
+        require_once __DIR__ . '/Seo.php';
         if (!empty($o['desc'])) {
-            $out .= '<meta name="description" content="' . $h($o['desc']) . '">' . "\n"
-                  . '<meta property="og:title" content="' . $h($o['title']) . '">' . "\n"
-                  . '<meta property="og:description" content="' . $h($o['desc']) . '">' . "\n";
+            $out .= '<meta name="description" content="' . $h($o['desc']) . '">' . "\n";
         }
-        $out .= '<meta property="og:type" content="website">' . "\n"
-              . '<meta property="og:image" content="/assets/img/og-default.png">' . "\n"
-              . '<meta name="theme-color" content="#F5F0E6">' . "\n";
-        if (!empty($o['robots'])) {
-            $out .= '<meta name="robots" content="' . $h($o['robots']) . '">' . "\n";
-        }
+        // Open Graph + Twitter card with absolute addresses (crawlers ignore relative ones), then canonical, robots and structured data
+        $out .= SocialMeta::tags($o['title'], (string)($o['desc'] ?? ''), $o['path'] ?? '/', $o['og'] ?? 'og-default.png')
+              . '<meta name="theme-color" content="#F5F0E6">' . "\n"
+              . Seo::head($o['path'] ?? '/', array_filter(['robots' => !empty($o['robots']) ? $o['robots'] : null, 'jsonld' => $o['jsonld'] ?? null]));
         $out .= Brand::headLinks() . "\n"
               . '<link rel="preconnect" href="https://fonts.googleapis.com">' . "\n"
               . '<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>' . "\n"
