@@ -52,6 +52,7 @@ if ($isStudent) {
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta name="robots" content="noindex, nofollow">
     <title>Rejoindre — <?= htmlspecialchars($course['title']) ?> — StudyVibe</title>
     <meta name="description" content="Rejoignez le cours <?= htmlspecialchars($course['title']) ?> sur StudyVibe.">
     <?php require_once __DIR__ . '/lib/SocialMeta.php'; echo SocialMeta::tags('Rejoindre le cours : ' . $course['title'], 'Rejoignez ce cours sur StudyVibe : leçons, devoirs et évaluations en un seul endroit.', $joinUrl, 'og-course.png'); ?>

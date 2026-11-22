@@ -116,6 +116,7 @@ function caOptions(array $map): string
 <?= SiteChrome::head([
     'title' => $title . ' — StudyVibe',
     'desc' => $spont ? $L['spont_lede'] : ($job ? ($job['summary'] ?: $L['desc']) : $L['not_found_p']),
+    'path' => $spont ? '/jobs/open' : ($job ? Careers::jobUrl($job) : '/careers.php'),
     'css' => ['/assets/css/careers.css'],
     'robots' => (!$job && !$spont) || $preview ? 'noindex' : '',
 ]) ?>

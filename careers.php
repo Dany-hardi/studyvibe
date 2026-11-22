@@ -61,7 +61,7 @@ $ico = [
 <!DOCTYPE html>
 <html lang="<?= $lang ?>">
 <head>
-<?= SiteChrome::head(['title' => $L['title'], 'desc' => $L['desc'], 'css' => ['/assets/css/careers.css']]) ?>
+<?= SiteChrome::head(['title' => $L['title'], 'desc' => $L['desc'], 'path' => '/careers.php', 'css' => ['/assets/css/careers.css']]) ?>
 </head>
 <body class="v2 ca-body" id="top">
 <?= SiteChrome::header($lang, 'careers') ?>

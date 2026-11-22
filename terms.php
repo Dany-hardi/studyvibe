@@ -65,6 +65,7 @@ function pvBlock(array $b): void
 <title><?= $h($P['title']) ?> — StudyVibe</title>
 <meta name="description" content="<?= $h($P['desc']) ?>">
 <meta name="theme-color" content="#F5F0E6">
+<?php require_once __DIR__ . '/lib/SocialMeta.php'; require_once __DIR__ . '/lib/Seo.php'; echo SocialMeta::tags($P['title'] . ' — StudyVibe', (string)$P['desc'], '/terms.php'), Seo::head('/terms.php'); ?>
 <?= Brand::headLinks() ?>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
