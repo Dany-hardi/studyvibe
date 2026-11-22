@@ -10,7 +10,7 @@ require_once __DIR__ . '/../Database.php';
 require_once __DIR__ . '/../lib/Brand.php';
 require_once __DIR__ . '/../lib/Archive.php';
 
-if (!isLoggedIn() || ($_SESSION['user_role'] ?? '') !== 'teacher') {
+if (!isLoggedIn() || !isTeacherRole($_SESSION['user_role'] ?? null)) {
     http_response_code(403);
     exit('Accès non autorisé.');
 }

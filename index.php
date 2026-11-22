@@ -26,7 +26,7 @@ require_once __DIR__ . '/lib/SmsGateway.php';
 if (isLoggedIn()) {
     $map = [
         'promoter' => '/promoter/dashboard.php', 
-        'teacher' => '/teacher/dashboard.php', 
+        'teacher' => '/teacher/dashboard.php', 'super_teacher' => '/teacher/dashboard.php', 
         'student' => '/student/dashboard.php'
     ];
     header('Location: ' . ($map[$_SESSION['user_role']] ?? '/index.php'));

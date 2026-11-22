@@ -28,7 +28,7 @@ if ($token !== '') {
 
 $h = fn(string $s): string => htmlspecialchars($s, ENT_QUOTES, 'UTF-8');
 $loggedIn = isLoggedIn();
-$home = ['promoter' => '/promoter/dashboard.php', 'teacher' => '/teacher/dashboard.php', 'student' => '/student/dashboard.php'][$_SESSION['user_role'] ?? ''] ?? '/index.php';
+$home = ['promoter' => '/promoter/dashboard.php', 'teacher' => '/teacher/dashboard.php', 'super_teacher' => '/teacher/dashboard.php', 'student' => '/student/dashboard.php'][$_SESSION['user_role'] ?? ''] ?? '/index.php';
 ?>
 <!DOCTYPE html>
 <html lang="fr" class="v2">

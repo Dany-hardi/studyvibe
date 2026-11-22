@@ -28,6 +28,7 @@ final class MediaStore
         'assignment_feedback' => 'assignment_feedback',
         'pdf'           => 'pdfs',
         'career_resume' => 'career-resumes',   // résumés of job applicants: read only through promoter/careers/resume.php
+        'material'      => 'course-material',  // PDFs sent through contribute.php: read only through teacher/contribution-file.php
     ];
 
     public static function dir(string $kind): string

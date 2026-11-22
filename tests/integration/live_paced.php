@@ -37,7 +37,7 @@ $mkSession = function (string $title, string $start, string $end, int $free = 1,
         ->execute([$course, $teacher, $title, bin2hex(random_bytes(6)), $default ?? 30, $free]);
     return (int)$pdo->lastInsertId();
 };
-$sid = $mkSession('ZZ paced main', 'NOW() - INTERVAL 5 MINUTE', 'NOW() + INTERVAL 2 HOUR');
+$sid = $mkSession('ZZ paced main', 'NOW() - INTERVAL 5 MINUTE', 'NOW() + INTERVAL 2 HOUR', 1, 60);   // 60 s per question, for every question
 $addQ = function (int $sid, string $type, string $text, int $sort, ?int $limit = null, string $correct = 'B') use ($pdo): int {
     $pdo->prepare("INSERT INTO live_eval_questions (session_id,question_text,option_a,option_b,option_c,option_d,correct_option,sort_order,question_type,time_limit,code_lang,code_reference,code_notes)
                    VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?)")
@@ -48,7 +48,7 @@ $addQ = function (int $sid, string $type, string $text, int $sort, ?int $limit =
 };
 $qM = $addQ($sid, 'mcq', 'Pick b', 1, 60);
 $qW = $addQ($sid, 'written', 'Type 42', 2, null, '42|forty-two');
-$qO = $addQ($sid, 'open', 'Explain LSP', 3, 120);
+$qO = $addQ($sid, 'open', 'Explain LSP', 3, 120);   // a time stored on a question (old import) is ignored
 $qC = $addQ($sid, 'code', 'Write add', 4, 5);          // a limit written on a code question is ignored
 $reg = function (int $sid, string $name) use ($pdo, $tag): int {
     $pdo->prepare("INSERT INTO live_eval_registrations (session_id,name,email,score) VALUES (?,?,?,NULL)")->execute([$sid, $name, $tag . '.' . strtolower($name) . '@test.local']);
@@ -59,10 +59,10 @@ $session = LivePaced::session($pdo, $sid);
 
 // ---- the limits
 $qs = LivePaced::questions($pdo, $sid);
-check('a QCM has its own limit', LivePaced::limitOf($qs[0], $session) === 60);
-check('a question without a time takes the default of the session', LivePaced::limitOf($qs[1], $session) === 30);
+check('a QCM takes the time of the quiz', LivePaced::limitOf($qs[0], $session) === 60);
+check('a question without a stored time takes the same time', LivePaced::limitOf($qs[1], $session) === 60);
 check('a code question has no limit, whatever is stored', LivePaced::limitOf($qs[3], $session) === null);
-check('a written-answer question is timed', LivePaced::limitOf($qs[2], $session) === 120);
+check('a written-answer question takes the time of the quiz, not the 120 s stored on it', LivePaced::limitOf($qs[2], $session) === 60);
 
 // ---- what the browser gets
 $state = LivePaced::state($pdo, $session, $r1);

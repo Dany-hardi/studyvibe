@@ -40,7 +40,7 @@ final class LiveMailNotifier
         $limits = $q->fetchAll(PDO::FETCH_COLUMN);
         $seconds = 0;
         foreach ($limits as $l) {
-            $seconds += $l !== null ? (int)$l : (int)$s['default_time_limit'];
+            $seconds += (int)$s['default_time_limit'];   // one time for every question
         }
         $session = [
             'title' => (string)$s['title'], 'course_title' => (string)$s['course_title'], 'start_time' => (string)$s['start_time'],

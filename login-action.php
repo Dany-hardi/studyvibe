@@ -57,6 +57,7 @@ try {
     $redirectMap = [
         'promoter' => '/promoter/dashboard.php',
         'teacher'  => '/teacher/dashboard.php',
+        'super_teacher' => '/teacher/dashboard.php',
         'student'  => '/student/dashboard.php',
     ];
 

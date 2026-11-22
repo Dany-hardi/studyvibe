@@ -15,7 +15,7 @@ $user = getCurrentUser();
 $verified = !empty($user['email_verified_at'] ?? null);
 
 if ($verified) {
-    $map = ['promoter' => '/promoter/dashboard.php', 'teacher' => '/teacher/dashboard.php', 'student' => '/student/dashboard.php'];
+    $map = ['promoter' => '/promoter/dashboard.php', 'teacher' => '/teacher/dashboard.php', 'super_teacher' => '/teacher/dashboard.php', 'student' => '/student/dashboard.php'];
     header('Location: ' . ($map[$_SESSION['user_role']] ?? '/index.php'));
     exit;
 }

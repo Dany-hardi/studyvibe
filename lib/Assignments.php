@@ -70,6 +70,9 @@ final class Assignments
         if ($sub === null) {
             return null;
         }
+        foreach (['engine_score', 'engine_confidence', 'engine_result', 'engine_text', 'engine_error', 'engine_at'] as $k) {
+            unset($sub[$k]);                                 // the engine's proposal is for the teacher only
+        }
         $sub['awaiting_release'] = self::isHeld($sub);
         if ($sub['awaiting_release']) {
             foreach (['score', 'feedback', 'graded_at', 'rubric_scores', 'feedback_file_path', 'feedback_file_name', 'graded_by'] as $k) {
@@ -89,17 +92,55 @@ final class Assignments
     public static function studentState(array $state, ?array $sub): array
     {
         if (self::isHeld($sub) && $state['status'] === 'graded') {
-            $state['status'] = 'submitted';
+            $state['status'] = 'in_marking';               // marked but held: for the student it is still being marked
             $state['awaiting_release'] = true;
+        } elseif ($state['status'] === 'submitted' && !empty($sub['in_marking_at'])) {
+            $state['status'] = 'in_marking';
         }
         return $state;
+    }
+
+    /**
+     * The one status list of the assignment pipeline (docs/NEXT_UPDATES_PLAN.md, 5.1), for the teacher:
+     *   todo | missed | submitted | locked | in_marking | proposed | by_hand | held | released | revision
+     * and for the student (studentPipeline): todo | missed | submitted | locked | in_marking | released | revision
+     */
+    public static function pipeline(array $lesson, ?array $sub, ?int $now = null): string
+    {
+        $now ??= time();
+        $deadline = !empty($lesson['assignment_deadline']) ? strtotime((string)$lesson['assignment_deadline']) : null;
+        $passed = $deadline !== null && $now > $deadline;
+        if ($sub === null || empty($sub['submitted_at'])) {
+            return $passed ? 'missed' : 'todo';
+        }
+        $st = self::status($sub);
+        if ($st === 'revision') {
+            return 'revision';
+        }
+        if ($st === 'graded') {
+            return self::isReleased($sub) ? 'released' : 'held';
+        }
+        if (!empty($sub['in_marking_at'])) {
+            if (!empty($sub['engine_error'])) {
+                return 'by_hand';
+            }
+            return !empty($sub['engine_at']) ? 'proposed' : 'in_marking';
+        }
+        return $passed || (isset($lesson['assignment_allow_resubmit']) && empty($lesson['assignment_allow_resubmit'])) ? 'locked' : 'submitted';
+    }
+
+    public static function studentPipeline(array $lesson, ?array $sub, ?int $now = null): string
+    {
+        $p = self::pipeline($lesson, $sub, $now);
+        return in_array($p, ['proposed', 'by_hand', 'held'], true) ? 'in_marking' : $p;
     }
 
     /**
      * What the student may do right now.
      *
      * @return array{can_submit:bool,reason:string,late:bool,status:string,deadline_passed:bool}
-     *         reason: '' | 'deadline' | 'graded' | 'locked' (resubmission not allowed)
+     *         reason: '' | 'deadline' | 'graded' | 'locked' (resubmission not allowed) | 'in_marking' (sent to the grading bucket)
+     *         A handed-in copy can be replaced until the deadline; after it, it is locked (late work is only for a first hand-in).
      */
     public static function state(array $lesson, ?array $sub, ?int $now = null): array
     {
@@ -118,8 +159,16 @@ final class Assignments
                 $out['reason'] = 'graded';
                 return $out;
             }
+            if (!empty($sub['in_marking_at'])) {             // the copy is in the grading bucket: it is being marked
+                $out['reason'] = 'in_marking';
+                return $out;
+            }
             if (empty($lesson['assignment_allow_resubmit'])) {
                 $out['reason'] = 'locked';
+                return $out;
+            }
+            if ($passed) {                                    // a handed-in copy can be changed until the deadline, never after
+                $out['reason'] = 'deadline';
                 return $out;
             }
         }
@@ -271,6 +320,9 @@ final class Assignments
         if (!$hasFile && !$hasLink) { return ['ok' => false, 'error' => 'need_one']; }
         $subType = $hasFile && $hasLink ? 'both' : ($hasLink ? 'link' : 'file');
 
+        // Copies handed in once the teacher has sent the assignment to marking (late work, a requested new version) join the bucket
+        $inMarking = !empty($lesson['assignment_marking_at']) ? date('Y-m-d H:i:s') : null;
+
         $pdo->beginTransaction();
         try {
             if ($existing !== null) {
@@ -288,17 +340,18 @@ final class Assignments
                     "UPDATE lesson_assignment_submissions SET submission_type = :st, submitted_file_path = :fp, submitted_file_name = :fn, submitted_link = :l,
                             student_comment = :c, submitted_at = NOW(), student_name = :n, student_matricule = :m, is_late = :late, attempt_count = attempt_count + 1,
                             score = NULL, feedback = NULL, graded_at = NULL, graded_by = NULL, revision_requested_at = NULL, revision_note = NULL,
-                            released_at = NULL, rubric_scores = NULL, feedback_file_path = NULL, feedback_file_name = NULL
+                            released_at = NULL, rubric_scores = NULL, feedback_file_path = NULL, feedback_file_name = NULL,
+                            in_marking_at = :im, engine_score = NULL, engine_confidence = NULL, engine_result = NULL, engine_text = NULL, engine_error = NULL, engine_at = NULL
                      WHERE id = :id"
                 )->execute(['st' => $subType, 'fp' => $filePath, 'fn' => $fileName, 'l' => $hasLink ? $link : null, 'c' => $comment !== '' ? $comment : null,
-                            'n' => $student['name'], 'm' => $matricule, 'late' => $state['late'] ? 1 : 0, 'id' => $existing['id']]);
+                            'n' => $student['name'], 'm' => $matricule, 'late' => $state['late'] ? 1 : 0, 'id' => $existing['id'], 'im' => $inMarking]);
             } else {
                 $pdo->prepare(
                     "INSERT INTO lesson_assignment_submissions (lesson_id, student_id, student_name, student_matricule, submission_type, submitted_file_path,
-                            submitted_file_name, submitted_link, student_comment, submitted_at, is_late, attempt_count)
-                     VALUES (:lid, :sid, :n, :m, :st, :fp, :fn, :l, :c, NOW(), :late, 1)"
+                            submitted_file_name, submitted_link, student_comment, submitted_at, is_late, attempt_count, in_marking_at)
+                     VALUES (:lid, :sid, :n, :m, :st, :fp, :fn, :l, :c, NOW(), :late, 1, :im)"
                 )->execute(['lid' => $lessonId, 'sid' => $student['id'], 'n' => $student['name'], 'm' => $matricule, 'st' => $subType, 'fp' => $filePath,
-                            'fn' => $fileName, 'l' => $hasLink ? $link : null, 'c' => $comment !== '' ? $comment : null, 'late' => $state['late'] ? 1 : 0]);
+                            'fn' => $fileName, 'l' => $hasLink ? $link : null, 'c' => $comment !== '' ? $comment : null, 'late' => $state['late'] ? 1 : 0, 'im' => $inMarking]);
             }
             $pdo->commit();
         } catch (Throwable $e) {
@@ -355,7 +408,7 @@ final class Assignments
      * Saves a mark. With a rubric on the lesson the mark is the sum of the criteria (the teacher's total is never trusted).
      *
      * @param array $opts 'rubric' => criterion id => ['points' => .., 'comment' => ..]; 'file' => an entry of $_FILES (annotated copy);
-     *                    'remove_file' => bool, drop the annotated copy
+     *                    'remove_file' => bool, drop the annotated copy; 'penalties' => [['label' => .., 'points' => ..]] (with a rubric)
      * @return array{ok:bool,error?:string,released?:bool,score?:float}
      *         errors: not_found, bad_score, rubric_incomplete, rubric_bad_points, fb_bad_type, fb_bad_content, fb_too_big, fb_upload, fb_server
      */
@@ -373,7 +426,19 @@ final class Assignments
                 return ['ok' => false, 'error' => $r['error'] === 'incomplete' ? 'rubric_incomplete' : 'rubric_bad_points'];
             }
             $score = (float)$r['total'];
-            $rubricJson = json_encode($r['rows'], JSON_UNESCAPED_UNICODE);
+            $rows = $r['rows'];
+            // Penalties kept by the teacher in the grading bucket (late, too short, missing part, copied): taken off the total
+            foreach (array_slice((array)($opts['penalties'] ?? []), 0, 10) as $i => $pen) {
+                $pts = AssignmentRubric::number($pen['points'] ?? null);
+                $label = trim(mb_substr((string)($pen['label'] ?? ''), 0, 120));
+                if ($pts === null || $pts <= 0 || $label === '') {
+                    continue;
+                }
+                $rows[] = ['id' => 'pen' . ($i + 1), 'title' => $label, 'max' => 0.0, 'points' => -$pts, 'level' => null, 'comment' => '', 'penalty' => true];
+                $score -= $pts;
+            }
+            $score = max(0.0, round($score, 2));
+            $rubricJson = json_encode($rows, JSON_UNESCAPED_UNICODE);
         } else {
             $score = self::parseScore($scoreRaw, (float)$sub['assignment_max_score']);
             if ($score === null) {

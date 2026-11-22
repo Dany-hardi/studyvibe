@@ -22,6 +22,8 @@ require_once __DIR__ . '/../../lib/Transcripts.php';
 require_once __DIR__ . '/../../lib/Observability.php';
 require_once __DIR__ . '/../../Mailer.php';
 require_once __DIR__ . '/../../QuestionImporter.php';
+require_once __DIR__ . '/../../lib/MarkingEngine.php';
+require_once __DIR__ . '/../../lib/StudentGrades.php';
 
 $passed = 0;
 $failed = [];
@@ -198,10 +200,10 @@ t('csv: a quoted cell may hold line breaks (a code snippet in a question)', func
     eq(count($r['questions']), 1);
     eq($r['questions'][0]['question_text'], "Que fait ce code ?\nx = 1\nprint(x)");
 });
-t('csv: image and time_limit columns are read, a bad time is reported and ignored', function () {
+t('csv: image and time_limit columns are read, a bad time is ignored without blocking the import (the quiz has one time)', function () {
     $r = QuestionImporter::parseCsv("question,option_a,option_b,option_c,option_d,correct,image,time_limit\nQ1,a,b,c,d,B,fig.png,45\nQ2,a,b,c,d,A,,abc\n");
     eq([$r['questions'][0]['image'], $r['questions'][0]['time_limit'], $r['questions'][1]['time_limit']], ['fig.png', 45, null]);
-    eq(count($r['errors']), 1);
+    eq(count($r['errors']), 0);
 });
 t('csv: a true/false question (only A and B) is accepted for live sessions only', function () {
     $csv = "question,option_a,option_b,option_c,option_d,correct\nLa Terre est ronde,Vrai,Faux,,,A\n";
@@ -401,6 +403,113 @@ t('observability: the stamp is stable for the same data and changes when a log l
     eq(str_starts_with($a['id'], 'OBS-'), true);
 });
 t('observability: five categories are offered', fn() => eq(Observability::categories(), ['security', 'access', 'academic', 'exports', 'verification']));
+
+// ---- MarkingEngine (rule-based marking, no AI)
+t('marking: the stemmer joins intégrales, integrale and intégrer', function () {
+    $w = fn($s) => MarkingEngine::tokens($s)[0]['w'];
+    eq($w('intégrales'), $w('integrale'));
+    eq($w('intégrer'), $w('integrale'));
+});
+t('marking: stop words go, numbers keep their value', function () {
+    $t = MarkingEngine::tokens("La valeur de pi est 3,14");
+    eq(array_column($t, 'w'), ['valeur', 'pi', '3.14']);
+});
+t('marking: a key point is found with a spelling slip in normal mode, not in strict mode', function () {
+    $c = MarkingEngine::tokens("La photosinthèse produit de l'oxygène");
+    eq(MarkingEngine::findVariant($c, 'photosynthèse', 'normal')['found'], true);
+    eq(MarkingEngine::findVariant($c, 'photosynthèse', 'strict')['found'], false);
+});
+t('marking: a key point of several words needs its words close together', function () {
+    $near = MarkingEngine::tokens("on applique la dérivée seconde de la fonction");
+    $far = MarkingEngine::tokens("la dérivée est utile. Plus loin, bien plus loin dans le texte, on parle de chose seconde");
+    eq(MarkingEngine::findVariant($near, 'dérivée seconde', 'normal')['found'], true);
+    eq(MarkingEngine::findVariant($far, 'dérivée seconde', 'normal')['found'], false);
+});
+t('marking: 3.14 matches 3,14; 3.5 does not', function () {
+    $c = MarkingEngine::tokens("résultat : 3,14 environ");
+    eq(MarkingEngine::findVariant($c, '3.14', 'normal')['found'], true);
+    eq(MarkingEngine::findVariant($c, '3.5', 'normal')['found'], false);
+});
+$mkRules = fn(array $extra = []) => MarkingEngine::normalizeRules(array_replace_recursive([
+    'criteria' => ['c1' => ['keys' => "chlorophylle\nlumière | lumineuse\ndioxyde de carbone | CO2\noxygène"]],
+], $extra), [['id' => 'c1', 'title' => 'Notions', 'max' => 8]]);
+$crit = [['id' => 'c1', 'title' => 'Notions', 'max' => 8]];
+$good = str_repeat("La photosynthèse utilise la chlorophylle et l'énergie lumineuse pour transformer le dioxyde de carbone et l'eau en glucose, en libérant de l'oxygène. ", 3);
+$half = str_repeat("La plante a de la chlorophylle et elle rejette de l'oxygène pendant la journée, c'est important pour la vie sur la planète. ", 3);
+t('marking: every key point found gives full points', function () use ($mkRules, $crit, $good) {
+    $r = MarkingEngine::mark($good, $crit, $mkRules(), ['max' => 8]);
+    eq($r['ok'], true); eq($r['score'], 8.0); eq($r['rows'][0]['missing'], []);
+});
+t('marking: half the key points gives half the points (normal), and the feedback names what is missing', function () use ($mkRules, $crit, $half) {
+    $r = MarkingEngine::mark($half, $crit, $mkRules(), ['max' => 8]);
+    eq($r['score'], 4.0);
+    eq(in_array('lumière', $r['rows'][0]['missing'], true), true);
+    eq(str_contains($r['feedback'], 'lumière'), true);
+});
+t('marking: strict mode gives steps (all, half, nothing)', function () use ($mkRules, $crit, $half) {
+    $r = MarkingEngine::mark($half, $crit, $mkRules(['strictness' => 'strict']), ['max' => 8]);
+    eq($r['score'], 4.0);
+    $one = str_repeat("Il y a de la chlorophylle dans les feuilles des plantes vertes de la forêt tropicale humide. ", 3);
+    eq(MarkingEngine::mark($one, $crit, $mkRules(['strictness' => 'strict']), ['max' => 8])['score'], 0.0);
+});
+t('marking: the late penalty comes off the total and is in the feedback', function () use ($mkRules, $crit, $good) {
+    $r = MarkingEngine::mark($good, $crit, $mkRules(['penalties' => ['late' => 2]]), ['max' => 8, 'late' => true]);
+    eq($r['score'], 6.0);
+    eq(str_contains($r['feedback'], 'retard'), true);
+});
+t('marking: a missing required section is penalised', function () use ($mkRules, $crit, $good) {
+    $r = MarkingEngine::mark($good, $crit, $mkRules(['sections' => "Conclusion", 'penalties' => ['section' => 1]]), ['max' => 8]);
+    eq($r['missing_sections'], ['Conclusion']); eq($r['score'], 7.0);
+});
+t('marking: an unreadable copy is left to the teacher', fn() => eq(MarkingEngine::mark(null, [], MarkingEngine::normalizeRules([], []), ['max' => 20])['error'], 'unreadable'));
+t('marking: a criterion with nothing to go on gives no points and a low confidence', function () use ($good) {
+    $r = MarkingEngine::mark($good, [['id' => 'c1', 'title' => 'A', 'max' => 10]], MarkingEngine::normalizeRules([], [['id' => 'c1']]), ['max' => 10]);
+    eq($r['rows'][0]['points'], null); eq($r['confidence'], 'low');
+});
+t('marking: the model answer gives points when a criterion has no key points', function () use ($good) {
+    $rules = MarkingEngine::normalizeRules(['model_answer' => $good], [['id' => 'all']]);
+    $r = MarkingEngine::mark($good, [], $rules, ['max' => 20, 'idf' => []]);
+    eq($r['rows'][0]['basis'], 'model'); eq($r['score'], 20.0);
+    $off = str_repeat("Le football est un sport collectif qui se joue avec un ballon entre deux équipes de onze joueurs. ", 3);
+    eq(MarkingEngine::mark($off, [], $rules, ['max' => 20, 'idf' => []])['score'] < 4, true);
+});
+t('marking: the tone changes the words, a teacher template replaces the opening', function () use ($mkRules, $crit, $half) {
+    $enc = MarkingEngine::mark($half, $crit, $mkRules(['tone' => 'encouraging']), ['max' => 8])['feedback'];
+    $dir = MarkingEngine::mark($half, $crit, $mkRules(['tone' => 'direct']), ['max' => 8])['feedback'];
+    eq($enc === $dir, false);
+    eq(str_contains($dir, 'il manque'), true);
+    $own = MarkingEngine::mark($half, $crit, $mkRules(['templates' => ['mid' => 'Pas mal, Jean.']]), ['max' => 8])['feedback'];
+    eq(str_starts_with($own, 'Pas mal, Jean.'), true);
+});
+t('marking: key points found but wording far from the model answer gives a low confidence', function () {
+    $crit = [['id' => 'c1', 'title' => 'Notions', 'max' => 8], ['id' => 'c2', 'title' => 'Explication', 'max' => 12]];
+    $rules = MarkingEngine::normalizeRules(['model_answer' => str_repeat("La photosynthèse utilise l'énergie lumineuse captée par la chlorophylle pour transformer le dioxyde de carbone et l'eau en glucose en libérant de l'oxygène. ", 2),
+        'criteria' => ['c1' => ['keys' => "chlorophylle\nlumière | lumineuse\noxygène"], 'c2' => ['keys' => '']]], $crit);
+    $own = "Introduction. La plante capte la lumiere du soleil grace a sa clorophyle verte, puis fabrique du sucre avec le gaz carbonique pris dans l'air et l'eau tirée du sol par les racines. Elle rejette de l'oxygene dans l'atmosphère, ce qui nous permet de respirer chaque jour.";
+    $r = MarkingEngine::mark($own, $crit, $rules, ['max' => 20, 'idf' => []]);
+    eq(in_array('model_disagrees', $r['reasons'], true), true); eq($r['confidence'], 'low');
+});
+t('marking: a copy far from the class loses confidence', function () {
+    $res = [];
+    foreach ([10, 11, 12, 10, 11, 19.5] as $i => $s) { $res[$i] = ['ok' => true, 'score' => $s, 'reasons' => [], 'conf_value' => 1.0, 'confidence' => 'high']; }
+    $out = MarkingEngine::classCheck($res, 20);
+    eq($out[5]['reasons'], ['far_from_class']); eq($out[0]['reasons'], []);
+});
+t('marking: rules round-trip through storage', function () use ($crit) {
+    $r = MarkingEngine::normalizeRules(['criteria' => ['c1' => ['keys' => "a b | c\nd", 'need' => 1]], 'tone' => 'direct'], $crit);
+    eq(MarkingEngine::decodeRules(json_encode($r), $crit), $r);
+});
+
+// ---- Mes notes (StudentGrades::summary)
+t('grades: assignments are points over maxima on /20; held or unmarked ones count nowhere', function () {
+    $g = StudentGrades::summary(['assignments' => [['score' => 15.0, 'max' => 20.0], ['score' => 5.0, 'max' => 10.0], ['score' => null, 'max' => 20.0]], 'evaluations' => [], 'exam' => null]);
+    eq($g['asg20'], 13.33); eq($g['mark20'], 13.33); eq($g['parts'], 1);
+});
+t('grades: the course mark is the plain average of what exists', function () {
+    $g = StudentGrades::summary(['assignments' => [['score' => 16.0, 'max' => 20.0]], 'evaluations' => [['percent' => 60.0], ['percent' => 80.0]], 'exam' => ['percent' => 50.0, 'attempts' => 2]]);
+    eq($g['eval20'], 14.0); eq($g['exam20'], 10.0); eq($g['mark20'], 13.33);
+});
+t('grades: nothing released, no mark', fn() => eq(StudentGrades::summary(['assignments' => [], 'evaluations' => [], 'exam' => null])['mark20'], null));
 
 echo "$passed passed, " . count($failed) . " failed\n";
 foreach ($failed as $f) {

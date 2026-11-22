@@ -136,7 +136,7 @@ check('a package with an error is refused at commit, with the reasons', ($c['jso
 $c = http($j1, $base, '/teacher/bulk-import.php', $fields + ['mode' => 'commit'], $good);
 check('a good package is imported', ($c['json']['success'] ?? false) === true && $c['json']['imported'] === 3, $c['body']);
 $qs = $pdo->query("SELECT question_text, question_type, time_limit, image_path FROM live_eval_questions WHERE session_id = $sid ORDER BY id")->fetchAll(PDO::FETCH_ASSOC);
-check('the questions keep their picture, their time and their type', $qs[0]['image_path'] !== null && (int)$qs[0]['time_limit'] === 40 && $qs[1]['image_path'] === null && $qs[2]['question_type'] === 'written');
+check('the questions keep their picture and their type; a time in the file is not stored (one time per quiz)', $qs[0]['image_path'] !== null && $qs[0]['time_limit'] === null && $qs[1]['image_path'] === null && $qs[2]['question_type'] === 'written');
 $img = http($j1, $base, '/download.php?type=live_question&file=' . $qs[0]['image_path']);
 check('the picture is served to the teacher (and is kept in the database)', $img['code'] === 200 && str_starts_with($img['body'], "\xFF\xD8") && (int)$pdo->query("SELECT COUNT(*) FROM media_files WHERE media_key = 'live_question/" . $qs[0]['image_path'] . "'")->fetchColumn() === 1);
 check('the import is in the audit log', (int)$pdo->query("SELECT COUNT(*) FROM audit_logs WHERE action = 'questions_bulk_imported' AND created_at >= NOW() - INTERVAL 5 MINUTE")->fetchColumn() >= 1);

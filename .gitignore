@@ -54,3 +54,6 @@ test_*.php
 local-only/
 *.class
 __pycache__/
+
+# local copies of .env
+.env.bak*

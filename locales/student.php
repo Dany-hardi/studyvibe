@@ -8,7 +8,7 @@ return [
 'fr' => [
     // shell
     'page_title' => 'Espace étudiant', 'skip' => 'Aller au contenu',
-    'nav_label' => 'Navigation principale', 'nav_home' => 'Accueil', 'nav_courses' => 'Cours', 'nav_evals' => 'Évaluations', 'nav_results' => 'Résultats', 'nav_certs' => 'Certificats', 'nav_help' => 'Aide', 'pwa_title' => 'Application et notifications', 'pwa_manage' => 'Gérer',
+    'nav_label' => 'Navigation principale', 'nav_home' => 'Accueil', 'nav_courses' => 'Cours', 'nav_evals' => 'Évaluations', 'nav_results' => 'Mes notes', 'nav_certs' => 'Certificats', 'nav_help' => 'Aide', 'pwa_title' => 'Application et notifications', 'pwa_manage' => 'Gérer',
     'notifications' => 'Notifications', 'mark_all_read' => 'Tout marquer comme lu', 'theme' => 'Changer de thème', 'language' => 'Langue',
     'my_profile' => 'Mon profil', 'logout' => 'Déconnexion', 'close' => 'Fermer', 'cancel' => 'Annuler', 'save' => 'Enregistrer', 'saved' => 'Enregistré', 'send' => 'Envoyer', 'submit' => 'Valider',
     'greet_morning' => 'Bonjour', 'greet_afternoon' => 'Bon après-midi', 'greet_evening' => 'Bonsoir',
@@ -31,7 +31,7 @@ return [
     'req_status_open' => 'En attente de réponse', 'req_status_answered' => 'Répondu', 'req_answer' => 'Réponse de votre enseignant', 'req_kind_assignment' => 'Révision de note', 'req_kind_live_result' => 'Résultat d’évaluation', 'req_kind_course' => 'Message',
     'req_f_course' => 'Cours', 'req_f_subject' => 'Objet', 'req_f_message' => 'Votre message', 'req_send' => 'Envoyer à mon enseignant',
     'my_assignments' => 'Mes devoirs', 'th_assignment' => 'Devoir', 'th_deadline' => 'Échéance', 'th_status' => 'Statut', 'as_late_tag' => 'en retard', 'as_feedback_link' => 'Voir le retour',
-    'as_status_todo' => 'À rendre', 'as_status_missed' => 'Non rendu', 'as_status_submitted' => 'Rendu, en attente de note', 'as_status_graded' => 'Noté', 'as_status_revision' => 'Nouvelle version demandée',
+    'as_status_todo' => 'À rendre', 'as_status_missed' => 'Non rendu', 'as_status_submitted' => 'Rendu, en attente de note', 'as_status_graded' => 'Noté', 'as_status_revision' => 'Nouvelle version demandée', 'as_status_locked' => 'Rendu, date limite passée', 'as_status_in_marking' => 'En cours de correction',
     'latest_result' => 'Dernier résultat', 'passed' => 'Validé', 'not_passed' => 'Non validé', 'ev_cancelled' => 'Résultat annulé', 'ev_contest' => 'Contester', 'ev_contest_open' => 'Contestation en cours', 'ev_contest_final' => 'Voir la décision',
     'ev_cancelled' => 'Result cancelled', 'ev_contest' => 'Contest', 'ev_contest_open' => 'Contestation pending', 'ev_contest_final' => 'See the decision',
     'pending' => 'En attente', 'final_exam' => 'Examen final',
@@ -51,7 +51,7 @@ return [
     'open_evals' => 'Toutes les évaluations ouvertes', 'upcoming' => 'À venir', 'past' => 'Passées', 'deadline' => 'date limite', 'no_evals' => 'Vous n’avez encore participé à aucune évaluation.', 'join' => 'Rejoindre',
     // results
     'transcript_pdf' => 'Relevé imprimable', 'fig_completed' => 'Cours terminés', 'fig_avg' => 'Moyenne des certifications', 'fig_time' => 'Temps d’étude',
-    'by_course' => 'Par cours', 'th_course' => 'Cours', 'th_progress' => 'Progression', 'th_best' => 'Meilleur score', 'th_attempts' => 'Tentatives',
+    'by_course' => 'Progression par cours', 'grades_title' => 'Mes notes par cours', 'grades_lede' => 'Chaque note est ramenée sur 20. La note du cours est la moyenne simple des notes publiées (devoirs, évaluations, examen final), sans coefficient.', 'grades_none' => 'Aucune note publiée pour le moment.', 'th_asg' => 'Devoirs', 'th_eval' => 'Évaluations', 'th_exam' => 'Examen final', 'th_mark' => 'Note du cours', 'grades_pending' => ':n devoir(s) en cours de correction', 'grades_detail' => 'Détail', 'grades_best' => 'meilleure tentative sur :n', 'th_course' => 'Cours', 'th_progress' => 'Progression', 'th_best' => 'Meilleur score', 'th_attempts' => 'Tentatives',
     'lesson_quizzes' => 'Quiz de leçon', 'th_lesson' => 'Leçon', 'th_date' => 'Date', 'th_score' => 'Score',
     'failed_attempts' => 'Certifications non validées', 'failed_hint' => 'Le seuil est de 80 %. Chaque rapport résume la tentative sans détailler les réponses.',
     // certificates
@@ -114,7 +114,7 @@ return [
     'js_req_h_assignment' => 'Demander la révision de ma note', 'js_req_h_live_result' => 'Question sur mon résultat', 'js_req_h_course' => 'Écrire à mon enseignant',
     'js_req_hint' => 'Expliquez en quelques phrases (au moins 20 caractères).', 'js_req_hint_assignment' => 'Dites précisément ce que vous voulez faire relire. Une seule demande par note.', 'js_req_hint_live' => 'Dites quelle question ou quel point vous pose problème. Une seule demande par résultat.',
     'js_req_sent' => 'Demande envoyée. Votre enseignant est prévenu.', 'js_req_err' => 'La demande n’a pas pu être envoyée. Réessayez.', 'js_req_sending' => 'Envoi…', 'js_req_send' => 'Envoyer à mon enseignant', 'js_req_short' => 'Votre message est trop court (au moins 20 caractères).', 'js_req_need_subject' => 'Donnez un objet à votre message.',
-    'js_as_late' => 'en retard', 'js_as_attempt' => 'version :n', 'js_as_mark' => 'Note', 'js_as_feedback' => 'Retour de votre enseignant', 'js_as_waiting' => 'En attente de correction par votre enseignant.',
+    'js_as_late' => 'en retard', 'js_as_attempt' => 'version :n', 'js_as_mark' => 'Note', 'js_as_feedback' => 'Retour de votre enseignant', 'js_as_waiting' => 'En attente de correction par votre enseignant.', 'js_as_in_marking' => 'Votre travail est en cours de correction.', 'js_as_editable' => 'Vous pouvez encore modifier votre dépôt jusqu’à la date limite.', 'js_as_marking_lock' => 'Votre copie est en cours de correction : elle ne peut plus être modifiée.', 'js_as_deadline_lock' => 'La date limite est passée : votre dépôt ne peut plus être modifié.',
     'js_as_revision' => 'Votre enseignant demande une nouvelle version :', 'js_as_resubmit' => 'Déposer la nouvelle version', 'js_as_closed' => 'La date limite est dépassée : le dépôt est fermé.', 'js_as_closed_btn' => 'Dépôt fermé', 'js_as_locked' => 'Votre devoir est déposé : l’enseignant n’autorise pas de nouveau dépôt.', 'js_as_late_ok' => 'La date limite est passée : votre dépôt sera marqué « en retard ».',
     'js_as_uploading' => 'Envoi en cours…', 'js_as_done' => 'Devoir déposé.', 'js_as_toast' => 'Devoir transmis à l’enseignant.',
     'js_no_questions' => 'Aucune question pour l’instant.', 'js_role_teacher' => 'enseignant', 'js_role_student' => 'étudiant', 'js_teacher_reply' => 'Réponse de l’enseignant :', 'js_question_posted' => 'Question publiée.',
@@ -145,7 +145,7 @@ return [
 'en' => [
     // shell
     'page_title' => 'Student space', 'skip' => 'Skip to content',
-    'nav_label' => 'Main navigation', 'nav_home' => 'Home', 'nav_courses' => 'Courses', 'nav_evals' => 'Evaluations', 'nav_results' => 'Results', 'nav_certs' => 'Certificates', 'nav_help' => 'Help', 'pwa_title' => 'App and notifications', 'pwa_manage' => 'Manage',
+    'nav_label' => 'Main navigation', 'nav_home' => 'Home', 'nav_courses' => 'Courses', 'nav_evals' => 'Evaluations', 'nav_results' => 'Grades', 'nav_certs' => 'Certificates', 'nav_help' => 'Help', 'pwa_title' => 'App and notifications', 'pwa_manage' => 'Manage',
     'notifications' => 'Notifications', 'mark_all_read' => 'Mark all as read', 'theme' => 'Switch theme', 'language' => 'Language',
     'my_profile' => 'My profile', 'logout' => 'Log out', 'close' => 'Close', 'cancel' => 'Cancel', 'save' => 'Save', 'saved' => 'Saved', 'send' => 'Send', 'submit' => 'Submit',
     'greet_morning' => 'Good morning', 'greet_afternoon' => 'Good afternoon', 'greet_evening' => 'Good evening',
@@ -168,7 +168,7 @@ return [
     'req_status_open' => 'Waiting for an answer', 'req_status_answered' => 'Answered', 'req_answer' => 'Answer from your teacher', 'req_kind_assignment' => 'Mark review', 'req_kind_live_result' => 'Evaluation result', 'req_kind_course' => 'Message',
     'req_f_course' => 'Course', 'req_f_subject' => 'Subject', 'req_f_message' => 'Your message', 'req_send' => 'Send to my teacher',
     'my_assignments' => 'My assignments', 'th_assignment' => 'Assignment', 'th_deadline' => 'Due', 'th_status' => 'Status', 'as_late_tag' => 'late', 'as_feedback_link' => 'See feedback',
-    'as_status_todo' => 'To hand in', 'as_status_missed' => 'Not handed in', 'as_status_submitted' => 'Handed in, awaiting a mark', 'as_status_graded' => 'Marked', 'as_status_revision' => 'New version requested',
+    'as_status_todo' => 'To hand in', 'as_status_missed' => 'Not handed in', 'as_status_submitted' => 'Handed in, awaiting a mark', 'as_status_graded' => 'Marked', 'as_status_revision' => 'New version requested', 'as_status_locked' => 'Handed in, deadline passed', 'as_status_in_marking' => 'Being marked',
     'latest_result' => 'Latest result', 'passed' => 'Passed', 'not_passed' => 'Not passed', 'pending' => 'Pending', 'final_exam' => 'Final exam',
     'see_report' => 'See the report', 'see_certificate' => 'View the certificate', 'no_result' => 'No result yet.',
     'issued_on' => 'Issued :date', 'all_certs' => 'All my certificates', 'no_cert_yet' => 'No certificate yet. You need 80% on the final quiz of a finished course.',
@@ -186,7 +186,7 @@ return [
     'open_evals' => 'All open evaluations', 'upcoming' => 'Upcoming', 'past' => 'Past', 'deadline' => 'deadline', 'no_evals' => 'You have not taken part in any evaluation yet.', 'join' => 'Join',
     // results
     'transcript_pdf' => 'Printable transcript', 'fig_completed' => 'Courses finished', 'fig_avg' => 'Certification average', 'fig_time' => 'Study time',
-    'by_course' => 'By course', 'th_course' => 'Course', 'th_progress' => 'Progress', 'th_best' => 'Best score', 'th_attempts' => 'Attempts',
+    'by_course' => 'Progress by course', 'grades_title' => 'My grades by course', 'grades_lede' => 'Every mark is brought to /20. The course mark is the plain average of the released marks (assignments, evaluations, final exam), with no weighting.', 'grades_none' => 'No released mark yet.', 'th_asg' => 'Assignments', 'th_eval' => 'Evaluations', 'th_exam' => 'Final exam', 'th_mark' => 'Course mark', 'grades_pending' => ':n assignment(s) being marked', 'grades_detail' => 'Detail', 'grades_best' => 'best of :n attempt(s)', 'th_course' => 'Course', 'th_progress' => 'Progress', 'th_best' => 'Best score', 'th_attempts' => 'Attempts',
     'lesson_quizzes' => 'Lesson quizzes', 'th_lesson' => 'Lesson', 'th_date' => 'Date', 'th_score' => 'Score',
     'failed_attempts' => 'Certifications not passed', 'failed_hint' => 'The pass mark is 80%. Each report summarises the attempt without listing your answers.',
     // certificates
@@ -249,7 +249,7 @@ return [
     'js_req_h_assignment' => 'Ask for a review of my mark', 'js_req_h_live_result' => 'Question about my result', 'js_req_h_course' => 'Write to my teacher',
     'js_req_hint' => 'Explain in a few sentences (at least 20 characters).', 'js_req_hint_assignment' => 'Say precisely what you want looked at again. One request per mark.', 'js_req_hint_live' => 'Say which question or point is a problem. One request per result.',
     'js_req_sent' => 'Request sent. Your teacher is told.', 'js_req_err' => 'The request could not be sent. Try again.', 'js_req_sending' => 'Sending…', 'js_req_send' => 'Send to my teacher', 'js_req_short' => 'Your message is too short (at least 20 characters).', 'js_req_need_subject' => 'Give your message a subject.',
-    'js_as_late' => 'late', 'js_as_attempt' => 'version :n', 'js_as_mark' => 'Mark', 'js_as_feedback' => 'Feedback from your teacher', 'js_as_waiting' => 'Waiting for your teacher to mark it.',
+    'js_as_late' => 'late', 'js_as_attempt' => 'version :n', 'js_as_mark' => 'Mark', 'js_as_feedback' => 'Feedback from your teacher', 'js_as_waiting' => 'Waiting for your teacher to mark it.', 'js_as_in_marking' => 'Your work is being marked.', 'js_as_editable' => 'You can still change your submission until the deadline.', 'js_as_marking_lock' => 'Your copy is being marked: it can no longer be changed.', 'js_as_deadline_lock' => 'The deadline has passed: your submission can no longer be changed.',
     'js_as_revision' => 'Your teacher asks for a new version:', 'js_as_resubmit' => 'Send the new version', 'js_as_closed' => 'The deadline has passed: handing in is closed.', 'js_as_closed_btn' => 'Closed', 'js_as_locked' => 'Your assignment is handed in: your teacher does not allow another submission.', 'js_as_late_ok' => 'The deadline has passed: your submission will be flagged “late”.',
     'js_as_uploading' => 'Uploading…', 'js_as_done' => 'Assignment handed in.', 'js_as_toast' => 'Assignment sent to your teacher.',
     'js_no_questions' => 'No question yet.', 'js_role_teacher' => 'teacher', 'js_role_student' => 'student', 'js_teacher_reply' => 'Teacher’s reply:', 'js_question_posted' => 'Question posted.',

@@ -27,7 +27,7 @@ require_once __DIR__ . '/MediaStore.php';
  */
 final class AdminUsers
 {
-    public const ROLES = ['student', 'teacher', 'promoter'];
+    public const ROLES = ['student', 'teacher', 'super_teacher', 'promoter'];
     public const INVITE_HOURS = 72;
 
     // ---------------------------------------------------------------------------------------------------------------------------
@@ -156,7 +156,7 @@ final class AdminUsers
                 $titles = $q->fetchAll(PDO::FETCH_COLUMN);
             }
             $mailSent = Mailer::accountCreatedByAdmin($email, $name, $role, $lang, $token, $titles, $mode === 'invite' ? self::INVITE_HOURS : 0);
-            Notifications::mirror($pdo, $id, 'welcome', $lang === 'en' ? 'Your account is ready' : 'Votre compte est prêt', $lang === 'en' ? 'An administrator created your StudyVibe account.' : 'Un administrateur a créé votre compte StudyVibe.', $role === 'teacher' ? '/teacher/dashboard.php' : '/student/dashboard.php');
+            Notifications::mirror($pdo, $id, 'welcome', $lang === 'en' ? 'Your account is ready' : 'Votre compte est prêt', $lang === 'en' ? 'An administrator created your StudyVibe account.' : 'Un administrateur a créé votre compte StudyVibe.', in_array($role, ['teacher', 'super_teacher'], true) ? '/teacher/dashboard.php' : ($role === 'promoter' ? '/promoter/dashboard.php' : '/student/dashboard.php'));
         }
         return [
             'ok' => true, 'user' => ['id' => $id, 'name' => $name, 'email' => $email, 'role' => $role, 'matricule' => $matricule],
@@ -191,7 +191,7 @@ final class AdminUsers
         }
         $one = fn(string $sql) => (int)($pdo->query(str_replace(':id', (string)$userId, $sql))->fetchColumn() ?: 0);
         $c = [];
-        if ($u['role'] === 'teacher') {
+        if (in_array($u['role'], ['teacher', 'super_teacher'], true)) {
             $c['courses'] = $one("SELECT COUNT(*) FROM courses WHERE teacher_id = :id");
             $c['students_in_courses'] = $one("SELECT COUNT(DISTINCT e.student_id) FROM enrollments e JOIN courses c ON c.id = e.course_id WHERE c.teacher_id = :id");
             $c['certificates'] = $one("SELECT COUNT(*) FROM certificates ce JOIN courses c ON c.id = ce.course_id WHERE c.teacher_id = :id");
@@ -210,12 +210,12 @@ final class AdminUsers
             $c['other_promoters'] = $one("SELECT COUNT(*) FROM users WHERE role = 'promoter' AND is_active = 1 AND id <> :id");
         }
         $teachers = [];
-        if ($u['role'] === 'teacher') {
+        if (in_array($u['role'], ['teacher', 'super_teacher'], true)) {
             $t = $pdo->prepare("SELECT id, name, email FROM users WHERE role = 'teacher' AND is_active = 1 AND is_approved = 1 AND id <> :id ORDER BY name");
             $t->execute(['id' => $userId]);
             $teachers = $t->fetchAll(PDO::FETCH_ASSOC);
         }
-        $needsDecision = $u['role'] === 'teacher' && (($c['courses'] ?? 0) + ($c['live_sessions'] ?? 0) + ($c['announcements'] ?? 0)) > 0;
+        $needsDecision = in_array($u['role'], ['teacher', 'super_teacher'], true) && (($c['courses'] ?? 0) + ($c['live_sessions'] ?? 0) + ($c['announcements'] ?? 0)) > 0;
         return ['user' => $u, 'counts' => $c, 'needs_decision' => $needsDecision, 'teachers' => $teachers];
     }
 
@@ -260,7 +260,7 @@ final class AdminUsers
         try {
             require_once __DIR__ . '/Archive.php';
             Archive::snapshotUser($pdo, $userId, 'before_delete');
-            if ($u['role'] === 'teacher' && $imp['needs_decision'] && $reassign === 0) {
+            if (in_array($u['role'], ['teacher', 'super_teacher'], true) && $imp['needs_decision'] && $reassign === 0) {
                 foreach ($pdo->query('SELECT id FROM courses WHERE teacher_id = ' . $userId)->fetchAll(PDO::FETCH_COLUMN) as $cid) { Archive::snapshotCourse($pdo, (int)$cid, 'before_delete'); }
                 foreach ($pdo->query('SELECT id FROM live_eval_sessions WHERE teacher_id = ' . $userId)->fetchAll(PDO::FETCH_COLUMN) as $sid) { Archive::snapshotSession($pdo, (int)$sid, 'before_delete', $userId); }
             }
@@ -286,14 +286,14 @@ final class AdminUsers
                 $add('assignment_feedback', $h['feedback_file_path']);
             }
         }
-        if ($u['role'] === 'teacher' && $imp['needs_decision'] && $reassign === 0) {
+        if (in_array($u['role'], ['teacher', 'super_teacher'], true) && $imp['needs_decision'] && $reassign === 0) {
             foreach (self::teacherFiles($pdo, $userId) as [$k, $f]) { $add($k, $f); }
         }
 
         $reassigned = [];
         $pdo->beginTransaction();
         try {
-            if ($u['role'] === 'teacher' && $reassign > 0) {
+            if (in_array($u['role'], ['teacher', 'super_teacher'], true) && $reassign > 0) {
                 foreach (['courses' => 'teacher_id', 'live_eval_sessions' => 'teacher_id', 'announcements' => 'teacher_id'] as $table => $col) {
                     $st = $pdo->prepare("UPDATE `$table` SET `$col` = :new WHERE `$col` = :old");
                     $st->execute(['new' => $reassign, 'old' => $userId]);

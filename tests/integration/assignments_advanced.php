@@ -47,7 +47,7 @@ check('a held mark is hidden from the student, entirely', $v['score'] === null &
 $rel = Assignments::studentView(['released_at' => '2026-01-03 10:00:00', 'rubric_scores' => '[{"id":"c1","points":2}]'] + $held);
 check('a released mark is shown', $rel['score'] === 15 && $rel['feedback'] === 'SECRET' && $rel['rubric_scores'][0]['points'] === 2 && str_contains((string)$rel['feedback_file_url'], 'assignment_feedback') && $rel['awaiting_release'] === false);
 $st = Assignments::studentState(['status' => 'graded', 'can_submit' => false, 'reason' => 'graded'], $held);
-check('a held mark counts as "handed in" for the student, and the work stays locked', $st['status'] === 'submitted' && $st['can_submit'] === false && $st['awaiting_release'] === true);
+check('a held mark reads "being marked" for the student, and the work stays locked', $st['status'] === 'in_marking' && $st['can_submit'] === false && $st['awaiting_release'] === true);
 
 // ================================================================ similarity: pure rules
 $w = AssignmentSimilarity::words("Le Théorème de Pythagore : l'hypoténuse, ÉGALE à la somme!");
@@ -166,7 +166,7 @@ $grade($m3, ['score' => '12', 'feedback' => 'Autre retour']);
 $d = $details('stu2', $lMan);
 check('a held mark is invisible in the lesson (mark, feedback, grid, dates)', $sub($d, 'score') === null && $sub($d, 'feedback') === null && $sub($d, 'graded_at') === null
     && !str_contains($d['body'], 'SECRET-FEEDBACK-XYZ') && ($d['json']['submission']['awaiting_release'] ?? false) === true, $d['body']);
-check('the student sees "handed in" and cannot send another version', ($d['json']['assignment_state']['status'] ?? '') === 'submitted' && ($d['json']['assignment_state']['can_submit'] ?? true) === false);
+check('the student sees "being marked" and cannot send another version', ($d['json']['assignment_state']['status'] ?? '') === 'in_marking' && ($d['json']['assignment_state']['can_submit'] ?? true) === false);
 $dash = http($jar('stu2'), $base, '/student/dashboard.php');
 check('nor in the results page', $dash['code'] === 200 && !str_contains($dash['body'], 'SECRET-FEEDBACK-XYZ'));
 check('and the student was not told', (int)$pdo->query("SELECT COUNT(*) FROM email_outbox WHERE template = 'assignment_graded' AND to_email = 'zz.asgadv.stu2@test.local'")->fetchColumn() === 0
@@ -189,7 +189,7 @@ $grade($m2, ['score' => '16', 'feedback' => 'Corrigé']);
 check('correcting a released mark keeps it released', $pdo->query("SELECT released_at FROM lesson_assignment_submissions WHERE id = $m2")->fetchColumn() !== null && (float)$pdo->query("SELECT score FROM lesson_assignment_submissions WHERE id = $m2")->fetchColumn() === 16.0);
 $r = http($jar('teacher'), $base, '/teacher/grade-assignment.php', ['action' => 'withdraw_all', 'lesson_id' => $lMan]);
 $d = $details('stu2', $lMan);
-check('marks can be withdrawn: hidden again', $r['json']['withdrawn'] === 2 && $sub($d, 'score') === null && ($d['json']['assignment_state']['status'] ?? '') === 'submitted', $r['body']);
+check('marks can be withdrawn: hidden again', $r['json']['withdrawn'] === 2 && $sub($d, 'score') === null && ($d['json']['assignment_state']['status'] ?? '') === 'in_marking', $r['body']);
 $r = $grade($subOf($lMan, $stu[2]), ['score' => '16', 'feedback' => 'x']);
 check('after a withdrawal a corrected mark stays held until released again (manual mode)', $r['json']['released'] === false);
 http($jar('teacher'), $base, '/teacher/grade-assignment.php', ['action' => 'release_all', 'lesson_id' => $lMan]);

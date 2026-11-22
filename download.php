@@ -121,7 +121,7 @@ try {
 
         // The student who handed it in, the teacher of that course, or a promoter. Not any teacher.
         $allowed = $role === 'promoter'
-            || ($role === 'teacher' && (int)$sub['teacher_id'] === $userId)
+            || (isTeacherRole($role) && (int)$sub['teacher_id'] === $userId)
             || ($role === 'student' && (int)$sub['student_id'] === $userId);
         if (!$allowed) {
             http_response_code(403);
@@ -166,7 +166,7 @@ try {
             exit('Fichier introuvable.');
         }
         $allowed = $role === 'promoter'
-            || ($role === 'teacher' && (int)$sub['teacher_id'] === $userId)
+            || (isTeacherRole($role) && (int)$sub['teacher_id'] === $userId)
             || ($role === 'student' && (int)$sub['student_id'] === $userId && $sub['graded_at'] !== null && $sub['released_at'] !== null);
         if (!$allowed) {
             http_response_code(403);
@@ -229,7 +229,7 @@ try {
             exit('Fichier introuvable.');
         }
         $registered = isset($_SESSION['live_registrations'][$owner['session_code']]);
-        $teacherOwns = $role === 'teacher' && $userId === (int)$owner['teacher_id'];
+        $teacherOwns = isTeacherRole($role) && $userId === (int)$owner['teacher_id'];
         if (!$registered && !$teacherOwns && $role !== 'student' && $role !== 'promoter') {
             http_response_code(403);
             exit('Accès refusé.');

@@ -24,7 +24,7 @@ declare(strict_types=1);
 require_once __DIR__ . '/../auth.php';
 require_once __DIR__ . '/../lib/SpreadsheetExporter.php';
 
-if (!isLoggedIn() || $_SESSION['user_role'] !== 'teacher') {
+if (!isLoggedIn() || !isTeacherRole($_SESSION['user_role'] ?? null)) {
     header('Location: /index.php');
     exit;
 }

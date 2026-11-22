@@ -31,7 +31,7 @@ $smsOptIn = (int)$extra->fetchColumn() === 1;
 $tfaOn = !empty($user['totp_enabled_at']);
 $recoveryLeft = $tfaOn ? TwoFactor::remainingRecovery($pdo, (int)$user['id']) : 0;
 $required = in_array($user['role'], array_filter(array_map('trim', explode(',', (string)REQUIRE_2FA_ROLES))), true);
-$home = ['promoter' => '/promoter/dashboard.php', 'teacher' => '/teacher/dashboard.php', 'student' => '/student/dashboard.php'][$user['role']] ?? '/index.php';
+$home = ['promoter' => '/promoter/dashboard.php', 'teacher' => '/teacher/dashboard.php', 'super_teacher' => '/teacher/dashboard.php', 'student' => '/student/dashboard.php'][$user['role']] ?? '/index.php';
 
 $T = [
  'fr' => [

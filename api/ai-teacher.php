@@ -10,7 +10,7 @@ require_once __DIR__ . '/../lib/GeminiClient.php';
 
 // Verifier l'authentification et le role enseignant
 session_start();
-if (!isset($_SESSION['user_id']) || $_SESSION['user_role'] !== 'teacher') {
+if (!isset($_SESSION['user_id']) || !in_array($_SESSION['user_role'] ?? '', ['teacher', 'super_teacher'], true)) {
     http_response_code(403);
     echo json_encode(['success' => false, 'error' => 'Acces refuse. Session enseignant requise.']);
     exit;

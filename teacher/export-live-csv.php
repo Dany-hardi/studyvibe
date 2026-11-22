@@ -10,7 +10,7 @@ declare(strict_types=1);
 
 require_once __DIR__ . '/../auth.php';
 
-if (!isLoggedIn() || $_SESSION['user_role'] !== 'teacher') {
+if (!isLoggedIn() || !isTeacherRole($_SESSION['user_role'] ?? null)) {
     http_response_code(403);
     die('Accès non autorisé.');
 }

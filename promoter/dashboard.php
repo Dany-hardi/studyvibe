@@ -308,6 +308,8 @@ $TX = [
  'th_actions' => ['Actions', 'Actions'],
  'th_select_all' => ['Tout sélectionner', 'Select all'],
  'role_teacher' => ['Enseignant', 'Teacher'],
+ 'role_super_teacher' => ['Super enseignant', 'Super teacher'],
+ 'cu_role_super' => ['Super enseignant (voit tous les cours, reçoit les supports envoyés)', 'Super teacher (sees every course, receives the material people send)'],
  'role_student' => ['Apprenant', 'Student'],
  'role_promoter' => ['Administrateur', 'Institution admin'],
  'you' => ['vous', 'you'],
@@ -542,7 +544,7 @@ $t = fn(string $k, array $r = []): string => strtr($TX[$k][$li] ?? $k, array_com
 $h = fn($s): string => htmlspecialchars((string)$s, ENT_QUOTES, 'UTF-8');
 $fmtD = fn($ts): string => $ts ? ($lang === 'en' ? date('M j, Y', strtotime((string)$ts)) : date('d/m/Y', strtotime((string)$ts))) : '';
 $fmtDT = fn($ts): string => $ts ? ($lang === 'en' ? date('M j, Y g:i A', strtotime((string)$ts)) : date('d/m/Y H:i', strtotime((string)$ts))) : '';
-$roleName = ['teacher' => $t('role_teacher'), 'student' => $t('role_student'), 'promoter' => $t('role_promoter')];
+$roleName = ['super_teacher' => $t('role_super_teacher'), 'teacher' => $t('role_teacher'), 'student' => $t('role_student'), 'promoter' => $t('role_promoter')];
 
 // JS dictionary (strings used by promoter.js)
 $JT = [
@@ -1319,6 +1321,7 @@ X-API-Key: &lt;key&gt;</div>
         <select class="input" id="cu-role" name="role" required>
           <option value="student"><?= $t('role_student') ?></option>
           <option value="teacher"><?= $t('role_teacher') ?></option>
+          <option value="super_teacher"><?= $t('cu_role_super') ?></option>
           <option value="promoter"><?= $t('cu_role_promoter') ?></option>
         </select></div>
       <div class="field"><label for="cu-lang"><?= $t('cu_lang') ?></label>

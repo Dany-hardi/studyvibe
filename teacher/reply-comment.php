@@ -12,7 +12,7 @@ require_once __DIR__ . '/../lib/LessonQA.php';
 
 header('Content-Type: application/json');
 
-if (!isLoggedIn() || $_SESSION['user_role'] !== 'teacher') {
+if (!isLoggedIn() || !isTeacherRole($_SESSION['user_role'] ?? null)) {
     http_response_code(403);
     echo json_encode(['success' => false, 'message' => 'Accès non autorisé.']);
     exit;

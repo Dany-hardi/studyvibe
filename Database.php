@@ -125,6 +125,66 @@ class Database
         // SECTION 2: AUTOMATIC INCREMENTAL SCHEMA MIGRATIONS
         // =========================================================================
 
+        // Migration 3.0: the super teacher role (sees every course read-only, creates their own quizzes on any course, receives the
+        // course material people send). Also the plan_id column the signup writes, missing from the schema files of a fresh install.
+        try {
+            $col = $pdo->query("SHOW COLUMNS FROM `users` LIKE 'role'")->fetch(PDO::FETCH_ASSOC);
+            if ($col && !str_contains((string)$col['Type'], 'super_teacher')) {
+                $pdo->exec("ALTER TABLE `users` MODIFY `role` ENUM('promoter','super_teacher','teacher','student') NOT NULL");
+            }
+        } catch (PDOException $ex) { error_log('migration super_teacher: ' . $ex->getMessage()); }
+        try {
+            $pdo->query("SELECT plan_id FROM users LIMIT 1");
+        } catch (PDOException $e) {
+            try { $pdo->exec("ALTER TABLE `users` ADD COLUMN `plan_id` INT NULL DEFAULT NULL"); } catch (PDOException $ex) {}
+        }
+
+        // Migration 3.1: course material sent through the public form (contribute.php), read by super teachers to build real quizzes.
+        foreach ([
+            "CREATE TABLE IF NOT EXISTS `filieres` (
+                `id` INT AUTO_INCREMENT PRIMARY KEY,
+                `name` VARCHAR(120) NOT NULL,
+                `is_active` TINYINT(1) NOT NULL DEFAULT 1,
+                `created_at` DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+                UNIQUE KEY `uq_filiere_name` (`name`)
+            ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci",
+            "CREATE TABLE IF NOT EXISTS `material_submissions` (
+                `id` INT AUTO_INCREMENT PRIMARY KEY,
+                `reference` VARCHAR(20) NOT NULL,
+                `email` VARCHAR(190) NOT NULL,
+                `name` VARCHAR(120) DEFAULT NULL,
+                `filiere` VARCHAR(120) NOT NULL,
+                `level` VARCHAR(40) DEFAULT NULL,
+                `course_label` VARCHAR(190) NOT NULL,
+                `course_id` INT DEFAULT NULL,
+                `note` TEXT DEFAULT NULL,
+                `status` VARCHAR(16) NOT NULL DEFAULT 'new',
+                `reason` VARCHAR(500) DEFAULT NULL,
+                `ip_hash` CHAR(64) DEFAULT NULL,
+                `lang` CHAR(2) NOT NULL DEFAULT 'fr',
+                `reviewed_by` INT DEFAULT NULL,
+                `reviewed_at` DATETIME DEFAULT NULL,
+                `created_at` DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+                UNIQUE KEY `uq_material_ref` (`reference`),
+                KEY `idx_material_status` (`status`, `created_at`),
+                KEY `idx_material_course` (`course_id`)
+            ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci",
+            "CREATE TABLE IF NOT EXISTS `material_files` (
+                `id` INT AUTO_INCREMENT PRIMARY KEY,
+                `submission_id` INT NOT NULL,
+                `file` VARCHAR(80) NOT NULL,
+                `original_name` VARCHAR(190) NOT NULL,
+                `size` INT NOT NULL DEFAULT 0,
+                `sha1` CHAR(40) NOT NULL,
+                `created_at` DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+                KEY `idx_material_file_sub` (`submission_id`),
+                KEY `idx_material_file_sha` (`sha1`),
+                CONSTRAINT `fk_material_file_sub` FOREIGN KEY (`submission_id`) REFERENCES `material_submissions` (`id`) ON DELETE CASCADE
+            ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci",
+        ] as $ddl) {
+            try { $pdo->exec($ddl); } catch (PDOException $ex) { error_log('migration materials: ' . $ex->getMessage()); }
+        }
+
         // Migration 2.1: Add support for asynchrone / homework options in live evaluations
         try {
             $pdo->query("SELECT is_async, async_deadline FROM live_eval_sessions LIMIT 1");
@@ -1342,6 +1402,26 @@ class Database
 
         // Migration 2.26: an evaluation can start live and go on as a free assignment once the live window is over.
         try { $pdo->exec("ALTER TABLE `live_eval_sessions` ADD COLUMN `async_after_live` TINYINT(1) NOT NULL DEFAULT 0"); } catch (PDOException $ex) { /* already applied */ }
+
+        // Migration 3.2: the grading bucket and the rule-based marking engine (lib/MarkingEngine.php, teacher/marking.php).
+        //  - lessons.assignment_marking_rules   the teacher's rules (key points, model answer, strictness, tone, penalties), JSON
+        //  - lessons.assignment_marking_at      when the teacher sent the copies to marking (students then see "being marked")
+        //  - submissions.in_marking_at          this copy is in the bucket: it can no longer be changed
+        //  - submissions.engine_*               the engine's proposal, kept next to the teacher's final mark (reliability)
+        foreach ([
+            "ALTER TABLE `lessons` ADD COLUMN `assignment_marking_rules` MEDIUMTEXT DEFAULT NULL",
+            "ALTER TABLE `lessons` ADD COLUMN `assignment_marking_at` DATETIME DEFAULT NULL",
+            "ALTER TABLE `lesson_assignment_submissions` ADD COLUMN `in_marking_at` DATETIME DEFAULT NULL",
+            "ALTER TABLE `lesson_assignment_submissions` ADD COLUMN `engine_score` DECIMAL(6,2) DEFAULT NULL",
+            "ALTER TABLE `lesson_assignment_submissions` ADD COLUMN `engine_confidence` VARCHAR(8) DEFAULT NULL",
+            "ALTER TABLE `lesson_assignment_submissions` ADD COLUMN `engine_result` MEDIUMTEXT DEFAULT NULL",
+            "ALTER TABLE `lesson_assignment_submissions` ADD COLUMN `engine_text` MEDIUMTEXT DEFAULT NULL",
+            "ALTER TABLE `lesson_assignment_submissions` ADD COLUMN `engine_error` VARCHAR(20) DEFAULT NULL",
+            "ALTER TABLE `lesson_assignment_submissions` ADD COLUMN `engine_at` DATETIME DEFAULT NULL",
+            "ALTER TABLE `lesson_assignment_submissions` ADD KEY `idx_asg_marking` (`in_marking_at`, `engine_at`)",
+        ] as $ddl) {
+            try { $pdo->exec($ddl); } catch (PDOException $ex) { /* already applied */ }
+        }
     }
 
     /**

@@ -12,7 +12,7 @@ require_once __DIR__ . '/../lib/LiveCodeReview.php';
 header('Content-Type: application/json; charset=utf-8');
 header('Cache-Control: no-store');
 Security::requirePostFromSameSite();
-if (!isLoggedIn() || ($_SESSION['user_role'] ?? '') !== 'teacher') {
+if (!isLoggedIn() || !isTeacherRole($_SESSION['user_role'] ?? null)) {
     http_response_code(403);
     exit(json_encode(['ok' => false, 'message' => 'forbidden']));
 }

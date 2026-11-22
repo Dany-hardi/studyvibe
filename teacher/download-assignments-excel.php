@@ -9,7 +9,7 @@ declare(strict_types=1);
 
 require_once __DIR__ . '/../auth.php';
 
-if (!isLoggedIn() || ($_SESSION['user_role'] !== 'teacher' && $_SESSION['user_role'] !== 'promoter')) {
+if (!isLoggedIn() || (!isTeacherRole($_SESSION['user_role'] ?? null) && $_SESSION['user_role'] !== 'promoter')) {
     http_response_code(403);
     die('Accès non autorisé.');
 }
@@ -47,7 +47,7 @@ try {
 
     $params = [];
 
-    if ($_SESSION['user_role'] === 'teacher') {
+    if (isTeacherRole($_SESSION['user_role'] ?? null)) {
         $sql .= " AND c.teacher_id = :tid";
         $params['tid'] = $teacherId;
     }

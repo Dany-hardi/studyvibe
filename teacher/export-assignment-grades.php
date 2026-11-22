@@ -30,7 +30,7 @@ try {
     $st = $pdo->prepare("SELECT id, title, teacher_id FROM courses WHERE id = :id");
     $st->execute(['id' => $courseId]);
     $course = $st->fetch(PDO::FETCH_ASSOC);
-    if (!$course || ($_SESSION['user_role'] === 'teacher' && (int)$course['teacher_id'] !== (int)$_SESSION['user_id'])) {
+    if (!$course || (isTeacherRole($_SESSION['user_role'] ?? null) && (int)$course['teacher_id'] !== (int)$_SESSION['user_id'])) {
         http_response_code(403);
         exit('Cours introuvable ou non autorisé.');
     }

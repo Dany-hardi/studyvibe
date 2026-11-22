@@ -50,7 +50,7 @@ HTML],
 <tr><td><code>code_lang</code></td><td>pour <code>code</code></td><td>Le langage attendu : php, python, java, javascript, typescript, c, cpp, csharp, sql, bash, go, rust (sinon « other »)</td><td>langage, language</td></tr>
 <tr><td><code>reference</code></td><td>pour <code>code</code> et <code>open</code> (ou <code>marking_notes</code>)</td><td>La ou les solutions de référence (plusieurs séparées par une ligne <code>---</code>) ou la réponse complète attendue. Jamais montrée aux étudiants. L’IA s’en sert comme point de départ mais juge aussi la logique : une autre approche valide est acceptée</td><td>reference_solution, reference_answer, model_answer</td></tr>
 <tr><td><code>marking_notes</code></td><td>non</td><td>Consignes de correction : une ligne <code>ESSENTIEL : …</code> par point obligatoire, contraintes, variantes acceptées ou refusées. L’image de la question est envoyée à l’IA avec l’énoncé. Ces types ne s’importent que par un pack ZIP et exigent la clé <code>ANTHROPIC_API_KEY</code> sur le serveur</td><td>notes, consignes, points_essentiels, rubric</td></tr>
-<tr><td><code>time_limit</code></td><td>non</td><td>Durée de cette question, en secondes : un entier entre <strong>5</strong> et <strong>3600</strong>. Vide : la durée par défaut de la séance s’applique. <strong>Ignorée pour les questions de code</strong> : elles n’ont jamais de limite de temps</td><td>temps, durée, timer, secondes</td></tr>
+<tr><td><code>time_limit</code></td><td>non</td><td><strong>Ignorée.</strong> Le temps par question se règle une seule fois sur la séance et vaut pour toutes les questions. Un ancien fichier qui a encore cette colonne s’importe sans erreur</td><td>temps, durée, timer, secondes</td></tr>
 <tr><td><code>image</code></td><td>non</td><td>Le nom d’une image du pack ZIP (voir « Avec images »). Sans effet dans un simple fichier .csv</td><td>img, illustration, figure, photo</td></tr>
 </tbody></table>
 <p>Une colonne de numérotation (<code>N°</code>, <code>id</code>, <code>numéro</code>…) est ignorée automatiquement. Toute colonne inconnue est ignorée.</p>
@@ -84,7 +84,6 @@ HTML],
 <tr><td>Plusieurs réponses acceptées</td><td>Séparez-les par une barre verticale <code>|</code></td><td><code>5|cinq</code></td></tr>
 <tr><td>Réponse numérique avec tolérance</td><td><code>valeur~tolérance</code> accepte toute valeur entre valeur − tolérance et valeur + tolérance</td><td><code>2.5~0.1</code> accepte de 2,4 à 2,6</td></tr>
 <tr><td>Comparaison des réponses écrites</td><td>Majuscules, espaces et virgule/point décimal sont ignorés ; deux nombres sont comparés comme des nombres (2.50 égale 2.5)</td><td>—</td></tr>
-<tr><td><strong>Durée propre à la question</strong></td><td>Colonne <code>time_limit</code>, en secondes, de 5 à 3600. Vide : durée par défaut de la séance</td><td><code>…,B,"Explication",,45</code></td></tr>
 <tr><td><strong>Formule mathématique</strong></td><td>Entre deux signes dollar, en syntaxe LaTeX (KaTeX), dans l’énoncé, les propositions ou l’explication</td><td><code>$\frac{a}{b}$</code></td></tr>
 <tr><td><strong>Extrait de code</strong></td><td>Cellule entre guillemets avec retours à la ligne, ou mieux : une <strong>image</strong> du code (lisible sur tous les écrans)</td><td>voir l’exemple CSV plus haut</td></tr>
 </tbody></table>
@@ -166,7 +165,6 @@ HTML],
 <tr><td>Ligne N : champs de QCM incomplets.</td><td>Un QCM doit avoir l’énoncé et les propositions A, B, C, D (A et B seulement pour le vrai/faux) ; une des cellules est vide</td><td>Remplissez-les, ou laissez les quatre options vides pour une question écrite</td></tr>
 <tr><td>Ligne N : réponse correcte QCM invalide (utilisez A, B, C ou D…).</td><td>La colonne <code>correct</code> contient autre chose que A, B, C, D (ou 1 à 4). Pour un vrai/faux : seulement A ou B</td><td>Écrivez une seule lettre</td></tr>
 <tr><td>Ligne N : énoncé de question ouverte vide. / réponse attendue de question ouverte vide.</td><td>Question écrite sans énoncé, ou sans réponse dans <code>correct</code></td><td>Complétez l’énoncé et la colonne <code>correct</code></td></tr>
-<tr><td>Ligne N : temps invalide « x » (…)</td><td>La colonne <code>time_limit</code> n’est pas un entier de 5 à 3600</td><td>Écrivez un nombre de secondes (par exemple 45) ou laissez vide</td></tr>
 <tr><td>Fichier CSV vide. / Aucune question valide trouvée dans le CSV.</td><td>Le fichier ne contient aucune ligne exploitable</td><td>Vérifiez la ligne de titre et le séparateur</td></tr>
 <tr><td>Trop de questions (__Q__ au plus par pack). / Le ZIP contient trop de fichiers (__F__ au plus).</td><td>Le pack dépasse les limites</td><td>Scindez en plusieurs packs</td></tr>
 <tr><td>Le fichier dépasse la taille maximale acceptée par le serveur (__ZIP__ Mo…)</td><td>Le ZIP est plus gros que ce que le serveur accepte</td><td>Réduisez les images ou scindez en deux packs</td></tr>
@@ -203,7 +201,6 @@ HTML],
 <li><strong>Répartissez les bonnes réponses</strong> entre A, B, C et D (environ un quart chacune) et évitez trois fois la même lettre de suite.</li>
 <li><strong>Une image doit apporter une information nécessaire</strong> (code, schéma, tableau, courbe), pas décorer. Écrivez dans l’énoncé « voir l’image » pour que l’étudiant la cherche.</li>
 <li>Pour du code, une <strong>image</strong> du code évite les problèmes d’indentation et de caractères ; pour un diagramme, un PNG net de 1000 à 1600 pixels de large convient.</li>
-<li>Adaptez la durée : plus longue pour une question qui demande de lire une image ou un code (colonne <code>time_limit</code>).</li>
 <li>Gardez toujours une <strong>copie de votre pack ZIP</strong> : c’est le moyen le plus simple de recréer ou de modifier toute la séance.</li>
 </ul>
 HTML],
@@ -246,7 +243,7 @@ HTML],
 <tr><td><code>code_lang</code></td><td>for <code>code</code></td><td>The expected language: php, python, java, javascript, typescript, c, cpp, csharp, sql, bash, go, rust (otherwise "other")</td><td>language</td></tr>
 <tr><td><code>reference</code></td><td>for <code>code</code> and <code>open</code> (or <code>marking_notes</code>)</td><td>The reference solution(s) (several separated by a <code>---</code> line) or the complete expected answer. Never shown to students. The AI uses it as a starting point but also judges the logic: another valid approach is accepted</td><td>reference_solution, reference_answer, model_answer</td></tr>
 <tr><td><code>marking_notes</code></td><td>no</td><td>Marking notes: one <code>ESSENTIAL: …</code> line per mandatory point, constraints, accepted or refused variants. The picture of the question is sent to the AI with the statement. These types only import through a ZIP package and need the <code>ANTHROPIC_API_KEY</code> key on the server</td><td>notes, rubric, essential_points</td></tr>
-<tr><td><code>time_limit</code></td><td>no</td><td>Time for this question in seconds: a whole number from <strong>5</strong> to <strong>3600</strong>. Empty: the session default applies. <strong>Ignored for code questions</strong>: they never have a time limit</td><td>time, duration, timer, seconds</td></tr>
+<tr><td><code>time_limit</code></td><td>no</td><td><strong>Ignored.</strong> The time per question is set once on the session and applies to every question. An older file that still has this column imports without error</td><td>time, duration, timer, seconds</td></tr>
 <tr><td><code>image</code></td><td>no</td><td>The name of a picture inside the ZIP package (see “With pictures”). Has no effect in a plain .csv file</td><td>img, illustration, figure, photo</td></tr>
 </tbody></table>
 <p>A numbering column (<code>No.</code>, <code>id</code>, <code>number</code>…) is ignored automatically. Any unknown column is ignored.</p>
@@ -280,7 +277,6 @@ HTML],
 <tr><td>Several accepted answers</td><td>Separate them with a vertical bar <code>|</code></td><td><code>5|five</code></td></tr>
 <tr><td>Numeric answer with tolerance</td><td><code>value~tolerance</code> accepts anything from value − tolerance to value + tolerance</td><td><code>2.5~0.1</code> accepts 2.4 to 2.6</td></tr>
 <tr><td>How written answers are compared</td><td>Case, spaces and decimal comma/point are ignored; two numbers are compared as numbers (2.50 equals 2.5)</td><td>—</td></tr>
-<tr><td><strong>Time for one question</strong></td><td><code>time_limit</code> column, in seconds, 5 to 3600. Empty: the session default</td><td><code>…,B,"Explanation",,45</code></td></tr>
 <tr><td><strong>Maths formula</strong></td><td>Between two dollar signs, in LaTeX syntax (KaTeX), in the statement, options or explanation</td><td><code>$\frac{a}{b}$</code></td></tr>
 <tr><td><strong>Code snippet</strong></td><td>A quoted cell with line breaks, or better: a <strong>picture</strong> of the code (readable on every screen)</td><td>see the CSV example above</td></tr>
 </tbody></table>
@@ -363,7 +359,6 @@ HTML],
 <tr><td>Ligne N : champs de QCM incomplets. (incomplete multiple choice)</td><td>A multiple-choice question needs the statement and options A, B, C, D (only A and B for true/false); a cell is empty</td><td>Fill them in, or leave all four options empty for a written question</td></tr>
 <tr><td>Ligne N : réponse correcte QCM invalide… (invalid correct answer)</td><td><code>correct</code> holds something other than A, B, C, D (or 1 to 4). True/false: only A or B</td><td>Write a single letter</td></tr>
 <tr><td>Ligne N : énoncé / réponse attendue de question ouverte vide. (written question missing statement or answer)</td><td>A written question without a statement, or without an answer in <code>correct</code></td><td>Complete the statement and the <code>correct</code> column</td></tr>
-<tr><td>Ligne N : temps invalide « x » (invalid time)</td><td><code>time_limit</code> is not a whole number from 5 to 3600</td><td>Write a number of seconds (e.g. 45) or leave it empty</td></tr>
 <tr><td>Fichier CSV vide. / Aucune question valide trouvée dans le CSV. (empty / no valid question)</td><td>The file holds no usable row</td><td>Check the header row and the separator</td></tr>
 <tr><td>Trop de questions (__Q__ au plus par pack). / Le ZIP contient trop de fichiers (__F__ au plus). (too many)</td><td>The package exceeds the limits</td><td>Split into several packages</td></tr>
 <tr><td>Le fichier dépasse la taille maximale acceptée par le serveur (__ZIP__ Mo…) (file too large)</td><td>The ZIP is bigger than the server accepts</td><td>Shrink the pictures or split into two packages</td></tr>
@@ -400,7 +395,6 @@ HTML],
 <li><strong>Spread the right answers</strong> over A, B, C and D (about a quarter each) and avoid the same letter three times in a row.</li>
 <li><strong>A picture must carry necessary information</strong> (code, diagram, table, curve), not decorate. Write “see the picture” in the statement so students look for it.</li>
 <li>For code, a <strong>picture</strong> of the code avoids indentation and character problems; for a diagram, a sharp PNG 1000 to 1600 pixels wide is fine.</li>
-<li>Adjust the time: longer for a question that requires reading a picture or code (<code>time_limit</code> column).</li>
 <li>Always keep a <strong>copy of your ZIP package</strong>: it is the simplest way to rebuild or modify the whole session.</li>
 </ul>
 HTML],

@@ -258,7 +258,8 @@ try {
             SELECT l.id AS lesson_id, l.title AS lesson_title, l.assignment_title, l.assignment_deadline, l.assignment_max_score,
                    c.id AS course_id, c.title AS course_title,
                    s.submitted_at, s.is_late, s.score, s.feedback, s.graded_at, s.revision_requested_at,
-                   s.released_at, s.rubric_scores, s.feedback_file_path, s.feedback_file_name, s.id AS submission_id, s.attempt_count
+                   s.released_at, s.rubric_scores, s.feedback_file_path, s.feedback_file_name, s.id AS submission_id, s.attempt_count,
+                   s.in_marking_at, l.assignment_allow_resubmit
             FROM enrollments e
             JOIN courses c ON c.id = e.course_id
             JOIN chapters ch ON ch.course_id = c.id
@@ -278,6 +279,14 @@ try {
         }
     } catch (Throwable $asgEx) {
         $myAssignments = [];
+    }
+    // 13. "Mes notes": the mark obtained in each course (released assignment marks, evaluations, final exam), on /20
+    $myGrades = [];
+    try {
+        require_once __DIR__ . '/../lib/StudentGrades.php';
+        $myGrades = StudentGrades::forStudent($pdo, (int)$user['id'], (string)$user['email']);
+    } catch (Throwable $grEx) {
+        $myGrades = [];
     }
 } catch (PDOException $e) {
     dieSafe('Erreur serveur. Veuillez réessayer.', $e, 'student/dashboard');
@@ -804,6 +813,50 @@ $nav = [
         <div><dt><?= sdH(sd('fig_time')) ?></dt><dd class="num"><span data-kpi="time2"><?= sdH($studyTimeLabel) ?></span></dd></div>
     </dl>
 
+    <?php
+    $g20 = static fn($v) => $v === null ? '—' : rtrim(rtrim(number_format((float)$v, 2, $lang === 'en' ? '.' : ',', ''), '0'), $lang === 'en' ? '.' : ',');
+    $gradedCourses = array_values(array_filter($myGrades, fn($g) => $g['parts'] > 0 || $g['pending'] > 0));
+    ?>
+    <section class="sd-block" id="r-grades" aria-labelledby="r-grades-h">
+        <h2 id="r-grades-h" class="sd-h2"><?= sdH(sd('grades_title')) ?></h2>
+        <p class="sd-meta"><?= sdH(sd('grades_lede')) ?></p>
+        <?php if (empty($gradedCourses)): ?>
+            <p class="sd-empty"><?= sdH(sd('grades_none')) ?></p>
+        <?php else: ?>
+        <div class="sd-tablewrap">
+        <table class="sd-table">
+            <thead><tr><th scope="col"><?= sdH(sd('th_course')) ?></th><th scope="col" class="r"><?= sdH(sd('th_asg')) ?></th><th scope="col" class="r"><?= sdH(sd('th_eval')) ?></th><th scope="col" class="r"><?= sdH(sd('th_exam')) ?></th><th scope="col" class="r"><?= sdH(sd('th_mark')) ?></th></tr></thead>
+            <tbody>
+            <?php foreach ($gradedCourses as $g): ?>
+                <tr>
+                    <th scope="row"><?= sdH($g['title']) ?>
+                        <?php if ($g['pending'] > 0): ?><small><?= sdH(str_replace(':n', (string)$g['pending'], sd('grades_pending'))) ?></small><?php endif; ?>
+                        <details class="sd-meta"><summary><?= sdH(sd('grades_detail')) ?></summary>
+                            <ul class="sd-rubric">
+                            <?php foreach ($g['assignments'] as $ga): if ($ga['score'] === null && $ga['status'] !== 'in_marking') continue; ?>
+                                <li><?= sdH($ga['title']) ?> : <span class="num"><?= $ga['score'] !== null ? sdH($g20($ga['score'])) . ' / ' . sdH($g20($ga['max'])) : sdH(sd('as_status_in_marking')) ?></span></li>
+                            <?php endforeach; ?>
+                            <?php foreach ($g['evaluations'] as $ge): ?>
+                                <li><?= sdH($ge['title']) ?> : <span class="num"><?= sdH($g20($ge['percent'] / 5)) ?> / 20</span></li>
+                            <?php endforeach; ?>
+                            <?php if ($g['exam']): ?>
+                                <li><?= sdH(sd('th_exam')) ?> : <span class="num"><?= sdH($g20($g['exam']['percent'] / 5)) ?> / 20</span> (<?= sdH(str_replace(':n', (string)$g['exam']['attempts'], sd('grades_best'))) ?>)</li>
+                            <?php endif; ?>
+                            </ul>
+                        </details>
+                    </th>
+                    <td class="r num" data-label="<?= sdH(sd('th_asg')) ?>"><?= sdH($g20($g['asg20'])) ?></td>
+                    <td class="r num" data-label="<?= sdH(sd('th_eval')) ?>"><?= sdH($g20($g['eval20'])) ?></td>
+                    <td class="r num" data-label="<?= sdH(sd('th_exam')) ?>"><?= sdH($g20($g['exam20'])) ?></td>
+                    <td class="r num" data-label="<?= sdH(sd('th_mark')) ?>"><strong><?= $g['mark20'] !== null ? sdH($g20($g['mark20'])) . ' / 20' : '—' ?></strong></td>
+                </tr>
+            <?php endforeach; ?>
+            </tbody>
+        </table>
+        </div>
+        <?php endif; ?>
+    </section>
+
     <section class="sd-block" aria-labelledby="r-courses">
         <h2 id="r-courses" class="sd-h2"><?= sdH(sd('by_course')) ?></h2>
         <?php if (empty($transcriptCourses)): ?>
@@ -835,8 +888,10 @@ $nav = [
             <thead><tr><th scope="col"><?= sdH(sd('th_assignment')) ?></th><th scope="col" class="r"><?= sdH(sd('th_deadline')) ?></th><th scope="col" class="r"><?= sdH(sd('th_status')) ?></th><th scope="col" class="r"><?= sdH(sd('th_score')) ?></th></tr></thead>
             <tbody>
             <?php foreach ($myAssignments as $ma):
-                $maSub = $ma['submitted_at'] !== null ? ['submitted_at' => $ma['submitted_at'], 'graded_at' => $ma['graded_at'], 'revision_requested_at' => $ma['revision_requested_at']] : null;
-                $maStatus = $maSub === null ? ((!empty($ma['assignment_deadline']) && strtotime($ma['assignment_deadline']) < time()) ? 'missed' : 'todo') : (!empty($ma['revision_requested_at']) && strtotime($ma['revision_requested_at']) >= strtotime($ma['submitted_at']) ? 'revision' : (!empty($ma['graded_at']) ? 'graded' : 'submitted'));
+                // one status list (lib/Assignments.php): a held mark reads "being marked", like a copy in the grading bucket
+                $maStatus = Assignments::studentPipeline($ma, $ma['submitted_at'] !== null ? $ma + ['released_at' => $ma['released_at'] ?? null] : null);
+                if (!empty($ma['awaiting_release'])) { $maStatus = 'in_marking'; }
+                if ($maStatus === 'released') { $maStatus = 'graded'; }
                 $maMax = rtrim(rtrim(number_format((float)$ma['assignment_max_score'], 2, ',', ''), '0'), ',');
             ?>
                 <tr>
@@ -850,7 +905,7 @@ $nav = [
                             <details class="sd-meta"><summary><?= sdH(sd('as_rubric_link')) ?></summary>
                                 <ul class="sd-rubric">
                                 <?php foreach ($ma['rubric_scores'] as $rs): ?>
-                                    <li><strong><?= sdH($rs['title']) ?></strong> <span class="num"><?= sdH(rtrim(rtrim(number_format((float)$rs['points'], 2, ',', ''), '0'), ',')) ?> / <?= sdH(rtrim(rtrim(number_format((float)$rs['max'], 2, ',', ''), '0'), ',')) ?></span><?= !empty($rs['level']) ? ' · ' . sdH($rs['level']) : '' ?><?= !empty($rs['comment']) ? '<br><em>' . sdH($rs['comment']) . '</em>' : '' ?></li>
+                                    <li><strong><?= sdH($rs['title']) ?></strong> <span class="num"><?= sdH(rtrim(rtrim(number_format((float)$rs['points'], 2, ',', ''), '0'), ',')) ?><?php if (empty($rs['penalty'])): ?> / <?= sdH(rtrim(rtrim(number_format((float)$rs['max'], 2, ',', ''), '0'), ',')) ?><?php endif; ?></span><?= !empty($rs['level']) ? ' · ' . sdH($rs['level']) : '' ?><?= !empty($rs['comment']) ? '<br><em>' . sdH($rs['comment']) . '</em>' : '' ?></li>
                                 <?php endforeach; ?>
                                 </ul>
                             </details>

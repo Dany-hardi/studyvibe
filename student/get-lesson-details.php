@@ -151,7 +151,7 @@ try {
         $subStmt = $pdo->prepare("
             SELECT id, submission_type, submitted_file_path, submitted_file_name, submitted_link, student_comment, submitted_at,
                    is_late, attempt_count, score, feedback, graded_at, revision_requested_at, revision_note,
-                   released_at, rubric_scores, feedback_file_path, feedback_file_name
+                   released_at, rubric_scores, feedback_file_path, feedback_file_name, in_marking_at
             FROM lesson_assignment_submissions
             WHERE lesson_id = :lid AND student_id = :sid
         ");

@@ -6,7 +6,7 @@ require_once __DIR__ . '/../Database.php';
 
 header('Content-Type: application/json');
 
-if (!isLoggedIn() || $_SESSION['user_role'] !== 'teacher') {
+if (!isLoggedIn() || !isTeacherRole($_SESSION['user_role'] ?? null)) {
     echo json_encode(['success' => false, 'message' => 'Accès non autorisé.']);
     exit;
 }
@@ -76,7 +76,7 @@ try {
             // Calculer la durée totale
             $totalDuration = 0;
             foreach ($questions as $q) {
-                $limit = $q['time_limit'] !== null ? (int)$q['time_limit'] : (int)$session['default_time_limit'];
+                $limit = (int)$session['default_time_limit'];
                 $totalDuration += $limit;
             }
 
@@ -87,7 +87,7 @@ try {
                 $currentTime = $startTime;
                 
                 foreach ($questions as $idx => $q) {
-                    $limit = $q['time_limit'] !== null ? (int)$q['time_limit'] : (int)$session['default_time_limit'];
+                    $limit = (int)$session['default_time_limit'];
                     $qStart = $currentTime;
                     $qEnd = $currentTime + $limit;
 

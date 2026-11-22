@@ -33,7 +33,7 @@ final class ExportDocs
 
         $seconds = 0;
         foreach ($questions as $q) {
-            $seconds += $q['time_limit'] !== null ? (int)$q['time_limit'] : (int)$session['default_time_limit'];
+            $seconds += (int)$session['default_time_limit'];   // one time for every question
         }
         $minutes = (int)ceil($seconds / 60);
 

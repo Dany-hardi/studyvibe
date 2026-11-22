@@ -146,10 +146,11 @@ function requireRole(string $role): void
         exit;
     }
     
-    // Redirect if session role does not match gating role
-    if ($_SESSION['user_role'] !== $role) {
+    // Redirect if session role does not match gating role. A super teacher uses the teacher pages (with more access, see canViewCourse()).
+    if ($_SESSION['user_role'] !== $role && !($role === 'teacher' && isTeacherRole($_SESSION['user_role'] ?? null))) {
         $map = [
             'promoter' => 'promoter/dashboard.php',
+            'super_teacher' => 'teacher/dashboard.php',
             'teacher'  => 'teacher/dashboard.php',
             'student'  => 'student/dashboard.php',
         ];
@@ -181,6 +182,42 @@ function requireRole(string $role): void
     } catch (Throwable $e) {
         error_log('reminder tick: ' . $e->getMessage());
     }
+}
+
+/**
+ * Roles. A super teacher is a teacher with more reach: they see every course (read only, they cannot change another teacher's
+ * content), they create their own quizzes on any course, and they receive the course material people send.
+ */
+function isTeacherRole(?string $role): bool
+{
+    return $role === 'teacher' || $role === 'super_teacher';
+}
+
+function isSuperTeacher(?string $role): bool
+{
+    return $role === 'super_teacher';
+}
+
+/** Can this user look at the course (its lessons, quizzes, results)? The owner, a super teacher, a promoter. */
+function canViewCourse(PDO $pdo, int $userId, ?string $role, int $courseId): bool
+{
+    if ($role === 'promoter' || isSuperTeacher($role)) {
+        $st = $pdo->prepare("SELECT 1 FROM courses WHERE id = :c");
+        $st->execute(['c' => $courseId]);
+        return (bool)$st->fetchColumn();
+    }
+    return canEditCourse($pdo, $userId, $role, $courseId);
+}
+
+/** Can this user change the course itself (chapters, lessons, assignments, settings)? Only the teacher who owns it. */
+function canEditCourse(PDO $pdo, int $userId, ?string $role, int $courseId): bool
+{
+    if (!isTeacherRole($role)) {
+        return false;
+    }
+    $st = $pdo->prepare("SELECT 1 FROM courses WHERE id = :c AND teacher_id = :t");
+    $st->execute(['c' => $courseId, 't' => $userId]);
+    return (bool)$st->fetchColumn();
 }
 
 // =========================================================================

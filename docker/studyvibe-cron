@@ -1,2 +1,4 @@
 # Sends the e-mail queue and, 15 minutes before a live evaluation, its reminder (see lib/LiveReminders.php). Every minute.
 * * * * * www-data /usr/local/bin/php /var/www/html/lib/email-worker.php >/dev/null 2>&1
+# Runs the rule-based marking engine on copies sent to the grading bucket (lib/MarkingBucket.php). Every minute.
+* * * * * www-data /usr/local/bin/php /var/www/html/lib/marking-worker.php >/dev/null 2>&1

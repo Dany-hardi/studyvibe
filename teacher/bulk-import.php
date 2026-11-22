@@ -17,7 +17,7 @@ require_once __DIR__ . '/../lib/BulkPackage.php';
 require_once __DIR__ . '/../lib/Security.php';
 require_once __DIR__ . '/../lib/RateLimit.php';
 
-if (!isLoggedIn() || ($_SESSION['user_role'] ?? '') !== 'teacher') {
+if (!isLoggedIn() || !isTeacherRole($_SESSION['user_role'] ?? null)) {
     http_response_code(403);
     header('Content-Type: application/json');
     echo json_encode(['success' => false, 'message' => 'Accès non autorisé.']);

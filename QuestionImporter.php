@@ -197,7 +197,7 @@ class QuestionImporter
                 'co'  => $q['correct_option'],
                 'exp' => $q['explanation'] ?? null,
                 'type' => $q['question_type'] ?? 'mcq',
-                'tl'   => $q['time_limit'] ?? null,
+                'tl'   => null,   // the quiz has one time for every question: a time column in the file is read but not stored
                 'img'  => $q['image_path'] ?? null,
                 'cl'   => $q['code_lang'] ?? null,
                 'cr'   => $q['code_reference'] ?? null,
@@ -517,9 +517,6 @@ class QuestionImporter
                 'time_limit'     => ($timeRaw !== '' && ctype_digit($timeRaw) && (int)$timeRaw >= 5 && (int)$timeRaw <= 3600) ? (int)$timeRaw : null,
                 'line'           => $line,
             ];
-            if ($timeRaw !== '' && $questions[array_key_last($questions)]['time_limit'] === null) {
-                $errors[] = "Ligne {$line} : temps invalide « {$timeRaw} » (un nombre entier de secondes entre 5 et 3600, ou laissez la case vide).";
-            }
         }
 
         return ['questions' => $questions, 'errors' => $errors];

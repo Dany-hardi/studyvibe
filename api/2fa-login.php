@@ -40,7 +40,7 @@ try {
     establishSession((int)$res['uid'], (string)$u['role']);
     auditLog('login_success_2fa', "User #{$res['uid']} ({$u['role']})");
 
-    $map = ['promoter' => '/promoter/dashboard.php', 'teacher' => '/teacher/dashboard.php', 'student' => '/student/dashboard.php'];
+    $map = ['promoter' => '/promoter/dashboard.php', 'teacher' => '/teacher/dashboard.php', 'super_teacher' => '/teacher/dashboard.php', 'student' => '/student/dashboard.php'];
     echo json_encode(['success' => true, 'redirect' => $res['redirect'] ?? ($map[$u['role']] ?? '/index.php')]);
 } catch (Throwable $e) {
     logServerError($e, 'api/2fa-login');

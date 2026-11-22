@@ -9,7 +9,7 @@ require_once __DIR__ . '/../auth.php';
 require_once __DIR__ . '/../lib/ExportDocs.php';
 
 // Verify teacher access
-if (!isLoggedIn() || $_SESSION['user_role'] !== 'teacher') {
+if (!isLoggedIn() || !isTeacherRole($_SESSION['user_role'] ?? null)) {
     header('Location: /index.php');
     exit;
 }

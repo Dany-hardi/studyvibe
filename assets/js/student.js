@@ -91,7 +91,7 @@ function setSub(sub) {
 function switchTab(tab, sub, opts) {
     opts = opts || {};
     // legacy names used by older links
-    const legacy = { catalogue: ['courses', 'catalogue'], 'mes-cours': ['courses', 'mine'], bibliotheque: ['courses', 'library'], releve: ['results'], certifications: ['certs'], achievements: ['certs'], 'tele-evaluations': ['evals'], profil: ['profile'] };
+    const legacy = { notes: ['results'], grades: ['results'], catalogue: ['courses', 'catalogue'], 'mes-cours': ['courses', 'mine'], bibliotheque: ['courses', 'library'], releve: ['results'], certifications: ['certs'], achievements: ['certs'], 'tele-evaluations': ['evals'], profil: ['profile'] };
     if (legacy[tab]) { sub = sub || legacy[tab][1]; tab = legacy[tab][0]; }
     if (TABS.indexOf(tab) < 0) tab = 'home';
     currentTab = tab;
@@ -113,7 +113,7 @@ function routeFromHash() {
     const h = (location.hash || '').replace('#', '');
     if (!h) return false;
     const [t, s] = h.split('/');
-    if (TABS.indexOf(t) < 0 && !['catalogue', 'mes-cours', 'bibliotheque', 'releve', 'certifications', 'achievements', 'tele-evaluations', 'profil'].includes(t)) return false;
+    if (TABS.indexOf(t) < 0 && !['notes', 'grades', 'catalogue', 'mes-cours', 'bibliotheque', 'releve', 'certifications', 'achievements', 'tele-evaluations', 'profil'].includes(t)) return false;
     switchTab(t, s, { noHash: true, noFocus: true });
     return true;
 }
@@ -1003,10 +1003,12 @@ function renderLessonAssignmentBox(lesson, submission, state, rubric) {
             h += '<div class="rd-grade"><strong>' + esc(T('as_mark')) + ' : <span class="num">' + esc(fmtN(submission.score)) + ' / ' + esc(fmtN(state.max_score)) + '</span></strong>'
               + (submission.graded_at ? ' <small>(' + esc(fmtDateTime(submission.graded_at)) + ')</small>' : '')
               + (submission.feedback ? '<div class="rd-feedback-text"><em>' + esc(T('as_feedback')) + '</em><br>' + esc(submission.feedback).replace(/\n/g, '<br>') + '</div>' : '')
-              + ((submission.rubric_scores && submission.rubric_scores.length) ? '<div class="rd-feedback-text"><em>' + esc(T('as_crit_detail')) + '</em><ul class="rd-crit">' + submission.rubric_scores.map(r => '<li><strong>' + esc(r.title) + '</strong> <span class="num">' + esc(fmtN(r.points)) + ' / ' + esc(fmtN(r.max)) + '</span>' + (r.level ? ' · ' + esc(r.level) : '') + (r.comment ? '<br><em>' + esc(r.comment) + '</em>' : '') + '</li>').join('') + '</ul></div>' : '')
+              + ((submission.rubric_scores && submission.rubric_scores.length) ? '<div class="rd-feedback-text"><em>' + esc(T('as_crit_detail')) + '</em><ul class="rd-crit">' + submission.rubric_scores.map(r => '<li><strong>' + esc(r.title) + '</strong> <span class="num">' + (r.penalty ? esc(fmtN(r.points)) : esc(fmtN(r.points)) + ' / ' + esc(fmtN(r.max))) + '</span>' + (r.level ? ' · ' + esc(r.level) : '') + (r.comment ? '<br><em>' + esc(r.comment) + '</em>' : '') + '</li>').join('') + '</ul></div>' : '')
               + (submission.feedback_file_url ? '<div class="rd-feedback-text">📎 <a href="' + esc(submission.feedback_file_url) + '">' + esc(T('as_fbfile')) + (submission.feedback_file_name ? ' (' + esc(submission.feedback_file_name) + ')' : '') + '</a></div>' : '') + '</div>';
+        } else if (state.status === 'in_marking') {
+            h += '<div class="rd-grade"><strong>' + esc(T('as_in_marking')) + '</strong></div>';
         } else if (state.status === 'submitted') {
-            h += '<div class="rd-grade"><em>' + esc(T('as_waiting')) + '</em></div>';
+            h += '<div class="rd-grade"><em>' + esc(T('as_waiting')) + '</em>' + (state.can_submit ? '<br>' + esc(T('as_editable')) : '') + '</div>';
         }
         if (state.status === 'revision') {
             h += '<div class="rd-grade is-warn"><strong>' + esc(T('as_revision')) + '</strong><br>' + esc(submission.revision_note || '').replace(/\n/g, '<br>') + '</div>';
@@ -1024,10 +1026,13 @@ function renderLessonAssignmentBox(lesson, submission, state, rubric) {
     } else {
         lock(true);
         if (btnSpan) btnSpan.textContent = submission ? T('as_sent_btn') : T('as_closed_btn');
+        const m = byId('assignment-form-message');
         if (!submission || state.reason === 'deadline') {
-            const m = byId('assignment-form-message');
             m.className = 'rd-feedback is-bad';
-            m.textContent = state.reason === 'deadline' ? T('as_closed') : (state.reason === 'locked' ? T('as_locked') : '');
+            m.textContent = state.reason === 'deadline' ? (submission ? T('as_deadline_lock') : T('as_closed')) : (state.reason === 'locked' ? T('as_locked') : '');
+        } else if (state.reason === 'in_marking') {
+            m.className = 'rd-feedback';
+            m.textContent = T('as_marking_lock');
         }
     }
 }

@@ -75,7 +75,7 @@ if ($action === 'test') {
     }
     $lang = TranslationService::getLang() === 'en' ? 'en' : 'fr';
     $role = (string)($_SESSION['user_role'] ?? 'student');
-    $home = ['promoter' => '/promoter/dashboard.php', 'teacher' => '/teacher/dashboard.php'][$role] ?? '/student/dashboard.php';
+    $home = ['promoter' => '/promoter/dashboard.php', 'teacher' => '/teacher/dashboard.php', 'super_teacher' => '/teacher/dashboard.php'][$role] ?? '/student/dashboard.php';
     $id = PushQueue::enqueue($pdo, $uid, $lang === 'en' ? 'Notifications are on' : 'Les notifications sont activées',
         $lang === 'en' ? 'You will be told here about lessons, results and reminders.' : 'Vous serez prévenu ici des leçons, des résultats et des rappels.', $home, 'test');
     echo json_encode(['success' => $id !== null, 'queued' => $id !== null]);

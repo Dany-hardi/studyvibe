@@ -215,14 +215,16 @@ class Mailer
     public static function accountCreatedByAdmin(string $to, string $name, string $role, string $lang = 'fr', ?string $token = null, array $courses = [], int $hours = 0): bool
     {
         $en = $lang === 'en';
-        $label = ['student' => [$en ? 'student' : 'apprenant'], 'teacher' => [$en ? 'teacher' : 'enseignant'], 'promoter' => [$en ? 'administrator' : 'administrateur']][$role][0] ?? $role;
+        $label = ['student' => [$en ? 'student' : 'apprenant'], 'teacher' => [$en ? 'teacher' : 'enseignant'], 'super_teacher' => [$en ? 'super teacher' : 'super enseignant'], 'promoter' => [$en ? 'administrator' : 'administrateur']][$role][0] ?? $role;
         $invite = $token !== null;
         $url = $invite ? self::app() . '/reset-password.php?token=' . urlencode($token) : self::app();
-        $what = $role === 'teacher'
+        $what = $role === 'super_teacher'
+            ? ($en ? 'You can look at every course, create evaluations in any course and receive the course material people send.' : 'Vous pouvez consulter tous les cours, créer des évaluations dans n’importe quel cours et recevoir les supports de cours envoyés.')
+            : ($role === 'teacher'
             ? ($en ? 'You can create courses, schedule live evaluations and follow your students’ results.' : 'Vous pouvez créer vos cours, programmer des évaluations en direct et suivre les résultats de vos étudiants.')
             : ($role === 'promoter'
                 ? ($en ? 'You can manage accounts, courses, certificates and communications.' : 'Vous pouvez gérer les comptes, les cours, les certificats et les communications.')
-                : ($en ? 'Open your space to find your courses, take your evaluations and keep your certificates in one place.' : 'Ouvrez votre espace pour retrouver vos cours, passer vos évaluations et garder vos certificats au même endroit.'));
+                : ($en ? 'Open your space to find your courses, take your evaluations and keep your certificates in one place.' : 'Ouvrez votre espace pour retrouver vos cours, passer vos évaluations et garder vos certificats au même endroit.')));
         $list = '';
         if ($courses) {
             $list = EmailTheme::sectionTitle($en ? 'Your courses' : 'Vos cours')
@@ -836,6 +838,74 @@ class Mailer
             ['preheader' => $courseTitle, 'lang' => 'fr']
         );
         return self::send($to, 'Assignation de cours modifiée — StudyVibe', $html);
+    }
+
+    // ── Course material sent through contribute.php ────────────────────────
+
+    /** To the person who sent course material: we have it. */
+    public static function materialReceived(array $s, int $files): bool
+    {
+        $en = ($s['lang'] ?? 'fr') === 'en';
+        $html = EmailTheme::layout(
+            EmailTheme::badge($en ? 'Received' : 'Bien reçu', 'pine')
+            . EmailTheme::title($en ? 'Thank you for your course material' : 'Merci pour vos supports de cours')
+            . self::hello((string)($s['name'] ?: ($en ? 'there' : '')), $en ? 'en' : 'fr')
+            . EmailTheme::lede($en
+                ? 'Your documents reached the StudyVibe teaching team. They will be read and used to build quizzes that follow the real course.'
+                : 'Vos documents sont arrivés chez l’équipe pédagogique de StudyVibe. Ils seront lus et serviront à construire des quiz fidèles au vrai cours.')
+            . EmailTheme::facts([
+                [$en ? 'Reference' : 'Référence', self::h((string)$s['reference'])],
+                [$en ? 'Course' : 'Cours', self::h((string)$s['course_label'])],
+                [$en ? 'Field' : 'Filière', self::h((string)$s['filiere'] . (!empty($s['level']) ? ' · ' . $s['level'] : ''))],
+                [$en ? 'Files' : 'Fichiers', (string)$files . ' PDF'],
+            ])
+            . EmailTheme::small($en ? 'We will write again when your material is used.' : 'Nous vous écrirons quand vos supports auront servi.')
+            . EmailTheme::signature($en ? 'en' : 'fr'),
+            ['preheader' => ($en ? 'Reference ' : 'Référence ') . $s['reference'], 'lang' => $en ? 'en' : 'fr']
+        );
+        return self::send((string)$s['email'], ($en ? 'Course material received' : 'Supports de cours reçus') . ' (' . $s['reference'] . ') — StudyVibe', $html);
+    }
+
+    /** To a super teacher or promoter: new material to read. */
+    public static function materialToReview(string $to, string $name, array $s, int $files): bool
+    {
+        $html = EmailTheme::layout(
+            EmailTheme::badge('Nouveaux supports', 'clay')
+            . EmailTheme::title('Des supports de cours viennent d’arriver')
+            . self::hello($name)
+            . EmailTheme::facts([
+                ['Cours', self::h((string)$s['course_label'])],
+                ['Filière', self::h((string)$s['filiere'] . (!empty($s['level']) ? ' · ' . $s['level'] : ''))],
+                ['Fichiers', (string)$files . ' PDF'],
+                ['Envoyé par', self::h((string)$s['email'])],
+            ])
+            . EmailTheme::button(self::app() . '/teacher/contributions.php?id=' . (int)$s['id'], 'Ouvrir les contributions')
+            . EmailTheme::signature('fr'),
+            ['preheader' => 'Supports pour ' . $s['course_label'], 'lang' => 'fr']
+        );
+        return self::send($to, 'Nouveaux supports : ' . $s['course_label'] . ' — StudyVibe', $html);
+    }
+
+    /** To the sender, when the material was used for a quiz or could not be used. */
+    public static function materialDecision(array $s, bool $used): bool
+    {
+        $en = ($s['lang'] ?? 'fr') === 'en';
+        $body = $used
+            ? EmailTheme::lede($en
+                ? 'Your material was used to build quizzes for <strong>' . self::h((string)($s['course_title'] ?: $s['course_label'])) . '</strong>. Thank you for helping the other students.'
+                : 'Vos supports ont servi à construire des quiz pour <strong>' . self::h((string)($s['course_title'] ?: $s['course_label'])) . '</strong>. Merci d’aider les autres étudiants.')
+            : EmailTheme::lede($en ? 'We could not use the material you sent for <strong>' . self::h((string)$s['course_label']) . '</strong>.' : 'Nous n’avons pas pu utiliser les supports envoyés pour <strong>' . self::h((string)$s['course_label']) . '</strong>.')
+              . (!empty($s['reason']) ? EmailTheme::callout(self::h((string)$s['reason']), 'clay', $en ? 'Why' : 'Pourquoi') : '');
+        $html = EmailTheme::layout(
+            EmailTheme::badge($used ? ($en ? 'Used' : 'Utilisés') : ($en ? 'Not used' : 'Non retenus'), $used ? 'pine' : 'clay')
+            . EmailTheme::title($used ? ($en ? 'Your course material was used' : 'Vos supports ont servi') : ($en ? 'About your course material' : 'À propos de vos supports'))
+            . self::hello((string)($s['name'] ?: ''), $en ? 'en' : 'fr')
+            . $body
+            . EmailTheme::small(($en ? 'Reference ' : 'Référence ') . self::h((string)$s['reference']))
+            . EmailTheme::signature($en ? 'en' : 'fr'),
+            ['lang' => $en ? 'en' : 'fr']
+        );
+        return self::send((string)$s['email'], ($used ? ($en ? 'Your course material was used' : 'Vos supports ont servi') : ($en ? 'About your course material' : 'À propos de vos supports')) . ' — StudyVibe', $html);
     }
 
     public static function teacherApproved(string $to, string $name): bool

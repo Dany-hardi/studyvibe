@@ -32,9 +32,8 @@ final class LivePaced
         if (!self::isTimed($q)) {
             return null;
         }
-        $own = $q['time_limit'] ?? null;
-        $lim = $own !== null && (int)$own > 0 ? (int)$own : (int)($session['default_time_limit'] ?? 30);
-        return max(5, $lim);
+        // The quiz has one time, set by the teacher, and it applies to every question. A time stored on a question (old CSV or form) is ignored.
+        return max(5, (int)($session['default_time_limit'] ?? 30));
     }
 
     /** 'waiting' (not started), 'open', or 'closed' (the session is over). */

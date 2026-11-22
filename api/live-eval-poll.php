@@ -292,7 +292,7 @@ try {
     // Sum total evaluation duration
     $totalDuration = 0;
     foreach ($questions as $q) {
-        $limit = $q['time_limit'] !== null ? (int)$q['time_limit'] : (int)$session['default_time_limit'];
+        $limit = (int)$session['default_time_limit'];
         $totalDuration += $limit;
     }
 
@@ -322,7 +322,7 @@ try {
             $activeIndex = $submittedCount;
             $activeQ = $questions[$activeIndex];
             
-            $limit = $activeQ['time_limit'] !== null ? (int)$activeQ['time_limit'] : (int)$session['default_time_limit'];
+            $limit = (int)$session['default_time_limit'];
             
             // The running question and its start are kept on the registration, not in the PHP session, so coming back (another tab,
             // another day, another device) lands on the same question. Time spent away is not charged (LiveResume::CHARGE_AWAY_TIME).
@@ -363,7 +363,7 @@ try {
                 } else {
                     $activeIndex = $submittedCount;
                     $activeQ = $questions[$activeIndex];
-                    $limit = $activeQ['time_limit'] !== null ? (int)$activeQ['time_limit'] : (int)$session['default_time_limit'];
+                    $limit = (int)$session['default_time_limit'];
                     $pdo->prepare("UPDATE live_eval_registrations SET async_q_id = :q, async_q_started_at = :t WHERE id = :id")->execute(['q' => (int)$activeQ['id'], 't' => date('Y-m-d H:i:s', $now), 'id' => $regId]);
                     $secondsLeft = $limit;
                 }
@@ -376,7 +376,7 @@ try {
     else {
         if (!$isFinished) {
             foreach ($questions as $idx => $q) {
-                $limit = $q['time_limit'] !== null ? (int)$q['time_limit'] : (int)$session['default_time_limit'];
+                $limit = (int)$session['default_time_limit'];
                 $qStart = $currentTime;
                 $qEnd = $currentTime + $limit;
 

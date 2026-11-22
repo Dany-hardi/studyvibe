@@ -31,6 +31,7 @@ require_once __DIR__ . '/../lib/Archive.php';
 require_once __DIR__ . '/../lib/LiveEvents.php';
 require_once __DIR__ . '/../lib/BulkPackage.php';
 require_once __DIR__ . '/../lib/AssignmentRubric.php';
+require_once __DIR__ . '/../lib/Assignments.php';
 require_once __DIR__ . '/../lib/AssignmentSimilarity.php';
 require_once __DIR__ . '/../lib/StudentRequests.php';
 require_once __DIR__ . '/../lib/LiveSmsNotifier.php';
@@ -187,7 +188,13 @@ try {
     }
 
     // ── Fetch teacher courses ──────────────────────────────────────────────
-    $stmt = $pdo->prepare("SELECT * FROM courses WHERE teacher_id = :tid ORDER BY id DESC");
+    // A super teacher sees every course: their own first, then the others (read only, with the name of the teacher who owns it).
+    $isSuperTeacher = isSuperTeacher($user['role'] ?? null);
+    if ($isSuperTeacher) {
+        $stmt = $pdo->prepare("SELECT c.*, u.name AS owner_name FROM courses c LEFT JOIN users u ON u.id = c.teacher_id ORDER BY (c.teacher_id = :tid) DESC, c.title ASC");
+    } else {
+        $stmt = $pdo->prepare("SELECT * FROM courses WHERE teacher_id = :tid ORDER BY id DESC");
+    }
     $stmt->execute(['tid' => $user['id']]);
     $myCourses = $stmt->fetchAll();
 
@@ -207,16 +214,28 @@ try {
     $totalTeacherLiveSessions = (int)$stmt->fetchColumn();
 
     if ($selectedCourseId > 0) {
-        $stmt = $pdo->prepare("SELECT * FROM courses WHERE id = :id AND teacher_id = :tid");
-        $stmt->execute(['id' => $selectedCourseId, 'tid' => $user['id']]);
+        if ($isSuperTeacher) {
+            $stmt = $pdo->prepare("SELECT c.*, u.name AS owner_name FROM courses c LEFT JOIN users u ON u.id = c.teacher_id WHERE c.id = :id");
+            $stmt->execute(['id' => $selectedCourseId]);
+        } else {
+            $stmt = $pdo->prepare("SELECT * FROM courses WHERE id = :id AND teacher_id = :tid");
+            $stmt->execute(['id' => $selectedCourseId, 'tid' => $user['id']]);
+        }
         $selectedCourse = $stmt->fetch() ?: null;
     }
+    // Another teacher's course (only a super teacher gets here): everything can be looked at, nothing of the course can be changed.
+    // The only changes allowed are on the quizzes this user creates on it (each quiz action checks that the quiz is theirs).
+    $courseReadOnly = $selectedCourse !== null && (int)$selectedCourse['teacher_id'] !== $teacherId;
+    $tdQuizActions = ['add_live_session', 'edit_live_session', 'toggle_live_session', 'delete_live_session', 'delete_live_participant', 'recorrect_live_participant', 'reset_live_session', 'toggle_live_pause', 'add_live_question', 'delete_live_question', 'delete_all_live_questions'];
 
     // ─────────────────────────────────────────────────────────────────────
     // POST Actions
     // ─────────────────────────────────────────────────────────────────────
     if ($_SERVER['REQUEST_METHOD'] === 'POST' && $selectedCourse) {
         $action = (string)($_POST['action'] ?? $_GET['action'] ?? '');
+        if ($courseReadOnly && !in_array($action, $tdQuizActions, true)) {
+            header("Location: /teacher/dashboard.php?course_id={$selectedCourse['id']}&error=read_only"); exit;
+        }
 
         if (in_array($action, ['add_live_session', 'edit_live_session', 'toggle_live_session', 'delete_live_session', 'add_live_question', 'delete_live_question', 'delete_all_live_questions', 'delete_live_participant', 'reset_live_session', 'toggle_live_pause', 'set_question_times'], true)) {
             clearLiveSessionCache();
@@ -767,23 +786,6 @@ try {
             }
         }
 
-        // ── Temps des questions d'une séance (après un import, ou à tout moment) ─────────────
-        if ($action === 'set_question_times') {
-            $sid = (int)($_POST['session_id'] ?? 0);
-            $own = $pdo->prepare("SELECT 1 FROM live_eval_sessions WHERE id = :s AND teacher_id = :t");
-            $own->execute(['s' => $sid, 't' => $teacherId]);
-            if ($sid > 0 && $own->fetchColumn()) {
-                $times = is_array($_POST['times'] ?? null) ? $_POST['times'] : [];
-                $upd = $pdo->prepare("UPDATE live_eval_questions SET time_limit = :t WHERE id = :q AND session_id = :s AND question_type <> 'code'");   // never on a code question
-                foreach ($times as $qid => $v) {
-                    $v = trim((string)$v);
-                    $t = ($v !== '' && ctype_digit($v)) ? max(5, min(3600, (int)$v)) : null;
-                    $upd->execute(['t' => $t, 'q' => (int)$qid, 's' => $sid]);
-                }
-                header("Location: /teacher/dashboard.php?course_id={$selectedCourse['id']}&success=times_saved&open_session={$sid}#tab-live-eval"); exit;
-            }
-        }
-
         // ── N. Activer/Désactiver une séance de téléévaluation ────────
         if ($action === 'toggle_live_session') {
             $sid = (int)($_POST['session_id'] ?? 0);
@@ -950,7 +952,6 @@ try {
             $optionD      = trim((string)($_POST['option_d'] ?? ''));
             $correct      = trim((string)($_POST['correct_option'] ?? ''));
             $explanation  = trim((string)($_POST['explanation'] ?? ''));
-            $timeLimit    = trim((string)($_POST['time_limit'] ?? ''));
             
             $codeLang = LiveCodeReview::langOf((string)($_POST['code_lang'] ?? ''));
             $codeRef = mb_substr(str_replace(["\r\n", "\r"], "\n", trim((string)($_POST['code_reference'] ?? ''))), 0, LiveCodeReview::MAX_REFERENCE);
@@ -967,7 +968,12 @@ try {
                 if ((int)$fp->fetchColumn() !== 1) {
                     header("Location: /teacher/dashboard.php?course_id={$selectedCourse['id']}&error=live_code_needs_free&open_session={$sid}#tab-live-eval"); exit;
                 }
-                $timeLimit = '';       // a code question has no time limit
+            }
+            // The quiz must be one of this teacher's quizzes on this course (before, any session id was accepted).
+            $ownQ = $pdo->prepare("SELECT 1 FROM live_eval_sessions WHERE id = :s AND teacher_id = :t AND course_id = :c");
+            $ownQ->execute(['s' => $sid, 't' => $teacherId, 'c' => $selectedCourse['id']]);
+            if (!$ownQ->fetchColumn()) {
+                header("Location: /teacher/dashboard.php?course_id={$selectedCourse['id']}&error=read_only#tab-live-eval"); exit;
             }
             $isValid = false;
             if ($sid > 0 && !empty($questionText) && !empty($correct)) {
@@ -994,7 +1000,7 @@ try {
                     }
                 }
 
-                $tLimit = ($timeLimit === '') ? null : (int)$timeLimit;
+                $tLimit = null;   // the quiz has one time for every question (set on the session)
 
                 $stmt = $pdo->prepare("
                     INSERT INTO live_eval_questions (session_id, question_text, question_type, option_a, option_b, option_c, option_d, correct_option, explanation, time_limit, image_path,
@@ -1141,9 +1147,10 @@ try {
             SELECT s.*, 
                    (SELECT COUNT(*) FROM live_eval_questions WHERE session_id = s.id) AS question_count,
                    (SELECT COUNT(*) FROM live_eval_registrations WHERE session_id = s.id) AS participant_count,
-                   (SELECT COUNT(*) FROM live_eval_registrations WHERE session_id = s.id AND last_activity >= NOW() - INTERVAL 10 SECOND) AS online_count
+                   (SELECT COUNT(*) FROM live_eval_registrations WHERE session_id = s.id AND last_activity >= NOW() - INTERVAL 10 SECOND) AS online_count,
+                   (s.teacher_id = :tid) AS is_mine, (SELECT name FROM users WHERE id = s.teacher_id) AS owner_name
             FROM live_eval_sessions s
-            WHERE s.course_id = :cid AND s.teacher_id = :tid
+            WHERE s.course_id = :cid
             ORDER BY s.created_at DESC
         ");
         $stmt->execute(['cid' => $selectedCourse['id'], 'tid' => $teacherId]);
@@ -1156,7 +1163,7 @@ try {
 
             $totalDuration = 0;
             foreach ($ls['questions'] as $q) {
-                $limit = $q['time_limit'] !== null ? (int)$q['time_limit'] : (int)$ls['default_time_limit'];
+                $limit = (int)$ls['default_time_limit'];
                 $totalDuration += $limit;
             }
             $sessionStart = strtotime($ls['start_time']);
@@ -1183,7 +1190,7 @@ try {
             WHERE c.teacher_id = :tid
             ORDER BY lc.created_at DESC
         ");
-        $stmt->execute(['tid' => $teacherId]);
+        $stmt->execute(['tid' => $courseReadOnly ? (int)$selectedCourse['teacher_id'] : $teacherId]);   // read only: the owner's comments
         $courseComments = $stmt->fetchAll();
 
         // Charger les éléments de la bibliothèque du cours
@@ -1214,7 +1221,7 @@ try {
           AND c.teacher_id = :tid " . ($selectedCourse ? " AND c.id = " . (int)$selectedCourse['id'] : "") . "
         ORDER BY ch.sort_order ASC, ch.id ASC, l.sort_order ASC, l.id ASC
     ");
-    $asgLessonsStmt->execute(['tid' => $teacherId]);
+    $asgLessonsStmt->execute(['tid' => $courseReadOnly ? (int)$selectedCourse['teacher_id'] : $teacherId]);   // read only: the owner's assignments
     $configuredAssignmentLessons = $asgLessonsStmt->fetchAll(PDO::FETCH_ASSOC);
 
     $teacherAssignments = [];
@@ -1233,6 +1240,7 @@ try {
                 las.student_comment,
                 las.submitted_at,
                 las.is_late, las.attempt_count, las.score, las.feedback, las.graded_at, las.revision_requested_at, las.released_at, las.feedback_file_name,
+                las.in_marking_at, las.engine_at, las.engine_error, las.engine_score,
                 u.name AS student_name,
                 u.email AS student_email,
                 u.avatar_path AS student_avatar
@@ -1505,7 +1513,7 @@ $tdHasCourse = (bool)$selectedCourse;
                     <option value="0" <?= !$selectedCourse ? 'selected' : '' ?>><?= tde('course_choose') ?></option>
                     <?php foreach ($myCourses as $mc): ?>
                         <option value="<?= (int)$mc['id']; ?>" <?= ($selectedCourse && (int)$selectedCourse['id'] === (int)$mc['id']) ? 'selected' : ''; ?>>
-                            <?= htmlspecialchars($mc['title']); ?>
+                            <?= htmlspecialchars($mc['title']); ?><?= (int)$mc['teacher_id'] !== $teacherId ? ' · ' . htmlspecialchars((string)($mc['owner_name'] ?? '')) : '' ?>
                         </option>
                     <?php endforeach; ?>
                 </select>
@@ -1542,6 +1550,15 @@ $tdHasCourse = (bool)$selectedCourse;
                 <?php $navItem('tab-assignments', 'assign', td('nav_assign'), true, $tdNewSubs, true); ?>
                 <?php $navItem('tab-comments', 'qa', td('nav_qa'), true, $tdUnanswered + $tdReqOpen); ?>
             </nav>
+            <?php if (!empty($isSuperTeacher)):
+                $tdNewMaterial = 0;
+                try { $tdNewMaterial = (int)$pdo->query("SELECT COUNT(*) FROM material_submissions WHERE status = 'new'")->fetchColumn(); } catch (Throwable $e) {}
+            ?>
+            <nav class="t-nav-group">
+                <p><?= tde('nav_g_super') ?></p>
+                <a href="/teacher/contributions.php" class="sidebar-tab-btn"><?= tdIcon('library') ?><span><?= tde('nav_contrib') ?></span><?= $tdNewMaterial ? '<span class="t-badge">' . $tdNewMaterial . '</span>' : '' ?></a>
+            </nav>
+            <?php endif; ?>
             <nav class="t-nav-group">
                 <p><?= tde('nav_g_help') ?></p>
                 <?php $navItem('tab-help', 'help', td('nav_help'), false); ?>
@@ -1633,6 +1650,7 @@ $tdHasCourse = (bool)$selectedCourse;
                 'rubric_invalid'       => td('asg_rubric_err'),
                 'live_pace_code'       => td('pace_err_code'),
                 'live_code_needs_free' => td('pace_err_code_q'),
+                'read_only'            => td('ro_refused'),
                 'live_mode_window'     => td('mode_err_window'),
                 'live_mode_deadline'   => td('mode_err_deadline'),
             ];
@@ -1721,7 +1739,7 @@ $tdHasCourse = (bool)$selectedCourse;
                                         <a href="/teacher/dashboard.php?course_id=<?= $mid ?>"<?= !empty($mc['cover_image']) ? ' style="grid-template-columns:auto 1fr auto"' : '' ?>>
                                             <?php if (!empty($mc['cover_image'])): ?><img src="<?= htmlspecialchars(mediaUrl('cover', $mc['cover_image'])) ?>" alt="" loading="lazy" width="96" height="54" style="width:96px;height:54px;object-fit:cover;border-radius:8px;border:1px solid var(--line)"><?php endif; ?>
                                             <div>
-                                                <b><?= htmlspecialchars($mc['title']) ?></b><br>
+                                                <b><?= htmlspecialchars($mc['title']) ?></b><?php if ((int)$mc['teacher_id'] !== $teacherId): ?> <span class="t-chip" style="padding:0 .5rem;font-size:.75rem"><?= td('ro_chip', ['n' => htmlspecialchars((string)($mc['owner_name'] ?? ''))]) ?></span><?php endif; ?><br>
                                                 <span class="num"><?= td('n_learners', ['n' => $tdCourseStudents[$mid] ?? 0]) ?><?php if (!empty($tdCourseOpenQ[$mid])): ?> · <strong style="color:var(--clay)"><?= td('n_open_q', ['n' => $tdCourseOpenQ[$mid]]) ?></strong><?php endif; ?></span>
                                             </div>
                                             <span class="go"><?= tde('open') ?> →</span>
@@ -1785,6 +1803,11 @@ $tdHasCourse = (bool)$selectedCourse;
                     $tdItems[] = ['normal', td('att_final_short', ['n' => $finalExamQuestionCount]), td('att_final_short_sub'), td('att_finish'), "switchDashboardTab('tab-grades'); switchGradesSubTab('subtab-certs')"];
                 }
                 ?>
+                <?php if ($courseReadOnly): ?>
+                <div role="status" style="margin:0 0 1rem;padding:.75rem 1rem;border:1px solid var(--line);border-left:4px solid var(--clay);border-radius:10px;background:var(--card)">
+                    <strong><?= tde('ro_title') ?></strong> <?= td('ro_banner', ['n' => htmlspecialchars((string)($selectedCourse['owner_name'] ?? ''))]) ?>
+                </div>
+                <?php endif; ?>
                 <header class="t-head">
                     <div>
                         <p class="t-kicker"><?= tde('nav_today') ?></p>
@@ -2315,7 +2338,7 @@ $tdHasCourse = (bool)$selectedCourse;
                     ?>
                     <article class="t-room is-<?= $state ?>" id="room-<?= $sid ?>"
                              data-room data-id="<?= $sid ?>" data-state="<?= $state ?>" data-start="<?= $startTs ?>" data-now="<?= $tdNow ?>"
-                             data-async="<?= $isAsync ? 1 : 0 ?>" data-total="<?= $nQ ?>" data-paused="<?= $state === 'paused' ? 1 : 0 ?>">
+                             data-async="<?= $isAsync ? 1 : 0 ?>" data-total="<?= $nQ ?>" data-paused="<?= $state === 'paused' ? 1 : 0 ?>"<?= empty($ls['is_mine']) ? ' data-readonly="1" data-owner="' . htmlspecialchars((string)($ls['owner_name'] ?? ''), ENT_QUOTES) . '"' : '' ?>>
 
                         <div class="t-room-top">
                             <div style="min-width:0">
@@ -2493,17 +2516,8 @@ $tdHasCourse = (bool)$selectedCourse;
                                     <?php if (empty($ls['questions'])): ?>
                                         <p class="t-hint" style="margin-bottom:1rem;font-size:1rem"><?= tde('q_empty') ?></p>
                                     <?php else:
-                                        $timedQs = array_values(array_filter($ls['questions'], fn($qq) => ($qq['question_type'] ?? '') !== 'code'));
-                                        $missingTimes = count(array_filter($timedQs, fn($qq) => $qq['time_limit'] === null));
-                                        $timesModalId = 'times-modal-' . $sid;
-                                        $autoTimes = ($_GET['set_times'] ?? '') === '1' && (int)($_GET['open_session'] ?? 0) === $sid && $missingTimes > 0;
                                     ?>
-                                        <?php if ($timedQs): ?>
-                                        <div style="display:flex;align-items:center;gap:.75rem;flex-wrap:wrap;margin:0 0 1rem">
-                                            <button type="button" class="t-btn t-btn-ghost t-btn-sm" onclick="toggleModal('<?= $timesModalId ?>')"><?= tde('times_btn') ?></button>
-                                            <span class="t-hint"><?= $missingTimes > 0 ? td('times_missing', ['n' => $missingTimes, 'd' => (int)$ls['default_time_limit']]) : tde('times_all_set') ?></span>
-                                        </div>
-                                        <?php endif; ?>
+                                        <p class="t-hint" style="margin:0 0 1rem"><?= td('times_one_rule', ['n' => (int)$ls['default_time_limit']]) ?></p>
                                         <ol class="t-qlist" style="list-style:none;margin:0 0 1.5rem;padding:0;border-top:1px solid var(--line)">
                                             <?php foreach ($ls['questions'] as $qIdx => $q):
                                                 $qType = $q['question_type'] ?? 'mcq';
@@ -2526,7 +2540,7 @@ $tdHasCourse = (bool)$selectedCourse;
                                                             <?php else: ?>
                                                             <span><?= tde('q_answer') ?> <strong style="color:var(--ink)"><?= htmlspecialchars((string)$q['correct_option']) ?></strong></span>
                                                             <?php endif; ?>
-                                                            <?php if ($qType === 'code'): ?><span><?= tde('q_no_limit') ?></span><?php elseif ($q['time_limit']): ?><span class="num"><?= (int)$q['time_limit'] ?> s</span><?php endif; ?>
+                                                            <?php if ($qType === 'code'): ?><span><?= tde('q_no_limit') ?></span><?php endif; ?>
                                                             <?php if (!empty($q['explanation'])): ?><span><?= tde('q_explanation') ?> <?= htmlspecialchars($q['explanation']) ?></span><?php endif; ?>
                                                             <?php if ($q['image_path']): ?><a href="<?= htmlspecialchars(mediaUrl('live_question', (string)$q['image_path'])) ?>" target="_blank" rel="noopener" style="color:var(--clay)"><?= tde('q_image') ?></a><?php endif; ?>
                                                         </div>
@@ -2542,45 +2556,6 @@ $tdHasCourse = (bool)$selectedCourse;
                                                 </li>
                                             <?php endforeach; ?>
                                         </ol>
-                                        <?php if ($timedQs): ?>
-                                        <div id="<?= $timesModalId ?>" class="<?= $autoTimes ? '' : 'hidden ' ?>fixed inset-0 bg-black/40 z-[60] flex items-center justify-center p-6">
-                                            <form method="POST" action="/teacher/dashboard.php?course_id=<?= (int)$selectedCourse['id'] ?>&action=set_question_times" class="bg-[var(--card)] border border-[var(--line)] rounded-xl shadow-md w-full" style="max-width:46rem;max-height:90vh;display:flex;flex-direction:column">
-                                                <?= csrfInput(); ?>
-                                                <input type="hidden" name="session_id" value="<?= $sid ?>">
-                                                <div style="padding:1.25rem 1.5rem;border-bottom:1px solid var(--line)">
-                                                    <h3 class="font-serif text-2xl font-light"><?= tde('times_title') ?></h3>
-                                                    <p class="t-hint" style="margin-top:.4rem"><?= tde('times_lede') ?></p>
-                                                </div>
-                                                <div style="padding:1rem 1.5rem;overflow:auto;flex:1">
-                                                    <div style="display:flex;align-items:center;gap:.6rem;flex-wrap:wrap;margin-bottom:1rem">
-                                                        <label for="times-all-<?= $sid ?>" class="text-xs font-semibold"><?= tde('times_same') ?></label>
-                                                        <input type="number" min="5" max="3600" id="times-all-<?= $sid ?>" placeholder="60" style="width:6rem;padding:.35rem .5rem;border:1px solid var(--line);border-radius:8px;background:var(--card)">
-                                                        <button type="button" class="t-btn t-btn-ghost t-btn-sm" onclick="document.querySelectorAll('#<?= $timesModalId ?> input[data-empty-time]').forEach(function(i){ if(i.value==='') i.value=document.getElementById('times-all-<?= $sid ?>').value; })"><?= tde('times_apply') ?></button>
-                                                    </div>
-                                                    <div style="display:flex;align-items:center;gap:.6rem;flex-wrap:wrap;margin-bottom:1rem">
-                                                        <label for="times-mcq-<?= $sid ?>" class="text-xs font-semibold"><?= tde('times_mcq_same') ?></label>
-                                                        <input type="number" min="5" max="3600" id="times-mcq-<?= $sid ?>" placeholder="60" style="width:6rem;padding:.35rem .5rem;border:1px solid var(--line);border-radius:8px;background:var(--card)">
-                                                        <button type="button" class="t-btn t-btn-ghost t-btn-sm" onclick="var v=document.getElementById('times-mcq-<?= $sid ?>').value; if(v!==''){ document.querySelectorAll('#<?= $timesModalId ?> input[data-qtype=mcq]').forEach(function(i){ i.value=v; }); }"><?= tde('times_mcq_apply') ?></button>
-                                                    </div>
-                                                    <?php foreach ($ls['questions'] as $ti => $tq): $isCodeQ = ($tq['question_type'] ?? '') === 'code'; ?>
-                                                    <div style="display:grid;grid-template-columns:2rem 1fr 7rem;gap:.6rem;align-items:center;padding:.5rem 0;border-bottom:1px solid var(--line)">
-                                                        <span class="num" style="font-weight:600;color:var(--ink-3)"><?= $ti + 1 ?></span>
-                                                        <span style="min-width:0;font-size:.9rem;overflow:hidden;text-overflow:ellipsis;white-space:nowrap" title="<?= htmlspecialchars((string)$tq['question_text']) ?>"><?= htmlspecialchars(mb_strimwidth(preg_replace('/\s+/', ' ', (string)$tq['question_text']), 0, 90, '…')) ?></span>
-                                                        <?php if ($isCodeQ): ?>
-                                                            <span class="t-hint" style="font-size:.75rem"><?= tde('times_code_none') ?></span>
-                                                        <?php else: ?>
-                                                            <input type="number" min="5" max="3600" name="times[<?= (int)$tq['id'] ?>]" data-qtype="<?= htmlspecialchars((string)($tq['question_type'] ?? 'mcq')) ?>" value="<?= $tq['time_limit'] !== null ? (int)$tq['time_limit'] : '' ?>" placeholder="<?= (int)$ls['default_time_limit'] ?>" <?= $tq['time_limit'] === null ? 'data-empty-time' : '' ?> aria-label="<?= tde('q_duration') ?> <?= $ti + 1 ?>" style="width:100%;padding:.35rem .5rem;border:1px solid var(--line);border-radius:8px;background:var(--card)">
-                                                        <?php endif; ?>
-                                                    </div>
-                                                    <?php endforeach; ?>
-                                                </div>
-                                                <div style="padding:1rem 1.5rem;border-top:1px solid var(--line);display:flex;justify-content:flex-end;gap:.6rem">
-                                                    <button type="button" class="t-btn t-btn-ghost" onclick="toggleModal('<?= $timesModalId ?>')"><?= tde('times_later') ?></button>
-                                                    <button type="submit" class="t-btn t-btn-primary"><?= tde('times_save') ?></button>
-                                                </div>
-                                            </form>
-                                        </div>
-                                        <?php endif; ?>
                                     <?php endif; ?>
 
                                     <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(18rem,1fr));gap:2rem">
@@ -2636,11 +2611,6 @@ $tdHasCourse = (bool)$selectedCourse;
                                                     <select id="qc-<?= $sid ?>" name="correct_option" required>
                                                         <option value="A">A</option><option value="B">B</option><option value="C">C</option><option value="D">D</option>
                                                     </select>
-                                                </div>
-                                                <div class="t-field">
-                                                    <label for="qd-<?= $sid ?>"><?= tde('q_duration') ?></label>
-                                                    <input type="number" min="5" id="qd-<?= $sid ?>" name="time_limit">
-                                                    <span class="t-hint"><?= td('q_duration_hint', ['n' => (int)$ls['default_time_limit']]) ?></span>
                                                 </div>
                                             </div>
                                             <div class="t-field">
@@ -3047,6 +3017,11 @@ $tdHasCourse = (bool)$selectedCourse;
                                     $asgRubricN = count(AssignmentRubric::decode($lesAsg['assignment_rubric'] ?? null));
                                 ?>
                                 <div class="asg-tools">
+                                    <?php if (!$courseReadOnly): ?>
+                                        <a class="t-btn t-btn-primary" style="padding:.3rem .9rem" href="/teacher/marking.php?lesson_id=<?= (int)$lesAsg['id'] ?>"><?= tde('asg_bucket') ?><?php
+                                            $asgInBucket = count(array_filter($subs, fn($x) => !empty($x['in_marking_at']) && empty($x['graded_at'])));
+                                            if ($asgInBucket > 0): ?> · <?= $asgInBucket ?><?php endif; ?></a>
+                                    <?php endif; ?>
                                     <?php if ($asgRubricN): ?><span class="t-chip" style="padding:0 .6rem"><?= $asgRubricN ?> <?= $tdLang === 'en' ? 'criteria' : 'critère(s)' ?></span><?php endif; ?>
                                     <?php if ($asgManual): ?>
                                         <span class="t-chip" style="padding:0 .6rem"><?= tde('asg_mode_manual') ?></span>
@@ -3142,7 +3117,7 @@ $tdHasCourse = (bool)$selectedCourse;
                                                         </td>
                                                         <?php
                                                             $asgMax = (float)($lesAsg['assignment_max_score'] ?? 20);
-                                                            $asgStatus = !empty($asg['revision_requested_at']) && strtotime($asg['revision_requested_at']) >= strtotime($asg['submitted_at']) ? 'revision' : (!empty($asg['graded_at']) ? (empty($asg['released_at']) ? 'held' : 'graded') : 'submitted');
+                                                            $asgStatus = Assignments::pipeline($lesAsg, $asg);   // one status list (lib/Assignments.php)
                                                         ?>
                                                         <td class="py-3 px-4">
                                                             <span class="t-chip" style="padding:0 .5rem;white-space:nowrap"><?= tde('asg_st_' . $asgStatus) ?></span>
@@ -3712,12 +3687,27 @@ $tdHasCourse = (bool)$selectedCourse;
                     <span class="text-xs text-[var(--clay)]  font-semibold bg-[var(--pine-soft)]  px-2 py-0.5 rounded">PDF, DOCX (&le;20Mo) &amp; Liens</span>
                 </div>
 
-                <div id="assignment-config-fields" class="hidden space-y-3 pl-4 border-l-2 border-[var(--clay)] pt-1">
+                <div id="assignment-config-fields" class="hidden asg-form pl-4 border-l-2 border-[var(--clay)] pt-1">
+                    <fieldset class="asg-fs">
+                        <legend><?= tde('asg_fs_task') ?></legend>
                     <div>
                         <label class="block text-[11px] font-semibold text-[var(--ink-2)]  mb-1">Titre / Consigne rapide du devoir</label>
                         <input type="text" name="assignment_title" id="lesson-assignment-title" placeholder="ex: Exercice pratique 1 - Application web ou rapport PDF" class="w-full px-3 py-1.5 bg-[var(--paper-2)]  border border-[var(--line)]  text-xs focus:outline-none focus:border-[var(--clay)] rounded-sm ">
                     </div>
-                    <div class="grid grid-cols-1 md:grid-cols-2 gap-3">
+                    <div>
+                        <label class="block text-[11px] font-semibold text-[var(--ink-2)]  mb-1">Instructions détaillées &amp; Modalités de rendu</label>
+                        <textarea name="assignment_instructions" id="lesson-assignment-instructions" rows="4" placeholder="Expliquez l'exercice à accomplir (Markdown &amp; LaTeX supportés, ex: $E = mc^2$ ou **Consignes**), la nature des fichiers ou liens attendus..." class="w-full px-3 py-1.5 bg-[var(--paper-2)]  border border-[var(--line)]  text-xs focus:outline-none focus:border-[var(--clay)] rounded-sm num "></textarea>
+                        
+                        <!-- Zone d'aperçu en direct (Markdown & LaTeX) -->
+                        <div id="assignment-instructions-preview-wrapper" class="hidden mt-2 p-3 bg-[var(--paper-2)]  border border-[var(--line)]  rounded-sm">
+                            <div class="text-xs font-semibold   text-[var(--ink-3)] mb-1">Aperçu en direct (Markdown &amp; LaTeX) :</div>
+                            <div id="assignment-instructions-preview" class="text-xs text-[var(--ink-2)]  leading-relaxed space-y-2 math-render"></div>
+                        </div>
+                    </div>
+                    </fieldset>
+                    <fieldset class="asg-fs">
+                        <legend><?= tde('asg_fs_handin') ?></legend>
+                        <div class="grid grid-cols-1 md:grid-cols-2 gap-3">
                         <div>
                             <label class="block text-[11px] font-semibold text-[var(--ink-2)]  mb-1">Type de rendu exigé</label>
                             <select name="assignment_type" id="lesson-assignment-type" class="w-full px-3 py-1.5 bg-[var(--paper-2)]  border border-[var(--line)]  text-xs focus:outline-none focus:border-[var(--clay)] rounded-sm ">
@@ -3731,39 +3721,39 @@ $tdHasCourse = (bool)$selectedCourse;
                             <input type="text" name="allowed_file_types" id="lesson-allowed-file-types" value="pdf,docx" placeholder="ex: pdf, docx, md, zip" class="w-full px-3 py-1.5 bg-[var(--paper-2)]  border border-[var(--line)]  text-xs focus:outline-none focus:border-[var(--clay)] rounded-sm num ">
                             <p class="text-[11px] text-[var(--ink-3)] mt-0.5">Extensions séparées par des virgules (ex: pdf, docx, md, zip, txt)</p>
                         </div>
-                    </div>
-                    <div>
-                        <label class="block text-[11px] font-semibold text-[var(--ink-2)]  mb-1">Instructions détaillées &amp; Modalités de rendu</label>
-                        <textarea name="assignment_instructions" id="lesson-assignment-instructions" rows="4" placeholder="Expliquez l'exercice à accomplir (Markdown &amp; LaTeX supportés, ex: $E = mc^2$ ou **Consignes**), la nature des fichiers ou liens attendus..." class="w-full px-3 py-1.5 bg-[var(--paper-2)]  border border-[var(--line)]  text-xs focus:outline-none focus:border-[var(--clay)] rounded-sm num "></textarea>
-                        
-                        <!-- Zone d'aperçu en direct (Markdown & LaTeX) -->
-                        <div id="assignment-instructions-preview-wrapper" class="hidden mt-2 p-3 bg-[var(--paper-2)]  border border-[var(--line)]  rounded-sm">
-                            <div class="text-xs font-semibold   text-[var(--ink-3)] mb-1">Aperçu en direct (Markdown &amp; LaTeX) :</div>
-                            <div id="assignment-instructions-preview" class="text-xs text-[var(--ink-2)]  leading-relaxed space-y-2 math-render"></div>
                         </div>
-                    </div>
+                        <p class="asg-err" id="asg-err-formats" role="alert" hidden></p>
+                    </fieldset>
+                    <fieldset class="asg-fs">
+                        <legend><?= tde('asg_fs_deadline') ?></legend>
                     <div>
                         <label class="block text-[11px] font-semibold text-[var(--ink-2)]  mb-1">Date limite de rendu (Optionnelle)</label>
                         <input type="datetime-local" name="assignment_deadline" id="lesson-assignment-deadline" class="w-full px-3 py-1.5 bg-[var(--paper-2)]  border border-[var(--line)]  text-xs focus:outline-none focus:border-[var(--clay)] rounded-sm ">
                     </div>
-                    <input type="hidden" name="assignment_policy_sent" value="1">
-                    <div class="grid grid-cols-1 sm:grid-cols-2 gap-3">
-                        <div>
-                            <label class="block text-[11px] font-semibold text-[var(--ink-2)] mb-1" for="lesson-assignment-max"><?= tde('asg_f_max') ?></label>
-                            <input type="number" name="assignment_max_score" id="lesson-assignment-max" min="1" max="1000" step="0.5" value="20" class="w-full px-3 py-1.5 bg-[var(--paper-2)] border border-[var(--line)] text-xs focus:outline-none focus:border-[var(--clay)] rounded-sm">
-                        </div>
+                        <p class="asg-err" id="asg-err-deadline" role="alert" hidden><?= tde('asg_err_past') ?></p>
+                        <input type="hidden" name="assignment_policy_sent" value="1">
                         <div class="space-y-1.5 pt-1">
                             <label class="flex items-center gap-2 text-[11px] text-[var(--ink-2)] cursor-pointer"><input type="checkbox" name="assignment_allow_resubmit" id="lesson-assignment-resubmit" value="1" checked> <?= tde('asg_f_resubmit') ?></label>
                             <label class="flex items-center gap-2 text-[11px] text-[var(--ink-2)] cursor-pointer"><input type="checkbox" name="assignment_allow_late" id="lesson-assignment-late" value="1"> <?= tde('asg_f_late') ?></label>
                         </div>
-                    </div>
-                    <div>
+                        <p class="text-[11px] text-[var(--ink-3)]"><?= tde('asg_rule_lock') ?></p>
+                    </fieldset>
+                    <fieldset class="asg-fs">
+                        <legend><?= tde('asg_fs_marking') ?></legend>
+                        <div class="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                        <div>
+                            <label class="block text-[11px] font-semibold text-[var(--ink-2)] mb-1" for="lesson-assignment-max"><?= tde('asg_f_max') ?></label>
+                            <input type="number" name="assignment_max_score" id="lesson-assignment-max" min="1" max="1000" step="0.5" value="20" class="w-full px-3 py-1.5 bg-[var(--paper-2)] border border-[var(--line)] text-xs focus:outline-none focus:border-[var(--clay)] rounded-sm">
+                        </div>
+                        <div>
                         <label class="block text-[11px] font-semibold text-[var(--ink-2)] mb-1" for="lesson-assignment-release"><?= tde('asg_f_release') ?></label>
                         <select name="assignment_release_mode" id="lesson-assignment-release" class="w-full px-3 py-1.5 bg-[var(--paper-2)] border border-[var(--line)] text-xs focus:outline-none focus:border-[var(--clay)] rounded-sm">
                             <option value="immediate"><?= tde('asg_f_release_imm') ?></option>
                             <option value="manual"><?= tde('asg_f_release_man') ?></option>
                         </select>
                     </div>
+                        </div>
+                        <p class="asg-err" id="asg-err-max" role="alert" hidden><?= tde('asg_err_max') ?></p>
                     <div id="asg-rubric" class="asg-rb">
                         <div class="flex items-center justify-between gap-2">
                             <label class="block text-[11px] font-semibold text-[var(--ink-2)]"><?= tde('asg_rubric_title') ?></label>
@@ -3775,6 +3765,8 @@ $tdHasCourse = (bool)$selectedCourse;
                         <p id="asg-rubric-warn" class="text-[11px] text-[var(--ink-3)]" hidden><?= tde('asg_rubric_warn') ?></p>
                         <input type="hidden" name="assignment_rubric_json" id="lesson-assignment-rubric" value="">
                     </div>
+                        <p class="text-[11px] text-[var(--ink-3)]"><?= tde('asg_rules_hint') ?></p>
+                    </fieldset>
                 </div>
             </div>
 
@@ -4002,9 +3994,9 @@ $tdHasCourse = (bool)$selectedCourse;
             </div>
             
             <div>
-                <label class="block text-xs font-semibold text-[var(--ink-2)]   mb-2">Temps par question par défaut (secondes, facultatif)</label>
+                <label class="block text-xs font-semibold text-[var(--ink-2)]   mb-2">Temps par question (secondes)</label>
                 <input type="number" name="default_time_limit" id="edit-live-limit" placeholder="30" min="5" max="3600" class="w-full px-3 py-2 border border-[var(--line)] rounded-sm focus:outline-none focus:border-[var(--clay)] text-sm bg-[var(--card)]">
-                <p class="text-xs text-[var(--ink-3)] mt-1">Facultatif. S'applique seulement aux questions qui n'ont pas leur propre temps (colonne time_limit d'un fichier importé, ou champ « durée » d'une question). Vide : 30 s.</p>
+                <p class="text-xs text-[var(--ink-3)] mt-1">Le même temps pour chaque question de l'évaluation (sauf les questions de code, sans limite). Vide : 30 s.</p>
             </div>
             
             <fieldset class="space-y-2">
@@ -4160,6 +4152,11 @@ $tdHasCourse = (bool)$selectedCourse;
 .qx-actions .t-btn { padding: .4rem 1.1rem; }
 @media (prefers-reduced-motion: reduce) { .qx-card.qx-flash { animation: none; outline: 2px solid var(--clay); } }
 @media (max-width: 640px) { .qx-card.qx-card { padding: 1rem; } .qx-actions .t-btn { flex: 1; } }
+.asg-form { display: grid; gap: .9rem; }
+.asg-fs { border: 1px solid var(--line); border-radius: 10px; padding: .7rem .9rem .9rem; margin: 0; display: grid; gap: .7rem; min-width: 0; }
+.asg-fs legend { font-size: .78rem; font-weight: 700; letter-spacing: .04em; color: var(--ink); padding: 0 .35rem; }
+.asg-err { font-size: .78rem; color: var(--danger); margin: 0; }
+.asg-form .is-bad { border-color: var(--danger) !important; }
 .asg-tools { display: flex; flex-wrap: wrap; gap: .5rem; align-items: center; padding: .6rem 1.25rem; border-bottom: 1px solid var(--line); font-size: .85rem; }
 .asg-held { color: var(--ink-2); font-weight: 600; }
 .asg-sim { padding: .8rem 1.25rem; border-bottom: 1px solid var(--line); background: var(--paper); font-size: .88rem; }
@@ -4220,7 +4217,7 @@ try {
           AND EXISTS (SELECT 1 FROM live_eval_registrations r WHERE r.session_id = s.id)
           AND (
                 (s.is_async = 0 AND s.start_time + INTERVAL (
-                    SELECT COALESCE(SUM(COALESCE(q.time_limit, s.default_time_limit)), 0) FROM live_eval_questions q WHERE q.session_id = s.id
+                    SELECT COUNT(*) * s.default_time_limit FROM live_eval_questions q WHERE q.session_id = s.id
                 ) SECOND < NOW())
              OR (s.is_async = 1 AND s.async_deadline IS NOT NULL AND s.async_deadline < NOW())
           )
@@ -4323,9 +4320,9 @@ try {
             </div>
             
             <div>
-                <label class="block text-xs font-semibold text-[var(--ink-2)]    mb-2">Temps par question par défaut (secondes, facultatif)</label>
+                <label class="block text-xs font-semibold text-[var(--ink-2)]    mb-2">Temps par question (secondes)</label>
                 <input type="number" name="default_time_limit" placeholder="30" min="5" max="3600" class="w-full px-3 py-2 border border-[var(--line)]  rounded-lg focus:outline-none focus:border-[var(--clay)] text-sm bg-[var(--card)]  ">
-                <p class="text-xs text-[var(--ink-3)] mt-1">Facultatif. S'applique seulement aux questions qui n'ont pas leur propre temps (colonne time_limit d'un fichier importé, ou champ « durée » d'une question). Vide : 30 s.</p>
+                <p class="text-xs text-[var(--ink-3)] mt-1">Le même temps pour chaque question de l'évaluation (sauf les questions de code, sans limite). Vide : 30 s.</p>
             </div>
             
             <fieldset class="space-y-2">
@@ -4662,9 +4659,6 @@ function handleQuestionTypeChange(selectElement) {
         codeFields.querySelectorAll('.only-open').forEach(el => el.classList.toggle('hidden', type !== 'open'));
     }
 
-    const durationInput = form.querySelector('input[name=time_limit]');
-    const durationField = durationInput ? durationInput.closest('.t-field') : null;
-    if (durationField) durationField.classList.toggle('hidden', type === 'code');       // no time limit on a code question
     let noLimit = form.querySelector('.code-nolimit-note');
     if (type === 'code' && !noLimit && codeFields) {
         noLimit = document.createElement('p'); noLimit.className = 'code-nolimit-note t-hint'; noLimit.style.marginBottom = '.8rem';
@@ -4676,8 +4670,6 @@ function handleQuestionTypeChange(selectElement) {
         if (correctOptionContainer) {
             correctOptionContainer.innerHTML = '<input type="hidden" name="correct_option" value="CODE_OK">';
         }
-        const lim = form.querySelector('input[name=time_limit]');
-        if (lim && !lim.value) lim.placeholder = type === 'open' ? '240' : '300';
         return;
     }
     if (type === 'written') {
@@ -5074,6 +5066,31 @@ function openLessonModal(chapterId) {
     }
     toggleModal('lesson-modal');
 }
+
+// Assignment form: each field says what is wrong next to it, before anything is sent
+(function () {
+    const FORBIDDEN = ['php','phtml','phar','exe','dll','bat','cmd','com','sh','bash','msi','jar','vbs','scr','htaccess','svg'];
+    const msgs = <?= json_encode(['forbidden' => td('asg_err_forbidden'), 'empty' => td('asg_err_formats')], JSON_UNESCAPED_UNICODE) ?>;
+    const show = (input, errId, bad, text) => {
+        const e = document.getElementById(errId);
+        if (input) input.classList.toggle('is-bad', !!bad);
+        if (e) { e.hidden = !bad; if (text) e.textContent = text; }
+    };
+    const check = () => {
+        const fmt = document.getElementById('lesson-allowed-file-types');
+        if (fmt) {
+            const list = fmt.value.split(',').map(x => x.trim().toLowerCase().replace(/^\./, '')).filter(Boolean);
+            const bad = list.filter(x => FORBIDDEN.includes(x));
+            show(fmt, 'asg-err-formats', bad.length || !list.length, bad.length ? msgs.forbidden + ' ' + bad.join(', ') : msgs.empty);
+        }
+        const dl = document.getElementById('lesson-assignment-deadline');
+        if (dl) show(dl, 'asg-err-deadline', dl.value && new Date(dl.value) < new Date());
+        const mx = document.getElementById('lesson-assignment-max');
+        if (mx) { const v = parseFloat(mx.value); show(mx, 'asg-err-max', !mx.readOnly && (!(v >= 1) || v > 1000)); }
+    };
+    document.addEventListener('input', (e) => { if (e.target && e.target.closest && e.target.closest('#assignment-config-fields')) check(); });
+    document.addEventListener('change', (e) => { if (e.target && e.target.id === 'lesson-has-assignment') check(); });
+})();
 
 function toggleAssignmentFields(checked) {
     const fields = document.getElementById('assignment-config-fields');
@@ -6261,7 +6278,7 @@ document.addEventListener('DOMContentLoaded', () => {
                 
                 setTimeout(() => {
                     if (currentImportSessionId) {
-                        window.location.href = window.location.pathname + '?course_id=' + currentImportCourseId + '&open_session=' + currentImportSessionId + '&set_times=1#tab-live-eval';
+                        window.location.href = window.location.pathname + '?course_id=' + currentImportCourseId + '&open_session=' + currentImportSessionId + '#tab-live-eval';
                     } else if (currentImportLessonId) {
                         window.location.href = window.location.pathname + '?course_id=' + currentImportCourseId + '&open_lesson=' + currentImportLessonId + '#tab-course';
                     } else {
@@ -6868,5 +6885,29 @@ require_once __DIR__ . '/../lib/PhonePrompt.php';
 $phoneBlocks = PhonePrompt::render($user, $tdLang);
 require_once __DIR__ . '/../lib/Tour.php'; Tour::render('teacher', $tdLang, $phoneBlocks);
 ?>
+<script>
+// Read-only parts: another teacher's course (super teacher) and quizzes created by someone else. The server refuses these changes
+// anyway; this only greys the forms out so nobody fills one in for nothing.
+(function () {
+    var courseRo = <?= !empty($courseReadOnly) ? 'true' : 'false' ?>;
+    var quiz = <?= json_encode($tdQuizActions ?? []) ?>;
+    var roomLabel = <?= json_encode(td('ro_room'), JSON_UNESCAPED_UNICODE) ?>;
+    document.querySelectorAll('[data-readonly]').forEach(function (room) {
+        var p = document.createElement('p'); p.className = 't-hint'; p.style.margin = '.5rem 1rem';
+        p.textContent = roomLabel.replace('{n}', room.getAttribute('data-owner') || '');
+        room.insertBefore(p, room.firstChild);
+    });
+    document.querySelectorAll('form').forEach(function (f) {
+        if ((f.getAttribute('method') || 'get').toLowerCase() !== 'post') return;
+        var hidden = f.querySelector('input[name=action]');
+        var a = hidden ? hidden.value : (new URL(f.getAttribute('action') || location.href, location.href)).searchParams.get('action') || '';
+        var lock = f.closest('[data-readonly]') || (courseRo && a !== 'create_course' && quiz.indexOf(a) === -1);
+        if (!lock) return;
+        f.classList.add('is-readonly'); f.style.opacity = '.55';
+        f.querySelectorAll('input, select, textarea, button').forEach(function (el) { el.disabled = true; });
+        f.addEventListener('submit', function (e) { e.preventDefault(); });
+    });
+})();
+</script>
 </body>
 </html>
