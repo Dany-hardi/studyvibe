@@ -110,7 +110,7 @@ final class SiteChrome
         $cols = $en ? [
             'Platform' => [
                 ['/index.php#parcours', 'How it works'], ['/index.php#direct', 'Live evaluations'], ['/index.php#roles', 'Who it is for'],
-                ['/evaluations.php', 'Evaluations'], ['/verify.php', 'Verify a document'],
+                ['/evaluations.php', 'Evaluations'], ['/verify.php', 'Verify a document'], ['/contribute.php', 'Share course material'],
             ],
             'Resources' => [
                 ['/documentation.php', 'Documentation'], ['/documentation.php#students', 'Student guide'], ['/documentation.php#teachers', 'Teacher guide'],
@@ -123,7 +123,7 @@ final class SiteChrome
         ] : [
             'Plateforme' => [
                 ['/index.php#parcours', 'Le parcours'], ['/index.php#direct', 'Évaluations en direct'], ['/index.php#roles', 'Pour qui'],
-                ['/evaluations.php', 'Évaluations'], ['/verify.php', 'Vérifier un document'],
+                ['/evaluations.php', 'Évaluations'], ['/verify.php', 'Vérifier un document'], ['/contribute.php', 'Partager un support de cours'],
             ],
             'Ressources' => [
                 ['/documentation.php', 'Documentation'], ['/documentation.php#students', 'Guide de l’étudiant'], ['/documentation.php#teachers', 'Guide de l’enseignant'],

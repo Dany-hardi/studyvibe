@@ -126,7 +126,29 @@ check('the owner cannot delete the super teacher\'s quiz', $count("SELECT COUNT(
 $dash($jO, $courseA, ['action' => 'add_chapter', 'chapter_title' => 'ZZ owner chapter']);
 check('the owner still edits their own course', $count("SELECT COUNT(*) FROM chapters WHERE course_id = $courseA AND title = 'ZZ owner chapter'") === 1);
 
-foreach (['boss', 'owner', 'other'] as $n) { @unlink("$tmp/zz_super_$n"); }
+// ---- reaching it from the interface
+$pdo->prepare("INSERT INTO users (email,password,name,role,email_verified_at,is_active,is_approved,plan_id,tour_seen_at) VALUES (?,?,?,'promoter',NOW(),1,1,NULL,NOW())")
+    ->execute(["$tag.admin@test.local", password_hash($pw, PASSWORD_DEFAULT), 'ZZ Admin']);
+[$jA] = $login('admin');
+$pd = http($jA, $base, '/promoter/dashboard.php');
+check('the promoter menu links to the contributions', str_contains($pd['body'], 'href="/teacher/contributions.php"'));
+check('a teacher row offers "make super teacher", a super teacher row "make teacher again"',
+    preg_match('/data-id="' . $other . '"[^>]*data-acts="[^"]*promote/', $pd['body']) === 1 && preg_match('/data-id="' . $super . '"[^>]*data-acts="[^"]*demote/', $pd['body']) === 1);
+check('the promoter opens the contributions page', http($jA, $base, '/teacher/contributions.php')['code'] === 200);
+$mu = fn(string $jar, array $post) => json_decode(http($jar, $base, '/promoter/manage-user.php', $post)['body'], true) ?? [];
+check('a teacher cannot change roles', ($mu($jO, ['user_id' => $other, 'action' => 'make_super_teacher'])['success'] ?? true) === false);
+check('the promoter makes a teacher super teacher', ($mu($jA, ['user_id' => $other, 'action' => 'make_super_teacher'])['success'] ?? false) === true
+    && $pdo->query("SELECT role FROM users WHERE id = $other")->fetchColumn() === 'super_teacher');
+[$jX] = $login('other');
+check('who then sees every course', str_contains(http($jX, $base, "/teacher/dashboard.php?course_id=$courseA")['body'], 'ZZ super course A'));
+check('and back to teacher', ($mu($jA, ['user_id' => $other, 'action' => 'make_teacher'])['success'] ?? false) === true
+    && $pdo->query("SELECT role FROM users WHERE id = $other")->fetchColumn() === 'teacher');
+check('a student cannot be made super teacher', ($mu($jA, ['user_id' => $owner, 'action' => 'make_teacher'])['success'] ?? true) === false);
+$home = http("$tmp/zz_super_guest", $base, '/index.php');   // a visitor: a signed-in promoter is sent to their dashboard
+check('the public footer links to the course material form', str_contains($home['body'], 'href="/contribute.php"'));
+check('and the sitemap lists it', str_contains(http($jA, $base, '/sitemap.php')['body'], '/contribute.php'));
+
+foreach (['boss', 'owner', 'other', 'admin', 'guest'] as $n) { @unlink("$tmp/zz_super_$n"); }
 echo "super teacher: $passed passed, " . count($failed) . " failed\n";
 foreach ($failed as $f) { echo "  FAIL  $f\n"; }
 exit($failed ? 1 : 0);

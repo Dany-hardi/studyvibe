@@ -551,6 +551,9 @@ $JT = [
  'fr' => [
   'ok' => 'Opération effectuée.', 'err' => 'Une erreur est survenue.', 'net' => 'Erreur réseau : ',
   'm_approve' => 'Valider', 'm_contact' => 'Écrire', 'm_suspend' => 'Suspendre', 'm_reactivate' => 'Réactiver', 'm_delete' => 'Supprimer…',
+  'm_promote' => 'Passer super enseignant', 'm_demote' => 'Repasser enseignant',
+  'promote_t' => 'Faire de {name} un super enseignant ?', 'promote_p' => 'Un super enseignant voit tous les cours en lecture seule, crée ses propres quiz sur n’importe quel cours et reçoit les supports envoyés par le formulaire public. Il ne peut pas modifier le contenu des autres.', 'promote_b' => 'Passer super enseignant',
+  'demote_t' => 'Repasser {name} enseignant ?', 'demote_p' => 'Il ne verra plus que ses propres cours et n’aura plus accès aux contributions. Ses quiz restent les siens.', 'demote_b' => 'Repasser enseignant',
   'm_open' => 'Ouvrir la page publique', 'm_copy' => 'Copier le code', 'm_revoke_cert' => 'Révoquer le certificat…',
   'm_postpone' => 'Reporter', 'm_cancel_session' => 'Annuler la séance…',
   'copied' => 'Copié.', 'cancel' => 'Annuler', 'confirm' => 'Confirmer', 'sending' => 'Envoi en cours…',
@@ -591,6 +594,9 @@ $JT = [
  'en' => [
   'ok' => 'Done.', 'err' => 'Something went wrong.', 'net' => 'Network error: ',
   'm_approve' => 'Approve', 'm_contact' => 'Write', 'm_suspend' => 'Suspend', 'm_reactivate' => 'Reactivate', 'm_delete' => 'Delete…',
+  'm_promote' => 'Make super teacher', 'm_demote' => 'Make teacher again',
+  'promote_t' => 'Make {name} a super teacher?', 'promote_p' => 'A super teacher sees every course read-only, creates their own quizzes on any course and receives the material sent through the public form. They cannot change other teachers\' content.', 'promote_b' => 'Make super teacher',
+  'demote_t' => 'Make {name} a teacher again?', 'demote_p' => 'They will only see their own courses and lose access to contributions. Their quizzes stay theirs.', 'demote_b' => 'Make teacher again',
   'm_open' => 'Open public page', 'm_copy' => 'Copy code', 'm_revoke_cert' => 'Revoke certificate…',
   'm_postpone' => 'Reschedule', 'm_cancel_session' => 'Cancel session…',
   'copied' => 'Copied.', 'cancel' => 'Cancel', 'confirm' => 'Confirm', 'sending' => 'Sending…',
@@ -750,6 +756,7 @@ function pm_chips(array $u, callable $t): string {
       <li><a href="#tab-live" data-tab="tab-live"><span><?= $t('nav_live') ?></span></a></li>
       <li><a href="#tab-certificates" data-tab="tab-certificates"><span><?= $t('nav_certs') ?></span><?php if (count($awaitingCerts) > 0): ?><span class="pm-count num"><?= count($awaitingCerts) ?></span><?php endif; ?></a></li>
       <li><a href="#tab-communications" data-tab="tab-communications"><span><?= $t('nav_msgs') ?></span></a></li>
+      <li><a href="/teacher/contributions.php"><span><?= $lang === 'en' ? 'Contributions' : 'Contributions' ?></span><?php try { $matNew = (int)$pdo->query("SELECT COUNT(*) FROM material_submissions WHERE status = 'new'")->fetchColumn(); } catch (Throwable $e) { $matNew = 0; } if ($matNew > 0): ?><span class="pm-count num"><?= $matNew ?></span><?php endif; ?></a></li>
       <li><a href="/promoter/careers/" title="<?= $h($PI['nav_careers_hint']) ?>"><span><?= $h($PI['nav_careers']) ?></span><?php $careersNew = Careers::newCount($pdo); if ($careersNew > 0): ?><span class="pm-count num"><?= $careersNew ?></span><?php endif; ?></a></li>
     </ul>
     <p class="pm-rail-g"><?= $h($PI['nav_g_system']) ?></p>
@@ -914,6 +921,8 @@ function pm_chips(array $u, callable $t): string {
             $acts = [];
             if ($isPending) $acts[] = 'approve';
             if ($u['role'] === 'student') $acts[] = 'contact';
+            if ($u['role'] === 'teacher' && !$isPending) $acts[] = 'promote';      // make them a super teacher
+            if ($u['role'] === 'super_teacher') $acts[] = 'demote';
             if (!$isSelf) { $acts[] = $isActive ? 'suspend' : 'reactivate'; $acts[] = 'delete'; }
         ?>
           <tr data-user="<?= (int)$u['id'] ?>" data-role="<?= $h($u['role']) ?>" data-st="<?= $h($stAll) ?>" data-active="<?= $isActive ?>" data-pending="<?= $isPending ? 1 : 0 ?>" data-self="<?= $isSelf ? 1 : 0 ?>" data-q="<?= $h(mb_strtolower($u['name'] . ' ' . $u['email'])) ?>">

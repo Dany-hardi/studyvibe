@@ -131,7 +131,7 @@ $inv = static fn(string $k) => isset($errors[$k]) ? ' invalid" aria-invalid="tru
 <!DOCTYPE html>
 <html lang="<?= $lang ?>">
 <head>
-<?= SiteChrome::head(['title' => $L['title'] . ' — StudyVibe', 'desc' => $L['lede']]) ?>
+<?= SiteChrome::head(['title' => $L['title'] . ' — StudyVibe', 'desc' => $L['lede'], 'path' => '/contribute.php']) ?>
 <style>
   .mt-wrap { max-width: 44rem; margin: 0 auto; padding: 2.5rem 1rem 4rem; }
   .mt-kicker { color: var(--clay); font-weight: 600; letter-spacing: .06em; text-transform: uppercase; font-size: .8rem; margin: 0; }

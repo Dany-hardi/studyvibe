@@ -24,6 +24,22 @@ if (session_status() === PHP_SESSION_NONE && !headers_sent()) {
     @session_start();
 }
 
+// A teacher's role can be changed by a promoter (teacher <-> super teacher): the session follows within a minute, without signing in
+// again. A suspended or deleted account is not touched here (its own checks handle it).
+if (isset($_SESSION['user_id'], $_SESSION['user_role']) && in_array($_SESSION['user_role'], ['teacher', 'super_teacher'], true)
+    && (time() - (int)($_SESSION['role_checked_at'] ?? 0)) >= 60) {
+    try {
+        $svRole = Database::getInstance()->prepare("SELECT role FROM users WHERE id = :id");
+        $svRole->execute(['id' => (int)$_SESSION['user_id']]);
+        $svRole = $svRole->fetchColumn();
+        if (in_array($svRole, ['teacher', 'super_teacher'], true)) {
+            $_SESSION['user_role'] = $svRole;
+        }
+        $_SESSION['role_checked_at'] = time();
+    } catch (Throwable $e) { /* keep the session as it is */ }
+    unset($svRole);
+}
+
 // Load localization and translation translation service
 require_once __DIR__ . '/lib/TranslationService.php';
 TranslationService::init();

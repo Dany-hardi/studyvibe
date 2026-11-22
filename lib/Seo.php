@@ -96,6 +96,7 @@ final class Seo
             '/careers.php'      => ['0.6', 'weekly'],
             '/documentation.php' => ['0.6', 'monthly'],
             '/verify.php'       => ['0.4', 'yearly'],
+            '/contribute.php'   => ['0.5', 'monthly'],
             '/privacy.php'      => ['0.3', 'yearly'],
             '/terms.php'        => ['0.3', 'yearly'],
         ];

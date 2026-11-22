@@ -157,7 +157,7 @@ header('Cache-Control: no-store');
 </head>
 <body>
 <main>
-  <a href="/teacher/dashboard.php"><?= $h($T['back']) ?></a>
+  <a href="<?= ($_SESSION['user_role'] ?? '') === 'promoter' ? '/promoter/dashboard.php' : '/teacher/dashboard.php' ?>"><?= $h($T['back']) ?></a>
   <h1><?= $h($T['title']) ?></h1>
   <p class="sub"><?= $h($T['lede']) ?></p>
   <p class="sub"><?= $h($T['link']) ?> <a href="/contribute.php" target="_blank" rel="noopener"><code><?= $h($publicUrl) ?></code></a></p>

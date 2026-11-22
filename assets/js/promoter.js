@@ -276,7 +276,7 @@
   function userAction(id, act, name) {
     if (act === 'contact') { $('#dm-student-id').value = id; $('#dm-student-name').value = name; openDlg('direct-message-modal'); return; }
     if (act === 'delete') { deleteFlow(id, name); return; }
-    var map = { approve: 'approve', suspend: 'toggle_active', reactivate: 'toggle_active', delete: 'delete' };
+    var map = { approve: 'approve', suspend: 'toggle_active', reactivate: 'toggle_active', delete: 'delete', promote: 'make_super_teacher', demote: 'make_teacher' };
     var o = { title: tpl(T[act + '_t'], { name: name }), body: tpl(T[act + '_p'], { name: name }), label: T[act + '_b'], danger: act === 'delete' };
     if (act === 'delete') o.phrase = T.phrase;
     confirmDlg(o).then(function (ok) {

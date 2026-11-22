@@ -87,6 +87,23 @@ try {
         ]);
         exit;
 
+    } elseif ($action === 'make_super_teacher' || $action === 'make_teacher') {
+        // Teacher <-> super teacher. Nothing else changes: courses, quizzes and marks stay with the account.
+        $from = $action === 'make_super_teacher' ? 'teacher' : 'super_teacher';
+        $to = $action === 'make_super_teacher' ? 'super_teacher' : 'teacher';
+        if ($targetUser['role'] !== $from) {
+            echo json_encode(['success' => false, 'message' => $to === 'super_teacher' ? 'Seul un enseignant peut devenir super enseignant.' : 'Ce compte n’est pas super enseignant.']);
+            exit;
+        }
+        $pdo->prepare("UPDATE users SET role = :r WHERE id = :id")->execute(['r' => $to, 'id' => $userId]);
+        auditLog('user_role_changed', "User #{$userId} {$targetUser['email']}: {$from} -> {$to}");
+        try {
+            Notifications::send($pdo, $userId, 'account', $to === 'super_teacher' ? 'Vous êtes super enseignant' : 'Votre rôle a changé',
+                $to === 'super_teacher' ? 'Vous voyez désormais tous les cours en lecture seule et les contributions.' : 'Vous êtes de nouveau enseignant.', '/teacher/dashboard.php');
+        } catch (Throwable $e) { /* the change is made even if the notice fails */ }
+        echo json_encode(['success' => true, 'role' => $to, 'message' => $to === 'super_teacher' ? 'Le compte est maintenant super enseignant.' : 'Le compte est de nouveau enseignant.']);
+        exit;
+
     } elseif ($action === 'impact') {
         // What deleting this account would take with it (for the confirmation window)
         echo json_encode(['success' => true, 'impact' => AdminUsers::impact($pdo, $userId)], JSON_UNESCAPED_UNICODE);
