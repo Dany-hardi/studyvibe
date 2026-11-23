@@ -20,27 +20,36 @@ That's fine for one server. Before running two servers behind a load balancer, b
 
 ### Why Render fails on Orange
 
-Most likely the Orange network blocks or badly routes the `*.onrender.com` addresses (shared IPs, DNS). This happens with several US hosts. Two fixes, from cheapest to best:
+Not proven yet. There is no public report of `*.onrender.com` being blocked on Orange Cameroon, but there are reports of Render failing on some networks elsewhere (Nigeria, PLDT in the Philippines, some institution Wi-Fi). So the first step is a test, not a move: from an Orange SIM, open the app on the Render address, then on a domain behind Cloudflare, and compare (and with another operator or a VPN).
 
-**Quick fix (today, free):** buy a domain (`studyvibe.cm` or a `.com`, about 10–15 USD/year), put it on **Cloudflare (free plan)** with the orange cloud (proxy) on, and point it at Render. Students then reach Cloudflare's network, which has points of presence in Africa and is reachable on Orange, MTN and Camtel. Test on an Orange SIM before doing anything else. If it works, you buy time for the real move.
+One limit no host can fix: when the authorities restrict the internet (as on Orange and Camtel during the November 2025 election protests), every site is affected.
 
-**Real move (recommended):**
+### The plan (prices checked 23 November 2026)
 
-| Stage | App | Database | Files | Cost |
+| Stage | Where | Database | Files and backups | Cost |
 |---|---|---|---|---|
-| **Start (free)** | **Oracle Cloud Always Free** VM, Johannesburg region (ARM, up to 4 cores / 24 GB RAM), Docker image as is | MySQL 8 on the same VM, daily dump to R2 | Local disk, backed up to **Cloudflare R2** (10 GB free) | 0 + domain |
-| **Level up (~10–25 USD/month)** | **Hetzner** CX22/CX32 or **DigitalOcean / Vultr** droplet (Vultr has Johannesburg) | **DigitalOcean Managed MySQL** (15 USD) or keep Aiven MySQL if latency is fine | Cloudflare R2 | ~20 USD |
-| **Peak traffic (exam season)** | 2+ app servers behind **Cloudflare Load Balancing** or a Hetzner Load Balancer (~6 USD) | Managed MySQL with a read replica | R2 | ~50–80 USD |
+| **0. This week** | Still Render, behind a `.com` on **Cloudflare** (proxy on) | Aiven, as now | as now | about 10.50 USD a year |
+| **1. Free** | **Oracle Cloud Always Free**, ARM, 2 cores / 12 GB RAM / 200 GB disk, home region Johannesburg; the same Docker image built for ARM; **Cloudflare Tunnel** so no port is open | MySQL 8 on the same server | nightly `mysqldump` to **Cloudflare R2** (10 GB free) | 0 |
+| **1b. If Oracle refuses** | **Vultr Johannesburg**, 2 GB plan (1 GB is too small for MySQL + LaTeX) | MySQL on the server | R2 | about 12–18 USD a month |
+| **2. Real usage** | **Vultr Johannesburg**, 2–4 GB | on the server, or Vultr managed MySQL | R2 | about 20–40 USD a month |
+| **3. Exam peaks** | 2 servers behind Cloudflare or Vultr load balancing | managed MySQL with a read copy | uploads on R2 | depends on traffic |
 
-In every stage: **Cloudflare in front** (DNS, HTTPS, caching of `assets/`, DDoS protection). That's the piece that solves the Orange problem, whatever is behind it.
+Cloudflare stays in front at every stage (DNS, HTTPS, cache of `assets/`, protection), because that's the piece most likely to fix the Orange problem.
 
-Notes on each:
-- **Oracle Free**: the best free hardware there is, and Johannesburg is close. Downsides: sign-up asks for a card (no charge), and idle free VMs can be reclaimed, so keep it busy and keep backups.
-- **Aiven**: the database wasn't the problem. You can keep it while moving the app, then bring MySQL closer later. Aiven's free MySQL is small though (1 GB-ish), so watch storage.
-- **AWS Cape Town (af-south-1)** is the closest big cloud to Cameroon but costs more and the free tier is limited. Good later, not now.
-- Avoid moving to Postgres-only hosts (Neon, Supabase): the code is MySQL (`pdo_mysql`, MySQL syntax, `GET_LOCK`).
+**Notes:**
+- **Domain:** a `.com` at Cloudflare Registrar is sold at cost, about 10.50 USD a year, same price at renewal. `.cm` costs 85–125 USD a year at most registrars; `.com.cm` is about 21 USD. Take the `.com` now, add a Cameroon name later if wanted.
+- **Oracle Free changed:** since 18 August 2026 the free ARM allowance is 2 cores and 12 GB (it was 4 and 24). Still enough for the app, MySQL and the workers. Sign-up asks for a card (no charge). The home region can't be changed later, and Johannesburg sometimes has no free ARM capacity (creating the server then fails). A free server that stays almost idle for 7 days can be taken back: keep the nightly backups so it can be rebuilt in an hour.
+- **Hetzner dropped:** prices went up twice in 2026 (April and June) and new customers face limited provisioning. Its servers are in Europe anyway.
+- **DigitalOcean dropped:** no region in Africa.
+- **Fly.io:** has Johannesburg and runs Docker, but no free tier, prices that are hard to predict, and MySQL is awkward there. Not chosen.
+- **AWS Cape Town:** the closest big cloud, but costly for this stage.
+- **Shared hosting** (Hostinger, LWS, o2switch): still no, no LaTeX and no long workers.
+- **Stay on MySQL:** the code uses MySQL syntax and `GET_LOCK`; Postgres-only hosts (Neon, Supabase) are out.
+- **Before stage 3:** sessions must leave the server's disk (database or Redis) and uploads must go to R2 (order of work, step 9).
 
-**My pick:** domain + Cloudflare this week, then Oracle Free VM (Johannesburg) running the same Docker image with MySQL on the box, backups to R2. Move to Hetzner/DigitalOcean + managed MySQL once real usage comes in.
+**My pick:** stage 0 this week and the Orange test, then Oracle Free in Johannesburg with MySQL on the box and backups to R2, then Vultr Johannesburg once real users come in.
+
+Sources (checked 23 November 2026): Oracle free tier [docs](https://docs.oracle.com/en-us/iaas/Content/FreeTier/resourceref.htm) and [the August cut](https://news.ycombinator.com/item?id=49183750); [Hetzner 2026 prices](https://northflank.com/blog/hetzner-cloud-server-price-increases); [Vultr Johannesburg listings](https://valebyte.com/en/vps/south-africa/?provider=vultr) (confirm on vultr.com); [Cloudflare Registrar](https://developers.cloudflare.com/registrar); [.com.cm](https://www.101domain.com/com_cm.htm) and [.cm](https://www.netim.com/en/domain-name/cm-domain) prices; [Render network issue reports](https://community.render.com/t/solved-infinite-loading-for-all-of-our-services-in-frankfurt-region-from-nigeria/4626); [OONI Cameroon](https://explorer.ooni.org/findings/393608039300).
 
 ---
 
@@ -198,14 +207,14 @@ In order, each step is worth doing on its own:
 
 | Step | What | Depends on |
 |---|---|---|
-| 1 | Domain + Cloudflare, test on Orange | nothing |
+| 1 | `.com` on Cloudflare in front of Render, test on Orange | nothing |
 | 2 | Quiz timer simplification (**done**) | nothing |
 | 3 | Super teacher role + permission helper + tests (**done**) | nothing |
 | 4 | Material submission form + Contributions tab (**done**) | 3 |
 | 5 | Assignment statuses, lock rule, grading bucket (**done**) | nothing |
 | 6 | Marking engine (rules, key points, similarity, feedback tone) + reliability stats (**done**) | 5 |
 | 7 | Forms rework (assignments) + Notes tab (**done**; exercises are the lesson quizzes, unchanged) | 5 |
-| 8 | Move to the new server (Oracle Free), backups | 1 |
+| 8 | Move to Oracle Free (Johannesburg), MySQL on the box, nightly backups to R2; Vultr Johannesburg if Oracle refuses | 1 |
 | 9 | Sessions/uploads out of the box, workers apart, load test | 8 |
 
 Each step ships on its own, with tests, and one commit (or a few) per step.
